@@ -32,16 +32,6 @@ relationships:
 
 Driver's license held by the Party
 
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Identity | No |  |
-| 2 | license_number | text |  | No |  |
-| 3 | issuing_state | text |  | No |  |
-| 4 | issued_on | date | — | No |  |
-| 5 | expires_on | date | — | No |  |
-
 ## Constraints
 
 - **license expires after issued**: Expiration date must fall after the issue date

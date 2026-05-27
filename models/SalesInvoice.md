@@ -12,6 +12,7 @@ columns:
     type: integer
   issued_at:
     type: datetime
+    default: now
   total:
     type: decimal
 relationships:
@@ -25,15 +26,6 @@ relationships:
 # SalesInvoice
 
 An invoice issued to a Party for outstanding amounts
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Party | No |  |
-| 2 | sales_invoice_id | integer | PK | No |  |
-| 3 | issued_at | datetime | — | No | Default: now |
-| 4 | total | decimal | — | No |  |
 
 ## Constraints
 

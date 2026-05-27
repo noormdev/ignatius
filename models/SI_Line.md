@@ -45,17 +45,6 @@ relationships:
 
 A line item on a SalesInvoice — exclusively a subscription or a product
 
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → SalesInvoice | No |  |
-| 2 | sales_invoice_id | integer | PK, FK → SalesInvoice | No |  |
-| 3 | line_seq | integer | PK | No |  |
-| 4 | type | text | FK → LineItemType | No |  |
-| 5 | qty | integer | — | No |  |
-| 6 | unit_price | decimal | — | No |  |
-
 ## Subtypes
 
 Each line is exactly one of: subscription or product

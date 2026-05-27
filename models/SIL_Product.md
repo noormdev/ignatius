@@ -33,12 +33,3 @@ relationships:
 # SIL Product
 
 A SalesInvoice line for a Product
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → SI_Line | No |  |
-| 2 | sales_invoice_id | integer | PK, FK → SI_Line | No |  |
-| 3 | line_seq | integer | PK, FK → SI_Line | No |  |
-| 4 | product_id | integer | FK → Product | No |  |

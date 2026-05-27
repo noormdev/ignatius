@@ -27,12 +27,6 @@ relationships:
 
 Container for the ID documents a Party holds — 1:1 with Party
 
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Party | No |  |
-
 ## Subtypes
 
 A Party may hold any combination of these — inclusive, existence-based

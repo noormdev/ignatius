@@ -33,12 +33,3 @@ relationships:
 # SOL Subscription
 
 A SalesOrder line for a Subscription
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → SO_Line | No |  |
-| 2 | sales_order_id | integer | PK, FK → SO_Line | No |  |
-| 3 | line_seq | integer | PK, FK → SO_Line | No |  |
-| 4 | subscription_id | integer | FK → Subscription | No |  |

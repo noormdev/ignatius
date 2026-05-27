@@ -26,13 +26,3 @@ relationships:
 # Passport
 
 Passport held by the Party
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Identity | No |  |
-| 2 | passport_number | text | — | No |  |
-| 3 | issuing_country | text | — | No |  |
-| 4 | issued_on | date | — | No |  |
-| 5 | expires_on | date | — | No |  |

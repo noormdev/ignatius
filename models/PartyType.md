@@ -15,13 +15,6 @@ columns:
 
 Whether a Party is a Business or a Person
 
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | code | text | PK | No |  |
-| 2 | description | text | — | No |  |
-
 ## Values
 
 - `BUSINESS` — Legal business entity (corp, LLC, partnership)

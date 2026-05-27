@@ -20,10 +20,3 @@ relationships:
 # ITIN
 
 US Individual Taxpayer Identification Number held by the Party
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Identity | No |  |
-| 2 | itin | text | — | No |  |

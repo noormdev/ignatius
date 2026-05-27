@@ -12,7 +12,7 @@ type ModelNode = {
   classification: string;
   group?: string;
   pk: string[];
-  columns: Record<string, { type: string; nullable?: boolean }>;
+  columns: Record<string, { type: string; nullable?: boolean; desc?: string; default?: string }>;
   alternateKeys: { rule: string; columns: string[] }[];
   bodyHtml: string;
 };
@@ -174,6 +174,77 @@ function lighten(hex: string): string {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
+function ColumnsTable({ node, edges, onNavigate }: {
+  node: ModelNode;
+  edges: ModelEdge[];
+  onNavigate: (entityId: string) => void;
+}) {
+  const fkTargets: Record<string, string> = {};
+  for (const edge of edges) {
+    if (edge.source === node.id) {
+      for (const childCol of Object.keys(edge.on)) {
+        fkTargets[childCol] = edge.target;
+      }
+    }
+  }
+
+  const cols = Object.entries(node.columns);
+  if (cols.length === 0) return null;
+
+  function renderRoles(name: string) {
+    const parts: (string | JSX.Element)[] = [];
+    if (node.pk.includes(name)) parts.push('PK');
+    if (fkTargets[name]) {
+      const target = fkTargets[name];
+      parts.push(
+        <span key="fk">
+          FK →{' '}
+          <a className="fk-link" onClick={() => onNavigate(target)}>
+            {target}
+          </a>
+        </span>
+      );
+    }
+    for (const ak of node.alternateKeys) {
+      if (ak.columns.includes(name)) parts.push('AK');
+    }
+    if (parts.length === 0) return '—';
+    return parts.map((p, i) => (
+      <span key={i}>{i > 0 ? ', ' : ''}{p}</span>
+    ));
+  }
+
+  return (
+    <div className="doc-section">
+      <h2>Attributes</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Attribute</th>
+            <th>Type</th>
+            <th>Key</th>
+            <th>Null</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cols.map(([name, col]) => (
+            <tr key={name}>
+              <td><code>{name}</code></td>
+              <td>{col.type}</td>
+              <td>{renderRoles(name)}</td>
+              <td>{col.nullable ? 'Yes' : 'No'}</td>
+              <td>{col.default ?? ''}</td>
+              <td>{col.desc ?? ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function App() {
   const graphRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -323,50 +394,59 @@ export function App() {
 
   return (
     <div className="app">
-      <div className="graph-panel" ref={graphRef} />
-      <div className={`doc-panel ${selected ? 'open' : ''}`}>
-        {selected ? (
-          <>
-            <div className="doc-header">
-              <span className={`badge ${selected.classification.toLowerCase()}`}>
-                {selected.classification}
-              </span>
-              {selected.group && model?.groups[selected.group] && (
-                <span
-                  className="badge"
-                  style={{
-                    background: hexToRgba(model.groups[selected.group].color, 0.2),
-                    color: model.groups[selected.group].color,
-                  }}
-                >
-                  {model.groups[selected.group].label}
+      <div className="graph-panel" ref={graphRef}>
+        {groupEntries.length > 0 && (
+          <div className="legend">
+            {groupEntries.map(([name, cfg]) => (
+              <div key={name} className="legend-item">
+                <span className="legend-swatch" style={{ background: cfg.color }} />
+                <span>{cfg.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {selected && (
+        <div className="modal-backdrop" onClick={() => setSelected(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelected(null)}>×</button>
+            <div className="modal-header">
+              <h1>{selected.id.replace(/_/g, ' ')}</h1>
+              <div className="modal-badges">
+                <span className={`badge ${selected.classification.toLowerCase()}`}>
+                  {selected.classification}
                 </span>
-              )}
-              <span className="pk-label">
-                PK: {selected.pk.join(', ')}
-              </span>
+                {selected.group && model?.groups[selected.group] && (
+                  <span
+                    className="badge"
+                    style={{
+                      background: hexToRgba(model.groups[selected.group].color, 0.2),
+                      color: model.groups[selected.group].color,
+                    }}
+                  >
+                    {model.groups[selected.group].label}
+                  </span>
+                )}
+                <span className="pk-label">
+                  PK: {selected.pk.join(', ')}
+                </span>
+              </div>
             </div>
+            <ColumnsTable
+              node={selected}
+              edges={model?.edges ?? []}
+              onNavigate={(id) => {
+                const target = model?.nodes.find(n => n.id === id);
+                if (target) setSelected(target);
+              }}
+            />
             <div
               className="doc-body"
               dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
             />
-          </>
-        ) : (
-          <div className="doc-empty">
-            {groupEntries.length > 0 && (
-              <div className="legend">
-                {groupEntries.map(([name, cfg]) => (
-                  <div key={name} className="legend-item">
-                    <span className="legend-swatch" style={{ background: cfg.color }} />
-                    <span>{cfg.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p>Click an entity to view its documentation</p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

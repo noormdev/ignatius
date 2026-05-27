@@ -3,7 +3,7 @@ import MarkdownIt from 'markdown-it';
 
 const md = new MarkdownIt();
 
-type ColumnDef = { type: string; nullable?: boolean };
+type ColumnDef = { type: string; nullable?: boolean; desc?: string; default?: string };
 
 type SubtypeClusterDef = {
   exclusive: boolean;

@@ -20,10 +20,3 @@ relationships:
 # SSN
 
 US Social Security Number held by the Party
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Identity | No |  |
-| 2 | ssn | text | — | No |  |

@@ -26,11 +26,3 @@ relationships:
 # Business
 
 Party that is a legal business entity
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Party | No |  |
-| 2 | legal_name | text | — | No |  |
-| 3 | tax_id | text |  | No |  |

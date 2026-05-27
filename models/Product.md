@@ -22,12 +22,3 @@ ak:
 # Product
 
 A sellable physical or one-time item
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | product_id | integer | PK | No |  |
-| 2 | sku | text |  | No |  |
-| 3 | name | text | — | No |  |
-| 4 | list_price | decimal | — | No |  |

@@ -159,10 +159,12 @@ for (const [name, entity] of Object.entries(allEntities)) {
   const group = deriveGroup(name, entity, classification, allEntities);
 
   // Build columns for frontmatter (type + nullable only)
-  const fmColumns: Record<string, { type: string; nullable?: boolean }> = {};
+  const fmColumns: Record<string, Record<string, unknown>> = {};
   for (const [colName, col] of Object.entries(columns)) {
-    const entry: { type: string; nullable?: boolean } = { type: col.type };
+    const entry: Record<string, unknown> = { type: col.type };
     if (col.nullable) entry.nullable = true;
+    if (col.default) entry.default = String(col.default);
+    if (col.desc) entry.desc = col.desc;
     fmColumns[colName] = entry;
   }
 
@@ -207,11 +209,6 @@ for (const [name, entity] of Object.entries(allEntities)) {
     lines.push(desc);
     lines.push('');
   }
-
-  lines.push('## Attributes');
-  lines.push('');
-  lines.push(buildColumnsTable(columns, pk, aks, flatRels));
-  lines.push('');
 
   if (subtypeClusters) {
     lines.push('## Subtypes');

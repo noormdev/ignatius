@@ -42,17 +42,6 @@ relationships:
 
 Allocation of part or all of a confirmed Payment to a specific SalesInvoice line
 
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → SI_Line | No |  |
-| 2 | payment_method_id | integer | PK, FK → Payment | No |  |
-| 3 | payment_id | integer | PK, FK → Payment | No |  |
-| 4 | sales_invoice_id | integer | PK, FK → SI_Line | No |  |
-| 5 | line_seq | integer | PK, FK → SI_Line | No |  |
-| 6 | amount | decimal | — | No |  |
-
 ## Constraints
 
 - **payment allocation amount positive**: Allocation amount must be greater than zero

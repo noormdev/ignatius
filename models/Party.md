@@ -29,13 +29,6 @@ relationships:
 
 Anyone the system transacts with — every customer, vendor, employee is a Party
 
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK | No |  |
-| 2 | type | text | FK → PartyType | No |  |
-
 ## Subtypes
 
 Every Party is exactly one of Business or Person

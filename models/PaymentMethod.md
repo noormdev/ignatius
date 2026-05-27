@@ -30,12 +30,3 @@ relationships:
 # PaymentMethod
 
 A means by which a Party can pay — card, bank account, check
-
-## Attributes
-
-| # | Attribute | Logical type | Key role | Nullable | Notes |
-|---|-----------|--------------|----------|----------|-------|
-| 1 | party_id | integer | PK, FK → Party | No |  |
-| 2 | payment_method_id | integer | PK | No |  |
-| 3 | type | text | FK → PaymentMethodType | No |  |
-| 4 | label | text | — | No |  |
