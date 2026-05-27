@@ -19,6 +19,14 @@ columns:
     type: integer
   unit_price:
     type: decimal
+subtypes:
+  - exclusive: true
+    desc: "Each line is exactly one of: subscription or product"
+    members:
+      SOL_Subscription:
+        type: LineItemType.code.SUBSCRIPTION
+      SOL_Product:
+        type: LineItemType.code.PRODUCT
 relationships:
   - target: SalesOrder
     identifying: true

@@ -5,6 +5,12 @@ const md = new MarkdownIt();
 
 type ColumnDef = { type: string; nullable?: boolean };
 
+type SubtypeClusterDef = {
+  exclusive: boolean;
+  desc?: string;
+  members: Record<string, Record<string, string>> | string[];
+};
+
 type Frontmatter = {
   entity: string;
   classification: string;
@@ -12,6 +18,7 @@ type Frontmatter = {
   pk: string[];
   columns: Record<string, ColumnDef>;
   ak?: { rule: string; columns: string[] }[];
+  subtypes?: SubtypeClusterDef[];
   relationships?: {
     target: string;
     identifying: boolean;
@@ -43,10 +50,18 @@ export type ModelEdge = {
   cardinality: { parent: Cardinality; child: Cardinality };
 };
 
+export type SubtypeCluster = {
+  basetype: string;
+  exclusive: boolean;
+  members: string[];
+  desc?: string;
+};
+
 export type Model = {
   groups: Record<string, GroupConfig>;
   nodes: ModelNode[];
   edges: ModelEdge[];
+  subtypeClusters: SubtypeCluster[];
 };
 
 function parseFrontmatter(content: string): { frontmatter: Frontmatter; body: string } {
@@ -108,6 +123,8 @@ export async function parseModels(dir: string): Promise<Model> {
     predicate: string;
   }[] = [];
 
+  const subtypeClusters: SubtypeCluster[] = [];
+
   for await (const path of glob.scan(dir)) {
     const content = await Bun.file(`${dir}/${path}`).text();
     const { frontmatter, body } = parseFrontmatter(content);
@@ -131,6 +148,20 @@ export async function parseModels(dir: string): Promise<Model> {
         predicate: rel.predicate,
       });
     }
+
+    if (frontmatter.subtypes) {
+      for (const cluster of frontmatter.subtypes) {
+        const members = Array.isArray(cluster.members)
+          ? cluster.members
+          : Object.keys(cluster.members);
+        subtypeClusters.push({
+          basetype: frontmatter.entity,
+          exclusive: cluster.exclusive,
+          members,
+          desc: cluster.desc,
+        });
+      }
+    }
   }
 
   // Derive cardinality for each edge
@@ -146,5 +177,5 @@ export async function parseModels(dir: string): Promise<Model> {
     return { ...edge, cardinality };
   });
 
-  return { groups, nodes, edges };
+  return { groups, nodes, edges, subtypeClusters };
 }

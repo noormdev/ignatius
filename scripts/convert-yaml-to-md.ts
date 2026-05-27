@@ -176,6 +176,18 @@ for (const [name, entity] of Object.entries(allEntities)) {
     columns: fmColumns,
   };
   if (aks.length) fm.ak = aks.map(a => ({ rule: a.rule, columns: a.columns }));
+  if (subtypeClusters) {
+    fm.subtypes = subtypeClusters.map(c => {
+      const cluster: Record<string, unknown> = { exclusive: c.exclusive };
+      if (c.desc) cluster.desc = c.desc;
+      if (Array.isArray(c.members)) {
+        cluster.members = c.members;
+      } else {
+        cluster.members = c.members;
+      }
+      return cluster;
+    });
+  }
   if (flatRels.length) {
     fm.relationships = flatRels.map(r => {
       const rel: Record<string, unknown> = {

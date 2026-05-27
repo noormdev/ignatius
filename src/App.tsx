@@ -28,10 +28,18 @@ type ModelEdge = {
   cardinality: { parent: Cardinality; child: Cardinality };
 };
 
+type SubtypeCluster = {
+  basetype: string;
+  exclusive: boolean;
+  members: string[];
+  desc?: string;
+};
+
 type Model = {
   groups: Record<string, GroupConfig>;
   nodes: ModelNode[];
   edges: ModelEdge[];
+  subtypeClusters: SubtypeCluster[];
 };
 
 function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[] {
@@ -57,6 +65,30 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
     {
       selector: 'node[classification = "Independent"], node[classification = "Classifier"]',
       style: { 'shape': 'rectangle' },
+    },
+    {
+      selector: 'node[joiner = "true"]',
+      style: {
+        'shape': 'ellipse',
+        'width': 20,
+        'height': 20,
+        'background-color': '#0e1116',
+        'border-color': '#8b949e',
+        'border-width': 2,
+        'font-size': 10,
+        'font-weight': 700,
+        'color': '#8b949e',
+        'text-valign': 'center',
+        'text-halign': 'center',
+      },
+    },
+    {
+      selector: 'edge[subtypeEdge = "true"]',
+      style: {
+        'line-style': 'solid',
+        'width': 1.5,
+        'line-color': '#8b949e',
+      },
     },
     {
       selector: 'node:selected',
@@ -158,6 +190,14 @@ export function App() {
 
     const elements: cytoscape.ElementDefinition[] = [];
 
+    // Build a set of subtype edges (child→parent) so we can rewire them through joiners
+    const subtypeEdgeKeys = new Set<string>();
+    for (const cluster of model.subtypeClusters) {
+      for (const member of cluster.members) {
+        subtypeEdgeKeys.add(`${member}-${cluster.basetype}`);
+      }
+    }
+
     for (const node of model.nodes) {
       elements.push({
         data: {
@@ -169,7 +209,51 @@ export function App() {
       });
     }
 
+    // Add joiner nodes and rewire subtype edges
+    for (const cluster of model.subtypeClusters) {
+      const joinerId = `_joiner_${cluster.basetype}_${cluster.exclusive ? 'x' : 'i'}`;
+      elements.push({
+        data: {
+          id: joinerId,
+          label: cluster.exclusive ? 'X' : '',
+          joiner: 'true',
+          exclusive: String(cluster.exclusive),
+        },
+      });
+      // Edge from basetype to joiner
+      elements.push({
+        data: {
+          id: `${cluster.basetype}-${joinerId}`,
+          source: cluster.basetype,
+          target: joinerId,
+          identifying: 'true',
+          predicate: '',
+          parentCard: '1',
+          childCard: '',
+          subtypeEdge: 'true',
+        },
+      });
+      // Edges from joiner to each subtype
+      for (const member of cluster.members) {
+        elements.push({
+          data: {
+            id: `${joinerId}-${member}`,
+            source: joinerId,
+            target: member,
+            identifying: 'true',
+            predicate: '',
+            parentCard: '',
+            childCard: '0..1',
+            subtypeEdge: 'true',
+          },
+        });
+      }
+    }
+
     for (const edge of model.edges) {
+      // Skip subtype edges — they've been rewired through joiners
+      if (subtypeEdgeKeys.has(`${edge.source}-${edge.target}`)) continue;
+
       elements.push({
         data: {
           id: `${edge.source}-${edge.target}`,

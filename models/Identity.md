@@ -7,6 +7,14 @@ pk:
 columns:
   party_id:
     type: integer
+subtypes:
+  - exclusive: false
+    desc: A Party may hold any combination of these — inclusive, existence-based
+    members:
+      - License
+      - Passport
+      - SSN
+      - ITIN
 relationships:
   - target: Party
     identifying: true
