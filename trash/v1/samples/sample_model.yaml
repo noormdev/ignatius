@@ -1,0 +1,532 @@
+# =============================================================================
+# Sample IDEF1X-style data model
+# Demonstrates: classifiers with values, basetype/subtype clusters (exclusive
+# and inclusive), identifying chains, multi-parent associatives, group
+# inheritance, descriptions for the data dictionary, self-describing tables.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# _meta — model-level metadata
+# -----------------------------------------------------------------------------
+
+_meta:
+  name:    "Sample IDEF1X Model"
+  version: "0.1.0"
+  desc:    "Reference model demonstrating the full grammar — classifiers, subtype clusters, identifying chains, associatives, groups, AKs, and constraints"
+  updated: 2026-05-08
+
+
+# -----------------------------------------------------------------------------
+# _groups — visual modules with descriptions
+# (underscore prefix distinguishes meta-blocks from entity definitions)
+# -----------------------------------------------------------------------------
+
+_groups:
+  accounts: "Party identity, classifications, and ID documents — the 'who' layer"
+  org:      "Business-specific extensions on top of Party"
+  catalog:  "Sellable items: physical products and recurring subscriptions"
+  sales:    "Sales orders and their line items"
+  billing:  "Sales invoices, invoice lines, and payment allocation"
+  payments: "Payment methods and confirmed payments"
+  shared:   "Cross-cutting classifiers used across multiple domains"
+
+
+# -----------------------------------------------------------------------------
+# Classifiers (lookup tables)
+# -----------------------------------------------------------------------------
+
+PartyType:
+  desc: "Whether a Party is a Business or a Person"
+  groups: [accounts]
+  pk: [code]
+  columns:
+    code:        { type: text }
+    description: { type: text }
+  values:
+    BUSINESS: { description: "Legal business entity (corp, LLC, partnership)" }
+    PERSON:   { description: "Natural person" }
+
+PaymentMethodType:
+  desc: "Categorization of a PaymentMethod"
+  groups: [payments]
+  pk: [code]
+  columns:
+    code:        { type: text }
+    description: { type: text }
+  values:
+    CREDIT_CARD:   { description: "Credit or debit card" }
+    BANK_TRANSFER: { description: "ACH or wire transfer" }
+    CHECK:         { description: "Paper check" }
+
+LineItemType:
+  desc: "Whether a line item refers to a Subscription or a Product"
+  groups: [shared]
+  pk: [code]
+  columns:
+    code:        { type: text }
+    description: { type: text }
+  values:
+    SUBSCRIPTION: { description: "Recurring subscription line" }
+    PRODUCT:      { description: "One-time product line" }
+
+
+# -----------------------------------------------------------------------------
+# Catalog
+# -----------------------------------------------------------------------------
+
+Product:
+  desc: "A sellable physical or one-time item"
+  groups: [catalog]
+  pk: [product_id]
+  columns:
+    product_id: { type: integer }
+    sku:        { type: text }
+    name:       { type: text }
+    list_price: { type: decimal }
+  ak:
+    - rule: "unique product code"
+      desc: "SKU is the warehouse/barcode label and must be globally unique"
+      columns: [sku]
+
+Subscription:
+  desc: "A sellable recurring service with a billing period"
+  groups: [catalog]
+  pk: [subscription_id]
+  columns:
+    subscription_id: { type: integer }
+    sku:             { type: text }
+    name:            { type: text }
+    period_unit:     { type: text }
+    list_price:      { type: decimal }
+  ak:
+    - rule: "unique subscription code"
+      desc: "SKU identifies the subscription plan and must be globally unique"
+      columns: [sku]
+
+
+# -----------------------------------------------------------------------------
+# Party (basetype) — Business / Person are exclusive
+# -----------------------------------------------------------------------------
+
+Party:
+  desc: "Anyone the system transacts with — every customer, vendor, employee is a Party"
+  groups: [accounts]
+  pk: [party_id]
+  columns:
+    party_id: { type: integer }
+    type:     { type: text }
+  relationships:
+    referential:
+      PartyType:
+        desc: "Distinguishes whether this Party is a Business or Person"
+        on: { type: code }
+        predicate: { fwd: classifies, rev: is classified by }
+  subtypes:
+    - desc: "Every Party is exactly one of Business or Person"
+      exclusive: true
+      members:
+        Business: { type: PartyType.code.BUSINESS }
+        Person:   { type: PartyType.code.PERSON }
+
+Business:
+  desc: "Party that is a legal business entity"
+  groups: [org]                      # adds org; inherits accounts from Party
+  pk: [party_id]
+  columns:
+    party_id:   { type: integer }
+    legal_name: { type: text }
+    tax_id:     { type: text }
+  ak:
+    - rule: "unique tax identifier"
+      desc: "Tax ID must be unique across all businesses"
+      columns: [tax_id]
+  relationships:
+    identifying:
+      Party:
+        on: { party_id: party_id }
+        predicate: { fwd: is realized as, rev: is a }
+
+Person:
+  desc: "Party that is a natural person"
+  pk: [party_id]                     # no additions; inherits accounts
+  columns:
+    party_id:   { type: integer }
+    first_name: { type: text }
+    last_name:  { type: text }
+    birthdate:  { type: date }
+  relationships:
+    identifying:
+      Party:
+        on: { party_id: party_id }
+        predicate: { fwd: is realized as, rev: is a }
+
+
+# -----------------------------------------------------------------------------
+# Identity (basetype, 1:1 with Party) — inclusive ID document subtypes
+# A Party may hold any combination of License, Passport, SSN, ITIN.
+# Existence-based discrimination — no discriminator column on Identity.
+# -----------------------------------------------------------------------------
+
+Identity:
+  desc: "Container for the ID documents a Party holds — 1:1 with Party"
+  pk: [party_id]
+  columns:
+    party_id: { type: integer }
+  relationships:
+    identifying:
+      Party:
+        on: { party_id: party_id }
+        predicate: { fwd: holds, rev: identifies }
+  subtypes:
+    - desc: "A Party may hold any combination of these — inclusive, existence-based"
+      exclusive: false
+      members: [License, Passport, SSN, ITIN]
+
+License:
+  desc: "Driver's license held by the Party"
+  pk: [party_id]
+  columns:
+    party_id:       { type: integer }
+    license_number: { type: text }
+    issuing_state:  { type: text }
+    issued_on:      { type: date }
+    expires_on:     { type: date }
+  ak:
+    - rule: "license number unique within state"
+      desc: "License numbers are reused across states but unique within any single state"
+      columns: [license_number, issuing_state]
+  relationships:
+    identifying:
+      Identity:
+        on: { party_id: party_id }
+        predicate: { fwd: is realized as, rev: is a }
+  constraints:
+    - rule: "license expires after issued"
+      desc: "Expiration date must fall after the issue date"
+
+Passport:
+  desc: "Passport held by the Party"
+  pk: [party_id]
+  columns:
+    party_id:        { type: integer }
+    passport_number: { type: text }
+    issuing_country: { type: text }
+    issued_on:       { type: date }
+    expires_on:      { type: date }
+  relationships:
+    identifying:
+      Identity:
+        on: { party_id: party_id }
+        predicate: { fwd: is realized as, rev: is a }
+
+SSN:
+  desc: "US Social Security Number held by the Party"
+  pk: [party_id]
+  columns:
+    party_id: { type: integer }
+    ssn:      { type: text }
+  relationships:
+    identifying:
+      Identity:
+        on: { party_id: party_id }
+        predicate: { fwd: is realized as, rev: is a }
+
+ITIN:
+  desc: "US Individual Taxpayer Identification Number held by the Party"
+  pk: [party_id]
+  columns:
+    party_id: { type: integer }
+    itin:     { type: text }
+  relationships:
+    identifying:
+      Identity:
+        on: { party_id: party_id }
+        predicate: { fwd: is realized as, rev: is a }
+
+
+# -----------------------------------------------------------------------------
+# Payments
+# -----------------------------------------------------------------------------
+
+PaymentMethod:
+  desc: "A means by which a Party can pay — card, bank account, check"
+  groups: [payments]                 # inherits accounts from Party
+  pk: [party_id, payment_method_id]
+  columns:
+    party_id:          { type: integer }
+    payment_method_id: { type: integer }
+    type:              { type: text }
+    label:             { type: text }
+  relationships:
+    identifying:
+      Party:
+        on: { party_id: party_id }
+        predicate: { fwd: holds, rev: is held by }
+    referential:
+      PaymentMethodType:
+        desc: "Categorizes the payment instrument"
+        on: { type: code }
+        predicate: { fwd: classifies, rev: is classified by }
+
+Payment:
+  desc: "A confirmed payment made via a PaymentMethod"
+  pk: [party_id, payment_method_id, payment_id]
+  columns:
+    party_id:          { type: integer }
+    payment_method_id: { type: integer }
+    payment_id:        { type: integer }
+    amount:            { type: decimal }
+    paid_at:           { type: datetime }
+  relationships:
+    identifying:
+      PaymentMethod:
+        on:
+          party_id:          party_id
+          payment_method_id: payment_method_id
+        predicate: { fwd: settles, rev: is settled by }
+  constraints:
+    - rule: "payment amount positive"
+      desc: "Payment amount must be greater than zero"
+
+
+# -----------------------------------------------------------------------------
+# Sales
+# -----------------------------------------------------------------------------
+
+SalesOrder:
+  desc: "An order placed by a Party for products or subscriptions"
+  groups: [sales]
+  pk: [party_id, sales_order_id]
+  columns:
+    party_id:       { type: integer }
+    sales_order_id: { type: integer }
+    ordered_at:     { type: datetime, default: now }
+    total:          { type: decimal }
+  relationships:
+    identifying:
+      Party:
+        on: { party_id: party_id }
+        predicate: { fwd: places, rev: is placed by }
+  constraints:
+    - rule: "sales order total reconciles to lines"
+      desc: "Order total must equal sum(SO_Line.qty * SO_Line.unit_price) for matching party_id and sales_order_id"
+      spans: [SO_Line]
+
+SO_Line:
+  desc: "A line item on a SalesOrder — exclusively a subscription or a product"
+  pk: [party_id, sales_order_id, line_seq]
+  columns:
+    party_id:       { type: integer }
+    sales_order_id: { type: integer }
+    line_seq:       { type: integer }
+    type:           { type: text }
+    qty:            { type: integer }
+    unit_price:     { type: decimal }
+  relationships:
+    identifying:
+      SalesOrder:
+        on:
+          party_id:       party_id
+          sales_order_id: sales_order_id
+        predicate: { fwd: contains, rev: is part of }
+    referential:
+      LineItemType:
+        on: { type: code }
+        predicate: { fwd: classifies, rev: is classified by }
+  subtypes:
+    - desc: "Each line is exactly one of: subscription or product"
+      exclusive: true
+      members:
+        SOL_Subscription: { type: LineItemType.code.SUBSCRIPTION }
+        SOL_Product:      { type: LineItemType.code.PRODUCT }
+  constraints:
+    - rule: "sales order line qty positive"
+      desc: "Line quantity must be at least 1"
+    - rule: "sales order line price non negative"
+      desc: "Unit price cannot be negative"
+
+SOL_Subscription:
+  desc: "A SalesOrder line for a Subscription"
+  pk: [party_id, sales_order_id, line_seq]
+  columns:
+    party_id:        { type: integer }
+    sales_order_id:  { type: integer }
+    line_seq:        { type: integer }
+    subscription_id: { type: integer }
+  relationships:
+    identifying:
+      SO_Line:
+        on:
+          party_id:       party_id
+          sales_order_id: sales_order_id
+          line_seq:       line_seq
+        predicate: { fwd: is realized as, rev: is a }
+    referential:
+      Subscription:
+        desc: "Which Subscription product is being sold on this line"
+        on: { subscription_id: subscription_id }
+        predicate: { fwd: is sold via, rev: sells }
+
+SOL_Product:
+  desc: "A SalesOrder line for a Product"
+  pk: [party_id, sales_order_id, line_seq]
+  columns:
+    party_id:       { type: integer }
+    sales_order_id: { type: integer }
+    line_seq:       { type: integer }
+    product_id:     { type: integer }
+  relationships:
+    identifying:
+      SO_Line:
+        on:
+          party_id:       party_id
+          sales_order_id: sales_order_id
+          line_seq:       line_seq
+        predicate: { fwd: is realized as, rev: is a }
+    referential:
+      Product:
+        desc: "Which Product is being sold on this line"
+        on: { product_id: product_id }
+        predicate: { fwd: is sold via, rev: sells }
+
+
+# -----------------------------------------------------------------------------
+# Billing
+# -----------------------------------------------------------------------------
+
+SalesInvoice:
+  desc: "An invoice issued to a Party for outstanding amounts"
+  groups: [billing]
+  pk: [party_id, sales_invoice_id]
+  columns:
+    party_id:         { type: integer }
+    sales_invoice_id: { type: integer }
+    issued_at:        { type: datetime, default: now }
+    total:            { type: decimal }
+  relationships:
+    identifying:
+      Party:
+        on: { party_id: party_id }
+        predicate: { fwd: owes on, rev: is owed by }
+  constraints:
+    - rule: "sales invoice total reconciles to lines"
+      desc: "Invoice total must equal sum(SI_Line.qty * SI_Line.unit_price) for matching party_id and sales_invoice_id"
+      spans: [SI_Line]
+
+SI_Line:
+  desc: "A line item on a SalesInvoice — exclusively a subscription or a product"
+  pk: [party_id, sales_invoice_id, line_seq]
+  columns:
+    party_id:         { type: integer }
+    sales_invoice_id: { type: integer }
+    line_seq:         { type: integer }
+    type:             { type: text }
+    qty:              { type: integer }
+    unit_price:       { type: decimal }
+  relationships:
+    identifying:
+      SalesInvoice:
+        on:
+          party_id:         party_id
+          sales_invoice_id: sales_invoice_id
+        predicate: { fwd: contains, rev: is part of }
+    referential:
+      LineItemType:
+        on: { type: code }
+        predicate: { fwd: classifies, rev: is classified by }
+  subtypes:
+    - desc: "Each line is exactly one of: subscription or product"
+      exclusive: true
+      members:
+        SIL_Subscription: { type: LineItemType.code.SUBSCRIPTION }
+        SIL_Product:      { type: LineItemType.code.PRODUCT }
+  constraints:
+    - rule: "sales invoice line qty positive"
+      desc: "Line quantity must be at least 1"
+    - rule: "sales invoice line price non negative"
+      desc: "Unit price cannot be negative"
+
+SIL_Subscription:
+  desc: "A SalesInvoice line for a Subscription"
+  pk: [party_id, sales_invoice_id, line_seq]
+  columns:
+    party_id:         { type: integer }
+    sales_invoice_id: { type: integer }
+    line_seq:         { type: integer }
+    subscription_id:  { type: integer }
+  relationships:
+    identifying:
+      SI_Line:
+        on:
+          party_id:         party_id
+          sales_invoice_id: sales_invoice_id
+          line_seq:         line_seq
+        predicate: { fwd: is realized as, rev: is a }
+    referential:
+      Subscription:
+        on: { subscription_id: subscription_id }
+        predicate: { fwd: is billed via, rev: bills }
+
+SIL_Product:
+  desc: "A SalesInvoice line for a Product"
+  pk: [party_id, sales_invoice_id, line_seq]
+  columns:
+    party_id:         { type: integer }
+    sales_invoice_id: { type: integer }
+    line_seq:         { type: integer }
+    product_id:       { type: integer }
+  relationships:
+    identifying:
+      SI_Line:
+        on:
+          party_id:         party_id
+          sales_invoice_id: sales_invoice_id
+          line_seq:         line_seq
+        predicate: { fwd: is realized as, rev: is a }
+    referential:
+      Product:
+        on: { product_id: product_id }
+        predicate: { fwd: is billed via, rev: bills }
+
+
+# -----------------------------------------------------------------------------
+# PaymentAllocation: associative — links Payment <-> SI_Line
+# Both parents share party_id; single dedup'd column, both anchors reference it.
+# -----------------------------------------------------------------------------
+
+PaymentAllocation:
+  desc: "Allocation of part or all of a confirmed Payment to a specific SalesInvoice line"
+  pk: [party_id, payment_method_id, payment_id, sales_invoice_id, line_seq]
+  columns:
+    party_id:          { type: integer }
+    payment_method_id: { type: integer }
+    payment_id:        { type: integer }
+    sales_invoice_id:  { type: integer }
+    line_seq:          { type: integer }
+    amount:            { type: decimal }
+  relationships:
+    identifying:
+      Payment:
+        desc: "Which payment provides the funds being allocated"
+        on:
+          party_id:          party_id
+          payment_method_id: payment_method_id
+          payment_id:        payment_id
+        predicate: { fwd: applies to, rev: is paid by }
+      SI_Line:
+        desc: "Which invoice line is being settled"
+        on:
+          party_id:         party_id
+          sales_invoice_id: sales_invoice_id
+          line_seq:         line_seq
+        predicate: { fwd: is settled via, rev: settles }
+  constraints:
+    - rule: "payment allocation amount positive"
+      desc: "Allocation amount must be greater than zero"
+    - rule: "payment allocation not exceeding payment"
+      desc: "Total allocations against a Payment cannot exceed the Payment amount"
+      spans: [Payment]
+    - rule: "payment allocation not exceeding line"
+      desc: "Total allocations against an SI_Line cannot exceed the line's value"
+      spans: [SI_Line]

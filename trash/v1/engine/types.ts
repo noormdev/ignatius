@@ -176,6 +176,13 @@ export interface NodePosition {
 
 export type LayoutResult = Map<string, NodePosition>;
 
+export interface EdgeRoute {
+  edgeIndex: number;                          // index into model.edges
+  points: Array<{ x: number; y: number }>;    // polyline: source port -> bends -> target port
+}
+
+export type EdgeRoutes = Map<number, EdgeRoute>;
+
 // -----------------------------------------------------------------------------
 // Issue tracking — structural errors and validation errors share a shape
 // -----------------------------------------------------------------------------
