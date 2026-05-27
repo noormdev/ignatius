@@ -67,6 +67,19 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
       style: { 'shape': 'rectangle' },
     },
     {
+      selector: 'node[cluster = "true"]',
+      style: {
+        'shape': 'round-rectangle',
+        'background-color': 'transparent',
+        'background-opacity': 0,
+        'border-width': 1,
+        'border-color': '#21262d',
+        'border-opacity': 0.4,
+        'padding': '10px' as unknown as number,
+        'label': '',
+      },
+    },
+    {
       selector: 'node[joiner = "true"]',
       style: {
         'shape': 'diamond',
@@ -320,17 +333,31 @@ export function App() {
       });
     }
 
-    // Add joiner nodes and rewire subtype edges
+    // Add compound cluster nodes, joiner nodes, and rewire subtype edges
     for (const cluster of model.subtypeClusters) {
+      const clusterId = `_cluster_${cluster.basetype}_${cluster.exclusive ? 'x' : 'i'}`;
       const joinerId = `_joiner_${cluster.basetype}_${cluster.exclusive ? 'x' : 'i'}`;
+
+      // Invisible compound parent that groups the subtypes
+      elements.push({
+        data: {
+          id: clusterId,
+          label: '',
+          cluster: 'true',
+        },
+      });
+
+      // Joiner inside the compound
       elements.push({
         data: {
           id: joinerId,
+          parent: clusterId,
           label: cluster.exclusive ? 'X' : '',
           joiner: 'true',
           exclusive: String(cluster.exclusive),
         },
       });
+
       // Edge from basetype to joiner
       elements.push({
         data: {
@@ -344,8 +371,13 @@ export function App() {
           subtypeEdge: 'true',
         },
       });
-      // Edges from joiner to each subtype
+
+      // Each subtype is a child of the compound, with edge from joiner
       for (const member of cluster.members) {
+        // Set parent on the existing node element
+        const nodeEl = elements.find(e => e.data.id === member);
+        if (nodeEl) nodeEl.data.parent = clusterId;
+
         elements.push({
           data: {
             id: `${joinerId}-${member}`,
@@ -378,6 +410,13 @@ export function App() {
       });
     }
 
+    const longestPredicate = model.edges.reduce(
+      (max, e) => Math.max(max, e.predicate.length), 0
+    );
+    const charWidth = 6; // ~6px per char at font-size 10
+    const markerPadding = 50; // room for markers on both ends
+    const layerSpacing = Math.max(80, longestPredicate * charWidth + markerPadding);
+
     const cy = cytoscape({
       container: graphRef.current,
       elements,
@@ -386,13 +425,14 @@ export function App() {
         elk: {
           algorithm: 'layered',
           'elk.direction': 'DOWN',
-          'elk.layered.spacing.nodeNodeBetweenLayers': '60',
+          'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
           'elk.spacing.nodeNode': '30',
           'elk.edgeRouting': 'ORTHOGONAL',
           'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
           'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
           'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
           'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+          'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
         },
       } as cytoscape.LayoutOptions,
       style: buildStyles(model.groups),

@@ -15,16 +15,13 @@ await page.screenshot({
   path: 'tmp/detail.png',
   clip: { x: 300, y: 250, width: 500, height: 300 }
 });
-// Right side - Identity subtypes
-await page.screenshot({
-  path: 'tmp/detail2.png',
-  clip: { x: 700, y: 300, width: 500, height: 250 }
+// Zoomed-in view via browser zoom
+await page.evaluate(() => {
+  const cy = (document.querySelector('.graph-panel') as any)?.__cy;
+  if (cy) { cy.zoom(2); cy.center(); }
 });
-// Left side - Payment chain
-await page.screenshot({
-  path: 'tmp/detail3.png',
-  clip: { x: 0, y: 280, width: 350, height: 300 }
-});
+await page.waitForTimeout(1000);
+await page.screenshot({ path: 'tmp/zoomed.png' });
 
 await browser.close();
 console.log('Screenshots saved');

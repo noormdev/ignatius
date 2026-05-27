@@ -21,6 +21,9 @@ export function createMarkerOverlay(container: HTMLDivElement): SVGSVGElement {
 export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement) {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 
+  const zoom = cy.zoom();
+  const scale = Math.min(Math.max(zoom, 0.5), 2.5);
+
   cy.edges().forEach(edge => {
     if (!edge.visible()) return;
     const parentCard = edge.data('parentCard') as Cardinality;
@@ -39,8 +42,8 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement) {
     const srcAngle = Math.atan2(dy, dx);
     const tgtAngle = Math.atan2(-dy, -dx);
 
-    drawEndMarker(svg, srcPt.x, srcPt.y, srcAngle, parentCard, color);
-    drawEndMarker(svg, tgtPt.x, tgtPt.y, tgtAngle, childCard, color);
+    drawEndMarker(svg, srcPt.x, srcPt.y, srcAngle, parentCard, color, scale);
+    drawEndMarker(svg, tgtPt.x, tgtPt.y, tgtAngle, childCard, color, scale);
   });
 }
 
@@ -63,37 +66,35 @@ function drawEndMarker(
   angle: number,
   card: Cardinality,
   color: string,
+  scale: number,
 ) {
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  g.setAttribute('transform', `translate(${x},${y}) rotate(${angle * 180 / Math.PI})`);
+  g.setAttribute('transform', `translate(${x},${y}) rotate(${angle * 180 / Math.PI}) scale(${scale})`);
 
   const sw = 1.8;
-  const h = 10;       // bar half-height
-  const sp = 7;       // spacing between symbol parts
-  const cr = 6;       // circle radius
-  const fan = 12;     // crow's foot prong spread (half)
-  const forkLen = 14; // length of crow's foot prongs
+  const h = 10;
+  const sp = 7;
+  const cr = 6;
+  const fan = 12;
+  const forkLen = 14;
+  const off = 10; // offset from node edge
 
   switch (card) {
     case '1': {
-      // Two perpendicular bars
-      bar(g, 3, h, color, sw);
-      bar(g, 3 + sp, h, color, sw);
+      bar(g, off, h, color, sw);
+      bar(g, off + sp, h, color, sw);
       break;
     }
     case '0..1': {
-      // Bar (near entity) + hollow circle (toward line)
-      bar(g, 3, h, color, sw);
-      cir(g, 3 + sp + cr, cr, color, sw);
+      bar(g, off, h, color, sw);
+      cir(g, off + sp + cr, cr, color, sw);
       break;
     }
     case 'many': {
-      // Crow's foot: prongs fan at X=0 (entity side), converge at forkLen (line side)
-      // Then a bar past convergence
-      const convX = 2 + forkLen;
-      ln(g, convX, 0, 2, 0, color, sw);
-      ln(g, convX, 0, 2, -fan, color, sw);
-      ln(g, convX, 0, 2, fan, color, sw);
+      const convX = off + forkLen;
+      ln(g, convX, 0, off, 0, color, sw);
+      ln(g, convX, 0, off, -fan, color, sw);
+      ln(g, convX, 0, off, fan, color, sw);
       bar(g, convX + 4, h, color, sw);
       break;
     }
