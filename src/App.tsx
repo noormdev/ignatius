@@ -69,7 +69,7 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
     {
       selector: 'node[joiner = "true"]',
       style: {
-        'shape': 'ellipse',
+        'shape': 'diamond',
         'width': 20,
         'height': 20,
         'background-color': '#0e1116',
