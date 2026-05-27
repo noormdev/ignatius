@@ -347,11 +347,10 @@ export function App() {
         },
       });
 
-      // Joiner inside the compound
+      // Joiner sits between basetype and compound (not inside it)
       elements.push({
         data: {
           id: joinerId,
-          parent: clusterId,
           label: cluster.exclusive ? 'X' : '',
           joiner: 'true',
           exclusive: String(cluster.exclusive),
