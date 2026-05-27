@@ -249,8 +249,9 @@ for (const [name, entity] of Object.entries(allEntities)) {
 
   const fmStr = stringify(fm, { lineWidth: 0 });
   const content = `---\n${fmStr.trim()}\n---\n\n${lines.join('\n').trim()}\n`;
-  await Bun.write(`${outDir}/${name}.md`, content);
-  console.log(`  wrote ${name}.md`);
+  const groupDir = `${outDir}/${group}`;
+  await Bun.write(`${groupDir}/${name}.md`, content);
+  console.log(`  wrote ${group}/${name}.md`);
 }
 
 console.log(`\nDone — ${Object.keys(allEntities).length} entity files written to models/`);

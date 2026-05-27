@@ -245,6 +245,45 @@ function ColumnsTable({ node, edges, onNavigate }: {
   );
 }
 
+function ChildrenTable({ node, edges, onNavigate }: {
+  node: ModelNode;
+  edges: ModelEdge[];
+  onNavigate: (entityId: string) => void;
+}) {
+  const children = edges.filter(e => e.target === node.id);
+  if (children.length === 0) return null;
+
+  return (
+    <div className="doc-section">
+      <h2>Relationships</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Child</th>
+            <th>Type</th>
+            <th>Predicate</th>
+            <th>Cardinality</th>
+          </tr>
+        </thead>
+        <tbody>
+          {children.map(edge => (
+            <tr key={edge.source}>
+              <td>
+                <a className="fk-link" onClick={() => onNavigate(edge.source)}>
+                  {edge.source}
+                </a>
+              </td>
+              <td>{edge.identifying ? 'Identifying' : 'Referential'}</td>
+              <td>{edge.predicate}</td>
+              <td>{edge.cardinality.parent}:{edge.cardinality.child}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function App() {
   const graphRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -443,6 +482,14 @@ export function App() {
             <div
               className="doc-body"
               dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
+            />
+            <ChildrenTable
+              node={selected}
+              edges={model?.edges ?? []}
+              onNavigate={(id) => {
+                const target = model?.nodes.find(n => n.id === id);
+                if (target) setSelected(target);
+              }}
             />
           </div>
         </div>

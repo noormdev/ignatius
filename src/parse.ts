@@ -113,7 +113,7 @@ export async function parseModels(dir: string): Promise<Model> {
   const config = configRaw ? parseYaml(configRaw) as { groups?: Record<string, GroupConfig> } : {};
   const groups = config.groups ?? {};
 
-  const glob = new Bun.Glob('*.md');
+  const glob = new Bun.Glob('**/*.md');
   const nodes: ModelNode[] = [];
   const rawEdges: {
     source: string;
