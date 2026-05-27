@@ -27,7 +27,7 @@ type Frontmatter = {
   }[];
 };
 
-type GroupConfig = { label: string; color: string };
+type GroupConfig = { label: string; color: string; desc?: string };
 
 export type Cardinality = '1' | '0..1' | 'many';
 
@@ -108,12 +108,19 @@ function deriveCardinality(
 }
 
 export async function parseModels(dir: string): Promise<Model> {
-  const configFile = Bun.file(`${dir}/_config.yaml`);
-  const configRaw = await configFile.exists() ? await configFile.text() : '';
-  const config = configRaw ? parseYaml(configRaw) as { groups?: Record<string, GroupConfig> } : {};
-  const groups = config.groups ?? {};
+  const groups: Record<string, GroupConfig> = {};
+  const groupsDir = `${dir}/_groups`;
+  const groupGlob = new Bun.Glob('*.md');
+  for await (const path of groupGlob.scan(groupsDir)) {
+    const name = path.replace(/\.md$/, '');
+    const content = await Bun.file(`${groupsDir}/${path}`).text();
+    const { frontmatter, body } = parseFrontmatter(content);
+    const fm = frontmatter as unknown as { label: string; color: string };
+    groups[name] = { label: fm.label, color: fm.color, desc: md.render(body) };
+  }
 
   const glob = new Bun.Glob('**/*.md');
+  const skipPrefix = '_';
   const nodes: ModelNode[] = [];
   const rawEdges: {
     source: string;
@@ -126,6 +133,7 @@ export async function parseModels(dir: string): Promise<Model> {
   const subtypeClusters: SubtypeCluster[] = [];
 
   for await (const path of glob.scan(dir)) {
+    if (path.split('/').some(seg => seg.startsWith('_'))) continue;
     const content = await Bun.file(`${dir}/${path}`).text();
     const { frontmatter, body } = parseFrontmatter(content);
 

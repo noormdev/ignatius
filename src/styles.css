@@ -18,32 +18,57 @@ html, body, #root {
   height: 100%;
 }
 
-/* Legend overlay */
-.legend {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: rgba(13, 17, 23, 0.85);
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid #21262d;
-  z-index: 10;
-}
-.legend-item {
+/* FAB */
+.fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #161b22;
+  border: 2px solid #30363d;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: #8b949e;
+  justify-content: center;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s;
 }
+.fab:hover { border-color: #58a6ff; }
+.fab-dots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.fab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* Legend swatch (reused in group cards) */
 .legend-swatch {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+/* Group cards in modal */
+.group-card {
+  padding: 16px 0;
+  border-bottom: 1px solid #21262d;
+}
+.group-card:last-child { border-bottom: none; }
+.group-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #e6edf3;
 }
 
 /* Modal */

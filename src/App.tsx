@@ -5,7 +5,7 @@ import { createMarkerOverlay, updateMarkers } from './markers';
 
 cytoscape.use(elk);
 
-type GroupConfig = { label: string; color: string };
+type GroupConfig = { label: string; color: string; desc?: string };
 
 type ModelNode = {
   id: string;
@@ -290,6 +290,7 @@ export function App() {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [model, setModel] = useState<Model | null>(null);
   const [selected, setSelected] = useState<ModelNode | null>(null);
+  const [showGroups, setShowGroups] = useState(false);
 
   useEffect(() => {
     fetch('/api/model').then(r => r.json()).then(setModel);
@@ -433,18 +434,37 @@ export function App() {
 
   return (
     <div className="app">
-      <div className="graph-panel" ref={graphRef}>
-        {groupEntries.length > 0 && (
-          <div className="legend">
+      <div className="graph-panel" ref={graphRef} />
+      {groupEntries.length > 0 && (
+        <button className="fab" onClick={() => setShowGroups(true)}>
+          <span className="fab-dots">
+            {groupEntries.slice(0, 4).map(([name, cfg]) => (
+              <span key={name} className="fab-dot" style={{ background: cfg.color }} />
+            ))}
+          </span>
+        </button>
+      )}
+      {showGroups && (
+        <div className="modal-backdrop" onClick={() => setShowGroups(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowGroups(false)}>×</button>
+            <div className="modal-header">
+              <h1>Groups</h1>
+            </div>
             {groupEntries.map(([name, cfg]) => (
-              <div key={name} className="legend-item">
-                <span className="legend-swatch" style={{ background: cfg.color }} />
-                <span>{cfg.label}</span>
+              <div key={name} className="group-card">
+                <div className="group-card-header">
+                  <span className="legend-swatch" style={{ background: cfg.color }} />
+                  <strong>{cfg.label}</strong>
+                </div>
+                {cfg.desc && (
+                  <div className="doc-body" dangerouslySetInnerHTML={{ __html: cfg.desc }} />
+                )}
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
       {selected && (
         <div className="modal-backdrop" onClick={() => setSelected(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
