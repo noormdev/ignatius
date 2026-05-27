@@ -28,7 +28,6 @@ function deriveClassification(name: string, entity: Record<string, unknown>, all
   const identifyingRels = entity.relationships && (entity.relationships as Record<string, unknown>).identifying;
   const identifyingCount = identifyingRels ? Object.keys(identifyingRels as Record<string, unknown>).length : 0;
 
-  if (hasSubtypes) return 'Basetype';
   if (isSubtype) return 'Subtype';
   if (identifyingCount >= 2) return 'Associative';
   if (identifyingCount === 1) return 'Dependent';

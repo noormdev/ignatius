@@ -1,6 +1,6 @@
 ---
 entity: SO_Line
-classification: Basetype
+classification: Dependent
 group: transactional
 pk:
   - party_id

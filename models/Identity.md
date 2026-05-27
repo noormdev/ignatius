@@ -1,6 +1,6 @@
 ---
 entity: Identity
-classification: Basetype
+classification: Dependent
 group: identity
 pk:
   - party_id
