@@ -6,6 +6,13 @@ import { semanticColors, type ThemeConfig } from './theme-defaults';
 
 cytoscape.use(elk);
 
+declare global {
+  interface Window {
+    __MODEL__?: Model;
+    __THEME_MODE__?: 'dark' | 'light';
+  }
+}
+
 type GroupConfig = { label: string; color: string; desc?: string };
 
 type ModelNode = {
@@ -356,12 +363,18 @@ export function App() {
   const [selected, setSelected] = useState<ModelNode | null>(null);
   const [showGroups, setShowGroups] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(
-    () => (localStorage.getItem('derek-theme') as ThemeMode | null) ?? 'dark'
+    () => window.__THEME_MODE__ ?? (localStorage.getItem('derek-theme') as ThemeMode | null) ?? 'dark'
   );
   // Ref so viewport/position listeners always read the current mode without needing cy rebuild
   const themeModeRef = useRef<ThemeMode>(themeMode);
 
   useEffect(() => {
+    // Static mode: model baked in at generation time — skip server entirely
+    if (window.__MODEL__) {
+      setModel(window.__MODEL__);
+      return;
+    }
+
     fetch('/api/model').then(r => r.json()).then(setModel);
 
     const es = new EventSource('/events');
