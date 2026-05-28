@@ -110,8 +110,11 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): R
   return server;
 }
 
-// When invoked directly (bun src/server.ts), default to ./models
-if (import.meta.path === Bun.main) {
+// When invoked directly (bun src/server.ts), default to ./models.
+// WHY import.meta.main and not import.meta.path === Bun.main: in a compiled
+// Bun binary all bundled modules share the same $bunfs path, making the path
+// comparison always true. import.meta.main is only true for the entry module.
+if (import.meta.main) {
   const defaultModelsDir = resolve(import.meta.dir, '../models');
   serveCommand(defaultModelsDir);
 }

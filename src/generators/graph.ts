@@ -1,11 +1,23 @@
 import type { Model } from '../parse';
 import { join } from 'node:path';
 
-export async function generateGraph(
-  model: Model,
-  mode: 'dark' | 'light',
-  bundleDir = 'dist/static',
-): Promise<string> {
+export type BundleContent = {
+  /** Raw HTML template (the index.html with <link> and <script> tags). */
+  htmlTemplate: string;
+  /** Raw CSS content (already extracted from the bundle). */
+  cssContent: string;
+  /** Raw JS content (the full bundled module, unescaped). */
+  jsContent: string;
+};
+
+/**
+ * Load bundle content from a directory on disk.
+ *
+ * WHY: When running in development mode (bun src/cli.ts) the bundle lives in
+ * dist/static/ and we read it from disk. When running as a compiled binary the
+ * caller passes the content directly via embedBundleContent().
+ */
+export async function loadBundleFromDir(bundleDir: string): Promise<BundleContent> {
   const htmlFile = Bun.file(join(bundleDir, 'index.html'));
   const htmlTemplate = await htmlFile.text();
 
@@ -20,12 +32,34 @@ export async function generateGraph(
     throw new Error(
       `Could not find bundled JS/CSS in ${bundleDir}/index.html. ` +
       `Expected src="./index-*.js" and href="./index-*.css". ` +
-      `Run: bun build src/index.html --outdir=dist/static --minify --target=browser`
+      `Run: bun build src/index.html --outdir=dist/static --minify --target=browser`,
     );
   }
 
-  const jsRaw = await Bun.file(join(bundleDir, jsFilename)).text();
+  const jsContent = await Bun.file(join(bundleDir, jsFilename)).text();
   const cssContent = await Bun.file(join(bundleDir, cssFilename)).text();
+
+  return { htmlTemplate, cssContent, jsContent };
+}
+
+/**
+ * Generate a self-contained graph HTML file by injecting the parsed model and
+ * theme into the bundled React app.
+ *
+ * Accepts either a bundleDir (reads from disk) or explicit BundleContent
+ * (used by the compiled binary, which embeds the bundle via Bun's file imports).
+ */
+export async function generateGraph(
+  model: Model,
+  mode: 'dark' | 'light',
+  sourceOrDir: string | BundleContent = 'dist/static',
+): Promise<string> {
+  const bundle: BundleContent =
+    typeof sourceOrDir === 'string'
+      ? await loadBundleFromDir(sourceOrDir)
+      : sourceOrDir;
+
+  const { htmlTemplate, cssContent, jsContent: jsRaw } = bundle;
 
   // Escape </script> occurrences in the JS bundle so the browser HTML parser doesn't
   // prematurely close the inline <script> tag. React's source contains this string

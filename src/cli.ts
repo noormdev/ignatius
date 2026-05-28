@@ -1,6 +1,10 @@
 import { resolve } from 'path';
 import { existsSync } from 'fs';
 import { serveCommand } from './server';
+import { parseModels } from './parse';
+import { generateDict } from './generators/dict';
+import { generateGraph } from './generators/graph';
+import { loadEmbeddedBundle } from './generators/embedded-bundle';
 
 export type ParsedArgs = {
   subcommand: 'serve' | 'dict' | 'graph' | 'help' | 'unknown';
@@ -89,8 +93,8 @@ Usage:
 
 Subcommands:
   serve   Start the interactive server (default port: 3000)
-  dict    Generate a static data dictionary HTML file (not implemented yet)
-  graph   Generate a static graph HTML file (not implemented yet)
+  dict    Generate a static data dictionary HTML file
+  graph   Generate a static graph HTML file
   help    Print this message
 
 Options:
@@ -117,7 +121,40 @@ async function main(): Promise<void> {
   }
 
   if (parsed.subcommand === 'dict' || parsed.subcommand === 'graph') {
-    console.log(`${parsed.subcommand}: not implemented yet`);
+    const dir = parsed.positional[0];
+
+    if (!dir) {
+      console.error(`Error: ${parsed.subcommand} requires a models directory argument.`);
+      console.error(`Usage: derek ${parsed.subcommand} <models-dir> -o <output.html>`);
+      process.exit(1);
+    }
+
+    const outputPath = parsed.flags.output;
+    if (!outputPath) {
+      console.error(`Error: -o <output.html> is required for the ${parsed.subcommand} subcommand.`);
+      process.exit(1);
+    }
+
+    const resolvedDir = resolve(dir);
+    if (!existsSync(resolvedDir)) {
+      console.error(`Error: models directory not found: ${resolvedDir}`);
+      process.exit(1);
+    }
+
+    const mode = parsed.flags.theme === 'light' ? 'light' : 'dark';
+    const model = await parseModels(resolvedDir);
+
+    let html: string;
+    if (parsed.subcommand === 'dict') {
+      html = generateDict(model, mode);
+    } else {
+      // graph: load the embedded bundle (stable index.js / index.css embedded at compile time)
+      const bundle = await loadEmbeddedBundle();
+      html = await generateGraph(model, mode, bundle);
+    }
+
+    await Bun.write(outputPath, html);
+    console.log(`Wrote ${parsed.subcommand} to ${outputPath}`);
     process.exit(0);
   }
 
