@@ -363,6 +363,23 @@ export function App() {
 
   useEffect(() => {
     fetch('/api/model').then(r => r.json()).then(setModel);
+
+    const es = new EventSource('/events');
+    es.addEventListener('model-changed', () => {
+      fetch('/api/model')
+        .then(r => r.json())
+        .then((newModel: Model) => {
+          setModel(newModel);
+          // Keep selected node in sync: update it from the new model, or clear if removed
+          setSelected(prev => {
+            if (!prev) return null;
+            const updated = newModel.nodes.find(n => n.id === prev.id);
+            return updated ?? null;
+          });
+        });
+    });
+
+    return () => es.close();
   }, []);
 
   // Apply CSS custom properties whenever the theme or mode changes
