@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
 import { createMarkerOverlay, updateMarkers } from './markers';
+import { semanticColors, type ThemeConfig } from './theme-defaults';
 
 cytoscape.use(elk);
 
@@ -40,9 +41,81 @@ type Model = {
   nodes: ModelNode[];
   edges: ModelEdge[];
   subtypeClusters: SubtypeCluster[];
+  theme: ThemeConfig;
 };
 
-function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[] {
+function applyThemeCssVars(theme: ThemeConfig) {
+  const p = theme.dark;
+  const root = document.documentElement;
+  root.style.setProperty('--color-background', p.background);
+  root.style.setProperty('--color-surface', p.surface);
+  root.style.setProperty('--color-border', p.border);
+  root.style.setProperty('--color-text', p.text);
+  root.style.setProperty('--color-text-muted', p.textMuted);
+  root.style.setProperty('--color-text-secondary', p.text + 'cc');
+  // surface-alt: halfway between background and surface (for dividers)
+  root.style.setProperty('--color-surface-alt', blendHex(p.background, p.surface, 0.5));
+  root.style.setProperty('--color-edge-identifying', p.edgeIdentifying);
+  root.style.setProperty('--color-edge-referential', p.edgeReferential);
+
+  // Semantic classification badge colors (fixed, not palette-driven)
+  root.style.setProperty('--badge-independent-bg', semanticColors.independent.bg);
+  root.style.setProperty('--badge-independent-fg', semanticColors.independent.fg);
+  root.style.setProperty('--badge-dependent-bg', semanticColors.dependent.bg);
+  root.style.setProperty('--badge-dependent-fg', semanticColors.dependent.fg);
+  root.style.setProperty('--badge-classifier-bg', semanticColors.classifier.bg);
+  root.style.setProperty('--badge-classifier-fg', semanticColors.classifier.fg);
+  root.style.setProperty('--badge-subtype-bg', semanticColors.subtype.bg);
+  root.style.setProperty('--badge-subtype-fg', semanticColors.subtype.fg);
+  root.style.setProperty('--badge-associative-bg', semanticColors.associative.bg);
+  root.style.setProperty('--badge-associative-fg', semanticColors.associative.fg);
+  root.style.setProperty('--color-link', semanticColors.link);
+}
+
+function blendHex(a: string, b: string, t: number): string {
+  const ar = parseInt(a.slice(1, 3), 16);
+  const ag = parseInt(a.slice(3, 5), 16);
+  const ab = parseInt(a.slice(5, 7), 16);
+  const br = parseInt(b.slice(1, 3), 16);
+  const bg = parseInt(b.slice(3, 5), 16);
+  const bb = parseInt(b.slice(5, 7), 16);
+  const r = Math.round(ar * (1 - t) + br * t);
+  const g = Math.round(ag * (1 - t) + bg * t);
+  const bl = Math.round(ab * (1 - t) + bb * t);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`;
+}
+
+function pastel(hex: string, bgHex: string, mix: number): string {
+  const bgR = parseInt(bgHex.slice(1, 3), 16);
+  const bgG = parseInt(bgHex.slice(3, 5), 16);
+  const bgB = parseInt(bgHex.slice(5, 7), 16);
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const pr = Math.round(bgR * (1 - mix) + r * mix);
+  const pg = Math.round(bgG * (1 - mix) + g * mix);
+  const pb = Math.round(bgB * (1 - mix) + b * mix);
+  return `#${pr.toString(16).padStart(2, '0')}${pg.toString(16).padStart(2, '0')}${pb.toString(16).padStart(2, '0')}`;
+}
+
+function lighten(hex: string): string {
+  const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + 60);
+  const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + 60);
+  const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + 60);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig): cytoscape.Stylesheet[] {
+  const p = theme.dark;
+  const defaultNodeBg = pastel(p.textMuted, p.background, p.pastelMix);
+
   const base: cytoscape.Stylesheet[] = [
     {
       selector: 'node',
@@ -50,10 +123,10 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
         'label': 'data(label)',
         'text-valign': 'center',
         'text-halign': 'center',
-        'background-color': pastel('#6e7681'),
-        'color': '#e6edf3',
+        'background-color': defaultNodeBg,
+        'color': p.text,
         'border-width': 2,
-        'border-color': '#6e7681',
+        'border-color': p.textMuted,
         'shape': 'round-rectangle',
         'width': 110,
         'height': 36,
@@ -73,7 +146,7 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
         'background-color': 'transparent',
         'background-opacity': 0,
         'border-width': 1,
-        'border-color': '#21262d',
+        'border-color': blendHex(p.background, p.surface, 0.5),
         'border-opacity': 0.4,
         'padding': '10px' as unknown as number,
         'label': '',
@@ -85,12 +158,12 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
         'shape': 'diamond',
         'width': 20,
         'height': 20,
-        'background-color': '#0e1116',
-        'border-color': '#8b949e',
+        'background-color': p.background,
+        'border-color': p.edgeIdentifying,
         'border-width': 2,
         'font-size': 10,
         'font-weight': 700,
-        'color': '#8b949e',
+        'color': p.edgeIdentifying,
         'text-valign': 'center',
         'text-halign': 'center',
       },
@@ -100,7 +173,7 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
       style: {
         'line-style': 'solid',
         'width': 1.5,
-        'line-color': '#8b949e',
+        'line-color': p.edgeIdentifying,
       },
     },
     {
@@ -114,13 +187,13 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
       selector: 'edge',
       style: {
         'width': 1.5,
-        'line-color': '#8b949e',
+        'line-color': p.edgeIdentifying,
         'target-arrow-shape': 'none',
         'source-arrow-shape': 'none',
         'curve-style': 'bezier',
         'label': 'data(predicate)',
         'font-size': 10,
-        'color': '#6e7681',
+        'color': p.textMuted,
         'text-rotation': 'autorotate',
         'text-margin-y': -10,
         'arrow-scale': 1.2,
@@ -131,14 +204,14 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
       style: {
         'line-style': 'solid',
         'width': 2,
-        'line-color': '#8b949e',
+        'line-color': p.edgeIdentifying,
       },
     },
     {
       selector: 'edge[identifying = "false"]',
       style: {
         'line-style': 'dashed',
-        'line-color': '#3d424a',
+        'line-color': p.edgeReferential,
         'width': 1.2,
       },
     },
@@ -149,7 +222,7 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
       selector: `node[group = "${name}"]`,
       style: {
         'border-color': cfg.color,
-        'background-color': pastel(cfg.color),
+        'background-color': pastel(cfg.color, p.background, p.pastelMix),
       },
     });
     base.push({
@@ -159,32 +232,6 @@ function buildStyles(groups: Record<string, GroupConfig>): cytoscape.Stylesheet[
   }
 
   return base;
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-function pastel(hex: string): string {
-  const bg = [14, 17, 22]; // #0e1116
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const mix = 0.3;
-  const pr = Math.round(bg[0] * (1 - mix) + r * mix);
-  const pg = Math.round(bg[1] * (1 - mix) + g * mix);
-  const pb = Math.round(bg[2] * (1 - mix) + b * mix);
-  return `#${pr.toString(16).padStart(2,'0')}${pg.toString(16).padStart(2,'0')}${pb.toString(16).padStart(2,'0')}`;
-}
-
-function lighten(hex: string): string {
-  const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + 60);
-  const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + 60);
-  const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + 60);
-  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
 function ColumnsTable({ node, edges, onNavigate }: {
@@ -309,6 +356,11 @@ export function App() {
     fetch('/api/model').then(r => r.json()).then(setModel);
   }, []);
 
+  // Apply CSS custom properties whenever the theme changes
+  useEffect(() => {
+    if (model?.theme) applyThemeCssVars(model.theme);
+  }, [model?.theme]);
+
   useEffect(() => {
     if (!model || !graphRef.current) return;
 
@@ -425,7 +477,7 @@ export function App() {
           algorithm: 'layered',
           'elk.direction': 'DOWN',
           'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
-          'elk.spacing.nodeNode': '30',
+          'elk.spacing.nodeNode': String(model.theme.spacing.nodeSep),
           'elk.edgeRouting': 'ORTHOGONAL',
           'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
           'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
@@ -434,7 +486,7 @@ export function App() {
           'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
         },
       } as cytoscape.LayoutOptions,
-      style: buildStyles(model.groups),
+      style: buildStyles(model.groups, model.theme),
       minZoom: 0.3,
       maxZoom: 3,
     });
@@ -444,7 +496,7 @@ export function App() {
     }
     const svg = svgRef.current;
 
-    const redrawMarkers = () => updateMarkers(cy, svg);
+    const redrawMarkers = () => updateMarkers(cy, svg, model.theme);
     cy.one('layoutstop', () => { cy.fit(undefined, 30); redrawMarkers(); });
     cy.on('viewport', redrawMarkers);
     cy.on('position', redrawMarkers);

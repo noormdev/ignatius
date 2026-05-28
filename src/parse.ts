@@ -1,5 +1,6 @@
 import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
+import { defaultTheme, mergeTheme, type ThemeConfig, type ThemePalette, type ThemeSpacing } from './theme-defaults';
 
 const md = new MarkdownIt();
 
@@ -57,11 +58,14 @@ export type SubtypeCluster = {
   desc?: string;
 };
 
+export type { ThemeConfig } from './theme-defaults';
+
 export type Model = {
   groups: Record<string, GroupConfig>;
   nodes: ModelNode[];
   edges: ModelEdge[];
   subtypeClusters: SubtypeCluster[];
+  theme: ThemeConfig;
 };
 
 function parseFrontmatter(content: string): { frontmatter: Frontmatter; body: string } {
@@ -108,6 +112,18 @@ function deriveCardinality(
 }
 
 export async function parseModels(dir: string): Promise<Model> {
+  // Parse optional _theme.yaml and merge with defaults
+  const themeFile = Bun.file(`${dir}/_theme.yaml`);
+  let theme: ThemeConfig = defaultTheme;
+  if (await themeFile.exists()) {
+    const raw = parseYaml(await themeFile.text()) as Partial<{
+      dark: Partial<ThemePalette>;
+      light: Partial<ThemePalette>;
+      spacing: Partial<ThemeSpacing>;
+    }>;
+    theme = mergeTheme(raw ?? {});
+  }
+
   const groups: Record<string, GroupConfig> = {};
   const groupsDir = `${dir}/_groups`;
   const groupGlob = new Bun.Glob('*.md');
@@ -185,5 +201,5 @@ export async function parseModels(dir: string): Promise<Model> {
     return { ...edge, cardinality };
   });
 
-  return { groups, nodes, edges, subtypeClusters };
+  return { groups, nodes, edges, subtypeClusters, theme };
 }

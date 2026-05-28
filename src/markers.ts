@@ -1,8 +1,7 @@
 import type cytoscape from 'cytoscape';
+import type { ThemeConfig } from './theme-defaults';
 
 type Cardinality = '1' | '0..1' | 'many';
-
-const BG = '#0e1116';
 
 export function createMarkerOverlay(container: HTMLDivElement): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -18,18 +17,20 @@ export function createMarkerOverlay(container: HTMLDivElement): SVGSVGElement {
   return svg;
 }
 
-export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement) {
+export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: ThemeConfig) {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 
+  const p = theme.dark;
+  const [minScale, maxScale] = theme.spacing.markerScale;
   const zoom = cy.zoom();
-  const scale = Math.min(Math.max(zoom, 0.5), 2.5);
+  const scale = Math.min(Math.max(zoom, minScale), maxScale);
 
   cy.edges().forEach(edge => {
     if (!edge.visible()) return;
     const parentCard = edge.data('parentCard') as Cardinality;
     const childCard = edge.data('childCard') as Cardinality;
     const identifying = edge.data('identifying') === 'true';
-    const color = identifying ? '#8b949e' : '#3d424a';
+    const color = identifying ? p.edgeIdentifying : p.edgeReferential;
 
     const srcPt = edge.renderedSourceEndpoint();
     const tgtPt = edge.renderedTargetEndpoint();
@@ -42,8 +43,8 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement) {
     const srcAngle = Math.atan2(dy, dx);
     const tgtAngle = Math.atan2(-dy, -dx);
 
-    drawEndMarker(svg, srcPt.x, srcPt.y, srcAngle, parentCard, color, scale);
-    drawEndMarker(svg, tgtPt.x, tgtPt.y, tgtAngle, childCard, color, scale);
+    drawEndMarker(svg, srcPt.x, srcPt.y, srcAngle, parentCard, color, scale, p.background, theme.spacing.markerOffset);
+    drawEndMarker(svg, tgtPt.x, tgtPt.y, tgtAngle, childCard, color, scale, p.background, theme.spacing.markerOffset);
   });
 }
 
@@ -67,6 +68,8 @@ function drawEndMarker(
   card: Cardinality,
   color: string,
   scale: number,
+  bgColor: string,
+  offset: number,
 ) {
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   g.setAttribute('transform', `translate(${x},${y}) rotate(${angle * 180 / Math.PI}) scale(${scale})`);
@@ -77,24 +80,23 @@ function drawEndMarker(
   const cr = 6;
   const fan = 12;
   const forkLen = 14;
-  const off = 10; // offset from node edge
 
   switch (card) {
     case '1': {
-      bar(g, off, h, color, sw);
-      bar(g, off + sp, h, color, sw);
+      bar(g, offset, h, color, sw);
+      bar(g, offset + sp, h, color, sw);
       break;
     }
     case '0..1': {
-      bar(g, off, h, color, sw);
-      cir(g, off + sp + cr, cr, color, sw);
+      bar(g, offset, h, color, sw);
+      cir(g, offset + sp + cr, cr, color, sw, bgColor);
       break;
     }
     case 'many': {
-      const convX = off + forkLen;
-      ln(g, convX, 0, off, 0, color, sw);
-      ln(g, convX, 0, off, -fan, color, sw);
-      ln(g, convX, 0, off, fan, color, sw);
+      const convX = offset + forkLen;
+      ln(g, convX, 0, offset, 0, color, sw);
+      ln(g, convX, 0, offset, -fan, color, sw);
+      ln(g, convX, 0, offset, fan, color, sw);
       bar(g, convX + 4, h, color, sw);
       break;
     }
@@ -119,12 +121,12 @@ function bar(g: SVGGElement, x: number, half: number, color: string, sw: number)
   ln(g, x, -half, x, half, color, sw);
 }
 
-function cir(g: SVGGElement, cx: number, r: number, color: string, sw: number) {
+function cir(g: SVGGElement, cx: number, r: number, color: string, sw: number, bgColor: string) {
   const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
   el.setAttribute('cx', `${cx}`);
   el.setAttribute('cy', '0');
   el.setAttribute('r', `${r}`);
-  el.setAttribute('fill', BG);
+  el.setAttribute('fill', bgColor);
   el.setAttribute('stroke', color);
   el.setAttribute('stroke-width', `${sw}`);
   g.appendChild(el);

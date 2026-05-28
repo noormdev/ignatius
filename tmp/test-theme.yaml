@@ -1,0 +1,24 @@
+dark:
+  background: "#1a0030"
+  surface: "#2d0050"
+  border: "#ff6b00"
+  text: "#ffffff"
+  textMuted: "#cc99ff"
+  edgeIdentifying: "#ff6b00"
+  edgeReferential: "#884400"
+  pastelMix: 0.4
+
+light:
+  background: "#fff0f0"
+  surface: "#ffe0e0"
+  border: "#cc0044"
+  text: "#330000"
+  textMuted: "#880022"
+  edgeIdentifying: "#cc0044"
+  edgeReferential: "#ff9999"
+  pastelMix: 0.15
+
+spacing:
+  nodeSep: 40
+  markerOffset: 10
+  markerScale: [0.5, 2.5]

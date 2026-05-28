@@ -4,8 +4,8 @@ html, body, #root {
   height: 100%;
   width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  background: #0e1116;
-  color: #e6edf3;
+  background: var(--color-background);
+  color: var(--color-text);
 }
 
 .app {
@@ -26,8 +26,8 @@ html, body, #root {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #161b22;
-  border: 2px solid #30363d;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -36,7 +36,7 @@ html, body, #root {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   transition: border-color 0.15s;
 }
-.fab:hover { border-color: #58a6ff; }
+.fab:hover { border-color: var(--color-link); }
 .fab-dots {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -59,7 +59,7 @@ html, body, #root {
 /* Group cards in modal */
 .group-card {
   padding: 16px 0;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--color-surface-alt);
 }
 .group-card:last-child { border-bottom: none; }
 .group-card-header {
@@ -68,7 +68,7 @@ html, body, #root {
   gap: 10px;
   margin-bottom: 8px;
   font-size: 14px;
-  color: #e6edf3;
+  color: var(--color-text);
 }
 
 /* Modal */
@@ -84,8 +84,8 @@ html, body, #root {
 
 .modal {
   position: relative;
-  background: #0d1117;
-  border: 1px solid #30363d;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 32px;
   max-width: 720px;
@@ -101,17 +101,17 @@ html, body, #root {
   right: 20px;
   background: none;
   border: none;
-  color: #8b949e;
+  color: var(--color-text-muted);
   font-size: 24px;
   cursor: pointer;
   line-height: 1;
 }
-.modal-close:hover { color: #e6edf3; }
+.modal-close:hover { color: var(--color-text); }
 
 .modal-header {
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #21262d;
+  border-bottom: 1px solid var(--color-surface-alt);
 }
 .modal-header h1 {
   font-size: 22px;
@@ -133,15 +133,15 @@ html, body, #root {
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
-.badge.independent { background: #0d419d; color: #58a6ff; }
-.badge.dependent   { background: #3d2e00; color: #d29922; }
-.badge.classifier  { background: #1c2128; color: #8b949e; }
-.badge.subtype     { background: #1a3a1a; color: #3fb950; }
-.badge.associative { background: #3d1f00; color: #f0883e; }
+.badge.independent { background: var(--badge-independent-bg); color: var(--badge-independent-fg); }
+.badge.dependent   { background: var(--badge-dependent-bg);   color: var(--badge-dependent-fg); }
+.badge.classifier  { background: var(--badge-classifier-bg);  color: var(--badge-classifier-fg); }
+.badge.subtype     { background: var(--badge-subtype-bg);     color: var(--badge-subtype-fg); }
+.badge.associative { background: var(--badge-associative-bg); color: var(--badge-associative-fg); }
 
 .pk-label {
   font-size: 11px;
-  color: #8b949e;
+  color: var(--color-text-muted);
   font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -149,7 +149,7 @@ html, body, #root {
 .doc-section h2, .doc-body h2 {
   font-size: 12px;
   margin: 24px 0 8px 0;
-  color: #8b949e;
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
@@ -160,12 +160,12 @@ html, body, #root {
 }
 .doc-body p {
   margin: 0 0 12px 0;
-  color: #c9d1d9;
+  color: var(--color-text-secondary);
 }
 .doc-body ul, .doc-body ol {
   margin: 0 0 12px 0;
   padding-left: 20px;
-  color: #c9d1d9;
+  color: var(--color-text-secondary);
 }
 .doc-body li {
   margin-bottom: 4px;
@@ -180,21 +180,21 @@ html, body, #root {
 .doc-section th, .doc-body th {
   text-align: left;
   padding: 6px 8px;
-  border-bottom: 2px solid #21262d;
-  color: #8b949e;
+  border-bottom: 2px solid var(--color-surface-alt);
+  color: var(--color-text-muted);
   font-weight: 600;
 }
 .doc-section td, .doc-body td {
   padding: 5px 8px;
-  border-bottom: 1px solid #161b22;
-  color: #c9d1d9;
+  border-bottom: 1px solid var(--color-surface);
+  color: var(--color-text-secondary);
 }
 .doc-section tr:hover td, .doc-body tr:hover td {
-  background: #161b22;
+  background: var(--color-surface);
 }
 
 .fk-link {
-  color: #58a6ff;
+  color: var(--color-link);
   cursor: pointer;
   text-decoration: none;
 }
@@ -205,7 +205,7 @@ html, body, #root {
 code {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 12px;
-  background: #161b22;
+  background: var(--color-surface);
   padding: 1px 5px;
   border-radius: 4px;
 }
