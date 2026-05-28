@@ -74,3 +74,34 @@ The graph output is the same React app, with the model baked in instead of fetch
 ## Change log
 
 <!-- Populated on first amendment after approval. -->
+
+
+## Implementation log
+
+### v0.1 — 2026-05-28
+
+Built across 8 iterations of `/subagent-implementation` (7 spec checkpoints + 1 polish pass). All reviewer verdicts PASS on first attempt — no CHANGES_REQUESTED roundtrips. Commits (chronological):
+
+- `7a83fc9` — CP-1: theme config + `_theme.yaml` + CSS custom property extraction
+- `3b377bf` — CP-2: light/dark mode toggle with localStorage persistence
+- `a17698d` — CP-3: `derek` CLI entry + `serve` subcommand + native arg parser
+- `2524115` — CP-4: live reload via SSE + `fs.watch` + 200ms debounce
+- `d45979f` — CP-5: data dictionary HTML generator (`src/generators/dict.ts`)
+- `95177ba` — CP-6: static graph HTML generator with embedded model
+- `9ca278d` — CP-7: wire CLI subcommands + compile binary via `bun build --compile`
+- `974d797` — Polish: closed all 19 reviewer follow-ups in one pass
+
+**Out-of-scope work performed during this build:**
+
+- `import.meta.path === Bun.main` guard in `src/server.ts` was always-true in compiled binaries (all `$bunfs/` modules share the same path). Replaced with `import.meta.main` during CP-7 — a real bug surfaced by `bun build --compile`, not foreseen in the spec.
+- Stable-name post-build script (`scripts/stable-names.ts`) added during CP-7 to rename content-hashed bundle outputs to `index.js`/`index.css` so the compile-time `import x with { type: "file" }` paths are deterministic.
+- `_meta.yaml` parsing added during the polish pass to back F-14 (the dict generator was reading `_meta` off `Model` via a cast). The spec didn't mention `_meta`; it's a small forward-compatible extension.
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- Minified bundle injection in CP-6 needed two protections the spec didn't flag: callback-form `String.replace` to avoid `$&`/`$'`/`` $` `` substitution from bundle content, and `</script>` → `<\/script>` escaping to prevent HTML tag-close detection breaking the document. Handled inline.
+- `webview-bun` (devDep from a prior session) was NOT used — pressure-test established it isn't headless; the static graph just embeds the React app and lets ELK run client-side at open time. Saved a ~190MB browser dependency.
+
+**Deferred items still open:**
+
+None. All 19 follow-ups from CP-1 through CP-7 reviewers were closed in the polish pass. Two new low-severity 🔵 nits from the polish reviewer (vacuous eslint-disable in `file-imports.d.ts`, narrowing cast in dict semantic colors) were judged acceptable; left in place.
