@@ -1,6 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import { defaultTheme, mergeTheme, type ThemeConfig, type ThemePalette, type ThemeSpacing } from './theme-defaults';
+import { defaultBranding, mergeBranding, type Branding } from './branding-defaults';
 
 const md = new MarkdownIt();
 
@@ -59,6 +60,7 @@ export type SubtypeCluster = {
 };
 
 export type { ThemeConfig } from './theme-defaults';
+export type { Branding } from './branding-defaults';
 
 export type ModelMeta = {
   name?: string;
@@ -73,6 +75,7 @@ export type Model = {
   edges: ModelEdge[];
   subtypeClusters: SubtypeCluster[];
   theme: ThemeConfig;
+  branding: Branding;
   _meta?: ModelMeta;
 };
 
@@ -130,6 +133,14 @@ export async function parseModels(dir: string): Promise<Model> {
       spacing: Partial<ThemeSpacing>;
     }>;
     theme = mergeTheme(raw ?? {});
+  }
+
+  // Parse optional _branding.yaml and merge with defaults
+  const brandingFile = Bun.file(`${dir}/_branding.yaml`);
+  let branding: Branding = defaultBranding;
+  if (await brandingFile.exists()) {
+    const raw = parseYaml(await brandingFile.text());
+    branding = mergeBranding(raw ?? {});
   }
 
   const groups: Record<string, GroupConfig> = {};
@@ -217,5 +228,5 @@ export async function parseModels(dir: string): Promise<Model> {
     _meta = raw;
   }
 
-  return { groups, nodes, edges, subtypeClusters, theme, _meta };
+  return { groups, nodes, edges, subtypeClusters, theme, branding, _meta };
 }
