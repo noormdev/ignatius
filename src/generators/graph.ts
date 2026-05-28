@@ -1,4 +1,5 @@
 import type { Model } from '../parse';
+import { Glob } from 'bun';
 import { join } from 'node:path';
 
 export type BundleContent = {
@@ -21,18 +22,35 @@ export async function loadBundleFromDir(bundleDir: string): Promise<BundleConten
   const htmlFile = Bun.file(join(bundleDir, 'index.html'));
   const htmlTemplate = await htmlFile.text();
 
-  // Find the bundled JS and CSS filenames from the HTML (e.g. index-<hash>.js)
-  const jsMatch = htmlTemplate.match(/src="(\.\/index-[^"]+\.js)"/);
-  const cssMatch = htmlTemplate.match(/href="(\.\/index-[^"]+\.css)"/);
+  // Find the bundled JS and CSS filenames from the HTML (e.g. index-<hash>.js).
+  // The prefix may be './', '/', or absent depending on the bundler configuration.
+  const jsMatch = htmlTemplate.match(/src=["'](?:\.\/|\/)?([^"']*index-[^"']+\.js)["']/);
+  const cssMatch = htmlTemplate.match(/href=["'](?:\.\/|\/)?([^"']*index-[^"']+\.css)["']/);
 
-  const jsFilename = jsMatch?.[1]?.replace('./', '');
-  const cssFilename = cssMatch?.[1]?.replace('./', '');
+  let jsFilename = jsMatch?.[1];
+  let cssFilename = cssMatch?.[1];
+
+  // Fallback: glob scan the bundle dir for index-*.js / index-*.css
+  if (!jsFilename || !cssFilename) {
+    const dirEntries: string[] = [];
+    for await (const entry of new Glob('index-*.{js,css}').scan(bundleDir)) {
+      dirEntries.push(entry);
+    }
+    if (!jsFilename) jsFilename = dirEntries.find(e => e.endsWith('.js'));
+    if (!cssFilename) cssFilename = dirEntries.find(e => e.endsWith('.css'));
+  }
 
   if (!jsFilename || !cssFilename) {
+    const glob = new Glob('*');
+    const dirContents: string[] = [];
+    for await (const entry of glob.scan(bundleDir)) {
+      dirContents.push(entry);
+    }
     throw new Error(
       `Could not find bundled JS/CSS in ${bundleDir}/index.html. ` +
-      `Expected src="./index-*.js" and href="./index-*.css". ` +
-      `Run: bun build src/index.html --outdir=dist/static --minify --target=browser`,
+      `Expected src="[./]index-*.js" and href="[./]index-*.css". ` +
+      `Run: bun build src/index.html --outdir=dist/static --minify --target=browser\n` +
+      `Bundle dir contents: ${dirContents.join(', ')}`,
     );
   }
 

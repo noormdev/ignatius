@@ -60,12 +60,20 @@ export type SubtypeCluster = {
 
 export type { ThemeConfig } from './theme-defaults';
 
+export type ModelMeta = {
+  name?: string;
+  version?: string;
+  desc?: string;
+  updated?: string;
+};
+
 export type Model = {
   groups: Record<string, GroupConfig>;
   nodes: ModelNode[];
   edges: ModelEdge[];
   subtypeClusters: SubtypeCluster[];
   theme: ThemeConfig;
+  _meta?: ModelMeta;
 };
 
 function parseFrontmatter(content: string): { frontmatter: Frontmatter; body: string } {
@@ -201,5 +209,13 @@ export async function parseModels(dir: string): Promise<Model> {
     return { ...edge, cardinality };
   });
 
-  return { groups, nodes, edges, subtypeClusters, theme };
+  // Parse optional _meta.yaml for display metadata (name, version, desc, updated)
+  let _meta: ModelMeta | undefined;
+  const metaFile = Bun.file(`${dir}/_meta.yaml`);
+  if (await metaFile.exists()) {
+    const raw = parseYaml(await metaFile.text()) as ModelMeta;
+    _meta = raw;
+  }
+
+  return { groups, nodes, edges, subtypeClusters, theme, _meta };
 }

@@ -1,5 +1,11 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Dark-palette defaults so the initial paint doesn't flash white before JS applies theme vars */
+:root {
+  --color-background: #0e1116;
+  --color-text: #e6edf3;
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;

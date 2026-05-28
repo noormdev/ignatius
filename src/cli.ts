@@ -38,10 +38,15 @@ export function parseArgs(argv: string[]): ParsedArgs {
   while (token !== undefined) {
     if (token === '--help' || token === '-h') {
       result.flags.help = true;
-      result.subcommand = 'help';
+      // Subcommand-scoped: if a subcommand was already seen, keep it so callers
+      // can print subcommand-specific usage. If no subcommand, route to 'help'.
+      if (!subcommandSeen) result.subcommand = 'help';
     } else if (token === '--port' || token === '-p') {
       const val = tokens[0];
-      if (val !== undefined && !val.startsWith('-')) {
+      if (val === undefined || val.startsWith('-')) {
+        // Missing or invalid value — signal error via NaN so main() can catch it
+        result.flags.port = NaN;
+      } else {
         result.flags.port = Number(next());
       }
     } else if (token.startsWith('--port=')) {
@@ -81,7 +86,48 @@ export function parseArgs(argv: string[]): ParsedArgs {
   return result;
 }
 
-function printUsage(): void {
+function printUsage(subcommand?: ParsedArgs['subcommand']): void {
+  if (subcommand === 'serve') {
+    console.log(`
+Usage: derek serve <models-dir> [--port <port>]
+
+  Start the interactive server and watch the models directory for changes.
+
+Options:
+  --port <port>   Port to listen on (default: 3000)
+  --help, -h      Print this message
+`.trim());
+    return;
+  }
+
+  if (subcommand === 'dict') {
+    console.log(`
+Usage: derek dict <models-dir> -o <output.html> [--theme light|dark]
+
+  Generate a static data dictionary HTML file from the models directory.
+
+Options:
+  -o, --output <file>  Output file path (required)
+  --theme light|dark   Color theme (default: dark)
+  --help, -h           Print this message
+`.trim());
+    return;
+  }
+
+  if (subcommand === 'graph') {
+    console.log(`
+Usage: derek graph <models-dir> -o <output.html> [--theme light|dark]
+
+  Generate a self-contained interactive graph HTML file.
+
+Options:
+  -o, --output <file>  Output file path (required)
+  --theme light|dark   Color theme (default: dark)
+  --help, -h           Print this message
+`.trim());
+    return;
+  }
+
   console.log(`
 derek — DB model viewer
 
@@ -109,9 +155,21 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const parsed = parseArgs(argv);
 
-  if (parsed.flags.help || parsed.subcommand === 'help') {
+  if (parsed.flags.help) {
+    // Route to subcommand-specific help when a real subcommand was parsed alongside --help
+    const sub = parsed.subcommand !== 'help' ? parsed.subcommand : undefined;
+    printUsage(sub);
+    process.exit(0);
+  }
+
+  if (parsed.subcommand === 'help') {
     printUsage();
     process.exit(0);
+  }
+
+  if (isNaN(parsed.flags.port)) {
+    console.error('Error: --port requires a numeric value.');
+    process.exit(1);
   }
 
   if (parsed.subcommand === 'unknown') {
@@ -174,6 +232,7 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
+    // serveCommand returns { server, stop }; for the CLI we just let it run indefinitely
     serveCommand(resolvedDir, { port: parsed.flags.port });
   }
 }

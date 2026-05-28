@@ -1,24 +1,9 @@
 import index from './index.html';
 import { parseModels } from './parse';
 import { resolve } from 'path';
+import { watch } from 'fs';
 
 const encoder = new TextEncoder();
-
-/** Active SSE client controllers. Each represents one open /events connection. */
-const sseClients = new Set<ReadableStreamDefaultController<Uint8Array>>();
-
-/** Broadcast a named SSE event to all connected clients. */
-function broadcast(event: string, data: string = '{}') {
-  const chunk = encoder.encode(`event: ${event}\ndata: ${data}\n\n`);
-  for (const ctrl of sseClients) {
-    try {
-      ctrl.enqueue(chunk);
-    } catch {
-      // Controller closed — remove it
-      sseClients.delete(ctrl);
-    }
-  }
-}
 
 const WATCHED_EXTENSIONS: Record<string, true> = { '.md': true, '.yaml': true };
 
@@ -28,13 +13,35 @@ function hasWatchedExtension(filename: string): boolean {
   return WATCHED_EXTENSIONS[filename.slice(dot)] === true;
 }
 
-export function serveCommand(modelsDir: string, opts: { port?: number } = {}): ReturnType<typeof Bun.serve> {
+export type ServeHandle = {
+  server: ReturnType<typeof Bun.serve>;
+  stop: (force?: boolean) => void;
+};
+
+export function serveCommand(modelsDir: string, opts: { port?: number } = {}): ServeHandle {
   const port = opts.port !== undefined ? opts.port : (Number(process.env.PORT) || 3000);
 
-  // Debounce: one global timer — all changes within 200ms coalesce into one event
+  /** Active SSE client controllers. One set per server instance. */
+  const sseClients = new Set<ReadableStreamDefaultController<Uint8Array>>();
+
+  /** Broadcast a named SSE event to all connected clients. */
+  function broadcast(event: string, data: string = '{}') {
+    const chunk = encoder.encode(`event: ${event}\ndata: ${data}\n\n`);
+    // Set deletion during iteration is spec-safe per ECMAScript.
+    for (const ctrl of sseClients) {
+      try {
+        ctrl.enqueue(chunk);
+      } catch {
+        // Controller closed — remove it
+        sseClients.delete(ctrl);
+      }
+    }
+  }
+
+  // Debounce: one timer per server instance — all changes within 200ms coalesce into one event
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const fsWatcher = require('fs').watch(
+  const fsWatcher = watch(
     modelsDir,
     { recursive: true },
     (_eventType: string, filename: string | null) => {
@@ -62,7 +69,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): R
         // Disable the 10s idle timeout so the SSE stream stays open indefinitely
         server.timeout(req, 0);
 
-        let ctrl: ReadableStreamDefaultController<Uint8Array>;
+        let ctrl: ReadableStreamDefaultController<Uint8Array> | undefined;
 
         const stream = new ReadableStream<Uint8Array>({
           start(c) {
@@ -72,6 +79,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): R
             ctrl.enqueue(encoder.encode(': connected\n\n'));
           },
           cancel() {
+            if (!ctrl) return;
             sseClients.delete(ctrl);
           },
         });
@@ -94,20 +102,14 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): R
 
   console.log(`derek-db-generator running at http://localhost:${server.port}`);
 
-  // Override stop so we clean up the watcher and active clients
-  const origStop = server.stop.bind(server);
-  Object.defineProperty(server, 'stop', {
-    value: (force?: boolean) => {
-      fsWatcher.close();
-      if (debounceTimer !== null) clearTimeout(debounceTimer);
-      sseClients.clear();
-      return origStop(force);
-    },
-    writable: true,
-    configurable: true,
-  });
+  function stop(force?: boolean) {
+    fsWatcher.close();
+    if (debounceTimer !== null) clearTimeout(debounceTimer);
+    sseClients.clear();
+    server.stop(force);
+  }
 
-  return server;
+  return { server, stop };
 }
 
 // When invoked directly (bun src/server.ts), default to ./models.
@@ -116,5 +118,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): R
 // comparison always true. import.meta.main is only true for the entry module.
 if (import.meta.main) {
   const defaultModelsDir = resolve(import.meta.dir, '../models');
-  serveCommand(defaultModelsDir);
+  // Destructure — we only need the server handle; stop is available if tests call it
+  const { server } = serveCommand(defaultModelsDir);
+  void server; // satisfy linter — server stays alive via event loop
 }

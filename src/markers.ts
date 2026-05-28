@@ -1,7 +1,5 @@
 import type cytoscape from 'cytoscape';
-import type { ThemeConfig } from './theme-defaults';
-
-type ThemeMode = 'dark' | 'light';
+import type { ThemeConfig, ThemeMode } from './theme-defaults';
 
 type Cardinality = '1' | '0..1' | 'many';
 

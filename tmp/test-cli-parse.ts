@@ -72,6 +72,26 @@ function assert(condition: boolean, message: string): void {
   assert(r.subcommand === 'help', 'no args → subcommand=help');
 }
 
+// serve without dir — positional is empty (main() exits 1 for this; parse level documents contract)
+{
+  const r = parseArgs(['serve']);
+  assert(r.subcommand === 'serve', 'serve (no dir) → subcommand=serve');
+  assert(r.positional.length === 0, 'serve (no dir) → positional=[]');
+}
+
+// --help after subcommand — flags.help=true, subcommand retained (not overridden to 'help')
+{
+  const r = parseArgs(['serve', '--help']);
+  assert(r.flags.help === true, 'serve --help → flags.help=true');
+  assert(r.subcommand === 'serve', 'serve --help → subcommand retains serve (for scoped usage)');
+}
+
+// --port without value — NaN signals parse-level error
+{
+  const r = parseArgs(['serve', 'models/', '--port']);
+  assert(isNaN(r.flags.port), '--port (no value) → flags.port=NaN');
+}
+
 // --theme flag
 {
   const r = parseArgs(['serve', 'models/', '--theme', 'light']);

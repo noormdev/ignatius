@@ -35,11 +35,11 @@ function assert(condition: boolean, label: string) {
 
 async function main() {
   console.log('Starting server...');
-  const server = serveCommand(MODELS_DIR, { port: PORT });
+  const handle = serveCommand(MODELS_DIR, { port: PORT });
   await sleep(200);
 
   // ---- Assertion 1: SSE route returns correct content-type ----
-  const headRes = await fetch(`http://localhost:${PORT}/events`);
+  const headRes = await fetch(`http://localhost:${handle.server.port}/events`);
   const ct = headRes.headers.get('content-type') ?? '';
   assert(ct.includes('text/event-stream'), `Content-Type is text/event-stream (got: ${ct})`);
   // Close this response body so we don't leak
@@ -55,7 +55,7 @@ async function main() {
   let eventPromise = new Promise<void>(res => { eventResolve = res; });
 
   // Open a persistent SSE connection using a fetch stream reader
-  const sseRes = await fetch(`http://localhost:${PORT}/events`);
+  const sseRes = await fetch(`http://localhost:${handle.server.port}/events`);
   const reader = sseRes.body!.getReader();
   const decoder = new TextDecoder();
 
@@ -118,7 +118,7 @@ async function main() {
   reading = false;
   reader.cancel();
   await readLoop.catch(() => {});
-  server.stop(true);
+  handle.stop(true);
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);

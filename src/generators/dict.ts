@@ -17,8 +17,7 @@ function classificationBadge(cls: string): string {
   if (!colors || typeof colors === 'string') {
     return `<span class="badge" style="background:var(--color-surface);color:var(--color-text-muted)">${esc(cls)}</span>`;
   }
-  const { bg, fg } = colors as { bg: string; fg: string };
-  return `<span class="badge" style="background:${bg};color:${fg}">${esc(cls)}</span>`;
+  return `<span class="badge" style="background:${colors.bg};color:${colors.fg}">${esc(cls)}</span>`;
 }
 
 function cardinalityLabel(c: { parent: string; child: string }): string {
@@ -171,7 +170,7 @@ ${swatches}
 
 export function generateDict(model: Model, mode: 'dark' | 'light'): string {
   const cssVars = buildThemeCssVars(model.theme, mode);
-  const metaName = (model as { _meta?: { name?: string } })._meta?.name ?? 'Data Dictionary';
+  const metaName = model._meta?.name ?? 'Data Dictionary';
 
   const groupOrder = Object.keys(model.groups);
   // Nodes without a group go last

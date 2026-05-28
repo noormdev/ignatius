@@ -12,12 +12,8 @@
  * build:bundle script, which copies the hashed outputs to fixed names.
  */
 
-// @ts-ignore — Bun's `with { type: 'file' }` import attribute is not yet in
-// the TypeScript type definitions, but it works at runtime and compile time.
 import bundleHtmlPath from '../../dist/static/index.html' with { type: 'file' };
-// @ts-ignore
 import bundleJsPath from '../../dist/static/index.js' with { type: 'file' };
-// @ts-ignore
 import bundleCssPath from '../../dist/static/index.css' with { type: 'file' };
 
 import type { BundleContent } from './graph';
@@ -34,9 +30,9 @@ export async function loadEmbeddedBundle(): Promise<BundleContent> {
   // tags, but we bypass those references entirely — we read the JS and CSS from
   // the embedded stable-name files and build a synthetic template.
   const [htmlTemplate, jsContent, cssContent] = await Promise.all([
-    Bun.file(bundleHtmlPath as string).text(),
-    Bun.file(bundleJsPath as string).text(),
-    Bun.file(bundleCssPath as string).text(),
+    Bun.file(bundleHtmlPath).text(),
+    Bun.file(bundleJsPath).text(),
+    Bun.file(bundleCssPath).text(),
   ]);
 
   return { htmlTemplate, cssContent, jsContent };

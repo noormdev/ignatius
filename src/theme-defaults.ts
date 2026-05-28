@@ -25,6 +25,8 @@ export const semanticColors = {
   link:        '#58a6ff',
 } as const;
 
+export type ThemeMode = 'dark' | 'light';
+
 export type ThemeConfig = {
   dark: ThemePalette;
   light: ThemePalette;

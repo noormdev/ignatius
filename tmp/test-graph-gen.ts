@@ -48,29 +48,29 @@ assert(darkHtml.includes('cytoscape'), 'dark: bundle contains cytoscape referenc
 assert(lightHtml.includes('cytoscape'), 'light: bundle contains cytoscape reference');
 
 // 4. Self-contained — no external <script src= or <link rel="stylesheet" href=
-// Must match only the HTML tag attributes (not content inside script blocks).
-// Strip all <script>...</script> block content before checking, to avoid false positives
-// from JS bundle content that happens to contain "src=" text.
-function stripScriptBodies(html: string): string {
-  return html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, (_, body) => {
-    // Keep opening tag, blank body, closing tag — so tag attributes are still checkable
-    return `<script>${' '.repeat(body.length)}</script>`;
-  });
+// Check only the <head> section (before the first <body> tag) to avoid false
+// positives from JS bundle content that contains HTML-like strings (e.g. React's
+// internal warning text which contains literal `<link rel="stylesheet" href=...>`).
+function extractHead(html: string): string {
+  const bodyIdx = html.search(/<body[\s>]/i);
+  return bodyIdx !== -1 ? html.slice(0, bodyIdx) : html.slice(0, 4096);
 }
 
-const strippedDark = stripScriptBodies(darkHtml);
-const strippedLight = stripScriptBodies(lightHtml);
+function hasExternalScript(head: string): boolean {
+  return /<script\b[^>]+\bsrc=["'][^"']/i.test(head);
+}
 
-// <script src="..."> tags (not type="module" inlined ones)
-const externalScriptDark = /<script\b[^>]+src=["'][^"']/i.test(strippedDark);
-const externalLinkDark = /<link\b[^>]+rel=["']stylesheet["'][^>]+href=["'][^"'#]/i.test(strippedDark);
-assert(!externalScriptDark, 'dark: no external <script src=');
-assert(!externalLinkDark, 'dark: no external <link rel="stylesheet" href=');
+function hasExternalStylesheet(head: string): boolean {
+  return /<link\b[^>]+\brel=["']stylesheet["'][^>]+\bhref=["'][^"'#]/i.test(head);
+}
 
-const externalScriptLight = /<script\b[^>]+src=["'][^"']/i.test(strippedLight);
-const externalLinkLight = /<link\b[^>]+rel=["']stylesheet["'][^>]+href=["'][^"'#]/i.test(strippedLight);
-assert(!externalScriptLight, 'light: no external <script src=');
-assert(!externalLinkLight, 'light: no external <link rel="stylesheet" href=');
+const darkHead = extractHead(darkHtml);
+const lightHead = extractHead(lightHtml);
+
+assert(!hasExternalScript(darkHead), 'dark: no external <script src= in <head>');
+assert(!hasExternalStylesheet(darkHead), 'dark: no external <link rel="stylesheet" href= in <head>');
+assert(!hasExternalScript(lightHead), 'light: no external <script src= in <head>');
+assert(!hasExternalStylesheet(lightHead), 'light: no external <link rel="stylesheet" href= in <head>');
 
 // 5. Dark and light produce different output (theme propagated)
 assert(darkHtml !== lightHtml, 'dark and light outputs differ');

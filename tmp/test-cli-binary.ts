@@ -5,22 +5,30 @@
  * subcommands work after compile — no dev-mode fallbacks, no filesystem assumptions.
  *
  * Must be run AFTER `bun run build:cli` has produced ./dist/derek.
+ *
+ * Run with: bun tmp/test-cli-binary.ts
  */
 
-import { test, expect, afterAll } from 'bun:test';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-// Resolve paths relative to the project root (worktree root is two dirs up from tmp/)
+// Resolve paths relative to the project root (worktree root is one dir up from tmp/)
 const ROOT = join(import.meta.dir, '..');
 const BINARY = join(ROOT, 'dist', 'derek');
 const MODELS = join(ROOT, 'models');
 const OUT_DICT = join(ROOT, 'tmp', 'out-binary-dict.html');
 const OUT_GRAPH = join(ROOT, 'tmp', 'out-binary-graph.html');
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Helper
-// ──────────────────────────────────────────────────────────────────────────────
+let failures = 0;
+
+function assert(condition: boolean, label: string): void {
+  if (condition) {
+    console.log(`  PASS  ${label}`);
+  } else {
+    console.error(`  FAIL  ${label}`);
+    failures++;
+  }
+}
 
 async function run(
   args: string[],
@@ -48,75 +56,69 @@ async function run(
 // Sanity: binary exists
 // ──────────────────────────────────────────────────────────────────────────────
 
-test('binary exists at dist/derek', () => {
-  expect(existsSync(BINARY)).toBe(true);
-});
+assert(existsSync(BINARY), `binary exists at dist/derek`);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // --help
 // ──────────────────────────────────────────────────────────────────────────────
 
-test('--help includes serve, dict, graph', async () => {
+{
   const { exitCode, stdout } = await run(['--help']);
-  expect(exitCode).toBe(0);
-  expect(stdout).toContain('serve');
-  expect(stdout).toContain('dict');
-  expect(stdout).toContain('graph');
-});
+  assert(exitCode === 0, '--help: exits 0');
+  assert(stdout.includes('serve'), '--help: stdout contains "serve"');
+  assert(stdout.includes('dict'), '--help: stdout contains "dict"');
+  assert(stdout.includes('graph'), '--help: stdout contains "graph"');
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // dict subcommand
 // ──────────────────────────────────────────────────────────────────────────────
 
-test('dict: requires -o flag, exits 1 without it', async () => {
+{
   const { exitCode } = await run(['dict', MODELS]);
-  expect(exitCode).toBe(1);
-});
+  assert(exitCode === 1, 'dict without -o: exits 1');
+}
 
-test('dict: produces HTML file with expected content', async () => {
+{
   const { exitCode, stderr } = await run(['dict', MODELS, '-o', OUT_DICT]);
-  if (exitCode !== 0) {
-    console.error('dict stderr:', stderr);
-  }
-  expect(exitCode).toBe(0);
-  expect(existsSync(OUT_DICT)).toBe(true);
+  if (exitCode !== 0) console.error('dict stderr:', stderr);
+  assert(exitCode === 0, 'dict with -o: exits 0');
+  assert(existsSync(OUT_DICT), 'dict: output file exists');
 
-  const content = await Bun.file(OUT_DICT).text();
-  // Doctype
-  expect(content.toLowerCase()).toContain('<!doctype html>');
-  // Party entity is expected in the sample models
-  expect(content).toContain('id="entity-Party"');
-});
+  if (existsSync(OUT_DICT)) {
+    const content = await Bun.file(OUT_DICT).text();
+    assert(content.toLowerCase().includes('<!doctype html>'), 'dict: output contains <!doctype html>');
+    assert(content.includes('id="entity-Party"'), 'dict: output contains entity-Party anchor');
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // graph subcommand
 // ──────────────────────────────────────────────────────────────────────────────
 
-test('graph: requires -o flag, exits 1 without it', async () => {
+{
   const { exitCode } = await run(['graph', MODELS]);
-  expect(exitCode).toBe(1);
-});
+  assert(exitCode === 1, 'graph without -o: exits 1');
+}
 
-test('graph: produces HTML file with expected content', async () => {
+{
   const { exitCode, stderr } = await run(['graph', MODELS, '-o', OUT_GRAPH]);
-  if (exitCode !== 0) {
-    console.error('graph stderr:', stderr);
-  }
-  expect(exitCode).toBe(0);
-  expect(existsSync(OUT_GRAPH)).toBe(true);
+  if (exitCode !== 0) console.error('graph stderr:', stderr);
+  assert(exitCode === 0, 'graph with -o: exits 0');
+  assert(existsSync(OUT_GRAPH), 'graph: output file exists');
 
-  const content = await Bun.file(OUT_GRAPH).text();
-  // Self-contained HTML
-  expect(content.toLowerCase()).toContain('<!doctype html>');
-  // Model is embedded
-  expect(content).toContain('window.__MODEL__');
-});
+  if (existsSync(OUT_GRAPH)) {
+    const content = await Bun.file(OUT_GRAPH).text();
+    assert(content.toLowerCase().includes('<!doctype html>'), 'graph: output contains <!doctype html>');
+    assert(content.includes('window.__MODEL__'), 'graph: output contains window.__MODEL__');
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // serve subcommand (background process)
 // ──────────────────────────────────────────────────────────────────────────────
 
-test('serve: /api/model returns 24 nodes', async () => {
+{
   const PORT = 3499;
   const proc = Bun.spawn([BINARY, 'serve', MODELS, '--port', String(PORT)], {
     stdout: 'pipe',
@@ -135,19 +137,19 @@ test('serve: /api/model returns 24 nodes', async () => {
     await proc.exited;
   }
 
-  expect(Array.isArray(model.nodes)).toBe(true);
-  expect((model.nodes as unknown[]).length).toBe(24);
-}, 20_000);
+  assert(Array.isArray(model.nodes), 'serve: /api/model returns array of nodes');
+  assert((model.nodes as unknown[]).length === 24, `serve: /api/model returns 24 nodes (got ${(model.nodes as unknown[]).length})`);
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Cleanup
 // ──────────────────────────────────────────────────────────────────────────────
 
-afterAll(async () => {
-  // Remove generated output files — leave screenshots/other test artifacts alone
-  for (const f of [OUT_DICT, OUT_GRAPH]) {
-    if (existsSync(f)) {
-      await Bun.file(f).delete?.();
-    }
+for (const f of [OUT_DICT, OUT_GRAPH]) {
+  if (existsSync(f)) {
+    try { await Bun.file(f).delete?.(); } catch { /* ignore */ }
   }
-});
+}
+
+console.log(`\nResults: ${failures === 0 ? 'ALL TESTS PASSED' : `${failures} TEST(S) FAILED`}`);
+if (failures > 0) process.exit(1);

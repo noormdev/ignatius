@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
 import { createMarkerOverlay, updateMarkers } from './markers';
-import { semanticColors, type ThemeConfig } from './theme-defaults';
+import { semanticColors, type ThemeConfig, type ThemeMode } from './theme-defaults';
 
 cytoscape.use(elk);
 
@@ -50,8 +50,6 @@ type Model = {
   subtypeClusters: SubtypeCluster[];
   theme: ThemeConfig;
 };
-
-type ThemeMode = 'dark' | 'light';
 
 function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
   const p = mode === 'light' ? theme.light : theme.dark;
@@ -362,9 +360,12 @@ export function App() {
   const [model, setModel] = useState<Model | null>(null);
   const [selected, setSelected] = useState<ModelNode | null>(null);
   const [showGroups, setShowGroups] = useState(false);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(
-    () => window.__THEME_MODE__ ?? (localStorage.getItem('derek-theme') as ThemeMode | null) ?? 'dark'
-  );
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    if (window.__THEME_MODE__) return window.__THEME_MODE__;
+    const stored = localStorage.getItem('derek-theme');
+    const initial: ThemeMode = stored === 'light' ? 'light' : 'dark';
+    return initial;
+  });
   // Ref so viewport/position listeners always read the current mode without needing cy rebuild
   const themeModeRef = useRef<ThemeMode>(themeMode);
 
@@ -397,8 +398,8 @@ export function App() {
 
   // Apply CSS custom properties whenever the theme or mode changes
   useEffect(() => {
-    if (model?.theme) applyThemeCssVars(model.theme, themeMode);
-  }, [model?.theme, themeMode]);
+    if (model) applyThemeCssVars(model.theme, themeMode);
+  }, [model, themeMode]);
 
   // Keep ref in sync with state so viewport listeners see the current mode
   useEffect(() => {

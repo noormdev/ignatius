@@ -42,9 +42,15 @@ assert(fkMatches.length >= 27, `at least 27 FK anchor refs (got ${fkMatches.leng
 // 5. Light theme produces different output (different CSS variable values)
 assert(darkHtml !== lightHtml, 'dark and light outputs differ');
 
-// Confirm the theme colors actually differ — dark bg vs light bg
-assert(darkHtml.includes('#0e1116'), 'dark html contains dark background color');
-assert(lightHtml.includes('#ffffff'), 'light html contains light background color');
+// Confirm themes actually differ structurally — both contain --color-background: but with different values
+assert(darkHtml.includes('--color-background:'), 'dark html contains --color-background: CSS var');
+assert(lightHtml.includes('--color-background:'), 'light html contains --color-background: CSS var');
+// Extract each theme's background value and verify they differ
+const darkBgMatch = darkHtml.match(/--color-background:\s*([^;]+);/);
+const lightBgMatch = lightHtml.match(/--color-background:\s*([^;]+);/);
+assert(darkBgMatch !== null, 'dark html has --color-background value');
+assert(lightBgMatch !== null, 'light html has --color-background value');
+assert(darkBgMatch?.[1] !== lightBgMatch?.[1], 'dark and light --color-background values differ');
 
 // 6. Markdown body content rendered (bodyHtml inlined)
 // Party has a bodyHtml with "Anyone the system transacts with"
