@@ -105,3 +105,5 @@ Built across 8 iterations of `/subagent-implementation` (7 spec checkpoints + 1 
 **Deferred items still open:**
 
 None. All 19 follow-ups from CP-1 through CP-7 reviewers were closed in the polish pass. Two new low-severity 🔵 nits from the polish reviewer (vacuous eslint-disable in `file-imports.d.ts`, narrowing cast in dict semantic colors) were judged acceptable; left in place.
+
+**Merged into master as `4a562eb` — 2026-05-28.**
