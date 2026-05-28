@@ -19,8 +19,8 @@ if (await bf.exists()) await Bun.$`rm ${brandingFile}`;
   console.assert(model.branding.subtitle === defaultBranding.subtitle,
     `FAIL: default subtitle: ${model.branding.subtitle}`);
   console.assert(model.branding.poweredBy === true, 'FAIL: default poweredBy should be true');
-  console.assert(model.branding.logo.dark === '__noorm_default__', `FAIL: default logo.dark sentinel`);
-  console.assert(model.branding.logo.light === '__noorm_default__', `FAIL: default logo.light sentinel`);
+  console.assert(model.branding.logo.dark.startsWith('data:image/svg+xml;base64,'), `FAIL: default logo.dark should be a data URI, got: ${model.branding.logo.dark.slice(0, 60)}`);
+  console.assert(model.branding.logo.light.startsWith('data:image/svg+xml;base64,'), `FAIL: default logo.light should be a data URI, got: ${model.branding.logo.light.slice(0, 60)}`);
   console.log('PASS: defaults when no _branding.yaml');
 }
 

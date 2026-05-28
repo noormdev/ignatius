@@ -29,6 +29,12 @@ declare module '*.css' {
   export default path;
 }
 
+// Wildcard ambient declaration for SVG file imports (`with { type: "file" }`).
+declare module '*.svg' {
+  const path: string;
+  export default path;
+}
+
 // Bun.file() augmentation for the `.html` case.
 // bun-types declares `*.html` as `HTMLBundle` — that wildcard cannot be overridden.
 // Instead, add an overload so `Bun.file(htmlBundle)` type-checks correctly.

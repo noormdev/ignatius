@@ -1,3 +1,5 @@
+import noormLogoPath from '../assets/noorm-logo.svg' with { type: 'file' };
+
 export type LogoPair = {
   dark: string;
   light: string;
@@ -16,8 +18,11 @@ export type Branding = {
   poweredBy: boolean;
 };
 
-// Sentinel value; CP-2 will replace with embedded asset content.
-const NOORM_DEFAULT_LOGO = '__noorm_default__';
+// Read the embedded SVG at module load and build a data URI.
+// WHY: `with { type: "file" }` embeds the file into the compiled binary at
+// $bunfs/ — Bun.file().arrayBuffer() works both in dev and in the binary.
+const noormSvgBytes = new Uint8Array(await Bun.file(noormLogoPath).arrayBuffer());
+const NOORM_DEFAULT_LOGO = `data:image/svg+xml;base64,${Buffer.from(noormSvgBytes).toString('base64')}`;
 
 export const defaultBranding: Branding = {
   logo: { dark: NOORM_DEFAULT_LOGO, light: NOORM_DEFAULT_LOGO },
