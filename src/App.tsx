@@ -44,9 +44,13 @@ type Model = {
   theme: ThemeConfig;
 };
 
-function applyThemeCssVars(theme: ThemeConfig) {
-  const p = theme.dark;
+type ThemeMode = 'dark' | 'light';
+
+function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
+  const p = mode === 'light' ? theme.light : theme.dark;
   const root = document.documentElement;
+  root.classList.remove('theme-dark', 'theme-light');
+  root.classList.add(`theme-${mode}`);
   root.style.setProperty('--color-background', p.background);
   root.style.setProperty('--color-surface', p.surface);
   root.style.setProperty('--color-border', p.border);
@@ -112,8 +116,8 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig): cytoscape.Stylesheet[] {
-  const p = theme.dark;
+function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mode: ThemeMode): cytoscape.Stylesheet[] {
+  const p = mode === 'light' ? theme.light : theme.dark;
   const defaultNodeBg = pastel(p.textMuted, p.background, p.pastelMix);
 
   const base: cytoscape.Stylesheet[] = [
@@ -351,15 +355,38 @@ export function App() {
   const [model, setModel] = useState<Model | null>(null);
   const [selected, setSelected] = useState<ModelNode | null>(null);
   const [showGroups, setShowGroups] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(
+    () => (localStorage.getItem('derek-theme') as ThemeMode | null) ?? 'dark'
+  );
+  // Ref so viewport/position listeners always read the current mode without needing cy rebuild
+  const themeModeRef = useRef<ThemeMode>(themeMode);
 
   useEffect(() => {
     fetch('/api/model').then(r => r.json()).then(setModel);
   }, []);
 
-  // Apply CSS custom properties whenever the theme changes
+  // Apply CSS custom properties whenever the theme or mode changes
   useEffect(() => {
-    if (model?.theme) applyThemeCssVars(model.theme);
-  }, [model?.theme]);
+    if (model?.theme) applyThemeCssVars(model.theme, themeMode);
+  }, [model?.theme, themeMode]);
+
+  // Keep ref in sync with state so viewport listeners see the current mode
+  useEffect(() => {
+    themeModeRef.current = themeMode;
+  }, [themeMode]);
+
+  // Re-apply Cytoscape styles when mode changes (without rebuilding the graph)
+  useEffect(() => {
+    if (!cyRef.current || !model || !svgRef.current) return;
+    cyRef.current.style(buildStyles(model.groups, model.theme, themeMode));
+    updateMarkers(cyRef.current, svgRef.current, model.theme, themeMode);
+  }, [themeMode]);
+
+  function toggleTheme() {
+    const next: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('derek-theme', next);
+    setThemeMode(next);
+  }
 
   useEffect(() => {
     if (!model || !graphRef.current) return;
@@ -486,7 +513,7 @@ export function App() {
           'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
         },
       } as cytoscape.LayoutOptions,
-      style: buildStyles(model.groups, model.theme),
+      style: buildStyles(model.groups, model.theme, themeMode),
       minZoom: 0.3,
       maxZoom: 3,
     });
@@ -496,7 +523,7 @@ export function App() {
     }
     const svg = svgRef.current;
 
-    const redrawMarkers = () => updateMarkers(cy, svg, model.theme);
+    const redrawMarkers = () => updateMarkers(cy, svg, model.theme, themeModeRef.current);
     cy.one('layoutstop', () => { cy.fit(undefined, 30); redrawMarkers(); });
     cy.on('viewport', redrawMarkers);
     cy.on('position', redrawMarkers);
@@ -526,6 +553,9 @@ export function App() {
   return (
     <div className="app">
       <div className="graph-panel" ref={graphRef} />
+      <button className="theme-toggle" onClick={toggleTheme} title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+        {themeMode === 'dark' ? '☀' : '☾'}
+      </button>
       {groupEntries.length > 0 && (
         <button className="fab" onClick={() => setShowGroups(true)}>
           <span className="fab-dots">

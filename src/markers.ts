@@ -1,6 +1,8 @@
 import type cytoscape from 'cytoscape';
 import type { ThemeConfig } from './theme-defaults';
 
+type ThemeMode = 'dark' | 'light';
+
 type Cardinality = '1' | '0..1' | 'many';
 
 export function createMarkerOverlay(container: HTMLDivElement): SVGSVGElement {
@@ -17,10 +19,10 @@ export function createMarkerOverlay(container: HTMLDivElement): SVGSVGElement {
   return svg;
 }
 
-export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: ThemeConfig) {
+export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: ThemeConfig, mode: ThemeMode = 'dark') {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
 
-  const p = theme.dark;
+  const p = mode === 'light' ? theme.light : theme.dark;
   const [minScale, maxScale] = theme.spacing.markerScale;
   const zoom = cy.zoom();
   const scale = Math.min(Math.max(zoom, minScale), maxScale);
