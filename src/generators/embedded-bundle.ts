@@ -1,5 +1,5 @@
 /**
- * Embedded bundle assets for the compiled derek binary.
+ * Embedded bundle assets for the compiled ignatius binary.
  *
  * WHY: When Bun compiles a binary with `bun build --compile`, it embeds files
  * imported with `{ type: 'file' }`. At runtime, the path resolves to an

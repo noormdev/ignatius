@@ -331,7 +331,7 @@ export function App() {
   const [showGroups, setShowGroups] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (window.__THEME_MODE__) return window.__THEME_MODE__;
-    const stored = localStorage.getItem('derek-theme');
+    const stored = localStorage.getItem('ignatius-theme');
     const initial: ThemeMode = stored === 'light' ? 'light' : 'dark';
     return initial;
   });
@@ -384,7 +384,7 @@ export function App() {
 
   function toggleTheme() {
     const next: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('derek-theme', next);
+    localStorage.setItem('ignatius-theme', next);
     setThemeMode(next);
   }
 

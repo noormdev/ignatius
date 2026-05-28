@@ -3,7 +3,7 @@
 
 ## Goal
 
-A standalone CLI (`derek`) that takes a models directory and produces one of three outputs: interactive server, static data dictionary HTML, or static graph HTML. The CLI is a single compiled Bun binary with the bundled React app embedded — no external dependencies, no server, no browser automation. Visual properties (colors, spacings) are user-configurable via `_theme.yaml`. All surfaces support light and dark themes.
+A standalone CLI (`ignatius`) that takes a models directory and produces one of three outputs: interactive server, static data dictionary HTML, or static graph HTML. The CLI is a single compiled Bun binary with the bundled React app embedded — no external dependencies, no server, no browser automation. Visual properties (colors, spacings) are user-configurable via `_theme.yaml`. All surfaces support light and dark themes.
 
 
 ## Non-goals
@@ -16,13 +16,13 @@ A standalone CLI (`derek`) that takes a models directory and produces one of thr
 
 ## Success criteria
 
-- [ ] `derek serve models/` starts the interactive server on the models dir
-- [ ] `derek dict models/ -o dict.html` writes a self-contained data dictionary HTML file
-- [ ] `derek graph models/ -o graph.html` writes a self-contained graph HTML file (open in any browser, ELK lays it out client-side, pan/zoom/click work)
+- [ ] `ignatius serve models/` starts the interactive server on the models dir
+- [ ] `ignatius dict models/ -o dict.html` writes a self-contained data dictionary HTML file
+- [ ] `ignatius graph models/ -o graph.html` writes a self-contained graph HTML file (open in any browser, ELK lays it out client-side, pan/zoom/click work)
 - [ ] Interactive app has a light/dark mode toggle that persists to localStorage
 - [ ] Data dictionary HTML has: entity sections with attributes tables, FK links as anchor jumps, relationships tables, rendered markdown body, group color coding
 - [ ] All three surfaces respect `--theme light|dark` flag (static outputs) or toggle (interactive)
-- [ ] `derek --help` prints usage
+- [ ] `ignatius --help` prints usage
 - [ ] `models/_theme.yaml` (optional) overrides default colors and spacings across all surfaces
 - [ ] `serve` watches the models directory and pushes changes to the browser via SSE — the graph re-renders without manual refresh
 - [ ] CLI ships as a single compiled binary with the bundled React app embedded at compile time (`bun build --compile`)
@@ -35,7 +35,7 @@ The existing React app (Cytoscape + ELK + markers) already does all the renderin
 **At CLI build time:**
 
 1. `bun build src/index.html` produces the bundled React app (HTML/JS/CSS) in `dist/static/`
-2. `bun build --compile src/cli.ts` produces the `derek` binary, with the static bundle embedded via `import ... with { type: "file" }`
+2. `bun build --compile src/cli.ts` produces the `ignatius` binary, with the static bundle embedded via `import ... with { type: "file" }`
 
 **At CLI runtime:**
 
@@ -56,7 +56,7 @@ The graph output is the same React app, with the model baked in instead of fetch
 | 4 | Live reload: `fs.watch` on models dir in serve mode, SSE endpoint pushes change events, browser subscribes and refetches `/api/model` on change | src/server.ts, src/App.tsx | atomic-builder | 2 | Edit a `.md` file → graph updates without browser refresh; modal stays open if entity still exists |
 | 5 | Data dictionary generator: reads Model, produces self-contained HTML with entity sections, attribute tables, FK anchor links, relationship tables, group headers, rendered markdown, theme CSS — pure string templates, no React | src/generators/dict.ts | atomic-builder | 1-2 | Generated HTML opens in browser; all 24 entities present; FK links navigate via anchors; group colors applied; respects `--theme` flag |
 | 6 | Graph generator: build the React app bundle, embed it as a template at compile time, at runtime inject Model as `window.__MODEL__` and write to disk | src/generators/graph.ts, build script for stage 1 (`bun build src/index.html`) | atomic-builder | 1-2 | Generated HTML opens in any browser; ELK lays out client-side; graph renders with markers and modal; file is self-contained (no external requests); ~3-4MB |
-| 7 | Wire generators into CLI: `dict` and `graph` subcommands with `-o` and `--theme` flags; produce compiled binary via `bun build --compile` | src/cli.ts, package.json | atomic-surgeon | 1 | `bun build --compile src/cli.ts -o derek` produces a binary; `./derek serve models/`, `./derek dict models/ -o dict.html`, `./derek graph models/ -o graph.html` all work |
+| 7 | Wire generators into CLI: `dict` and `graph` subcommands with `-o` and `--theme` flags; produce compiled binary via `bun build --compile` | src/cli.ts, package.json | atomic-surgeon | 1 | `bun build --compile src/cli.ts -o ignatius` produces a binary; `./ignatius serve models/`, `./ignatius dict models/ -o dict.html`, `./ignatius graph models/ -o graph.html` all work |
 
 
 ## Risks
@@ -73,7 +73,15 @@ The graph output is the same React app, with the model baked in instead of fetch
 
 ## Change log
 
-<!-- Populated on first amendment after approval. -->
+### 2026-05-28 — Rename CLI from `derek` to `ignatius`
+
+**What changed:** Bulk rename across CLI binary, usage text, localStorage key, package.json scripts, settings.local.json permissions, scripts, tests, and doc sections.
+
+**Why:** Honors the project mentor's middle name.
+
+**Superseded:** The shipped binary path is now `dist/ignatius` (was `dist/derek`). No backwards compatibility — pre-rename builds had not been distributed.
+
+**Not touched:** The repo directory name (`derek-db-generator`) and the `package.json` `name` field stay as the project identifier. The CP-3 line in the Implementation log retains the historical name to keep the commit-message audit trail accurate.
 
 
 ## Implementation log
@@ -84,7 +92,7 @@ Built across 8 iterations of `/subagent-implementation` (7 spec checkpoints + 1 
 
 - `7a83fc9` — CP-1: theme config + `_theme.yaml` + CSS custom property extraction
 - `3b377bf` — CP-2: light/dark mode toggle with localStorage persistence
-- `a17698d` — CP-3: `derek` CLI entry + `serve` subcommand + native arg parser
+- `a17698d` — CP-3: CLI entry (originally `derek`, later renamed — see Change log) + `serve` subcommand + native arg parser
 - `2524115` — CP-4: live reload via SSE + `fs.watch` + 200ms debounce
 - `d45979f` — CP-5: data dictionary HTML generator (`src/generators/dict.ts`)
 - `95177ba` — CP-6: static graph HTML generator with embedded model

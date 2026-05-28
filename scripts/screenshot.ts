@@ -8,11 +8,11 @@ import { Webview, SizeHint } from 'webview-bun';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
 const url    = process.argv[2] || 'http://localhost:3777';
-const outDir = process.argv[3] || '/tmp/derek-shots';
+const outDir = process.argv[3] || '/tmp/ignatius-shots';
 mkdirSync(outDir, { recursive: true });
 
 const webview = new Webview(false, { width: 1400, height: 900, hint: SizeHint.FIXED });
-webview.title = 'derek-snapshot';
+webview.title = 'ignatius-snapshot';
 
 let wrote = 0;
 

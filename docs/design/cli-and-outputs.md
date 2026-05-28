@@ -16,9 +16,9 @@ Users want to point the tool at any folder of entity markdown files and get outp
 
 ## Goals
 
-- Standalone CLI: `derek <models-dir>` serves the interactive app
-- `derek <models-dir> --dict` generates a self-contained data dictionary HTML file
-- `derek <models-dir> --graph` generates a self-contained graph HTML file
+- Standalone CLI: `ignatius <models-dir>` serves the interactive app
+- `ignatius <models-dir> --dict` generates a self-contained data dictionary HTML file
+- `ignatius <models-dir> --graph` generates a self-contained graph HTML file
 - Light/dark mode toggle in the interactive app
 - All three surfaces respect the theme
 - Colors and spacings configurable via `_theme.yaml`
@@ -51,7 +51,7 @@ This produces standalone HTML/JS/CSS with everything inlined or referenced.
 **Stage 2 — Compile the CLI with the bundle embedded:**
 
 ```
-bun build --compile src/cli.ts -o derek
+bun build --compile src/cli.ts -o ignatius
 ```
 
 The CLI source imports the bundled files with `import bundle from "./dist/static/index.html" with { type: "file" }`. Bun bakes them into the binary at compile time.
@@ -113,7 +113,7 @@ The app reads this config, generates CSS custom properties from it, and all thre
 ## Architecture
 
 ```
-derek (compiled binary)
+ignatius (compiled binary)
   │
   ├─ Bun runtime (embedded)
   ├─ CLI logic (src/cli.ts)
@@ -131,5 +131,5 @@ All three call `parseModels(dir)` and consume the same `Model` type.
 
 ## Open questions
 
-- CLI name (`derek` for now — rename later?)
+- CLI name (`ignatius` — settled, honoring the project mentor)
 - Should `_theme.yaml` schema also configure node sizes, font sizes, edge thickness? Or keep the schema minimal for v1 and expand later?

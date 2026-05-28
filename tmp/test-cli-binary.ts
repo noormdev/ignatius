@@ -1,10 +1,10 @@
 /**
- * Integration tests for the compiled derek binary.
+ * Integration tests for the compiled ignatius binary.
  *
  * WHY: The binary is the primary artifact of CP-7. These tests verify all three
  * subcommands work after compile — no dev-mode fallbacks, no filesystem assumptions.
  *
- * Must be run AFTER `bun run build:cli` has produced ./dist/derek.
+ * Must be run AFTER `bun run build:cli` has produced ./dist/ignatius.
  *
  * Run with: bun tmp/test-cli-binary.ts
  */
@@ -14,7 +14,7 @@ import { join } from 'path';
 
 // Resolve paths relative to the project root (worktree root is one dir up from tmp/)
 const ROOT = join(import.meta.dir, '..');
-const BINARY = join(ROOT, 'dist', 'derek');
+const BINARY = join(ROOT, 'dist', 'ignatius');
 const MODELS = join(ROOT, 'models');
 const OUT_DICT = join(ROOT, 'tmp', 'out-binary-dict.html');
 const OUT_GRAPH = join(ROOT, 'tmp', 'out-binary-graph.html');
@@ -56,7 +56,7 @@ async function run(
 // Sanity: binary exists
 // ──────────────────────────────────────────────────────────────────────────────
 
-assert(existsSync(BINARY), `binary exists at dist/derek`);
+assert(existsSync(BINARY), `binary exists at dist/ignatius`);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // --help

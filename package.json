@@ -11,7 +11,7 @@
     "start": "NODE_ENV=production bun src/server.ts",
     "build:bundle": "bun build src/index.html --outdir=dist/static --minify --target=browser --define:process.env.NODE_ENV='\"production\"'",
     "build:stable-names": "bun scripts/stable-names.ts",
-    "build:cli": "bun run build:bundle && bun run build:stable-names && bun build --compile src/cli.ts --outfile dist/derek"
+    "build:cli": "bun run build:bundle && bun run build:stable-names && bun build --compile src/cli.ts --outfile dist/ignatius"
   },
   "dependencies": {
     "cytoscape": "^3.31.0",

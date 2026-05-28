@@ -88,7 +88,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 function printUsage(subcommand?: ParsedArgs['subcommand']): void {
   if (subcommand === 'serve') {
     console.log(`
-Usage: derek serve <models-dir> [--port <port>]
+Usage: ignatius serve <models-dir> [--port <port>]
 
   Start the interactive server and watch the models directory for changes.
 
@@ -101,7 +101,7 @@ Options:
 
   if (subcommand === 'dict') {
     console.log(`
-Usage: derek dict <models-dir> -o <output.html> [--theme light|dark]
+Usage: ignatius dict <models-dir> -o <output.html> [--theme light|dark]
 
   Generate a static data dictionary HTML file from the models directory.
 
@@ -115,7 +115,7 @@ Options:
 
   if (subcommand === 'graph') {
     console.log(`
-Usage: derek graph <models-dir> -o <output.html> [--theme light|dark]
+Usage: ignatius graph <models-dir> -o <output.html> [--theme light|dark]
 
   Generate a self-contained interactive graph HTML file.
 
@@ -128,13 +128,13 @@ Options:
   }
 
   console.log(`
-derek — DB model viewer
+ignatius — DB model viewer
 
 Usage:
-  derek serve <models-dir> [--port <port>]
-  derek dict  <models-dir> -o <output.html> [--theme light|dark]
-  derek graph <models-dir> -o <output.html> [--theme light|dark]
-  derek --help
+  ignatius serve <models-dir> [--port <port>]
+  ignatius dict  <models-dir> -o <output.html> [--theme light|dark]
+  ignatius graph <models-dir> -o <output.html> [--theme light|dark]
+  ignatius --help
 
 Subcommands:
   serve   Start the interactive server (default port: 3000)
@@ -173,7 +173,7 @@ async function main(): Promise<void> {
 
   if (parsed.subcommand === 'unknown') {
     console.error(`Unknown subcommand: ${parsed.positional[0]}`);
-    console.error('Run "derek --help" for usage.');
+    console.error('Run "ignatius --help" for usage.');
     process.exit(1);
   }
 
@@ -182,7 +182,7 @@ async function main(): Promise<void> {
 
     if (!dir) {
       console.error(`Error: ${parsed.subcommand} requires a models directory argument.`);
-      console.error(`Usage: derek ${parsed.subcommand} <models-dir> -o <output.html>`);
+      console.error(`Usage: ignatius ${parsed.subcommand} <models-dir> -o <output.html>`);
       process.exit(1);
     }
 
@@ -233,7 +233,7 @@ async function main(): Promise<void> {
 
     if (!dir) {
       console.error('Error: serve requires a models directory argument.');
-      console.error('Usage: derek serve <models-dir>');
+      console.error('Usage: ignatius serve <models-dir>');
       process.exit(1);
     }
 

@@ -100,7 +100,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
     },
   });
 
-  console.log(`derek-db-generator running at http://localhost:${server.port}`);
+  console.log(`ignatius serving at http://localhost:${server.port}`);
 
   function stop(force?: boolean) {
     fsWatcher.close();
