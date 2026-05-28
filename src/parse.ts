@@ -4,7 +4,7 @@ import { defaultTheme, mergeTheme, type ThemeConfig, type ThemePalette, type The
 
 const md = new MarkdownIt();
 
-type ColumnDef = { type: string; nullable?: boolean; desc?: string; default?: string };
+export type ColumnDef = { type: string; nullable?: boolean; desc?: string; default?: string };
 
 type SubtypeClusterDef = {
   exclusive: boolean;
@@ -28,7 +28,7 @@ type Frontmatter = {
   }[];
 };
 
-type GroupConfig = { label: string; color: string; desc?: string };
+export type GroupConfig = { label: string; color: string; desc?: string };
 
 export type Cardinality = '1' | '0..1' | 'many';
 

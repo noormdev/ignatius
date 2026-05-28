@@ -29,10 +29,23 @@ export async function loadEmbeddedBundle(): Promise<BundleContent> {
   // The embedded index.html still references hashed filenames in <link>/<script>
   // tags, but we bypass those references entirely — we read the JS and CSS from
   // the embedded stable-name files and build a synthetic template.
+  const htmlFile = Bun.file(bundleHtmlPath);
+  const jsFile = Bun.file(bundleJsPath);
+  const cssFile = Bun.file(bundleCssPath);
+
+  const [htmlExists, jsExists, cssExists] = await Promise.all([
+    htmlFile.exists(), jsFile.exists(), cssFile.exists(),
+  ]);
+  if (!htmlExists || !jsExists || !cssExists) {
+    throw new Error(
+      'Bundle missing — dist/static/{index.html,index.js,index.css} not found.\n' +
+      'Run: bun run build:bundle\n' +
+      'Or:  bun run build:cli  (full build with stable names + compile)',
+    );
+  }
+
   const [htmlTemplate, jsContent, cssContent] = await Promise.all([
-    Bun.file(bundleHtmlPath).text(),
-    Bun.file(bundleJsPath).text(),
-    Bun.file(bundleCssPath).text(),
+    htmlFile.text(), jsFile.text(), cssFile.text(),
   ]);
 
   return { htmlTemplate, cssContent, jsContent };

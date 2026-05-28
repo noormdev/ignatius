@@ -1,0 +1,4 @@
+- 2026-05-28 cli-and-outputs-app-types-drift — "App.tsx redeclares model types instead of importing from parse.ts" — *(closed 2026-05-28)*
+- 2026-05-28 spec-md-stale-yaml-grammar — "spec/spec.md grammar is the old YAML-only format, not the current markdown frontmatter" — *(closed 2026-05-28)*
+- 2026-05-28 embedded-bundle-silent-failure — "embedded-bundle.ts depends on dist/static existing at runtime with no upfront check" — *(closed 2026-05-28)*
+- 2026-05-28 stable-names-uses-node-fs — "scripts/stable-names.ts uses node:fs instead of Bun APIs" — *(closed 2026-05-28)*

@@ -8,14 +8,17 @@
  * Run after `bun run build:bundle`, before `bun build --compile`.
  */
 
-import { readdirSync, copyFileSync } from 'fs';
 import { join } from 'path';
 
 const BUNDLE_DIR = join(import.meta.dir, '..', 'dist', 'static');
 
-const files = readdirSync(BUNDLE_DIR);
-const jsFile = files.find(f => /^index-.*\.js$/.test(f));
-const cssFile = files.find(f => /^index-.*\.css$/.test(f));
+const jsGlob = new Bun.Glob('index-*.js');
+const cssGlob = new Bun.Glob('index-*.css');
+
+let jsFile: string | undefined;
+let cssFile: string | undefined;
+for await (const f of jsGlob.scan(BUNDLE_DIR)) { jsFile = f; break; }
+for await (const f of cssGlob.scan(BUNDLE_DIR)) { cssFile = f; break; }
 
 if (!jsFile) {
   console.error('ERROR: No index-*.js found in dist/static. Run bun run build:bundle first.');
@@ -27,7 +30,7 @@ if (!cssFile) {
   process.exit(1);
 }
 
-copyFileSync(join(BUNDLE_DIR, jsFile), join(BUNDLE_DIR, 'index.js'));
-copyFileSync(join(BUNDLE_DIR, cssFile), join(BUNDLE_DIR, 'index.css'));
+await Bun.write(Bun.file(join(BUNDLE_DIR, 'index.js')), Bun.file(join(BUNDLE_DIR, jsFile)));
+await Bun.write(Bun.file(join(BUNDLE_DIR, 'index.css')), Bun.file(join(BUNDLE_DIR, cssFile)));
 
 console.log(`Stable names written: index.js (from ${jsFile}), index.css (from ${cssFile})`);

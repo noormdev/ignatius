@@ -4,6 +4,16 @@ globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
 alwaysApply: false
 ---
 
+<atomic-signals>
+
+## Project signals (auto-loaded)
+
+
+@.claude/project/signals.md
+
+</atomic-signals>
+
+
 Default to using Bun instead of Node.js.
 
 - Use `bun <file>` instead of `node <file>` or `ts-node <file>`

@@ -1,5 +1,13 @@
 # IDEF1X Graphing Engine — Spec
 
+> **⚠ HISTORICAL — superseded.** This is the original single-YAML-file design from the start of the project. The shipped tool uses per-entity markdown files with YAML frontmatter, organized under `models/<group>/*.md`. Groups are defined in `models/_groups/*.md`, theme in `models/_theme.yaml`.
+>
+> Current docs:
+> - `docs/design/markdown-driven-erd.md` — current architecture and source format
+> - `docs/spec/cli-and-outputs.md` — the shipped CLI tool spec
+>
+> This file is kept for historical reference only — it documents principles and derivation rules (cardinality, classification, subtypes) that still apply, but the YAML grammar in §2 is NOT how the tool reads input today.
+
 A YAML-driven IDEF1X-style data model authoring tool. The user writes YAML; the tool parses it, validates it semantically, computes a layout, and renders the diagram in the browser.
 
 This spec describes only what is actually built. Speculative routing algorithms, custom port systems, and any feature not yet shipped are deliberately out.

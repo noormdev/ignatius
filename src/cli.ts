@@ -4,7 +4,6 @@ import { serveCommand } from './server';
 import { parseModels } from './parse';
 import { generateDict } from './generators/dict';
 import { generateGraph } from './generators/graph';
-import { loadEmbeddedBundle } from './generators/embedded-bundle';
 
 export type ParsedArgs = {
   subcommand: 'serve' | 'dict' | 'graph' | 'help' | 'unknown';
@@ -206,8 +205,21 @@ async function main(): Promise<void> {
     if (parsed.subcommand === 'dict') {
       html = generateDict(model, mode);
     } else {
-      // graph: load the embedded bundle (stable index.js / index.css embedded at compile time)
-      const bundle = await loadEmbeddedBundle();
+      // graph: load the embedded bundle (stable index.js / index.css embedded at compile time).
+      // Dynamic import so the `dict` subcommand doesn't fail if dist/static is missing in dev mode.
+      let bundle;
+      try {
+        const { loadEmbeddedBundle } = await import('./generators/embedded-bundle');
+        bundle = await loadEmbeddedBundle();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          'Error: could not load the embedded React bundle.\n' +
+          'Run: bun run build:bundle  (or: bun run build:cli)\n' +
+          `\nUnderlying: ${msg}`,
+        );
+        process.exit(1);
+      }
       html = await generateGraph(model, mode, bundle);
     }
 

@@ -3,6 +3,13 @@ import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
 import { createMarkerOverlay, updateMarkers } from './markers';
 import { semanticColors, type ThemeConfig, type ThemeMode } from './theme-defaults';
+import type {
+  Model,
+  ModelNode,
+  ModelEdge,
+  SubtypeCluster,
+  GroupConfig,
+} from './parse';
 
 cytoscape.use(elk);
 
@@ -12,44 +19,6 @@ declare global {
     __THEME_MODE__?: 'dark' | 'light';
   }
 }
-
-type GroupConfig = { label: string; color: string; desc?: string };
-
-type ModelNode = {
-  id: string;
-  classification: string;
-  group?: string;
-  pk: string[];
-  columns: Record<string, { type: string; nullable?: boolean; desc?: string; default?: string }>;
-  alternateKeys: { rule: string; columns: string[] }[];
-  bodyHtml: string;
-};
-
-type Cardinality = '1' | '0..1' | 'many';
-
-type ModelEdge = {
-  source: string;
-  target: string;
-  identifying: boolean;
-  on: Record<string, string>;
-  predicate: string;
-  cardinality: { parent: Cardinality; child: Cardinality };
-};
-
-type SubtypeCluster = {
-  basetype: string;
-  exclusive: boolean;
-  members: string[];
-  desc?: string;
-};
-
-type Model = {
-  groups: Record<string, GroupConfig>;
-  nodes: ModelNode[];
-  edges: ModelEdge[];
-  subtypeClusters: SubtypeCluster[];
-  theme: ThemeConfig;
-};
 
 function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
   const p = mode === 'light' ? theme.light : theme.dark;
