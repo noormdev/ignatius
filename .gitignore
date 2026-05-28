@@ -38,5 +38,26 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Claude scratchpad
 .claude/.scratchpad/
-tmp/
 .claude/project/.deterministic-signals.prev.md
+
+# tmp/ holds load-bearing test scripts (test-*.ts) and intentional test
+# artifacts (screenshot-*.png, test-*.yaml). Only ignore the throwaway stuff.
+tmp/build-check*/
+tmp/release-test/
+tmp/current.png
+tmp/detail.png
+tmp/zoomed.png
+tmp/debug-screenshot.png
+tmp/dict-default.html
+tmp/dict-light.html
+tmp/graph-default.html
+tmp/graph-light.html
+tmp/polish-*.html
+tmp/out-*.html
+tmp/final-*.html
+tmp/r-*.html
+tmp/y-*.html
+tmp/igdict.html
+tmp/iggraph.html
+tmp/test-graph.html
+tmp/test-dict.html
