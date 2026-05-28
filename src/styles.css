@@ -24,6 +24,71 @@ html, body, #root {
   height: 100%;
 }
 
+/* Branding block — top-left, fixed */
+.branding-block {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 50;
+  pointer-events: none;
+}
+.branding-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.branding-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.branding-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+.branding-subtitle {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.2;
+}
+
+/* Footer — bottom-center, fixed */
+.branding-footer {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  z-index: 50;
+  pointer-events: none;
+  max-width: calc(100% - 160px); /* keep clear of FAB on the right */
+}
+.branding-copyright {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+.branding-powered {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  pointer-events: auto;
+}
+.branding-powered a {
+  color: var(--color-link);
+  text-decoration: none;
+}
+.branding-powered a:hover {
+  text-decoration: underline;
+}
+
 /* Theme toggle */
 .theme-toggle {
   position: fixed;

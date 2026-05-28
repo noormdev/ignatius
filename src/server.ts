@@ -1,6 +1,6 @@
 import index from './index.html';
 import { parseModels } from './parse';
-import { resolve } from 'path';
+import { resolve, normalize, isAbsolute } from 'path';
 import { watch } from 'fs';
 
 const encoder = new TextEncoder();
@@ -64,6 +64,23 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
       '/api/model': async () => {
         const model = await parseModels(modelsDir);
         return Response.json(model);
+      },
+      '/api/asset': async (req) => {
+        const url = new URL(req.url);
+        const rawPath = url.searchParams.get('path');
+        if (!rawPath) {
+          return new Response('Missing path query parameter', { status: 400 });
+        }
+        // Reject absolute paths and traversal segments
+        if (isAbsolute(rawPath) || normalize(rawPath).startsWith('..')) {
+          return new Response('Path not allowed', { status: 400 });
+        }
+        const resolved = resolve(modelsDir, rawPath);
+        const file = Bun.file(resolved);
+        if (!(await file.exists())) {
+          return new Response('Not found', { status: 404 });
+        }
+        return new Response(file, { status: 200 });
       },
       '/events': (req, server) => {
         // Disable the 10s idle timeout so the SSE stream stays open indefinitely

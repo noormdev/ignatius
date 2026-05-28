@@ -550,9 +550,25 @@ export function App() {
 
   const groupEntries = model ? Object.entries(model.groups) : [];
 
+  const branding = model?.branding;
+  const logoSrc = branding
+    ? (themeMode === 'dark' ? branding.logo.dark : branding.logo.light)
+    : undefined;
+
   return (
     <div className="app">
       <div className="graph-panel" ref={graphRef} />
+      {branding && (
+        <div className="branding-block">
+          {logoSrc && (
+            <img className="branding-logo" src={logoSrc} alt={branding.title} />
+          )}
+          <div className="branding-text">
+            <h1 className="branding-title">{branding.title}</h1>
+            <p className="branding-subtitle">{branding.subtitle}</p>
+          </div>
+        </div>
+      )}
       <button className="theme-toggle" onClick={toggleTheme} title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
         {themeMode === 'dark' ? '☀' : '☾'}
       </button>
@@ -634,6 +650,21 @@ export function App() {
             />
           </div>
         </div>
+      )}
+      {branding && (
+        <footer className="branding-footer">
+          <span className="branding-copyright">
+            &copy; {branding.copyright.year} {branding.copyright.holder}
+          </span>
+          {branding.poweredBy && (
+            <span className="branding-powered">
+              powered by{' '}
+              <a href="https://noorm.dev" target="_blank" rel="noopener noreferrer">
+                Noorm
+              </a>
+            </span>
+          )}
+        </footer>
       )}
     </div>
   );
