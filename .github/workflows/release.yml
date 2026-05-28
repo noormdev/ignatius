@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build React bundle
+        run: bun run build:bundle
+
+      - name: Stable names
+        run: bun run build:stable-names
+
+      - name: Compile binaries for all platforms
+        run: |
+          set -e
+          mkdir -p dist/release
+          declare -A targets=(
+            [darwin-arm64]=bun-darwin-arm64
+            [darwin-x64]=bun-darwin-x64
+            [linux-x64]=bun-linux-x64
+            [linux-arm64]=bun-linux-arm64
+          )
+          for name in "${!targets[@]}"; do
+            target="${targets[$name]}"
+            echo "Building ignatius-$name..."
+            bun build --compile --target=$target src/cli.ts --outfile dist/release/ignatius-$name
+          done
+          # Windows binary needs .exe suffix
+          bun build --compile --target=bun-windows-x64 src/cli.ts --outfile dist/release/ignatius-windows-x64.exe
+
+      - name: Generate checksums
+        working-directory: dist/release
+        run: |
+          shasum -a 256 ignatius-* > checksums.txt
+          cat checksums.txt
+
+      - name: Attach artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/release/ignatius-*
+            dist/release/checksums.txt
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

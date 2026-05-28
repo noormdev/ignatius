@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "ignatius — a markdown-driven IDEF1X ERD viewer + static site generator",
   "scripts": {
     "dev": "bun --hot src/server.ts",
     "dev:cli": "bun --hot src/cli.ts serve models/",
@@ -11,7 +12,9 @@
     "start": "NODE_ENV=production bun src/server.ts",
     "build:bundle": "bun build src/index.html --outdir=dist/static --minify --target=browser --define:process.env.NODE_ENV='\"production\"'",
     "build:stable-names": "bun scripts/stable-names.ts",
-    "build:cli": "bun run build:bundle && bun run build:stable-names && bun build --compile src/cli.ts --outfile dist/ignatius"
+    "build:cli": "bun run build:bundle && bun run build:stable-names && bun build --compile src/cli.ts --outfile dist/ignatius",
+    "test": "for f in tmp/test-*.ts; do echo \"=== $f ===\" && bun \"$f\" || exit 1; done",
+    "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
     "cytoscape": "^3.31.0",

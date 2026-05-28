@@ -1,0 +1,28 @@
+# .signalsignore
+#
+# Augments .gitignore for the signals scan. Gitignored paths are
+# already excluded automatically. This file is for TRACKED paths
+# you want excluded from signals or flagged as generated.
+#
+# Two modes:
+#   plain glob  → fully excluded from scan (not in tree at all)
+#   + prefix    → appears in tree with [generated] flag (inferrer skips)
+#
+# One glob per line. Blank lines and # comments ignored.
+#
+# Examples:
+#   third_party/**     ← committed but excluded from signals
+#   fixtures/**        ← committed but excluded from signals
+#   +dist/**           ← in tree, flagged [generated]
+#   +*.pb.go           ← in tree, flagged [generated]
+
+# trash/ is v1 code superseded by the current implementation; not imported.
+trash/**
+
+# spec/ is the historical v1 design — current spec is in docs/spec/
++spec/spec.md
+
+# dist/ is build output (bundled React app + compiled binary).
+# The 140k-LOC bundled JS skews language stats; flag generated so the
+# inferrer sees it but skips it for domain/language analysis.
++dist/**
