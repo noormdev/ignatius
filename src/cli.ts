@@ -203,7 +203,7 @@ async function main(): Promise<void> {
 
     let html: string;
     if (parsed.subcommand === 'dict') {
-      html = generateDict(model, mode);
+      html = await generateDict(model, mode, { modelsDir: resolvedDir });
     } else {
       // graph: load the embedded bundle (stable index.js / index.css embedded at compile time).
       // Dynamic import so the `dict` subcommand doesn't fail if dist/static is missing in dev mode.

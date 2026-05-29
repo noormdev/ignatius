@@ -2,8 +2,8 @@ import { parseModels } from '../src/parse';
 import { generateDict } from '../src/generators/dict';
 
 const model = await parseModels('models');
-const darkHtml = generateDict(model, 'dark');
-const lightHtml = generateDict(model, 'light');
+const darkHtml = await generateDict(model, 'dark', { modelsDir: 'models' });
+const lightHtml = await generateDict(model, 'light', { modelsDir: 'models' });
 
 // Write output files for manual inspection
 await Bun.write('tmp/dict-default.html', darkHtml);

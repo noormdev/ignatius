@@ -1,6 +1,8 @@
 import type { Model, ModelNode, ModelEdge } from '../parse';
 import { semanticColors } from '../theme-defaults';
 import { buildThemeCssVars } from './theme-css';
+import { inlineAsset } from './inline-asset';
+import { defaultBranding } from '../branding-defaults';
 
 function esc(s: string): string {
   return s
@@ -168,7 +170,26 @@ ${swatches}
 </nav>`;
 }
 
-export function generateDict(model: Model, mode: 'dark' | 'light'): string {
+export async function generateDict(
+  model: Model,
+  mode: 'dark' | 'light',
+  opts?: { modelsDir?: string },
+): Promise<string> {
+  const modelsDir = opts?.modelsDir ?? '.';
+  const branding = model.branding;
+
+  // Inline only the active mode's logo to avoid embedding unused assets
+  const activeLogo = mode === 'dark' ? branding.logo.dark : branding.logo.light;
+  const fallback = mode === 'dark' ? defaultBranding.logo.dark : defaultBranding.logo.light;
+  // If activeLogo is already a data URI (embedded default), skip inlineAsset
+  const logoSrc = activeLogo.startsWith('data:')
+    ? activeLogo
+    : await inlineAsset(activeLogo, modelsDir, fallback);
+
+  const poweredByHtml = branding.poweredBy
+    ? `<div class="dict-footer-powered">powered by <a href="https://noorm.dev" target="_blank" rel="noopener">Noorm</a></div>`
+    : '';
+
   const cssVars = buildThemeCssVars(model.theme, mode);
   const metaName = model._meta?.name ?? 'Data Dictionary';
 
@@ -338,6 +359,60 @@ export function generateDict(model: Model, mode: 'dark' | 'light'): string {
       margin-top: 0.5rem;
     }
 
+    /* Branding header — top-left, fixed, viewport-pinned */
+    .dict-branding {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 100;
+      pointer-events: none;
+    }
+    .dict-branding-logo {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .dict-branding-text {
+      display: flex;
+      flex-direction: column;
+    }
+    .dict-branding-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+    .dict-branding-subtitle {
+      font-size: 0.72rem;
+      color: var(--color-text-muted);
+      line-height: 1.2;
+    }
+
+    /* Footer — bottom-center, fixed, viewport-pinned */
+    .dict-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 12px 8px;
+      font-size: 0.72rem;
+      color: var(--color-text-muted);
+      background: var(--color-background);
+      border-top: 1px solid var(--color-border);
+      z-index: 100;
+    }
+    .dict-footer-copyright { line-height: 1.4; }
+    .dict-footer-powered { line-height: 1.4; }
+    .dict-footer-powered a { color: var(--color-link); text-decoration: none; }
+    .dict-footer-powered a:hover { text-decoration: underline; }
+
     /* Entity body (markdown) */
     .entity-body {
       border-top: 1px solid var(--color-border);
@@ -367,6 +442,13 @@ export function generateDict(model: Model, mode: 'dark' | 'light'): string {
   </style>
 </head>
 <body>
+  <header class="dict-branding">
+    <img class="dict-branding-logo" src="${logoSrc}" alt="${esc(branding.title)} logo">
+    <div class="dict-branding-text">
+      <span class="dict-branding-title">${esc(branding.title)}</span>
+      <span class="dict-branding-subtitle">${esc(branding.subtitle)}</span>
+    </div>
+  </header>
   <header class="page-header">
     <h1 class="page-title">${esc(metaName)}</h1>
     ${legend}
@@ -375,6 +457,10 @@ export function generateDict(model: Model, mode: 'dark' | 'light'): string {
 ${groupSections}
 ${ungroupedSection}
   </main>
+  <footer class="dict-footer">
+    <div class="dict-footer-copyright">© ${branding.copyright.year} ${esc(branding.copyright.holder)}</div>
+    ${poweredByHtml}
+  </footer>
 </body>
 </html>`;
 }
