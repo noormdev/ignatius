@@ -16,13 +16,13 @@ The result: every new contributor's first entity is a half-broken file that prod
 ## Goals / Non-goals
 
 - **Goals**
-    - Two sub-modes:
-        - **`new entity`** — author a single entity .md file given an existing `models/` root.
-        - **`new model`** — bootstrap a complete `models/` skeleton (`_groups/`, optional `_theme.yaml`, optional `_branding.yaml`, one or two reference entities).
+    - One skill (`/ignatius-modeling`) with two modes selected by a positional arg:
+        - **`entity`** — author a single entity .md file given an existing `models/` root.
+        - **`model`** — bootstrap a complete `models/` skeleton (`_groups/`, optional `_theme.yaml`, optional `_branding.yaml`, one or two reference entities).
     - The skill knows the IDEF1X rules — it asks the right questions in the right order so the resulting file satisfies the linter on first run.
     - After writing, the skill runs `ignatius dict <models>` and reports any lint findings. If findings appear, the skill prompts the user to fix them iteratively.
-    - The skill is invoked via the standard Claude Code skill mechanism (e.g. `/new-entity` and `/new-model`, or a single `/ignatius` with a sub-arg). Naming TBD during spec authoring.
-    - Skill output: a real file on disk (or two for `new model`), staged but not committed.
+    - The skill is invoked via the standard Claude Code skill mechanism: `/ignatius-modeling entity` or `/ignatius-modeling model`. Bare `/ignatius-modeling` asks the user to pick.
+    - Skill output: real file(s) on disk, staged but not committed.
 
 - **Non-goals**
     - The skill is NOT the linter. It depends on the linter (`schema-lint-and-error-ux` spec) to verify output.
@@ -34,11 +34,11 @@ The result: every new contributor's first entity is a half-broken file that prod
 ## Sub-modes
 
 
-### `new entity` flow
+### `entity` flow
 
 ```mermaid
 flowchart TD
-    Start[User: /new-entity] --> Q1{Models dir specified?}
+    Start[User: /ignatius-modeling entity] --> Q1{Models dir specified?}
     Q1 -->|no| AskDir[Ask for models/ path]
     Q1 -->|yes| Parse[parseModels existing]
     AskDir --> Parse
@@ -62,11 +62,11 @@ flowchart TD
 
 Key behavior: the skill uses the user's earlier answers to *prevent* lint violations rather than just catching them. Example: if the user says "independent" and then declares an FK as part of the PK, the skill catches the contradiction in the question flow, not at lint time.
 
-### `new model` flow
+### `model` flow
 
 ```mermaid
 flowchart TD
-    Start[User: /new-model] --> Q1[Ask: target dir<br/>default ./models]
+    Start[User: /ignatius-modeling model] --> Q1[Ask: target dir<br/>default ./models]
     Q1 --> Q2[Ask: project name<br/>for _branding title]
     Q2 --> Q3[Ask: theme<br/>default Noorm / custom?]
     Q3 --> Q4[Ask: group names + colors<br/>at least 1]
@@ -81,14 +81,15 @@ The skeleton is intentionally minimal — no inflated example data. One group, o
 
 ## Invocation
 
-- Skill file lives in this repo so it ships with the project. Path: `.claude/skills/<name>/SKILL.md` (project-scoped skill).
-- Names: `/new-entity` and `/new-model`. Independent skills (one file each) rather than one skill with a sub-arg — clearer surface, simpler skill metadata.
-- Both skills can be invoked from anywhere; if not inside an ignatius `models/`-bearing project they ask for paths.
+- Skill file lives in this repo so it ships with the project. Path: `.claude/skills/ignatius-modeling/SKILL.md` (project-scoped skill).
+- Name: `/ignatius-modeling`. One skill, one file. Mode selected by positional arg: `entity` or `model`.
+- Bare `/ignatius-modeling` (no arg) prompts the user to pick which mode. Unknown args fall to the same prompt.
+- Invokable from anywhere; if not inside an ignatius `models/`-bearing project the skill asks for paths.
 
 
 ## Knowledge encoded in the skill
 
-The skill files (`SKILL.md` for each) must encode:
+The single `SKILL.md` must encode:
 
 - The exact required + optional fields for an entity .md file (id, classification, group, pk, columns, alternateKeys, …).
 - The IDEF1X classification → derivation rules, especially:
@@ -125,7 +126,7 @@ The verification step depends on the linter shipping. Until then, the skill can 
 
 | Rejected | Why |
 |----------|-----|
-| One skill with `--mode` arg (`/ignatius new entity` vs `/ignatius new model`) | Verbose invocation, harder to remember. Two skills are simpler. |
+| Two separate skills (`/new-entity` + `/new-model`) | User picked "separate sub-modes" — one skill, two args — in the original clarify round. Splitting into two skill files contradicts that selection and doubles the surface for no benefit. |
 | Hand-rolled CLI subcommand (`ignatius new entity`) | Skills are the right surface — interactive, in-IDE, in the same loop as everything else Claude Code touches. CLI sub-command duplicates that surface. |
 | Skill that writes through a templating library (Mustache, EJS) | Overkill. Skills are markdown + LLM judgment; templates would add a dep without buying much. |
 | Skill that bypasses the linter and trusts its own checks | Would diverge over time. Skill DEPENDS on the linter; doesn't reimplement it. |
