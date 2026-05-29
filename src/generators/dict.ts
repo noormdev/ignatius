@@ -114,16 +114,38 @@ ${rows.join('\n')}
     </table>`;
 }
 
-function renderEntitySection(node: ModelNode, edges: ModelEdge[]): string {
+function renderEntitySection(
+  node: ModelNode,
+  edges: ModelEdge[],
+  subtypeClusters: SubtypeCluster[],
+): string {
   const pkList = node.pk.map(col => `<code>${esc(col)}</code>`).join(', ');
   const pkLabel = node.pk.length > 0 ? `<span class="pk-label">PK: ${pkList}</span>` : '';
+
+  const isBasetypeOf = subtypeClusters.find(c => c.basetype === node.id);
+  const isSubtypeOf = subtypeClusters.find(c => c.members.includes(node.id));
+
+  const basetypeBadge = isBasetypeOf
+    ? `<span class="badge badge-basetype" style="background:var(--badge-classifier-bg);color:var(--badge-classifier-fg)">basetype · ${isBasetypeOf.exclusive ? 'exclusive' : 'inclusive'}</span>`
+    : '';
+
+  const subtypeOfBadge = isSubtypeOf
+    ? `<span class="badge badge-subtype-of" style="background:var(--badge-classifier-bg);color:var(--badge-classifier-fg)">of <a href="#entity-${esc(isSubtypeOf.basetype)}">${esc(isSubtypeOf.basetype)}</a></span>`
+    : '';
+
+  const subtypeList = isBasetypeOf
+    ? `    <p class="subtype-list">Subtypes: ${isBasetypeOf.members.map(m => `<a href="#entity-${esc(m)}">${esc(m)}</a>`).join(', ')}</p>`
+    : '';
 
   return `  <section class="entity-section" id="entity-${esc(node.id)}">
     <div class="entity-header">
       <h2>${esc(node.id)}</h2>
       ${classificationBadge(node.classification)}
+      ${basetypeBadge}
+      ${subtypeOfBadge}
       ${pkLabel}
     </div>
+${subtypeList}
 ${renderAttributesTable(node, edges)}
 ${renderRelationshipsTable(node, edges)}
     <div class="entity-body">${node.bodyHtml}</div>
@@ -227,7 +249,7 @@ function renderGroupSection(
   if (groupNodes.length === 0) return '';
 
   const entitiesHtml = sortGroupNodes(groupNodes, subtypeClusters)
-    .map(n => renderEntitySection(n, edges))
+    .map(n => renderEntitySection(n, edges, subtypeClusters))
     .join('\n');
 
   const descHtml = groupConfig.desc ?? '';
@@ -305,7 +327,7 @@ export async function generateDict(
   const ungroupedSection = ungroupedNodes.length > 0
     ? ungroupedNodes
         .sort((a, b) => a.id.localeCompare(b.id))
-        .map(n => renderEntitySection(n, model.edges))
+        .map(n => renderEntitySection(n, model.edges, model.subtypeClusters))
         .join('\n')
     : '';
 
@@ -508,6 +530,14 @@ export async function generateDict(
     .dict-footer-powered { line-height: 1.4; }
     .dict-footer-powered a { color: var(--color-link); text-decoration: none; }
     .dict-footer-powered a:hover { text-decoration: underline; }
+
+    /* Subtype list (below entity header on basetype entities) */
+    .subtype-list {
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .subtype-list a { color: inherit; text-decoration: underline; }
 
     /* Entity body (markdown) */
     .entity-body {
