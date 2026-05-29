@@ -126,40 +126,79 @@ assert(restoredOpen, 'reload with localStorage=open: panel is restored open');
 // Re-open the panel to make scrollIntoView in the observer work correctly.
 await page.click('#dict-nav-toggle'); // ensure open
 await page.waitForTimeout(100);
-const scrollspyResult = await page.evaluate(async () => {
+const targetId = await page.evaluate(() => {
     const sections = Array.from(document.querySelectorAll('.entity-section'));
-    if (sections.length < 2) return { ok: false, reason: 'fewer than 2 entity sections' };
-    const target = sections[1];
-    const targetId = target.id;
-    // Scroll the second section into view
+    if (sections.length < 2) return null;
+    const target = sections[1] as HTMLElement;
     target.scrollIntoView({ behavior: 'instant', block: 'start' });
-    // Wait two rAF ticks for the IntersectionObserver callback to fire
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const link = document.querySelector('.dict-nav-link.is-current');
-    const linkHref = link ? link.getAttribute('href') : null;
-    return { ok: linkHref === '#' + targetId, linkHref, targetId };
+    return target.id;
 });
-assert(
-    scrollspyResult.ok,
-    `scrollspy: second entity nav link gains is-current (href=#${scrollspyResult.targetId}, got: ${scrollspyResult.linkHref})`,
-);
+assert(targetId !== null, 'scrollspy: at least 2 entity sections exist');
+if (targetId !== null) {
+    await page.waitForFunction(
+        (expectedHref) => {
+            const link = document.querySelector('.dict-nav-link.is-current');
+            return link !== null && link.getAttribute('href') === expectedHref;
+        },
+        '#' + targetId,
+        { timeout: 3000 },
+    );
+    const currentHref = await page.evaluate(() => {
+        const link = document.querySelector('.dict-nav-link.is-current');
+        return link ? link.getAttribute('href') : null;
+    });
+    assert(
+        currentHref === '#' + targetId,
+        `scrollspy: second entity nav link gains is-current (href=#${targetId}, got: ${currentHref})`,
+    );
+}
 
 // 9. Click a different nav link → that entry becomes is-current
-const clickNavResult = await page.evaluate(async () => {
+const clickTarget = await page.evaluate(() => {
     const links = Array.from(document.querySelectorAll('.dict-nav-link')) as HTMLAnchorElement[];
-    if (links.length < 3) return { ok: false, reason: 'fewer than 3 nav links' };
-    const target = links[2];
-    const expectedHref = target.getAttribute('href');
-    target.click();
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const current = document.querySelector('.dict-nav-link.is-current');
-    const currentHref = current ? current.getAttribute('href') : null;
-    return { ok: currentHref === expectedHref, expectedHref, currentHref };
+    if (links.length < 3) return null;
+    return links[2].getAttribute('href');
 });
-assert(
-    clickNavResult.ok,
-    `scrollspy: clicking nav link makes it is-current (expected: ${clickNavResult.expectedHref}, got: ${clickNavResult.currentHref})`,
-);
+assert(clickTarget !== null, 'scrollspy: at least 3 nav links exist');
+if (clickTarget !== null) {
+    await page.evaluate((href) => {
+        const links = Array.from(document.querySelectorAll('.dict-nav-link')) as HTMLAnchorElement[];
+        const link = links.find(l => l.getAttribute('href') === href);
+        if (link) link.click();
+    }, clickTarget);
+    await page.waitForFunction(
+        (expectedHref) => {
+            const link = document.querySelector('.dict-nav-link.is-current');
+            return link !== null && link.getAttribute('href') === expectedHref;
+        },
+        clickTarget,
+        { timeout: 3000 },
+    );
+    const currentHref = await page.evaluate(() => {
+        const link = document.querySelector('.dict-nav-link.is-current');
+        return link ? link.getAttribute('href') : null;
+    });
+    assert(
+        currentHref === clickTarget,
+        `scrollspy: clicking nav link makes it is-current (expected: ${clickTarget}, got: ${currentHref})`,
+    );
+}
+
+// 10. Inside-panel click guard: clicking a non-link element inside the panel
+//     does NOT close it via the outside-click handler.
+await page.click('#dict-nav-toggle'); // ensure open
+await page.waitForTimeout(100);
+const groupTitle = await page.$('.dict-nav-group-label');
+assert(groupTitle !== null, 'inside-panel guard: .dict-nav-group-label element exists');
+if (groupTitle !== null) {
+    await groupTitle.click();
+    await page.waitForTimeout(100);
+    const stillOpen = await page.evaluate(() => {
+        const panel = document.getElementById('dict-nav-panel');
+        return panel ? panel.getAttribute('aria-hidden') === 'false' : false;
+    });
+    assert(stillOpen, 'inside-panel guard: clicking group title (non-link) inside panel does not close it');
+}
 
 await page.screenshot({ path: resolve('tmp/dict-side-nav-desktop.png') });
 console.log('Screenshot saved: tmp/dict-side-nav-desktop.png');

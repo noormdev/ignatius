@@ -535,6 +535,7 @@ export async function generateDict(
       pointer-events: none;
       padding: 6px 10px;
       border-radius: 8px;
+      background: var(--color-background);
       background: color-mix(in srgb, var(--color-background) 70%, transparent);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
@@ -769,6 +770,7 @@ export async function generateDict(
       font-size: 0.78rem;
     }
     .dict-nav-subtype.is-current {
+      margin-left: calc(1rem - 3px);
       padding-left: calc(1rem - 3px);
     }
 
@@ -797,7 +799,6 @@ export async function generateDict(
         color: #000;
         font-size: 11pt;
         padding: 0;
-        padding-top: 0;
         max-width: none;
         margin: 0;
       }
@@ -946,12 +947,11 @@ ${ungroupedSection}
         if (isOpen()) close(); else open();
       });
 
-      // Nav entry clicks: allow navigation to fire, then close the panel
+      // Nav entry clicks: close the panel synchronously after navigation fires.
       panel.addEventListener('click', function (e) {
         var target = e.target;
         if (target && target.closest && target.closest('.dict-nav-link')) {
-          // Let anchor navigate, then close after a short tick
-          setTimeout(close, 50);
+          close();
         }
       });
 
@@ -959,10 +959,10 @@ ${ungroupedSection}
       // the panel and the toggle button
       document.addEventListener('click', function (e) {
         if (!isOpen()) return;
-        var target = e.target;
-        if (!target) return;
-        var insidePanel = panel.contains(target);
-        var insideToggle = toggle.contains(target);
+        var documentTarget = e.target;
+        if (!documentTarget) return;
+        var insidePanel = panel.contains(documentTarget);
+        var insideToggle = toggle.contains(documentTarget);
         if (!insidePanel && !insideToggle) close();
       });
 
@@ -990,16 +990,18 @@ ${ungroupedSection}
       function updateCurrent() {
         // Among all currently intersecting sections, pick the topmost one
         // (smallest boundingClientRect.top that is >= 0, or least negative).
-        var sections = document.querySelectorAll('.entity-section');
+        // Iterate the intersecting set directly — no DOM re-query needed.
+        var ids = Object.keys(intersecting);
         var bestId = null;
         var bestTop = Infinity;
-        for (var j = 0; j < sections.length; j++) {
-          var sec = sections[j];
-          if (intersecting[sec.id]) {
+        for (var j = 0; j < ids.length; j++) {
+          var id = ids[j];
+          var sec = document.getElementById(id);
+          if (sec) {
             var rect = sec.getBoundingClientRect();
             if (rect.top < bestTop) {
               bestTop = rect.top;
-              bestId = sec.id;
+              bestId = id;
             }
           }
         }
