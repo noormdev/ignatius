@@ -439,7 +439,7 @@ export async function generateDict(
     .attr-table, .rel-table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 1rem;
+      margin-bottom: 2rem;
       font-size: 0.85rem;
     }
     .attr-table th, .rel-table th {
@@ -474,7 +474,7 @@ export async function generateDict(
       text-transform: uppercase;
       letter-spacing: 0.05em;
       margin-bottom: 0.5rem;
-      margin-top: 0.5rem;
+      margin-top: 2rem;
     }
 
     /* Branding header — top-left, fixed, viewport-pinned */
