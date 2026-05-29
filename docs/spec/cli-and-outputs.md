@@ -83,6 +83,14 @@ The graph output is the same React app, with the model baked in instead of fetch
 
 **Not touched:** The repo directory name (`derek-db-generator`) and the `package.json` `name` field stay as the project identifier. The CP-3 line in the Implementation log retains the historical name to keep the commit-message audit trail accurate.
 
+### 2026-05-29 — Finish the rename: `package.json` name → `ignatius`
+
+**What changed:** `package.json` `name` field `derek-db-generator` → `ignatius`. `src/index.html` `<title>` `Derek DB Generator` → `Ignatius`.
+
+**Why:** The tool's name is Ignatius. The 2026-05-28 carve-out left the package name and the user-facing browser title as `derek`, which read as a stale leftover, not an intentional identifier — including in a user-facing `<title>`.
+
+**Superseded:** The 2026-05-28 "Not touched" decision is reversed for the `package.json` `name` field — it is now `ignatius`. The repo directory name (`derek-db-generator/`) is still not renamed (renaming a checked-out working directory is disruptive and out of scope here). The CP-3 audit-trail line below is unchanged.
+
 
 ## Implementation log
 

@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 
+# Bun build temp artifacts
+*.bun-build
+
 # code coverage
 coverage
 *.lcov

@@ -18,11 +18,20 @@
 | Rename hashed → stable names | `bun run build:stable-names` | scripts/stable-names.ts |
 | Dev server (hot reload) | `bun run dev` | package.json → src/server.ts |
 | Dev CLI (hot reload) | `bun run dev:cli` | package.json → src/cli.ts serve models/ |
-| Run a test script | `bun test/test-<name>.ts` | test/ directory |
+| Run all assertion checks | `bun run test` | package.json globs `test/checks/*.ts` |
+| Run a single check | `bun test/checks/test-<name>.ts` | test/checks/ |
+| Typecheck | `bun run typecheck` | package.json → `bunx tsc --noEmit` |
 
 `build:cli` sequence: `build:bundle` → `build:stable-names` → `bun build --compile src/cli.ts --outfile dist/ignatius`
 
-Tests are raw assertion scripts in `test/`, not a test framework. Run individually via `bun test/test-*.ts`. Six scripts cover: CLI binary, parse, dict gen, graph gen, SSE live reload, theme parse.
+`bun run test` runs a shell loop over `test/checks/*.ts` in order; exits 1 on first failure. CI (.github/workflows/ci.yml) runs `test/checks/` scripts individually (not via `bun run test`) after building the binary.
+
+`test/` is organized into subdirectories — not a formal test-framework suite:
+
+- `test/checks/` — 18 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI.
+- `test/visual/` — 6 Playwright screenshot scripts for manual visual inspection. NOT run by `bun run test`.
+- `test/fixtures/` — 3 YAML fixtures loaded by check scripts.
+- `test/notes/` — 2 markdown dev notes.
 
 No linter or formatter configured in package.json.
 
@@ -30,16 +39,20 @@ No linter or formatter configured in package.json.
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| JavaScript | 140413 | 1 | 89% |
-| TypeScript | 5567 | 46 | 3% |
-| HTML | 5215 | 7 | 3% |
-| Markdown | 3044 | 36 | 1% |
-| YAML | 1088 | 3 | 0% |
-| CSS | 714 | 3 | 0% |
+| TypeScript | 8098 | 62 | 57% |
+| Markdown | 4091 | 46 | 29% |
+| YAML | 1235 | 7 | 8% |
+| CSS | 497 | 2 | 3% |
+| JSON | 89 | 4 | 0% |
+| HTML | 26 | 2 | 0% |
 
 ## DevOps & CI
 
-No CI configuration detected. No deploy pipeline. Binary is built locally via `bun run build:cli` and produces `dist/ignatius`. package.json `name` field remains `derek-db-generator` (project identifier, intentionally unchanged).
+- CI provider: GitHub Actions (`.github/workflows/ci.yml`). Triggers on all branch pushes and PRs to master/main.
+- CI pipeline: install deps → cache Playwright → build bundle + stable-names → compile binary → run `test/checks/` scripts individually → typecheck (`continue-on-error: true`).
+- Release pipeline: `.github/workflows/release-please.yml` + `.github/workflows/release.yml` (release-please driven).
+- Binary is built locally or in CI via `bun run build:cli`; produces `dist/ignatius`.
+- package.json `name` is `ignatius`. The repo *directory* is still named `derek-db-generator/` — the one remaining derek reference, a known leftover.
 
 ---
 
@@ -51,9 +64,8 @@ No CI configuration detected. No deploy pipeline. Binary is built locally via `b
 | server | src/server.ts | Bun.serve with /api/model + /events SSE + fs.watch live-reload | (below) |
 | parser | src/parse.ts | Markdown frontmatter → Model: nodes, edges, cardinality derivation, theme loading | (below) |
 | frontend | src/App.tsx, src/main.tsx, src/index.html, src/styles.css, src/markers.ts | React 19 Cytoscape.js graph viewer with ELK layout, crow's-foot SVG overlay, theme toggle | (below) |
-| generators | src/generators/ | Static HTML output: dict (self-contained), graph (embeds React bundle), theme CSS vars | (below) |
-| theme | src/theme-defaults.ts, src/generators/theme-css.ts | ThemeConfig type, default palette, dark/light merging, CSS var generation | (below) |
-| models | models/ | Sample IDEF1X entity files used as the reference data set | (below) |
+| generators | src/generators/ | Static HTML output: dict (self-contained), graph (embeds React bundle), inline-asset inliner, theme CSS vars | (below) |
+| theme | src/theme-defaults.ts, src/branding-defaults.ts, src/generators/theme-css.ts | ThemeConfig + Branding types, default palettes, dark/light merging, CSS var generation | (below) |
 | docs | docs/, spec/spec.md | Design docs, CLI spec, IDEF1X grammar spec | (below) |
 | scripts | scripts/ | Build helpers: stable-names.ts, convert-yaml-to-md.ts, probe.ts, screenshot.ts | (below) |
 
@@ -61,7 +73,7 @@ No CI configuration detected. No deploy pipeline. Binary is built locally via `b
 
 ### cli
 
-`src/cli.ts` is the binary entry point (`import.meta.main` guard at line 252). `parseArgs()` tokenizes `process.argv` into `ParsedArgs` with subcommand + positional + flags. `main()` dispatches to `serveCommand()`, `generateDict()`, or `generateGraph()`. `--port` missing-value sets `NaN`; `main()` detects `isNaN` and exits 1. Subcommand-scoped `--help` prints per-subcommand usage. Three subcommands: `serve` (interactive), `dict` (static HTML), `graph` (static HTML). Default port: 3000. Usage strings reference `ignatius` as the binary name. The `graph` subcommand dynamic-imports `loadEmbeddedBundle` at runtime (not at module load), wrapped in try/catch that prints "Run: bun run build:bundle" on failure — so `dict` and `serve` work without a prior bundle build.
+`src/cli.ts` is the binary entry point (`import.meta.main` guard). `parseArgs()` tokenizes `process.argv` into `ParsedArgs` with subcommand + positional + flags. `main()` dispatches to `serveCommand()`, `generateDict()`, or `generateGraph()`. `--port` missing-value sets `NaN`; `main()` detects `isNaN` and exits 1. Subcommand-scoped `--help` prints per-subcommand usage. Three subcommands: `serve` (interactive), `dict` (static HTML), `graph` (static HTML). Default port: 3000. Usage strings reference `ignatius` as the binary name. The `graph` subcommand dynamic-imports `loadEmbeddedBundle` at runtime, wrapped in try/catch that prints "Run: bun run build:bundle" on failure — so `dict` and `serve` work without a prior bundle build.
 
 ### server
 
@@ -73,15 +85,17 @@ No CI configuration detected. No deploy pipeline. Binary is built locally via `b
 
 ### frontend
 
-`src/App.tsx` (640L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout. `window.__MODEL__` and `window.__THEME_MODE__` used as injection points for static graph output. `src/markers.ts` draws crow's-foot SVG overlays on a canvas element layered over the Cytoscape container. `src/main.tsx` bootstraps the React root. `src/index.html` is the HTML entry point imported by Bun.serve. `src/styles.css` uses CSS custom properties (`--color-*` vars) set by `applyThemeCssVars()` in App.tsx. Theme toggle persists to `localStorage` under the key `ignatius-theme`. `App.tsx` imports `Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `GroupConfig` from `./parse` — no local type redeclarations.
+`src/App.tsx` (672L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout. `window.__MODEL__` and `window.__THEME_MODE__` used as injection points for static graph output. `src/markers.ts` draws crow's-foot SVG overlays on a canvas element layered over the Cytoscape container. `src/main.tsx` bootstraps the React root. `src/index.html` is the HTML entry point imported by Bun.serve. `src/styles.css` uses CSS custom properties (`--color-*` vars) set by `applyThemeCssVars()` in App.tsx. Theme toggle persists to `localStorage` under the key `ignatius-theme`. `App.tsx` imports `Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `GroupConfig` from `./parse` — no local type redeclarations.
 
 ### generators
 
-`src/generators/dict.ts` (380L) — generates self-contained data dictionary HTML with inline CSS, entity sections, attribute tables, FK links, relationship tables, rendered markdown body, group color coding. No external JS dependencies in output.
+`src/generators/dict.ts` (967L) — generates self-contained data dictionary HTML with inline CSS, entity sections, attribute tables, FK links, relationship tables, rendered markdown body, group color coding. No external JS dependencies in output.
 
 `src/generators/graph.ts` — generates self-contained graph HTML by inlining the React bundle (JS + CSS) and injecting `window.__MODEL__` and `window.__THEME_MODE__` as a script tag. Calls `loadBundleFromDir()` (dev) or the caller passes content from `loadEmbeddedBundle()` (compiled binary).
 
 `src/generators/embedded-bundle.ts` — imports `dist/static/index.html`, `dist/static/index.js`, `dist/static/index.css` as file imports (`with { type: 'file' }`). These must be stable (non-hashed) names so `bun build --compile` can embed them. `loadEmbeddedBundle()` calls `Bun.file().exists()` on all three paths before reading; throws a friendly error message including "Run: bun run build:bundle" when any are missing. Used only by the `graph` subcommand via dynamic import in `src/cli.ts`.
+
+`src/generators/inline-asset.ts` — converts local file paths (SVG, PNG, JPG, WebP, GIF) to inline `data:` URIs for embedding in static HTML output. Used by branding-aware generators.
 
 `src/generators/theme-css.ts` — `buildThemeCssVars(theme, mode)` generates CSS custom property declarations as a string for embedding in static outputs.
 
@@ -89,16 +103,21 @@ No CI configuration detected. No deploy pipeline. Binary is built locally via `b
 
 `src/theme-defaults.ts` exports `defaultTheme: ThemeConfig`, `mergeTheme()`, `semanticColors`, and the `ThemeConfig`/`ThemePalette`/`ThemeSpacing` types. `semanticColors` maps classification names (e.g. `subtype`, `kernel`) to `{ bg, fg }` pairs. `mergeTheme()` deep-merges a partial user theme over the defaults. The `ThemeConfig` type is re-exported from `src/parse.ts`.
 
-### models
-
-`models/` is the reference data set. Four entity groups: `catalog/`, `identity/`, `reference/`, `transactional/`. Group configs in `models/_groups/*.md`. Optional `_theme.yaml` at the models root. No `_meta.yaml` present. 24 entity files total. Used as the default models dir in `dev:cli` script and in `src/server.ts` direct-run fallback.
+`src/branding-defaults.ts` — exports `Branding`, `LogoPair`, `CopyrightConfig` types and the default branding config. Imports `assets/noorm-logo.svg` as a file reference. `Branding` holds `logo` (dark/light SVG paths), `title`, `subtitle`, `copyright`, and `poweredBy` flag.
 
 ### docs
 
 `docs/design/cli-and-outputs.md` — design doc for CLI modes and static output approach.
 `docs/design/markdown-driven-erd.md` — design doc for markdown-driven entity file format.
+`docs/design/branding.md` — design doc for branding system (logo, title, copyright, poweredBy flag).
+`docs/design/dict-navigation.md` — design doc for data dictionary navigation (side nav, anchors).
+`docs/design/viewer-fab-ux.md` — design doc for floating action button UX in the graph viewer.
 `docs/spec/cli-and-outputs.md` — implementation contract for the three CLI output modes and theme system.
-`spec/spec.md` (464L) — IDEF1X grammar spec; carries a `⚠ HISTORICAL — superseded` banner at the top (line 3) pointing to `docs/design/markdown-driven-erd.md` and `docs/spec/cli-and-outputs.md`. Kept for historical reference; derivation rules (cardinality, classification, subtypes) still apply but §2 YAML grammar describes the old single-file format, not the current per-entity markdown format.
+`docs/spec/branding.md` — implementation contract for branding in dict and graph outputs.
+`docs/spec/dict-navigation.md` — implementation contract for dict side nav.
+`docs/spec/dict-polish.md` — implementation contract for dict visual polish details.
+`docs/spec/viewer-fab-ux.md` — implementation contract for FAB UX in graph viewer.
+`spec/spec.md` (464L) — IDEF1X grammar spec; carries a `⚠ HISTORICAL — superseded` banner at line 3. Kept for historical reference; derivation rules still apply but §2 YAML grammar describes the old single-file format.
 
 ### scripts
 
@@ -110,10 +129,11 @@ No CI configuration detected. No deploy pipeline. Binary is built locally via `b
 ## Cross-cutting
 
 - `trash/` contains v1 components and engine code (YAML-driven), superseded by current markdown-driven implementation. Not imported anywhere in `src/`.
-- `test/` holds tracked test scripts and fixtures; `tmp/` holds throwaway artifacts (gitignored). Tests run via `bun test/test-*.ts` — no test framework.
+- `test/` is exploratory tooling organized into `checks/` (CI-run assertions), `visual/` (Playwright, manual only), `fixtures/` (YAML data), `notes/` (markdown). Not a formal suite.
 - `src/types/file-imports.d.ts` — ambient module declarations for `*.html`, `*.css` imports with `{ type: 'file' }` or plain import.
-- `bun-env.d.ts` — ambient Bun type augmentations (e.g. `Bun.Glob` scan, `Bun.file`).
+- `bun-env.d.ts` — ambient Bun type augmentations.
 - `bunfig.toml` — Bun config (2L, minimal).
 - `src/parse.ts` exports canonical model types (`Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `Cardinality`, `GroupConfig`, `ColumnDef`). `src/App.tsx` imports these directly — no local type redeclarations.
-- Binary name is `ignatius` (`dist/ignatius`); package.json `name` field is `derek-db-generator` (project identifier, unchanged by design).
+- Binary name is `ignatius` (`dist/ignatius`); package.json `name` is `ignatius`. The repo *directory* `derek-db-generator/` is the only remaining `derek` reference — a known leftover, not an intentional identifier.
+- `assets/noorm-logo.svg` — default branding logo, imported by `src/branding-defaults.ts` as a file reference.
 - Deterministic substrate: `.claude/project/deterministic-signals.md`
