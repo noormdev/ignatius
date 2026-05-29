@@ -263,6 +263,47 @@ ${entitiesHtml}
 </section>`;
 }
 
+/**
+ * Generates the static side-nav markup. All entity links are resolved at
+ * generation time; JS only handles open/close interactions.
+ */
+function renderSideNav(
+  groupOrder: string[],
+  groups: Model['groups'],
+  nodes: ModelNode[],
+  subtypeClusters: SubtypeCluster[],
+): string {
+  const sections = groupOrder.map(key => {
+    const cfg = groups[key];
+    if (!cfg) return '';
+    const groupNodes = nodes.filter(n => n.group === key);
+    if (groupNodes.length === 0) return '';
+    const sorted = sortGroupNodes(groupNodes, subtypeClusters);
+    // Determine which nodes are subtypes (not the basetype) of a cluster
+    const subtypeIds: Record<string, true> = {};
+    for (const c of subtypeClusters) {
+      if (groupNodes.some(n => n.id === c.basetype)) {
+        for (const m of c.members) subtypeIds[m] = true;
+      }
+    }
+    const links = sorted.map(n => {
+      const isSubtype = subtypeIds[n.id];
+      const indent = isSubtype ? ' dict-nav-subtype' : '';
+      return `      <a class="dict-nav-link${indent}" href="#entity-${esc(n.id)}">${esc(n.id)}</a>`;
+    }).join('\n');
+    return `    <div class="dict-nav-group">
+      <div class="dict-nav-group-label" style="color:${cfg.color}">${esc(cfg.label)}</div>
+${links}
+    </div>`;
+  }).filter(s => s.length > 0).join('\n');
+
+  return `<nav class="dict-nav-panel" id="dict-nav-panel" aria-hidden="true" aria-label="Entity navigation">
+  <div class="dict-nav-inner">
+${sections}
+  </div>
+</nav>`;
+}
+
 function renderGroupLegend(groups: Model['groups']): string {
   const swatches = Object.entries(groups)
     .map(([, cfg]) => `  <li class="legend-item">
@@ -332,6 +373,7 @@ export async function generateDict(
     : '';
 
   const legend = renderGroupLegend(model.groups);
+  const sideNav = renderSideNav(groupOrder, model.groups, model.nodes, model.subtypeClusters);
 
   return `<!doctype html>
 <html lang="en">
@@ -639,6 +681,96 @@ export async function generateDict(
       }
     }
 
+    /* ── Side nav toggle ─────────────────────────────────────────────────── */
+    .dict-nav-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      transition: border-color 0.15s, color 0.15s;
+      line-height: 1;
+    }
+    .dict-nav-toggle:hover {
+      border-color: var(--color-link);
+      color: var(--color-text);
+    }
+
+    /* ── Side nav panel ──────────────────────────────────────────────────── */
+    .dict-nav-panel {
+      position: fixed;
+      top: calc(var(--dict-branding-height) + 16px);
+      right: 0;
+      width: 280px;
+      max-height: 80vh;
+      overflow-y: auto;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+      z-index: 150;
+      transform: translateX(100%);
+      transition: transform 200ms ease;
+    }
+    .dict-nav-panel.dict-nav-open {
+      transform: translateX(0);
+    }
+    .dict-nav-inner {
+      padding: 0.75rem 0;
+    }
+    .dict-nav-group {
+      padding: 0.5rem 0;
+    }
+    .dict-nav-group + .dict-nav-group {
+      border-top: 1px solid var(--color-border);
+    }
+    .dict-nav-group-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.25rem 1rem 0.35rem;
+    }
+    .dict-nav-link {
+      display: block;
+      padding: 0.25rem 1rem;
+      font-size: 0.82rem;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dict-nav-link:hover {
+      color: var(--color-text);
+      background: var(--color-surface-alt);
+    }
+    .dict-nav-subtype {
+      margin-left: 1rem;
+      font-size: 0.78rem;
+    }
+
+    @media (max-width: 768px) {
+      .dict-nav-toggle {
+        display: none;
+      }
+      .dict-nav-panel {
+        display: none;
+      }
+    }
+
     /* ── Print stylesheet ─────────────────────────────────────────────────── */
     @media print {
       /* Force light-mode CSS variables when printing, regardless of the theme
@@ -740,6 +872,10 @@ export async function generateDict(
 
       /* Hide elements that have no value in a printed document */
       .legend { display: none; }
+
+      /* Hide nav toggle and panel in print — not useful on paper */
+      .dict-nav-toggle,
+      .dict-nav-panel { display: none; }
     }
   </style>
 </head>
@@ -751,6 +887,8 @@ export async function generateDict(
       <span class="dict-branding-subtitle">${esc(branding.subtitle)}</span>
     </div>
   </div>
+  <button class="dict-nav-toggle" id="dict-nav-toggle" aria-label="Toggle entity navigation" aria-expanded="false">☰</button>
+  ${sideNav}
   <header class="page-header">
     <h1 class="page-title">${esc(metaName)}</h1>
     ${legend}
@@ -763,6 +901,67 @@ ${ungroupedSection}
     <div class="dict-footer-copyright">© ${branding.copyright.year} ${esc(branding.copyright.holder)}</div>
     ${poweredByHtml}
   </footer>
+  <script>
+    (function () {
+      var STORAGE_KEY = 'ignatius-dict-nav';
+      var toggle = document.getElementById('dict-nav-toggle');
+      var panel = document.getElementById('dict-nav-panel');
+      if (!toggle || !panel) return;
+
+      function isOpen() {
+        return panel.classList.contains('dict-nav-open');
+      }
+
+      function open() {
+        panel.classList.add('dict-nav-open');
+        panel.setAttribute('aria-hidden', 'false');
+        toggle.setAttribute('aria-expanded', 'true');
+        try { localStorage.setItem(STORAGE_KEY, 'open'); } catch (_) {}
+      }
+
+      function close() {
+        panel.classList.remove('dict-nav-open');
+        panel.setAttribute('aria-hidden', 'true');
+        toggle.setAttribute('aria-expanded', 'false');
+        try { localStorage.setItem(STORAGE_KEY, 'closed'); } catch (_) {}
+      }
+
+      // Restore persisted state on load
+      try {
+        if (localStorage.getItem(STORAGE_KEY) === 'open') open();
+      } catch (_) {}
+
+      toggle.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (isOpen()) close(); else open();
+      });
+
+      // Nav entry clicks: allow navigation to fire, then close the panel
+      panel.addEventListener('click', function (e) {
+        var target = e.target;
+        if (target && target.closest && target.closest('.dict-nav-link')) {
+          // Let anchor navigate, then close after a short tick
+          setTimeout(close, 50);
+        }
+      });
+
+      // Outside-click: only close when the click target is outside both
+      // the panel and the toggle button
+      document.addEventListener('click', function (e) {
+        if (!isOpen()) return;
+        var target = e.target;
+        if (!target) return;
+        var insidePanel = panel.contains(target);
+        var insideToggle = toggle.contains(target);
+        if (!insidePanel && !insideToggle) close();
+      });
+
+      // Esc closes the panel
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && isOpen()) close();
+      });
+    })();
+  </script>
 </body>
 </html>`;
 }
