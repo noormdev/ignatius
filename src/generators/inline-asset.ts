@@ -33,6 +33,8 @@ export async function inlineAsset(
   embeddedFallback: string,
 ): Promise<string> {
   if (!srcOrUrl) return embeddedFallback;
+  // Already a data URI — return as-is (e.g. pre-embedded default logo)
+  if (srcOrUrl.startsWith('data:')) return srcOrUrl;
 
   if (srcOrUrl.startsWith('http://') || srcOrUrl.startsWith('https://')) {
     let response: Response;

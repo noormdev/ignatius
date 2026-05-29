@@ -14,7 +14,6 @@
 import { parseModels } from '../src/parse';
 import { generateDict } from '../src/generators/dict';
 import { generateGraph } from '../src/generators/graph';
-import { defaultBranding } from '../src/branding-defaults';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 
@@ -30,12 +29,12 @@ function assert(cond: boolean, msg: string) {
 }
 
 // ── Setup: generate default-branding dict + graph HTML ───────────────────────
+// parseModels with no _branding.yaml naturally defaults — exercises the full parse→merge path.
 
-const baseModel = await parseModels('models');
-const defaultModel = { ...baseModel, branding: defaultBranding };
+const model = await parseModels('models');
 
-const dictHtml = await generateDict(defaultModel, 'dark', { modelsDir: 'models' });
-const graphHtml = await generateGraph(defaultModel, 'dark');
+const dictHtml = await generateDict(model, 'dark', { modelsDir: 'models' });
+const graphHtml = await generateGraph(model, 'dark');
 
 const dictPath = resolve('tmp/zero-network-dict.html');
 const graphPath = resolve('tmp/zero-network-graph.html');
@@ -104,7 +103,9 @@ async function verifyZeroNetwork(htmlPath: string, surface: 'dict' | 'graph') {
             `${surface}: .dict-footer-copyright contains "Noorm Ignatius" (got: "${footerText}")`,
         );
     } else {
-        // Graph surface uses .branding-title and .branding-copyright
+        // Graph surface uses .branding-title and .branding-copyright.
+        // React renders client-side — wait for the element before reading.
+        await page.waitForSelector('.branding-title', { timeout: 30000 });
         const titleText = await page.locator('.branding-title').first().textContent();
         assert(
             titleText?.includes('Noorm Ignatius') ?? false,
@@ -143,14 +144,59 @@ async function verifyZeroNetwork(htmlPath: string, surface: 'dict' | 'graph') {
 }
 
 try {
-    console.log('\n--- dict: zero-network verification ---\n');
+    console.log('\n--- dict: zero-network verification (dev imports) ---\n');
     await verifyZeroNetwork(dictPath, 'dict');
 
-    console.log('\n--- graph: zero-network verification ---\n');
+    console.log('\n--- graph: zero-network verification (dev imports) ---\n');
     await verifyZeroNetwork(graphPath, 'graph');
+
+    // ── Binary verification (F-15) ──────────────────────────────────────────
+    // Spawn the compiled binary to catch bundling defects (e.g. dropped embedded SVG).
+    console.log('\n--- binary zero-network verification ---\n');
+
+    const binaryDictPath = resolve('tmp/zero-network-binary-dict.html');
+    const binaryGraphPath = resolve('tmp/zero-network-binary-graph.html');
+
+    const dictProc = Bun.spawn(['./dist/ignatius', 'dict', 'models', '-o', binaryDictPath], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+    });
+    await dictProc.exited;
+    if (dictProc.exitCode !== 0) {
+        const err = await new Response(dictProc.stderr).text();
+        assert(false, `binary dict: exited ${dictProc.exitCode} — ${err.trim()}`);
+    } else {
+        console.log('PASS: binary dict: exited 0');
+    }
+
+    const graphProc = Bun.spawn(['./dist/ignatius', 'graph', 'models', '-o', binaryGraphPath], {
+        stdout: 'pipe',
+        stderr: 'pipe',
+    });
+    await graphProc.exited;
+    if (graphProc.exitCode !== 0) {
+        const err = await new Response(graphProc.stderr).text();
+        assert(false, `binary graph: exited ${graphProc.exitCode} — ${err.trim()}`);
+    } else {
+        console.log('PASS: binary graph: exited 0');
+    }
+
+    const binaryDictExists = await Bun.file(binaryDictPath).exists();
+    const binaryGraphExists = await Bun.file(binaryGraphPath).exists();
+    assert(binaryDictExists, 'binary dict: output file created');
+    assert(binaryGraphExists, 'binary graph: output file created');
+
+    if (binaryDictExists) {
+        console.log('\n--- binary dict: zero-network verification ---\n');
+        await verifyZeroNetwork(binaryDictPath, 'dict');
+    }
+    if (binaryGraphExists) {
+        console.log('\n--- binary graph: zero-network verification ---\n');
+        await verifyZeroNetwork(binaryGraphPath, 'graph');
+    }
 } finally {
     await browser.close();
 }
 
-console.log(`\n${failures === 0 ? 'ALL TESTS PASSED (10 assertions)' : `${failures} TEST(S) FAILED`}`);
+console.log(`\n${failures === 0 ? 'ALL TESTS PASSED' : `${failures} TEST(S) FAILED`}`);
 if (failures > 0) process.exit(1);

@@ -12,13 +12,23 @@ import { join } from 'path';
 
 const BUNDLE_DIR = join(import.meta.dir, '..', 'dist', 'static');
 
-const jsGlob = new Bun.Glob('index-*.js');
-const cssGlob = new Bun.Glob('index-*.css');
+// Read index.html to find exactly which hashed filenames were produced by this build.
+// WHY: if multiple stale index-*.{js,css} files exist from previous builds, a glob scan
+// returns alphabetically first — which may be wrong. The HTML is the authoritative source.
+const htmlContent = await Bun.file(join(BUNDLE_DIR, 'index.html')).text();
+const jsMatch = htmlContent.match(/src=["'](?:\.\/)?([^"']*index-[^"']+\.js)["']/);
+const cssMatch = htmlContent.match(/href=["'](?:\.\/)?([^"']*index-[^"']+\.css)["']/);
 
-let jsFile: string | undefined;
-let cssFile: string | undefined;
-for await (const f of jsGlob.scan(BUNDLE_DIR)) { jsFile = f; break; }
-for await (const f of cssGlob.scan(BUNDLE_DIR)) { cssFile = f; break; }
+let jsFile: string | undefined = jsMatch?.[1];
+let cssFile: string | undefined = cssMatch?.[1];
+
+// Fallback: glob scan (kept for resilience, but should not be needed with a clean build)
+if (!jsFile || !cssFile) {
+  const jsGlob = new Bun.Glob('index-*.js');
+  const cssGlob = new Bun.Glob('index-*.css');
+  if (!jsFile) for await (const f of jsGlob.scan(BUNDLE_DIR)) { jsFile = f; break; }
+  if (!cssFile) for await (const f of cssGlob.scan(BUNDLE_DIR)) { cssFile = f; break; }
+}
 
 if (!jsFile) {
   console.error('ERROR: No index-*.js found in dist/static. Run bun run build:bundle first.');

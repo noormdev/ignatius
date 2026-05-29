@@ -33,7 +33,7 @@ html, body, #root {
   align-items: center;
   gap: 10px;
   z-index: 50;
-  pointer-events: none;
+  user-select: none;
 }
 .branding-logo {
   width: 32px;
@@ -59,6 +59,8 @@ html, body, #root {
 }
 
 /* Footer — bottom-center, fixed */
+/* --fab-region matches the FAB's right offset + width so the footer stays clear */
+:root { --fab-region: 160px; }
 .branding-footer {
   position: fixed;
   bottom: 12px;
@@ -70,7 +72,7 @@ html, body, #root {
   gap: 2px;
   z-index: 50;
   pointer-events: none;
-  max-width: calc(100% - 160px); /* keep clear of FAB on the right */
+  max-width: calc(100% - var(--fab-region));
 }
 .branding-copyright {
   font-size: 11px;

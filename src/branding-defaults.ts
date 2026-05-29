@@ -28,7 +28,9 @@ export const defaultBranding: Branding = {
   logo: { dark: NOORM_DEFAULT_LOGO, light: NOORM_DEFAULT_LOGO },
   title: 'Noorm Ignatius',
   subtitle: 'Write SQL. Skip the ORM.',
-  copyright: { holder: 'Noorm Ignatius', year: new Date().getFullYear() },
+  get copyright(): CopyrightConfig {
+    return { holder: 'Noorm Ignatius', year: new Date().getFullYear() };
+  },
   poweredBy: true,
 };
 
@@ -42,6 +44,7 @@ type RawBrandingInput = Partial<{
   poweredBy: boolean;
 }>;
 
+// WHY: explicit `null` in object-form logo falls through to the embedded default by design.
 function normalizeLogo(input: RawLogoInput): LogoPair {
   if (typeof input === 'string') {
     return { dark: input, light: input };

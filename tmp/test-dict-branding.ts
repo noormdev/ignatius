@@ -36,8 +36,8 @@ assert(
   'Default light: output contains embedded data URI logo',
 );
 
-// ── Test 2: poweredBy: true renders noorm.dev link ───────────────────────────
-const poweredByModel = { ...baseModel, branding: mergeBranding({ poweredBy: true }) };
+// ── Test 2: poweredBy: true renders noorm.dev link (default — no explicit flag needed) ──
+const poweredByModel = { ...baseModel, branding: mergeBranding({}) };
 const poweredByHtml = await generateDict(poweredByModel, 'dark', { modelsDir: 'models' });
 assert(
   poweredByHtml.includes('href="https://noorm.dev"'),

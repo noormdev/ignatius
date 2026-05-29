@@ -181,10 +181,7 @@ export async function generateDict(
   // Inline only the active mode's logo to avoid embedding unused assets
   const activeLogo = mode === 'dark' ? branding.logo.dark : branding.logo.light;
   const fallback = mode === 'dark' ? defaultBranding.logo.dark : defaultBranding.logo.light;
-  // If activeLogo is already a data URI (embedded default), skip inlineAsset
-  const logoSrc = activeLogo.startsWith('data:')
-    ? activeLogo
-    : await inlineAsset(activeLogo, modelsDir, fallback);
+  const logoSrc = await inlineAsset(activeLogo, modelsDir, fallback);
 
   const poweredByHtml = branding.poweredBy
     ? `<div class="dict-footer-powered">powered by <a href="https://noorm.dev" target="_blank" rel="noopener">Noorm</a></div>`
@@ -442,13 +439,13 @@ export async function generateDict(
   </style>
 </head>
 <body>
-  <header class="dict-branding">
+  <div class="dict-branding">
     <img class="dict-branding-logo" src="${logoSrc}" alt="${esc(branding.title)} logo">
     <div class="dict-branding-text">
       <span class="dict-branding-title">${esc(branding.title)}</span>
       <span class="dict-branding-subtitle">${esc(branding.subtitle)}</span>
     </div>
-  </header>
+  </div>
   <header class="page-header">
     <h1 class="page-title">${esc(metaName)}</h1>
     ${legend}

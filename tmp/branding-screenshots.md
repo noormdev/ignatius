@@ -30,3 +30,4 @@
 - All logo `src` attributes are `data:image/svg+xml;base64,...` — no runtime network requests.
 - `poweredBy: false` removes the "powered by Noorm" anchor entirely (visible in custom screenshots).
 - Fixed positioning is unaffected by graph pan/zoom and dict scroll — check overlapping elements at extremes of the scroll range.
+- **Dict vs graph asymmetry:** dict screenshots use default (Noorm) branding for both themes — this deliberately shows the Noorm fallback path (no `_branding.yaml`). Graph screenshots use default-dark and custom-light — this demonstrates both the embedded asset path (dark default) and that user overrides propagate through the React runtime (light custom). The two surfaces are not inconsistent; they cover different scenarios by design.

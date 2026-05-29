@@ -31,14 +31,26 @@ const FALLBACK = 'data:image/svg+xml;base64,FALLBACKCONTENT';
   console.log('PASS (a): unset/empty input returns fallback');
 }
 
-// --- (b) URL input fetches + base64-encodes ---
+// --- (b) URL input fetches + base64-encodes (local server, no live network) ---
 {
-  const result = await inlineAsset('https://noorm.dev/image/logo.svg', fixturesDir, FALLBACK);
-  console.assert(result.startsWith('data:image/svg+xml;base64,'), `FAIL (b): expected data URI, got: ${result.slice(0, 60)}`);
-  const b64Part = result.slice('data:image/svg+xml;base64,'.length);
-  const decoded = Buffer.from(b64Part, 'base64').toString('utf8');
-  console.assert(decoded.includes('<svg'), `FAIL (b): decoded content should be SVG: ${decoded.slice(0, 100)}`);
-  console.log('PASS (b): URL input fetches + base64-encodes');
+  const localSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>';
+  const localServer = Bun.serve({
+    port: 0, // OS-assigned port
+    fetch() {
+      return new Response(localSvg, { headers: { 'Content-Type': 'image/svg+xml' } });
+    },
+  });
+  const localUrl = `http://localhost:${localServer.port}/test.svg`;
+  try {
+    const result = await inlineAsset(localUrl, fixturesDir, FALLBACK);
+    console.assert(result.startsWith('data:image/svg+xml;base64,'), `FAIL (b): expected data URI, got: ${result.slice(0, 60)}`);
+    const b64Part = result.slice('data:image/svg+xml;base64,'.length);
+    const decoded = Buffer.from(b64Part, 'base64').toString('utf8');
+    console.assert(decoded.includes('<svg'), `FAIL (b): decoded content should be SVG: ${decoded.slice(0, 100)}`);
+    console.log('PASS (b): URL input fetches + base64-encodes');
+  } finally {
+    localServer.stop(true);
+  }
 }
 
 // --- (c) Filepath input reads + base64-encodes ---

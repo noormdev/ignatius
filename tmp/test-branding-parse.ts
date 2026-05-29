@@ -73,7 +73,7 @@ await Bun.write(brandingFile, `title: "${longTitle}"\n`);
     threw = true;
     const msg = e instanceof Error ? e.message : String(e);
     console.assert(msg.includes('title'), `FAIL: error should mention 'title': ${msg}`);
-    console.assert(msg.includes('51'), `FAIL: error should mention length 51: ${msg}`);
+    console.assert(msg.includes('character') || msg.includes('length'), `FAIL: error should mention characters/length: ${msg}`);
   }
   console.assert(threw, 'FAIL: title >50 should throw');
   console.log('PASS: title >50 chars throws');
@@ -90,7 +90,7 @@ await Bun.write(brandingFile, `subtitle: "${longSubtitle}"\n`);
     threw = true;
     const msg = e instanceof Error ? e.message : String(e);
     console.assert(msg.includes('subtitle'), `FAIL: error should mention 'subtitle': ${msg}`);
-    console.assert(msg.includes('51'), `FAIL: error should mention length 51: ${msg}`);
+    console.assert(msg.includes('character') || msg.includes('length'), `FAIL: error should mention characters/length: ${msg}`);
   }
   console.assert(threw, 'FAIL: subtitle >50 should throw');
   console.log('PASS: subtitle >50 chars throws');

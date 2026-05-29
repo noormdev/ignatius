@@ -39,45 +39,61 @@ assert(
 );
 
 // ── Test 2: window.__MODEL__ JSON contains a branding object ─────────────────
-// Extract the script tag containing window.__MODEL__
-const modelScriptMatch = darkHtml.match(/window\.__MODEL__\s*=\s*(\{.*?\});\s*window\.__THEME/s);
-assert(modelScriptMatch !== null, 'dark graph: window.__MODEL__ script block found');
+// Extract the JSON object following `window.__MODEL__ = ` using a brace counter
+// so the extraction is not fragile against multi-line or nested structures.
+const modelMarker = 'window.__MODEL__ = ';
+const markerIdx = darkHtml.indexOf(modelMarker);
+assert(markerIdx !== -1, 'dark graph: window.__MODEL__ assignment found');
 
-if (modelScriptMatch) {
-    let parsedModel: unknown;
+let parsedModel: unknown;
+
+if (markerIdx !== -1) {
+    const startIdx = darkHtml.indexOf('{', markerIdx + modelMarker.length);
+    let depth = 0;
+    let endIdx = startIdx;
+    for (let i = startIdx; i < darkHtml.length; i++) {
+        if (darkHtml[i] === '{') depth++;
+        else if (darkHtml[i] === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+    }
+    const jsonStr = darkHtml.slice(startIdx, endIdx + 1);
     try {
-        parsedModel = JSON.parse(modelScriptMatch[1]);
+        parsedModel = JSON.parse(jsonStr);
+        assert(true, 'dark graph: window.__MODEL__ JSON is valid and parseable');
     } catch {
         assert(false, 'dark graph: window.__MODEL__ JSON is valid and parseable');
     }
+}
 
-    if (parsedModel && typeof parsedModel === 'object') {
-        const m = parsedModel as Record<string, unknown>;
+if (parsedModel !== undefined && typeof parsedModel === 'object' && parsedModel !== null) {
+    assert('branding' in parsedModel, 'window.__MODEL__ has branding key');
 
-        assert('branding' in m, 'window.__MODEL__ has branding key');
+    if ('branding' in parsedModel) {
+        const branding = (parsedModel as { branding: unknown }).branding;
+        if (typeof branding === 'object' && branding !== null) {
+            assert(typeof (branding as { title?: unknown }).title === 'string', 'branding.title is a string');
+            const logo = (branding as { logo?: unknown }).logo;
+            assert(typeof logo === 'object' && logo !== null, 'branding.logo is an object (normalized dark/light shape)');
 
-        const branding = m.branding as Record<string, unknown> | undefined;
-        if (branding) {
-            assert(typeof branding.title === 'string', 'branding.title is a string');
-            assert(typeof branding.logo === 'object' && branding.logo !== null, 'branding.logo is an object (normalized dark/light shape)');
+            if (typeof logo === 'object' && logo !== null) {
+                assert(
+                    typeof (logo as { dark?: unknown }).dark === 'string' && ((logo as { dark: string }).dark).startsWith('data:image/svg+xml;base64,'),
+                    'branding.logo.dark is a data URI',
+                );
+                assert(
+                    typeof (logo as { light?: unknown }).light === 'string' && ((logo as { light: string }).light).startsWith('data:image/svg+xml;base64,'),
+                    'branding.logo.light is a data URI',
+                );
+            }
 
-            const logo = branding.logo as Record<string, unknown>;
-            assert(
-                typeof logo.dark === 'string' && logo.dark.startsWith('data:image/svg+xml;base64,'),
-                'branding.logo.dark is a data URI',
-            );
-            assert(
-                typeof logo.light === 'string' && logo.light.startsWith('data:image/svg+xml;base64,'),
-                'branding.logo.light is a data URI',
-            );
+            assert('poweredBy' in (branding as object), 'branding.poweredBy present');
+            assert('copyright' in (branding as object), 'branding.copyright present');
 
-            assert('poweredBy' in branding, 'branding.poweredBy present');
-            assert('copyright' in branding, 'branding.copyright present');
-
-            const copyright = branding.copyright as Record<string, unknown> | undefined;
-            if (copyright) {
-                assert(typeof copyright.holder === 'string', 'branding.copyright.holder is a string');
-                assert(typeof copyright.year === 'number', 'branding.copyright.year is a number');
+            if ('copyright' in (branding as object)) {
+                const copyright = (branding as { copyright: unknown }).copyright;
+                if (typeof copyright === 'object' && copyright !== null) {
+                    assert(typeof (copyright as { holder?: unknown }).holder === 'string', 'branding.copyright.holder is a string');
+                    assert(typeof (copyright as { year?: unknown }).year === 'number', 'branding.copyright.year is a number');
+                }
             }
         }
     }
