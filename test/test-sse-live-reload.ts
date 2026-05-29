@@ -6,7 +6,7 @@
  *  2. Touching a .md file triggers exactly ONE model-changed event (debounce works)
  *  3. The event arrives within 500ms of the final write
  *
- * Run: bun tmp/test-sse-live-reload.ts
+ * Run: bun test/test-sse-live-reload.ts
  */
 
 import { serveCommand } from '../src/server';

@@ -18,11 +18,11 @@
 | Rename hashed → stable names | `bun run build:stable-names` | scripts/stable-names.ts |
 | Dev server (hot reload) | `bun run dev` | package.json → src/server.ts |
 | Dev CLI (hot reload) | `bun run dev:cli` | package.json → src/cli.ts serve models/ |
-| Run a test script | `bun tmp/test-<name>.ts` | tmp/ directory |
+| Run a test script | `bun test/test-<name>.ts` | test/ directory |
 
 `build:cli` sequence: `build:bundle` → `build:stable-names` → `bun build --compile src/cli.ts --outfile dist/ignatius`
 
-Tests are raw assertion scripts in `tmp/`, not a test framework. Run individually via `bun tmp/test-*.ts`. Six scripts cover: CLI binary, parse, dict gen, graph gen, SSE live reload, theme parse.
+Tests are raw assertion scripts in `test/`, not a test framework. Run individually via `bun test/test-*.ts`. Six scripts cover: CLI binary, parse, dict gen, graph gen, SSE live reload, theme parse.
 
 No linter or formatter configured in package.json.
 
@@ -110,7 +110,7 @@ No CI configuration detected. No deploy pipeline. Binary is built locally via `b
 ## Cross-cutting
 
 - `trash/` contains v1 components and engine code (YAML-driven), superseded by current markdown-driven implementation. Not imported anywhere in `src/`.
-- `tmp/` holds test scripts, sample output HTML files, and screenshots. Tests run via `bun tmp/test-*.ts` — no test framework.
+- `test/` holds tracked test scripts and fixtures; `tmp/` holds throwaway artifacts (gitignored). Tests run via `bun test/test-*.ts` — no test framework.
 - `src/types/file-imports.d.ts` — ambient module declarations for `*.html`, `*.css` imports with `{ type: 'file' }` or plain import.
 - `bun-env.d.ts` — ambient Bun type augmentations (e.g. `Bun.Glob` scan, `Bun.file`).
 - `bunfig.toml` — Bun config (2L, minimal).

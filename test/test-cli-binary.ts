@@ -6,7 +6,7 @@
  *
  * Must be run AFTER `bun run build:cli` has produced ./dist/ignatius.
  *
- * Run with: bun tmp/test-cli-binary.ts
+ * Run with: bun test/test-cli-binary.ts
  */
 
 import { existsSync } from 'fs';

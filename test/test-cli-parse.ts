@@ -1,6 +1,6 @@
 /**
  * Verification: CLI argument parser returns the expected shape.
- * Run with: bun tmp/test-cli-parse.ts
+ * Run with: bun test/test-cli-parse.ts
  */
 import { parseArgs } from '../src/cli';
 
