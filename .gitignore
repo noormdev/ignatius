@@ -44,3 +44,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # tmp/test-*.yaml, tmp/branding-screenshots.md) stay tracked because
 # gitignore does not affect already-tracked files.
 tmp/
+
+test/test-fixtures/
