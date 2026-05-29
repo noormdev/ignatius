@@ -36,18 +36,19 @@ function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
   root.style.setProperty('--color-edge-identifying', p.edgeIdentifying);
   root.style.setProperty('--color-edge-referential', p.edgeReferential);
 
-  // Semantic classification badge colors (fixed, not palette-driven)
-  root.style.setProperty('--badge-independent-bg', semanticColors.independent.bg);
-  root.style.setProperty('--badge-independent-fg', semanticColors.independent.fg);
-  root.style.setProperty('--badge-dependent-bg', semanticColors.dependent.bg);
-  root.style.setProperty('--badge-dependent-fg', semanticColors.dependent.fg);
-  root.style.setProperty('--badge-classifier-bg', semanticColors.classifier.bg);
-  root.style.setProperty('--badge-classifier-fg', semanticColors.classifier.fg);
-  root.style.setProperty('--badge-subtype-bg', semanticColors.subtype.bg);
-  root.style.setProperty('--badge-subtype-fg', semanticColors.subtype.fg);
-  root.style.setProperty('--badge-associative-bg', semanticColors.associative.bg);
-  root.style.setProperty('--badge-associative-fg', semanticColors.associative.fg);
-  root.style.setProperty('--color-link', semanticColors.link);
+  // Semantic classification badge colors — mode-aware
+  const sc = semanticColors[mode];
+  root.style.setProperty('--badge-independent-bg', sc.independent.bg);
+  root.style.setProperty('--badge-independent-fg', sc.independent.fg);
+  root.style.setProperty('--badge-dependent-bg', sc.dependent.bg);
+  root.style.setProperty('--badge-dependent-fg', sc.dependent.fg);
+  root.style.setProperty('--badge-classifier-bg', sc.classifier.bg);
+  root.style.setProperty('--badge-classifier-fg', sc.classifier.fg);
+  root.style.setProperty('--badge-subtype-bg', sc.subtype.bg);
+  root.style.setProperty('--badge-subtype-fg', sc.subtype.fg);
+  root.style.setProperty('--badge-associative-bg', sc.associative.bg);
+  root.style.setProperty('--badge-associative-fg', sc.associative.fg);
+  root.style.setProperty('--color-link', sc.link);
 }
 
 function blendHex(a: string, b: string, t: number): string {

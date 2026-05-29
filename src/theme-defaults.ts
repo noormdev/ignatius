@@ -15,17 +15,38 @@ export type ThemeSpacing = {
   markerScale: [number, number];
 };
 
-// Semantic classification colors — fixed across all themes, not user-configurable
-export const semanticColors = {
-  independent: { bg: '#0d419d', fg: '#58a6ff' },
-  dependent:   { bg: '#3d2e00', fg: '#d29922' },
-  classifier:  { bg: '#1c2128', fg: '#8b949e' },
-  subtype:     { bg: '#1a3a1a', fg: '#3fb950' },
-  associative: { bg: '#3d1f00', fg: '#f0883e' },
-  link:        '#58a6ff',
-} as const;
-
 export type ThemeMode = 'dark' | 'light';
+
+type SemanticPalette = {
+  independent: { bg: string; fg: string };
+  dependent:   { bg: string; fg: string };
+  classifier:  { bg: string; fg: string };
+  subtype:     { bg: string; fg: string };
+  associative: { bg: string; fg: string };
+  link:        string;
+};
+
+// Semantic classification colors — mode-aware. Dark values optimized for dark
+// surfaces (dark bg + bright fg); light values optimized for white surfaces
+// (tinted bg + dark fg). Consumers index by active mode.
+export const semanticColors = {
+  dark: {
+    independent: { bg: '#0d419d', fg: '#58a6ff' },
+    dependent:   { bg: '#3d2e00', fg: '#d29922' },
+    classifier:  { bg: '#1c2128', fg: '#8b949e' },
+    subtype:     { bg: '#1a3a1a', fg: '#3fb950' },
+    associative: { bg: '#3d1f00', fg: '#f0883e' },
+    link:        '#58a6ff',
+  },
+  light: {
+    independent: { bg: '#ddf4ff', fg: '#0550ae' },
+    dependent:   { bg: '#fff8c5', fg: '#7d4e00' },
+    classifier:  { bg: '#eaeef2', fg: '#24292f' },
+    subtype:     { bg: '#dafbe1', fg: '#1a7f37' },
+    associative: { bg: '#ffec9e', fg: '#9a6700' },
+    link:        '#0969da',
+  },
+} satisfies Record<ThemeMode, SemanticPalette>;
 
 export type ThemeConfig = {
   dark: ThemePalette;

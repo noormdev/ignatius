@@ -27,16 +27,16 @@ export function buildThemeCssVars(theme: ThemeConfig, mode: 'dark' | 'light'): s
   --color-surface-alt: ${surfaceAlt};
   --color-edge-identifying: ${p.edgeIdentifying};
   --color-edge-referential: ${p.edgeReferential};
-  --badge-independent-bg: ${semanticColors.independent.bg};
-  --badge-independent-fg: ${semanticColors.independent.fg};
-  --badge-dependent-bg: ${semanticColors.dependent.bg};
-  --badge-dependent-fg: ${semanticColors.dependent.fg};
-  --badge-classifier-bg: ${semanticColors.classifier.bg};
-  --badge-classifier-fg: ${semanticColors.classifier.fg};
-  --badge-subtype-bg: ${semanticColors.subtype.bg};
-  --badge-subtype-fg: ${semanticColors.subtype.fg};
-  --badge-associative-bg: ${semanticColors.associative.bg};
-  --badge-associative-fg: ${semanticColors.associative.fg};
-  --color-link: ${semanticColors.link};
+  --badge-independent-bg: ${semanticColors[mode].independent.bg};
+  --badge-independent-fg: ${semanticColors[mode].independent.fg};
+  --badge-dependent-bg: ${semanticColors[mode].dependent.bg};
+  --badge-dependent-fg: ${semanticColors[mode].dependent.fg};
+  --badge-classifier-bg: ${semanticColors[mode].classifier.bg};
+  --badge-classifier-fg: ${semanticColors[mode].classifier.fg};
+  --badge-subtype-bg: ${semanticColors[mode].subtype.bg};
+  --badge-subtype-fg: ${semanticColors[mode].subtype.fg};
+  --badge-associative-bg: ${semanticColors[mode].associative.bg};
+  --badge-associative-fg: ${semanticColors[mode].associative.fg};
+  --color-link: ${semanticColors[mode].link};
 `.trim();
 }

@@ -1,5 +1,4 @@
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../parse';
-import { semanticColors } from '../theme-defaults';
 import { buildThemeCssVars } from './theme-css';
 import { inlineAsset } from './inline-asset';
 import { defaultBranding } from '../branding-defaults';
@@ -13,13 +12,14 @@ function esc(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+const KNOWN_CLASSIFICATIONS = new Set(['independent', 'dependent', 'classifier', 'subtype', 'associative']);
+
 function classificationBadge(cls: string): string {
-  const key = cls.toLowerCase() as keyof typeof semanticColors;
-  const colors = semanticColors[key];
-  if (!colors || typeof colors === 'string') {
+  const key = cls.toLowerCase();
+  if (!KNOWN_CLASSIFICATIONS.has(key)) {
     return `<span class="badge" style="background:var(--color-surface);color:var(--color-text-muted)">${esc(cls)}</span>`;
   }
-  return `<span class="badge" style="background:${colors.bg};color:${colors.fg}">${esc(cls)}</span>`;
+  return `<span class="badge" style="background:var(--badge-${key}-bg);color:var(--badge-${key}-fg)">${esc(cls)}</span>`;
 }
 
 function cardinalityLabel(c: { parent: string; child: string }): string {
