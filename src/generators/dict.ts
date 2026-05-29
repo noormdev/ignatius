@@ -757,9 +757,19 @@ export async function generateDict(
       color: var(--color-text);
       background: var(--color-surface-alt);
     }
+    .dict-nav-link.is-current {
+      color: var(--color-text);
+      background: var(--color-surface-alt);
+      border-left: 3px solid var(--color-link);
+      padding-left: calc(1rem - 3px);
+      font-weight: 600;
+    }
     .dict-nav-subtype {
       margin-left: 1rem;
       font-size: 0.78rem;
+    }
+    .dict-nav-subtype.is-current {
+      padding-left: calc(1rem - 3px);
     }
 
     @media (max-width: 768px) {
@@ -960,6 +970,72 @@ ${ungroupedSection}
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && isOpen()) close();
       });
+
+      // ── Scrollspy via IntersectionObserver ─────────────────────────────────
+      // Build a Map from entity section id → its nav anchor element.
+      var navLinks = document.querySelectorAll('.dict-nav-link');
+      var navMap = {};
+      for (var i = 0; i < navLinks.length; i++) {
+        var link = navLinks[i];
+        var href = link.getAttribute('href');
+        if (href && href.startsWith('#')) {
+          navMap[href.slice(1)] = link;
+        }
+      }
+
+      // Track which sections are currently intersecting.
+      var intersecting = {};
+      var currentNavLink = null;
+
+      function updateCurrent() {
+        // Among all currently intersecting sections, pick the topmost one
+        // (smallest boundingClientRect.top that is >= 0, or least negative).
+        var sections = document.querySelectorAll('.entity-section');
+        var bestId = null;
+        var bestTop = Infinity;
+        for (var j = 0; j < sections.length; j++) {
+          var sec = sections[j];
+          if (intersecting[sec.id]) {
+            var rect = sec.getBoundingClientRect();
+            if (rect.top < bestTop) {
+              bestTop = rect.top;
+              bestId = sec.id;
+            }
+          }
+        }
+
+        var nextLink = bestId ? navMap[bestId] : null;
+        if (nextLink === currentNavLink) return;
+
+        if (currentNavLink) currentNavLink.classList.remove('is-current');
+        if (nextLink) {
+          nextLink.classList.add('is-current');
+          // Keep the current entry in view within the scrollable panel
+          nextLink.scrollIntoView({ block: 'nearest' });
+        }
+        currentNavLink = nextLink;
+      }
+
+      // rootMargin "0px 0px -66% 0px": a section becomes intersecting only
+      // when its top has entered the upper third of the viewport.
+      if (typeof IntersectionObserver !== 'undefined') {
+        var observer = new IntersectionObserver(function (entries) {
+          for (var k = 0; k < entries.length; k++) {
+            var entry = entries[k];
+            if (entry.isIntersecting) {
+              intersecting[entry.target.id] = true;
+            } else {
+              delete intersecting[entry.target.id];
+            }
+          }
+          updateCurrent();
+        }, { rootMargin: '0px 0px -66% 0px' });
+
+        var entitySections = document.querySelectorAll('.entity-section');
+        for (var s = 0; s < entitySections.length; s++) {
+          if (entitySections[s].id) observer.observe(entitySections[s]);
+        }
+      }
     })();
   </script>
 </body>

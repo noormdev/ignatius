@@ -122,6 +122,45 @@ const restoredOpen = await page.evaluate(() => {
 });
 assert(restoredOpen, 'reload with localStorage=open: panel is restored open');
 
+// 8. Scrollspy: scroll to second entity-section → its nav link gains is-current
+// Re-open the panel to make scrollIntoView in the observer work correctly.
+await page.click('#dict-nav-toggle'); // ensure open
+await page.waitForTimeout(100);
+const scrollspyResult = await page.evaluate(async () => {
+    const sections = Array.from(document.querySelectorAll('.entity-section'));
+    if (sections.length < 2) return { ok: false, reason: 'fewer than 2 entity sections' };
+    const target = sections[1];
+    const targetId = target.id;
+    // Scroll the second section into view
+    target.scrollIntoView({ behavior: 'instant', block: 'start' });
+    // Wait two rAF ticks for the IntersectionObserver callback to fire
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const link = document.querySelector('.dict-nav-link.is-current');
+    const linkHref = link ? link.getAttribute('href') : null;
+    return { ok: linkHref === '#' + targetId, linkHref, targetId };
+});
+assert(
+    scrollspyResult.ok,
+    `scrollspy: second entity nav link gains is-current (href=#${scrollspyResult.targetId}, got: ${scrollspyResult.linkHref})`,
+);
+
+// 9. Click a different nav link → that entry becomes is-current
+const clickNavResult = await page.evaluate(async () => {
+    const links = Array.from(document.querySelectorAll('.dict-nav-link')) as HTMLAnchorElement[];
+    if (links.length < 3) return { ok: false, reason: 'fewer than 3 nav links' };
+    const target = links[2];
+    const expectedHref = target.getAttribute('href');
+    target.click();
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const current = document.querySelector('.dict-nav-link.is-current');
+    const currentHref = current ? current.getAttribute('href') : null;
+    return { ok: currentHref === expectedHref, expectedHref, currentHref };
+});
+assert(
+    clickNavResult.ok,
+    `scrollspy: clicking nav link makes it is-current (expected: ${clickNavResult.expectedHref}, got: ${clickNavResult.currentHref})`,
+);
+
 await page.screenshot({ path: resolve('tmp/dict-side-nav-desktop.png') });
 console.log('Screenshot saved: tmp/dict-side-nav-desktop.png');
 
