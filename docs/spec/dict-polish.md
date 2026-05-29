@@ -59,3 +59,29 @@ Hierarchy classification uses existing parser-derived signals (cardinality, FK p
 ## Change log
 
 <!-- empty during drafting; first entry on first post-approval amendment -->
+
+
+## Implementation log
+
+
+### v1 — 2026-05-28
+
+Built across 4 iterations of `/subagent-implementation`. Commits (chronological):
+
+- `a75d24e` — spec drafted
+- `0b9756c` — CP-1 group `sort_key` + entity hierarchy ordering in dict
+- `fe99d2f` — CP-2 mobile-responsive dict (`@media (max-width: 768px)`)
+- `a3eb7f9` — CP-3 print stylesheet (`@media print`)
+- `b8236af` — polish: closed 5 reviewer follow-ups (F-1..F-5)
+
+**Out-of-scope work performed during this build:**
+
+- F-4 fix touched desktop body padding (pre-existing footer-occlusion condition flagged by CP-2 reviewer; closed in polish iteration).
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- Mobile `@media` reflow used `display: block` on tables for horizontal-scroll containers; that bled into print and had to be explicitly reset to `display: table` in the print block.
+
+**Deferred items still open:**
+
+- None. All 5 follow-ups closed in `b8236af`.
