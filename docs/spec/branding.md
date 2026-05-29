@@ -69,3 +69,34 @@ Render configurable logo + title + subtitle in the upper-left and a fixed footer
 ## Change log
 
 <!-- empty during drafting; first entry on first post-approval amendment -->
+
+
+## Implementation log
+
+
+### v1 — 2026-05-28
+
+Built across 7 iterations of `/subagent-implementation`. Commits (chronological):
+
+- `b79214c` — CP-1 branding schema + parser + defaults + 50-char validation
+- `e1f6356` — selective `tmp/` gitignore so CP-1 test fixture is tracked
+- `00c5cf1` — CP-2 embedded Noorm SVG + `inline-asset` helper
+- `af4879e` — CP-3 interactive UI branding + theme-aware logo swap + `/api/asset` + footer
+- `8d575c9` — CP-4 dict branding header + footer
+- `e3c37fc` — CP-5 graph branding inherits via embedded Model JSON (no generator change)
+- `2f6593a` — CP-6 zero-network proof + screenshot catalog
+- `297138b` — polish: closed 17 reviewer follow-ups (F-1..F-16) + fixed `scripts/stable-names.ts` stale-glob bug
+
+**Out-of-scope work performed during this build:**
+
+- `scripts/stable-names.ts` rewrite: was picking alphabetically-first match from stale builds, masking which bundle the build actually emitted. Bonus fix during polish — read `index.html` for authoritative hashed filenames.
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- Initial `tmp/` blanket-ignore from `/atomic-setup` rejected CP-1's tracked test fixture. Replaced with selective rules in `e1f6356`.
+- Zero-network proof (CP-6) initially ran against dev imports rather than the compiled binary. Polish iteration (F-15) extended it to `Bun.spawn` the binary directly — the load-bearing offline guarantee.
+
+**Deferred items still open:**
+
+- All 17 reviewer follow-ups closed in `297138b`. None deferred.
+- Unrelated: `github-repo-setup-noormdev`, `cut-first-release-v0-1-0` — tracked in project follow-ups, not branding-spec scope.
