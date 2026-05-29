@@ -146,6 +146,70 @@ html, body, #root {
   height: 8px;
   border-radius: 2px;
 }
+.fab-icon {
+  font-size: 20px;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+.fab--open {
+  border-color: var(--color-link);
+}
+
+/* FAB menu — expands upward above the FAB */
+.fab-menu {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  z-index: 60;
+  overflow: hidden;
+}
+.fab-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-surface-alt);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  transition: background 0.1s;
+}
+.fab-menu-item:last-child {
+  border-bottom: none;
+}
+.fab-menu-item:hover,
+.fab-menu-item:focus {
+  background: var(--color-surface-alt);
+  outline: none;
+}
+
+/* Copy link toast — floats above FAB, outside menu guard */
+.fab-copy-toast {
+  position: fixed;
+  bottom: 80px;
+  right: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--color-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 60;
+  pointer-events: none;
+}
 
 /* Legend swatch (reused in group cards) */
 .legend-swatch {
@@ -307,4 +371,52 @@ code {
   background: var(--color-surface);
   padding: 1px 5px;
   border-radius: 4px;
+}
+
+/* Minimap — cytoscape-navigator container */
+/*
+ * The plugin only honors `container` as a string selector and does NOT
+ * add the `.cytoscape-navigator` class to the host element — it appends
+ * <img>, <canvas>, .cytoscape-navigatorView, .cytoscape-navigatorOverlay
+ * as direct children. Style those children directly.
+ */
+.minimap {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  width: 200px;
+  height: 200px;
+  z-index: 50;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 6px;
+  overflow: hidden;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.minimap:hover {
+  opacity: 1;
+}
+.minimap > img,
+.minimap > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+}
+.minimap .cytoscape-navigatorView {
+  background: var(--color-link, #58a6ff);
+  opacity: 0.35;
+}
+.minimap .cytoscape-navigatorOverlay {
+  position: absolute;
+  inset: 0;
+}
+
+@media (max-width: 768px) {
+  .minimap {
+    display: none;
+  }
 }

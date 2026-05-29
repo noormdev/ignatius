@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
+import cytoscapeNavigator from 'cytoscape-navigator';
+import 'cytoscape-navigator/cytoscape.js-navigator.css';
 import { createMarkerOverlay, updateMarkers } from './markers';
 import { semanticColors, type ThemeConfig, type ThemeMode } from './theme-defaults';
+import { parseHash, serializeHash, type HashState } from './hash-router';
 import type {
   Model,
   ModelNode,
@@ -11,7 +14,10 @@ import type {
   GroupConfig,
 } from './parse';
 
+// @ts-expect-error — cytoscape uses `export =` which loses namespace members under bundler resolution
 cytoscape.use(elk);
+// @ts-expect-error — same interop gap; .use() exists at runtime
+cytoscape.use(cytoscapeNavigator);
 
 declare global {
   interface Window {
@@ -330,6 +336,21 @@ export function App() {
   const [model, setModel] = useState<Model | null>(null);
   const [selected, setSelected] = useState<ModelNode | null>(null);
   const [showGroups, setShowGroups] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [minimapOpen, setMinimapOpen] = useState(() => {
+    return localStorage.getItem('ignatius-minimap') === 'true';
+  });
+  const [cyReady, setCyReady] = useState(false);
+  const [copyConfirm, setCopyConfirm] = useState(false);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  // Set by the cytoscape useEffect; lets modal navigation update the hash
+  // without re-entering the useEffect closure.
+  const navigateToEntityRef = useRef<(id: string) => void>(() => {});
+  function navigateToEntity(id: string) {
+    navigateToEntityRef.current(id);
+  }
+  const menuRef = useRef<HTMLDivElement>(null);
+  const minimapRef = useRef<HTMLDivElement>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (window.__THEME_MODE__) return window.__THEME_MODE__;
     const stored = localStorage.getItem('ignatius-theme');
@@ -383,15 +404,87 @@ export function App() {
     updateMarkers(cyRef.current, svgRef.current, model.theme, themeMode);
   }, [themeMode]);
 
+  // Mount/destroy cytoscape-navigator minimap when minimapOpen or cy readiness changes.
+  // cyReady (not cyRef.current) is in deps because React tracks state changes, not ref mutations.
+  useEffect(() => {
+    const cy = cyRef.current;
+    const container = minimapRef.current;
+    if (!minimapOpen || !cy || !container) return;
+
+    // The plugin only honors `container` as a string selector ('#id' or '.class').
+    // Passing an HTMLElement falls through to `document.body.appendChild` of its own
+    // div — see cytoscape-navigator.js:378-389. Use the id selector path.
+    const nav = cy.navigator({
+      container: '#minimap-panel',
+      viewLiveFramerate: 0,
+      rerenderDelay: 100,
+      removeCustomContainer: false,
+    });
+    // The plugin only generates the thumbnail on cy.onRender events. After
+    // layoutstop the graph is idle so no render fires; force one so the
+    // initial thumbnail paints.
+    cy.resize();
+    cy.trigger('render');
+    return () => {
+      nav.destroy();
+      while (container.firstChild) container.removeChild(container.firstChild);
+    };
+  }, [minimapOpen, cyReady]);
+
   function toggleTheme() {
     const next: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
     localStorage.setItem('ignatius-theme', next);
     setThemeMode(next);
   }
 
+  function toggleMinimapOpen() {
+    const next = !minimapOpen;
+    localStorage.setItem('ignatius-minimap', String(next));
+    setMinimapOpen(next);
+  }
+
+  function handleCopyLink() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopyConfirm(true);
+      setMenuOpen(false);
+      setTimeout(() => setCopyConfirm(false), 1500);
+    });
+  }
+
+  // Close menu on outside click or Esc
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function onMouseDown(e: MouseEvent) {
+      if (!(e.target instanceof Node)) return;
+      const fab = fabRef.current;
+      const menu = menuRef.current;
+      if (!fab || !menu) return;
+      if (!fab.contains(e.target) && !menu.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+        fabRef.current?.focus();
+      }
+    }
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
+
   useEffect(() => {
     if (!model || !graphRef.current) return;
 
+    // Capture as a non-null binding so nested closures don't re-check
+    const modelNonNull = model;
     const elements: cytoscape.ElementDefinition[] = [];
 
     // Build a set of subtype edges (child→parent) so we can rewire them through joiners
@@ -525,23 +618,125 @@ export function App() {
     const svg = svgRef.current;
 
     const redrawMarkers = () => updateMarkers(cy, svg, model.theme, themeModeRef.current);
-    cy.one('layoutstop', () => { cy.fit(undefined, 30); redrawMarkers(); });
-    cy.on('viewport', redrawMarkers);
+
+    // Tracks the last hash string we wrote ourselves, to break the hashchange feedback loop.
+    let lastWrittenHash = '';
+
+    // Debounced writer: pan+zoom+entity all share one 200ms window.
+    let writeTimer: ReturnType<typeof setTimeout> | null = null;
+    function scheduleHashWrite(next: HashState) {
+      if (writeTimer !== null) clearTimeout(writeTimer);
+      writeTimer = setTimeout(() => {
+        writeTimer = null;
+        const serialized = serializeHash(next);
+        lastWrittenHash = serialized;
+        history.replaceState({}, '', serialized ? '#' + serialized : location.pathname);
+      }, 200);
+    }
+
+    // Reads current viewport (zoom + pan only) into a HashState — no entity lookup.
+    function viewportState(): HashState {
+      const zoom = cy.zoom();
+      const pan = cy.pan();
+      return {
+        zoom: Math.round(zoom * 1000) / 1000,
+        pan: { x: Math.round(pan.x), y: Math.round(pan.y) },
+      };
+    }
+
+    // Reads current viewport + selected entity into a HashState for writing.
+    function currentHashState(): HashState {
+      const state = viewportState();
+      const sel = cy.$('node:selected').first();
+      if (sel.length > 0 && !String(sel.id()).startsWith('_')) {
+        state.entity = sel.id();
+      }
+      return state;
+    }
+
+    // Applies a parsed HashState to the cy instance.
+    // Order: zoom → pan → entity select+center.
+    function applyHashState(state: HashState) {
+      if (state.zoom !== undefined) {
+        cy.zoom(state.zoom);
+      }
+      if (state.pan !== undefined) {
+        cy.pan(state.pan);
+      }
+      if (state.entity !== undefined) {
+        const target = cy.$(`#${CSS.escape(state.entity)}`);
+        if (target.length > 0) {
+          cy.elements().unselect();
+          target.select();
+          // Only center if no explicit pan was supplied
+          if (state.pan === undefined) {
+            cy.center(target);
+          }
+          const node = modelNonNull.nodes.find(n => n.id === state.entity);
+          if (node) setSelected(node);
+        }
+        // Unknown entity: silently ignore
+      }
+    }
+
+    cy.one('layoutstop', () => {
+      cy.fit(undefined, 30);
+      redrawMarkers();
+
+      // Restore state from URL hash after layout settles (no race with ELK)
+      const initialState = parseHash(location.hash);
+      if (Object.keys(initialState).length > 0) {
+        applyHashState(initialState);
+      }
+    });
+
+    cy.on('viewport', () => {
+      redrawMarkers();
+      scheduleHashWrite(currentHashState());
+    });
+
     cy.on('position', redrawMarkers);
 
     cy.on('tap', 'node', (evt) => {
       const nodeId = evt.target.id();
       const node = model.nodes.find(n => n.id === nodeId);
-      if (node) setSelected(node);
+      if (node) {
+        setSelected(node);
+        // Use nodeId directly — cy.$('node:selected') hasn't updated yet at tap time.
+        scheduleHashWrite({ ...viewportState(), entity: nodeId });
+      }
     });
 
     cy.on('tap', (evt) => {
-      if (evt.target === cy) setSelected(null);
+      if (evt.target === cy) {
+        setSelected(null);
+        // Clear entity from hash when background tap deselects.
+        scheduleHashWrite(viewportState());
+      }
     });
 
+    // Expose hash writes to JSX paths outside this closure (e.g. modal links).
+    navigateToEntityRef.current = (id: string) => {
+      scheduleHashWrite({ ...viewportState(), entity: id });
+    };
+
+    // hashchange: re-apply if different from what we last wrote (avoids feedback loops)
+    function onHashChange() {
+      const newHash = location.hash.startsWith('#') ? location.hash.slice(1) : '';
+      if (newHash === lastWrittenHash) return;
+      lastWrittenHash = newHash;
+      applyHashState(parseHash(location.hash));
+    }
+    window.addEventListener('hashchange', onHashChange);
+
     cyRef.current = cy;
+    setCyReady(true);
     return () => {
+      if (writeTimer !== null) clearTimeout(writeTimer);
+      window.removeEventListener('hashchange', onHashChange);
       cy.destroy();
+      cyRef.current = null;
+      setCyReady(false);
       if (svgRef.current) {
         svgRef.current.remove();
         svgRef.current = null;
@@ -559,6 +754,7 @@ export function App() {
   return (
     <div className="app">
       <div className="graph-panel" ref={graphRef} />
+      {minimapOpen && <div ref={minimapRef} id="minimap-panel" className="minimap" />}
       {branding && (
         <div className="branding-block">
           {logoSrc && (
@@ -573,14 +769,60 @@ export function App() {
       <button className="theme-toggle" onClick={toggleTheme} title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
         {themeMode === 'dark' ? '☀' : '☾'}
       </button>
-      {groupEntries.length > 0 && (
-        <button className="fab" onClick={() => setShowGroups(true)}>
+      <button
+        ref={fabRef}
+        className={`fab${menuOpen ? ' fab--open' : ''}`}
+        onClick={() => setMenuOpen(prev => !prev)}
+        title="Actions"
+        aria-expanded={menuOpen}
+        aria-haspopup="true"
+      >
+        {groupEntries.length > 0 ? (
           <span className="fab-dots">
             {groupEntries.slice(0, 4).map(([name, cfg]) => (
               <span key={name} className="fab-dot" style={{ background: cfg.color }} />
             ))}
           </span>
-        </button>
+        ) : (
+          <span className="fab-icon">⋯</span>
+        )}
+      </button>
+      {menuOpen && (
+        <div ref={menuRef} className="fab-menu" role="menu">
+          <a
+            className="fab-menu-item"
+            href="dict"
+            role="menuitem"
+          >
+            Open Dict
+          </a>
+          {groupEntries.length > 0 && (
+            <button
+              className="fab-menu-item"
+              role="menuitem"
+              onClick={() => { setMenuOpen(false); setShowGroups(true); }}
+            >
+              Legend
+            </button>
+          )}
+          <button
+            className="fab-menu-item"
+            role="menuitem"
+            onClick={() => { toggleMinimapOpen(); setMenuOpen(false); }}
+          >
+            {minimapOpen ? 'Hide minimap' : 'Show minimap'}
+          </button>
+          <button
+            className="fab-menu-item"
+            role="menuitem"
+            onClick={handleCopyLink}
+          >
+            Copy link
+          </button>
+        </div>
+      )}
+      {copyConfirm && (
+        <div className="fab-copy-toast">Copied!</div>
       )}
       {showGroups && (
         <div className="modal-backdrop" onClick={() => setShowGroups(false)}>
@@ -634,7 +876,10 @@ export function App() {
               edges={model?.edges ?? []}
               onNavigate={(id) => {
                 const target = model?.nodes.find(n => n.id === id);
-                if (target) setSelected(target);
+                if (target) {
+                  setSelected(target);
+                  navigateToEntity(id);
+                }
               }}
             />
             <div
@@ -646,7 +891,10 @@ export function App() {
               edges={model?.edges ?? []}
               onNavigate={(id) => {
                 const target = model?.nodes.find(n => n.id === id);
-                if (target) setSelected(target);
+                if (target) {
+                  setSelected(target);
+                  navigateToEntity(id);
+                }
               }}
             />
           </div>

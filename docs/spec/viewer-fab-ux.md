@@ -62,3 +62,38 @@ The chosen approach from the design: the server gains a `GET /dict` route that c
 ## Change log
 
 <!-- empty during drafting; first entry on first post-approval amendment -->
+
+
+## Implementation log
+
+
+### v1 — 2026-05-29
+
+Built across 6 iterations of `/subagent-implementation` (4 checkpoints, 2 mid-CP fix iterations, 1 polish). Branch: `viewer-fab-ux` (worktree). Commits (chronological, post-rebase onto master):
+
+- `2591ae3` — chore(test): fix test/checks import paths (baseline-green prerequisite)
+- `c466450` — chore: gitignore test/checks/test-fixtures
+- `361cc64` — CP-1 server `/dict` route + temporary mode link
+- `90ed472` — CP-2 hash router (entity + zoom + pan)
+- `0cb7bfa` — CP-3 expandable FAB menu (dict, legend, minimap toggle, copy link)
+- `ff848da` — CP-4 minimap via cytoscape-navigator
+- `4b81428` — polish: close 3 reviewer follow-ups (F-1 / F-2 / F-3)
+
+**Out-of-scope work performed during this build:**
+
+- Two baseline-fix commits (`2591ae3`, `c466450`) repaired test/checks import paths that had been left stale on the branch base (HEAD was `81a9edf`, predating master's `59cb55d test: repoint checks to test/checks/`). Without these, the test baseline was red on this branch, blocking iteration verification. The fixes became no-ops once the branch was rebased onto master; left in history for branch-bisectability.
+- Mid-build rebase onto master (per user request) folded master's `59cb55d` + `e81f985` into the branch ancestor. Rebase was clean; tests stayed green.
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- CP-2: original tap handler relied on `cy.$('node:selected')` to build the hash state, but Cytoscape hasn't registered the selection at tap-event time. Caught by reviewer; fixed in iter 2 by passing the tapped `nodeId` directly via a new `viewportState()` helper.
+- CP-3 iter 1: Copy link "Copied!" toast was rendered inside the `{menuOpen && ...}` guard. `setMenuOpen(false)` batched with `setCopyConfirm(true)` unmounted the toast before any render could show it. Caught by reviewer; iter 2 moved the toast outside the menu guard.
+- CP-3 iter 1: FAB moved inside `{groupEntries.length > 0 && ...}`, making `/dict` unreachable on models with no groups. The temp `.dict-link` it replaced was unconditional. Caught by reviewer; iter 2 unconditioned the FAB and conditioned only the Legend menu item.
+- CP-4 iter 1: minimap useEffect deps included `cyRef.current`, but React doesn't re-run effects on mutable ref changes — if `minimapOpen` was persisted true on page load, the effect ran once with `cy === null` and bailed. Caught by reviewer; iter 2 introduced a `cyReady` state flipped after the cy assignment, switched deps to `[minimapOpen, cyReady]`.
+- CP-4: `cytoscape.use(...)` produces a TypeScript error because `cytoscape`'s `export =` namespace members aren't reachable via `typeof import('cytoscape')`. Same gap also affected the pre-existing `cytoscape.use(elk)`. Suppressed with `@ts-expect-error` (per project style) and explanatory comments; ambient declaration corrected to use `cytoscape.Ext` (F-3 polish).
+
+**Deferred items still open:**
+
+- None. All three follow-ups (F-1 hash-router encoding asymmetry, F-2 `@ts-ignore` pragma swap, F-3 ambient type) were fix-now per user disposition and closed in `4b81428`.
+
+**Squashed to 33421fe — 2026-05-29.** Per-iteration SHAs above are historical (unreachable from any branch).
