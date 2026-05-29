@@ -97,3 +97,5 @@ Built across 6 iterations of `/subagent-implementation` (4 checkpoints, 2 mid-CP
 - None. All three follow-ups (F-1 hash-router encoding asymmetry, F-2 `@ts-ignore` pragma swap, F-3 ambient type) were fix-now per user disposition and closed in `4b81428`.
 
 **Squashed to 33421fe — 2026-05-29.** Per-iteration SHAs above are historical (unreachable from any branch).
+
+**Merged into master as 094088d — 2026-05-29.**
