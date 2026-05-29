@@ -656,13 +656,20 @@ export async function generateDict(
         border-left-color: currentColor;
       }
 
-      /* Preserve group color bands and key markers that carry meaning.
-         Without this, Chromium strips background-color in print mode. */
+      /* Preserve group color bands — meaningful identity color.
+         .badge is excluded: inline dark-mode colors look wrong on white paper. */
       .group-header,
-      .badge,
       .swatch {
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
+      }
+
+      /* Strip inline dark-mode badge colors for print. !important beats inline style. */
+      .badge {
+        background: transparent !important;
+        color: #000 !important;
+        border: 1px solid #555;
+        padding: 0 0.35rem;
       }
 
       /* Expand table wrappers that were set to overflow-x: auto on mobile */
