@@ -534,6 +534,68 @@ export async function generateDict(
       border: 1px solid var(--color-border);
     }
     .entity-body th { background: var(--color-surface-alt); }
+
+    /* ── Mobile responsive ────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      body {
+        padding: 0.75rem;
+        /* Clear fixed footer height so content is not obscured */
+        padding-bottom: 4rem;
+      }
+
+      /* Branding: shrink + move to top-right so it clears the page header */
+      .dict-branding {
+        top: 8px;
+        left: auto;
+        right: 8px;
+        gap: 6px;
+      }
+      .dict-branding-logo {
+        width: 22px;
+        height: 22px;
+      }
+      .dict-branding-title {
+        font-size: 0.75rem;
+      }
+      .dict-branding-subtitle {
+        font-size: 0.65rem;
+      }
+
+      /* Push page header down enough to clear the relocated branding block */
+      .page-header {
+        margin-top: 2.5rem;
+      }
+
+      /* Group header: allow text to wrap, reduce padding */
+      .group-header {
+        padding: 0.75rem;
+      }
+      .group-title {
+        font-size: 1.15rem;
+      }
+
+      /* Entity sections */
+      .entity-section {
+        padding: 0.85rem;
+      }
+      .entity-header {
+        flex-wrap: wrap;
+      }
+
+      /* Tables: scroll within their container on narrow viewports */
+      .attr-table, .rel-table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        /* Prevent the table from pushing the page wider */
+        max-width: 100%;
+      }
+
+      /* Legend: let items wrap naturally */
+      .legend-list {
+        gap: 0.65rem;
+      }
+    }
   </style>
 </head>
 <body>
