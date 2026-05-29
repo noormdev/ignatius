@@ -1,4 +1,4 @@
-import type { Model, ModelNode, ModelEdge } from '../parse';
+import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../parse';
 import { semanticColors } from '../theme-defaults';
 import { buildThemeCssVars } from './theme-css';
 import { inlineAsset } from './inline-asset';
@@ -130,17 +130,103 @@ ${renderRelationshipsTable(node, edges)}
   </section>`;
 }
 
+/**
+ * Hierarchy ordering rules for entities within a group:
+ *
+ * Classifications treated as "independent": kernel, independent.
+ * Everything else is "dependent" for tier purposes.
+ *
+ * 1. Independent basetype-clusters first.
+ * 2. Dependent basetype-clusters second.
+ * 3. Within a tier, clusters sorted alphabetically by basetype id.
+ * 4. Within a cluster: basetype first, then subtypes alphabetical.
+ * 5. Standalones (neither basetype nor subtype) treated as cluster-of-one;
+ *    tier derived from their own classification.
+ * 6. Orphan subtype (in members[] but basetype not in groupNodes): treated as
+ *    cluster-of-one in the dependent tier.
+ */
+function sortGroupNodes(
+  groupNodes: ModelNode[],
+  subtypeClusters: SubtypeCluster[],
+): ModelNode[] {
+  const independentClassifications: Record<string, true> = {
+    kernel: true,
+    independent: true,
+  };
+
+  const nodeSet: Record<string, ModelNode> = {};
+  for (const n of groupNodes) nodeSet[n.id] = n;
+
+  // Only consider clusters whose basetype is in this group
+  const relevantClusters = subtypeClusters.filter(c => nodeSet[c.basetype]);
+
+  // Track which nodes are members (subtypes) of a cluster in this group
+  const subtypeOf: Record<string, string> = {}; // member id → basetype id
+  for (const c of relevantClusters) {
+    for (const m of c.members) {
+      subtypeOf[m] = c.basetype;
+    }
+  }
+
+  // Build clusters: each cluster is { basetype node, subtype nodes (sorted) }
+  type Cluster = { basetype: ModelNode; subtypes: ModelNode[] };
+  const clusterMap: Record<string, Cluster> = {};
+
+  for (const c of relevantClusters) {
+    const basetypeNode = nodeSet[c.basetype];
+    if (!basetypeNode) continue;
+    const subtypeNodes = c.members
+      .map(m => nodeSet[m])
+      .filter((n): n is ModelNode => n !== undefined)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    clusterMap[c.basetype] = { basetype: basetypeNode, subtypes: subtypeNodes };
+  }
+
+  // Standalones: nodes that are neither a basetype nor a member subtype in this group
+  for (const n of groupNodes) {
+    if (!clusterMap[n.id] && !subtypeOf[n.id]) {
+      clusterMap[n.id] = { basetype: n, subtypes: [] };
+    }
+  }
+
+  // Separate clusters into independent and dependent tiers
+  const isIndependent = (n: ModelNode) =>
+    (n.classification.toLowerCase() in independentClassifications);
+
+  const independent: Cluster[] = [];
+  const dependent: Cluster[] = [];
+
+  for (const cluster of Object.values(clusterMap)) {
+    if (isIndependent(cluster.basetype)) {
+      independent.push(cluster);
+    } else {
+      dependent.push(cluster);
+    }
+  }
+
+  independent.sort((a, b) => a.basetype.id.localeCompare(b.basetype.id));
+  dependent.sort((a, b) => a.basetype.id.localeCompare(b.basetype.id));
+
+  const ordered: ModelNode[] = [];
+  for (const cluster of [...independent, ...dependent]) {
+    ordered.push(cluster.basetype);
+    ordered.push(...cluster.subtypes);
+  }
+
+  return ordered;
+}
+
 function renderGroupSection(
   groupKey: string,
   groupConfig: { label: string; color: string; desc?: string },
   nodes: ModelNode[],
   edges: ModelEdge[],
+  subtypeClusters: SubtypeCluster[],
 ): string {
   const groupNodes = nodes.filter(n => n.group === groupKey);
   if (groupNodes.length === 0) return '';
 
-  const entitiesHtml = groupNodes
-    .sort((a, b) => a.id.localeCompare(b.id))
+  const entitiesHtml = sortGroupNodes(groupNodes, subtypeClusters)
     .map(n => renderEntitySection(n, edges))
     .join('\n');
 
@@ -190,7 +276,19 @@ export async function generateDict(
   const cssVars = buildThemeCssVars(model.theme, mode);
   const metaName = model._meta?.name ?? 'Data Dictionary';
 
-  const groupOrder = Object.keys(model.groups);
+  // Sort groups: sort_key numeric ascending first, then unsorted groups alphabetical by id.
+  // Collision on same sort_key: stable secondary sort by group id alphabetical.
+  const groupOrder = Object.keys(model.groups).sort((a, b) => {
+    const skA = model.groups[a]?.sort_key;
+    const skB = model.groups[b]?.sort_key;
+    if (skA !== undefined && skB !== undefined) {
+      return skA !== skB ? skA - skB : a.localeCompare(b);
+    }
+    if (skA !== undefined) return -1;
+    if (skB !== undefined) return 1;
+    return a.localeCompare(b);
+  });
+
   // Nodes without a group go last
   const ungroupedNodes = model.nodes.filter(n => !n.group || !model.groups[n.group]);
 
@@ -198,7 +296,7 @@ export async function generateDict(
     .map(key => {
       const cfg = model.groups[key];
       if (!cfg) return '';
-      return renderGroupSection(key, cfg, model.nodes, model.edges);
+      return renderGroupSection(key, cfg, model.nodes, model.edges, model.subtypeClusters);
     })
     .filter(s => s.length > 0)
     .join('\n\n');

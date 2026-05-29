@@ -29,7 +29,7 @@ type Frontmatter = {
   }[];
 };
 
-export type GroupConfig = { label: string; color: string; desc?: string };
+export type GroupConfig = { label: string; color: string; desc?: string; sort_key?: number };
 
 export type Cardinality = '1' | '0..1' | 'many';
 
@@ -150,8 +150,16 @@ export async function parseModels(dir: string): Promise<Model> {
     const name = path.replace(/\.md$/, '');
     const content = await Bun.file(`${groupsDir}/${path}`).text();
     const { frontmatter, body } = parseFrontmatter(content);
-    const fm = frontmatter as unknown as { label: string; color: string };
-    groups[name] = { label: fm.label, color: fm.color, desc: md.render(body) };
+    const fm = frontmatter as unknown as { label: string; color: string; sort_key?: unknown };
+    if (fm.sort_key !== undefined && typeof fm.sort_key !== 'number') {
+      throw new Error(`Group "${name}": sort_key must be a number, got ${JSON.stringify(fm.sort_key)}`);
+    }
+    groups[name] = {
+      label: fm.label,
+      color: fm.color,
+      desc: md.render(body),
+      ...(fm.sort_key !== undefined ? { sort_key: fm.sort_key } : {}),
+    };
   }
 
   const glob = new Bun.Glob('**/*.md');
