@@ -274,6 +274,7 @@ export async function generateDict(
     : '';
 
   const cssVars = buildThemeCssVars(model.theme, mode);
+  const lightCssVars = buildThemeCssVars(model.theme, 'light');
   const metaName = model._meta?.name ?? 'Data Dictionary';
 
   // Sort groups: sort_key numeric ascending first, then unsorted groups alphabetical by id.
@@ -598,6 +599,13 @@ export async function generateDict(
 
     /* ── Print stylesheet ─────────────────────────────────────────────────── */
     @media print {
+      /* Force light-mode CSS variables when printing, regardless of the theme
+         used at generation time. Same specificity as the :root block above, but
+         this rule only applies in print media — so it wins via cascade order. */
+      :root {
+        ${lightCssVars}
+      }
+
       /* Reset body for print: no max-width cap, no decorative padding */
       body {
         background: #fff;

@@ -112,6 +112,17 @@ const breakInsideAvoid = await page.evaluate(() => {
 });
 assert(breakInsideAvoid, 'at least one .entity-section has break-inside: avoid');
 
+// 5. Print mode always uses light CSS variables regardless of generation mode.
+//    When generated with mode='dark', --color-background at :root is a dark hex.
+//    The @media print :root override must reset it to the light palette value (#ffffff).
+const printBgVar = await page.evaluate(() => {
+    return getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim();
+});
+assert(
+    printBgVar === '#ffffff',
+    `@media print :root --color-background resolves to light value (#ffffff), got: ${printBgVar}`,
+);
+
 await page.screenshot({ path: resolve('tmp/dict-print.png'), fullPage: true });
 console.log('Screenshot saved: tmp/dict-print.png');
 
