@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-05-29T05:59:07Z
+generated_at: 2026-05-29T08:30:00Z
 atomic_version: 2.0.0
 ---
 # Deterministic signals
@@ -83,20 +83,22 @@ atomic_version: 2.0.0
 │   │   ├── graph.ts (b788268, 113L, 4772ch, 4772B)
 │   │   ├── inline-asset.ts (ff2b51e, 61L, 2080ch, 2088B)
 │   │   └── theme-css.ts (b67d59f, 42L, 1898ch, 1898B)
-│   ├── types/ (1)
+│   ├── types/ (2)
+│   │   ├── cytoscape-navigator.d.ts (new, 52L, 1820ch, 1820B)
 │   │   └── file-imports.d.ts (a4942ec, 45L, 1950ch, 1952B)
-│   ├── App.tsx (3f6961e, 672L, 22098ch, 22116B)
+│   ├── App.tsx (updated, 921L)
 │   ├── branding-defaults.ts (b7554ee, 78L, 2508ch, 2510B)
 │   ├── cli.ts (1983efc, 257L, 7924ch, 7928B)
 │   ├── index.html (c6a7762, 13L, 340ch, 340B)
 │   ├── main.tsx (881fa67, 12L, 293ch, 293B)
 │   ├── markers.ts (1763214, 133L, 4491ch, 4493B)
+│   ├── hash-router.ts (new, 71L, 2240ch, 2240B)
 │   ├── parse.ts (8ba78bd, 240L, 7309ch, 7309B)
-│   ├── server.ts (499dba9, 141L, 4731ch, 4739B)
+│   ├── server.ts (updated, 153L)
 │   ├── styles.css (897d3fb, 310L, 6470ch, 6474B)
 │   └── theme-defaults.ts (14619a1, 95L, 2567ch, 2569B)
 ├── test/ (4)
-│   ├── checks/ (18)
+│   ├── checks/ (20)
 │   │   ├── test-asset-route.ts (81fafd3, 60L, 2322ch, 2322B)
 │   │   ├── test-branding-parse.ts (42caf6b, 101L, 4713ch, 4713B)
 │   │   ├── test-branding-zero-network.ts (acc1ca5, 202L, 7966ch, 8462B)
@@ -107,10 +109,12 @@ atomic_version: 2.0.0
 │   │   ├── test-dict-mobile.ts (ddd0aa5, 109L, 4477ch, 4723B)
 │   │   ├── test-dict-ordering.ts (56546b8, 253L, 8749ch, 9285B)
 │   │   ├── test-dict-print.ts (a583b42, 141L, 5521ch, 5525B)
+│   │   ├── test-dict-route.ts (new)
 │   │   ├── test-dict-side-nav.ts (c631f7e, 132L, 5139ch, 5266B)
 │   │   ├── test-dict-subtype-info.ts (2575972, 106L, 3829ch, 3831B)
 │   │   ├── test-graph-branding.ts (e963819, 151L, 6341ch, 6583B)
 │   │   ├── test-graph-gen.ts (5dab093, 117L, 5388ch, 5392B)
+│   │   ├── test-hash-router.ts (new)
 │   │   ├── test-inline-asset.ts (c40c39a, 112L, 5295ch, 5299B)
 │   │   ├── test-semantic-colors.ts (ab1c661, 101L, 3165ch, 3165B)
 │   │   ├── test-sse-live-reload.ts (e575602, 130L, 4049ch, 4051B)
@@ -165,11 +169,11 @@ atomic_version: 2.0.0
 
 ## Manifests
 
-- package.json: name=ignatius, version=0.1.0, scripts=[build, build:bundle, build:cli, build:stable-names, cli, dev, dev:cli, start, test, typecheck]
+- package.json: name=ignatius, version=0.1.0, scripts=[build, build:bundle, build:cli, build:stable-names, cli, dev, dev:cli, start, test, typecheck], deps include cytoscape-navigator@^2.0.2
 
 ## Languages
 
-- TypeScript: 8098 LOC (57%), 62 files (50%)
+- TypeScript: ~8240 LOC (57%), 65 files (51%)
 - Markdown: 4091 LOC (29%), 46 files (37%)
 - YAML: 1235 LOC (8%), 7 files (5%)
 - CSS: 497 LOC (3%), 2 files (1%)

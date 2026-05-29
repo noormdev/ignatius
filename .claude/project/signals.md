@@ -4,7 +4,7 @@
 
 - Runtime: Bun (all scripts, server, test runner, binary compiler)
 - Language: TypeScript (strict, ESM modules, `type: "module"` in package.json)
-- Frontend: React 19, Cytoscape.js 3.31 + cytoscape-elk 2.2, ELK layout engine
+- Frontend: React 19, Cytoscape.js 3.31 + cytoscape-elk 2.2 + cytoscape-navigator 2.0, ELK layout engine
 - Markdown parsing: markdown-it 14; YAML parsing: yaml 2.8
 - No Express, no Vite, no webpack — Bun.serve + Bun HTML imports only
 - Dev tools: Playwright (screenshot/SSE tests), webview-bun
@@ -28,7 +28,7 @@
 
 `test/` is organized into subdirectories — not a formal test-framework suite:
 
-- `test/checks/` — 18 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI.
+- `test/checks/` — 20 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI.
 - `test/visual/` — 6 Playwright screenshot scripts for manual visual inspection. NOT run by `bun run test`.
 - `test/fixtures/` — 3 YAML fixtures loaded by check scripts.
 - `test/notes/` — 2 markdown dev notes.
@@ -39,7 +39,7 @@ No linter or formatter configured in package.json.
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 8098 | 62 | 57% |
+| TypeScript | ~8240 | 65 | 57% |
 | Markdown | 4091 | 46 | 29% |
 | YAML | 1235 | 7 | 8% |
 | CSS | 497 | 2 | 3% |
@@ -61,9 +61,9 @@ No linter or formatter configured in package.json.
 | Domain | Repo paths | One-liner | Detail |
 |--------|------------|-----------|--------|
 | cli | src/cli.ts | Arg parsing + subcommand dispatch for `serve`, `dict`, `graph` | (below) |
-| server | src/server.ts | Bun.serve with /api/model + /events SSE + fs.watch live-reload | (below) |
+| server | src/server.ts | Bun.serve with /dict + /api/model + /events SSE + fs.watch live-reload | (below) |
 | parser | src/parse.ts | Markdown frontmatter → Model: nodes, edges, cardinality derivation, theme loading | (below) |
-| frontend | src/App.tsx, src/main.tsx, src/index.html, src/styles.css, src/markers.ts | React 19 Cytoscape.js graph viewer with ELK layout, crow's-foot SVG overlay, theme toggle | (below) |
+| frontend | src/App.tsx, src/hash-router.ts, src/main.tsx, src/index.html, src/styles.css, src/markers.ts | React 19 Cytoscape.js graph viewer with ELK layout, hash router, expandable FAB, minimap toggle, crow's-foot SVG overlay, theme toggle | (below) |
 | generators | src/generators/ | Static HTML output: dict (self-contained), graph (embeds React bundle), inline-asset inliner, theme CSS vars | (below) |
 | theme | src/theme-defaults.ts, src/branding-defaults.ts, src/generators/theme-css.ts | ThemeConfig + Branding types, default palettes, dark/light merging, CSS var generation | (below) |
 | docs | docs/, spec/spec.md | Design docs, CLI spec, IDEF1X grammar spec | (below) |
@@ -77,7 +77,7 @@ No linter or formatter configured in package.json.
 
 ### server
 
-`src/server.ts` exports `serveCommand(modelsDir, opts)` returning `{ server, stop }`. Routes: `GET /` → bundled React HTML, `GET /api/model` → `parseModels()` JSON, `GET /events` → SSE stream. SSE timeout disabled via `server.timeout(req, 0)`. `fs.watch` watches the models dir recursively; only `.md` and `.yaml` extensions trigger events. Debounce: 200ms coalesce. SSE event name: `model-changed`. `stop()` closes the watcher, clears debounce timer, clears SSE client set, stops Bun server.
+`src/server.ts` exports `serveCommand(modelsDir, opts)` returning `{ server, stop }`. Routes: `GET /` → bundled React HTML, `GET /dict` → server-rendered dict HTML (accepts `?theme=light|dark`), `GET /api/model` → `parseModels()` JSON, `GET /api/asset` → model-dir asset proxy (path traversal blocked), `GET /events` → SSE stream. SSE timeout disabled via `server.timeout(req, 0)`. `fs.watch` watches the models dir recursively; only `.md` and `.yaml` extensions trigger events. Debounce: 200ms coalesce. SSE event name: `model-changed`. `stop()` closes the watcher, clears debounce timer, clears SSE client set, stops Bun server.
 
 ### parser
 
@@ -85,7 +85,7 @@ No linter or formatter configured in package.json.
 
 ### frontend
 
-`src/App.tsx` (672L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout. `window.__MODEL__` and `window.__THEME_MODE__` used as injection points for static graph output. `src/markers.ts` draws crow's-foot SVG overlays on a canvas element layered over the Cytoscape container. `src/main.tsx` bootstraps the React root. `src/index.html` is the HTML entry point imported by Bun.serve. `src/styles.css` uses CSS custom properties (`--color-*` vars) set by `applyThemeCssVars()` in App.tsx. Theme toggle persists to `localStorage` under the key `ignatius-theme`. `App.tsx` imports `Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `GroupConfig` from `./parse` — no local type redeclarations.
+`src/App.tsx` (921L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout and `cytoscape-navigator` plugin for the minimap. `window.__MODEL__` and `window.__THEME_MODE__` used as injection points for static graph output. `src/markers.ts` draws crow's-foot SVG overlays on a canvas element layered over the Cytoscape container. `src/main.tsx` bootstraps the React root. `src/index.html` is the HTML entry point imported by Bun.serve. `src/styles.css` uses CSS custom properties (`--color-*` vars) set by `applyThemeCssVars()` in App.tsx. Theme toggle persists to `localStorage` under key `ignatius-theme`. Minimap open/closed persists to `localStorage` under key `ignatius-minimap`. FAB button (`<button class="fab">`) expands an overlay menu (`fab-menu`) with items: Open Dict (links to `/dict`), Legend, Show/Hide minimap, Copy link. Minimap mounts into `<div id="minimap-panel">` via `cy.navigator({ container: '#minimap-panel' })`; destroyed and DOM-cleared on toggle off. `src/hash-router.ts` is a pure module (no side effects, no imports) — exports `parseHash(hash): HashState` and `serializeHash(state): string`. Hash format: `#entity=<id>&zoom=<n>&pan=<x>,<y>` (all params optional). App.tsx uses hash state to persist and restore viewport (zoom, pan) and selected entity across page loads and link-sharing; writes via `history.replaceState` with 200ms debounce; reads on `hashchange` with feedback-loop guard (`lastWrittenHash`). `App.tsx` imports `Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `GroupConfig` from `./parse` — no local type redeclarations. `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator` (no `@types` package); augments `cytoscape.Core` with `navigator()` method.
 
 ### generators
 
@@ -131,6 +131,7 @@ No linter or formatter configured in package.json.
 - `trash/` contains v1 components and engine code (YAML-driven), superseded by current markdown-driven implementation. Not imported anywhere in `src/`.
 - `test/` is exploratory tooling organized into `checks/` (CI-run assertions), `visual/` (Playwright, manual only), `fixtures/` (YAML data), `notes/` (markdown). Not a formal suite.
 - `src/types/file-imports.d.ts` — ambient module declarations for `*.html`, `*.css` imports with `{ type: 'file' }` or plain import.
+- `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator` (no upstream `@types`); augments `cytoscape.Core` with `navigator(options?): NavigatorInstance`.
 - `bun-env.d.ts` — ambient Bun type augmentations.
 - `bunfig.toml` — Bun config (2L, minimal).
 - `src/parse.ts` exports canonical model types (`Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `Cardinality`, `GroupConfig`, `ColumnDef`). `src/App.tsx` imports these directly — no local type redeclarations.
