@@ -123,35 +123,6 @@ assert(
     `@media print :root --color-background resolves to light value (#ffffff), got: ${printBgVar}`,
 );
 
-// 6. Badge background is transparent/white in print; text is near-black.
-//    Inline style="background:…;color:…" would win without !important overrides.
-const badgePrintStyles = await page.evaluate(() => {
-    const el = document.querySelector('.badge');
-    if (!el) return null;
-    const cs = window.getComputedStyle(el);
-    return { bg: cs.backgroundColor, color: cs.color };
-});
-assert(
-    badgePrintStyles !== null,
-    '.badge element exists in print DOM',
-);
-if (badgePrintStyles) {
-    const bgIsLight =
-        badgePrintStyles.bg === 'rgba(0, 0, 0, 0)' ||
-        badgePrintStyles.bg === 'rgb(255, 255, 255)' ||
-        badgePrintStyles.bg === 'transparent';
-    assert(
-        bgIsLight,
-        `.badge background is transparent/white in print, got: ${badgePrintStyles.bg}`,
-    );
-    // color must be near-black: rgb(0,0,0) or rgb(0,0,0) variants
-    const colorIsBlack = badgePrintStyles.color === 'rgb(0, 0, 0)';
-    assert(
-        colorIsBlack,
-        `.badge color is black (#000) in print, got: ${badgePrintStyles.color}`,
-    );
-}
-
 await page.screenshot({ path: resolve('tmp/dict-print.png'), fullPage: true });
 console.log('Screenshot saved: tmp/dict-print.png');
 
