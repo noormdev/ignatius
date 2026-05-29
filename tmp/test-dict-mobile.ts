@@ -59,13 +59,25 @@ assert(
     `mobile: body does not overflow horizontally (bodyScrollWidth=${bodyScrollWidth}, innerWidth=${innerWidth})`,
 );
 
-// 3. First entity heading is visible (not occluded by fixed branding)
-const firstH2Y = await mobilePage.evaluate(() => {
-    const el = document.querySelector('h2');
-    if (!el) return -1;
-    return el.getBoundingClientRect().y;
+// 3. First entity heading is not occluded by the fixed branding block.
+//    We probe the element at the center of the h2's bounding rect.
+//    The topmost element must be the h2 itself or a descendant of it —
+//    not a .dict-branding descendant (which would indicate occlusion).
+const occlusionResult = await mobilePage.evaluate(() => {
+    const h2 = document.querySelector('h2');
+    if (!h2) return { ok: false, reason: 'no h2 found' };
+    const rect = h2.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const topEl = document.elementFromPoint(cx, cy);
+    if (!topEl) return { ok: false, reason: 'elementFromPoint returned null' };
+    const inH2 = h2.contains(topEl) || topEl === h2;
+    const inBranding = !!topEl.closest('.dict-branding');
+    if (inBranding) return { ok: false, reason: `.dict-branding occludes the h2 at (${cx.toFixed(0)},${cy.toFixed(0)})` };
+    if (!inH2) return { ok: false, reason: `unexpected element occludes h2: ${topEl.tagName}.${[...topEl.classList].join('.')}` };
+    return { ok: true, reason: 'h2 center is unoccluded' };
 });
-assert(firstH2Y >= 0, `mobile: first entity h2 is visible on screen (y=${firstH2Y})`);
+assert(occlusionResult.ok, `mobile: first entity h2 not occluded by .dict-branding (${occlusionResult.reason})`);
 
 await mobilePage.screenshot({ path: resolve('tmp/dict-mobile.png') });
 console.log('Screenshot saved: tmp/dict-mobile.png');

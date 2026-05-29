@@ -329,7 +329,7 @@ export async function generateDict(
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 14px;
       line-height: 1.6;
-      padding: 2rem;
+      padding: 2rem 2rem 5rem;
       max-width: 1100px;
       margin: 0 auto;
     }
@@ -538,9 +538,8 @@ export async function generateDict(
     /* ── Mobile responsive ────────────────────────────────────────────────── */
     @media (max-width: 768px) {
       body {
-        padding: 0.75rem;
-        /* Clear fixed footer height so content is not obscured */
-        padding-bottom: 4rem;
+        /* Shorthand: 0.75rem sides, 4rem bottom to clear the fixed footer */
+        padding: 0.75rem 0.75rem 4rem;
       }
 
       /* Branding: shrink + move to top-right so it clears the page header */

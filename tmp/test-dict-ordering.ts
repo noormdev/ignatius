@@ -36,16 +36,14 @@ function assert(cond: boolean, msg: string) {
 
 function assertOrder(html: string, ids: string[], msg: string) {
   const positions = ids.map(id => html.indexOf(`id="entity-${id}"`));
-  let ok = true;
   for (let i = 1; i < positions.length; i++) {
     if (positions[i - 1] === -1 || positions[i] === -1 || positions[i - 1] >= positions[i]) {
-      ok = false;
       console.error(`FAIL: ${msg} — order broken at index ${i}: "${ids[i - 1]}"(${positions[i - 1]}) should precede "${ids[i]}"(${positions[i]})`);
       failures++;
       return;
     }
   }
-  if (ok) console.log(`PASS: ${msg}`);
+  console.log(`PASS: ${msg}`);
 }
 
 function makeNode(id: string, classification: string, group: string): ModelNode {
@@ -73,7 +71,7 @@ function makeBranding(): Branding {
 
 const identityModel: Model = {
   groups: {
-    identity: { label: 'Identity', color: '#2ea043' } as GroupConfig,
+    identity: { label: 'Identity', color: '#2ea043' } satisfies GroupConfig,
   },
   nodes: [
     // Listed in alphabetical order intentionally — ordering must NOT be alphabetical
@@ -86,10 +84,10 @@ const identityModel: Model = {
     makeNode('Person', 'Subtype', 'identity'),
     makeNode('SSN', 'Subtype', 'identity'),
   ],
-  edges: [] as ModelEdge[],
+  edges: [] satisfies ModelEdge[],
   subtypeClusters: [
-    { basetype: 'Party', exclusive: true, members: ['Business', 'Person'] } as SubtypeCluster,
-    { basetype: 'Identity', exclusive: false, members: ['ITIN', 'License', 'Passport', 'SSN'] } as SubtypeCluster,
+    { basetype: 'Party', exclusive: true, members: ['Business', 'Person'] } satisfies SubtypeCluster,
+    { basetype: 'Identity', exclusive: false, members: ['ITIN', 'License', 'Passport', 'SSN'] } satisfies SubtypeCluster,
   ],
   theme: makeTheme(),
   branding: makeBranding(),
@@ -109,9 +107,9 @@ assertOrder(
 
 const sortKeyModel: Model = {
   groups: {
-    a: { label: 'Group A', color: '#ff0000', sort_key: 2 } as GroupConfig,
-    b: { label: 'Group B', color: '#00ff00', sort_key: 1 } as GroupConfig,
-    c: { label: 'Group C', color: '#0000ff' } as GroupConfig,
+    a: { label: 'Group A', color: '#ff0000', sort_key: 2 } satisfies GroupConfig,
+    b: { label: 'Group B', color: '#00ff00', sort_key: 1 } satisfies GroupConfig,
+    c: { label: 'Group C', color: '#0000ff' } satisfies GroupConfig,
   },
   nodes: [
     makeNode('EntityA', 'Kernel', 'a'),
@@ -136,8 +134,8 @@ assertOrder(
 
 const collisionModel: Model = {
   groups: {
-    beta: { label: 'Beta', color: '#ff0000', sort_key: 1 } as GroupConfig,
-    alpha: { label: 'Alpha', color: '#00ff00', sort_key: 1 } as GroupConfig,
+    beta: { label: 'Beta', color: '#ff0000', sort_key: 1 } satisfies GroupConfig,
+    alpha: { label: 'Alpha', color: '#00ff00', sort_key: 1 } satisfies GroupConfig,
   },
   nodes: [
     makeNode('Beta_entity', 'Kernel', 'beta'),
@@ -161,9 +159,9 @@ assertOrder(
 
 const unsortedModel: Model = {
   groups: {
-    zebra: { label: 'Zebra', color: '#ff0000' } as GroupConfig,
-    apple: { label: 'Apple', color: '#00ff00' } as GroupConfig,
-    sorted: { label: 'Sorted', color: '#0000ff', sort_key: 1 } as GroupConfig,
+    zebra: { label: 'Zebra', color: '#ff0000' } satisfies GroupConfig,
+    apple: { label: 'Apple', color: '#00ff00' } satisfies GroupConfig,
+    sorted: { label: 'Sorted', color: '#0000ff', sort_key: 1 } satisfies GroupConfig,
   },
   nodes: [
     makeNode('Zebra_entity', 'Kernel', 'zebra'),
@@ -191,7 +189,7 @@ assertOrder(
 
 const standaloneModel: Model = {
   groups: {
-    group1: { label: 'Group1', color: '#ff0000' } as GroupConfig,
+    group1: { label: 'Group1', color: '#ff0000' } satisfies GroupConfig,
   },
   nodes: [
     makeNode('Alpha', 'Dependent', 'group1'),
