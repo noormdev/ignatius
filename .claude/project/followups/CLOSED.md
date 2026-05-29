@@ -4,3 +4,6 @@
 - 2026-05-28 stable-names-uses-node-fs — "scripts/stable-names.ts uses node:fs instead of Bun APIs" — *(closed 2026-05-28)*
 - 2026-05-29 dict-side-nav — "Dict: toggleable side nav with scrollspy + entity jump links" — *(closed 2026-05-29)*
 - 2026-05-29 branding-overlap-fix — "Branding header: stop overlapping content, add translucent backdrop" — *(closed 2026-05-29)*
+- 2026-05-29 graph-hash-router — "Graph: hash-router state pinning (entity / pan / zoom)" — *(closed 2026-05-29)*
+- 2026-05-29 graph-minimap — "Graph: minimap with viewport indicator + click-to-pan" — *(closed 2026-05-29)*
+- 2026-05-29 viewer-mode-toggle — "Server viewer: in-app toggle between dict and graph modes" — *(closed 2026-05-29)*
