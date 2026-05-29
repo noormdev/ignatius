@@ -596,6 +596,100 @@ export async function generateDict(
         gap: 0.65rem;
       }
     }
+
+    /* ── Print stylesheet ─────────────────────────────────────────────────── */
+    @media print {
+      /* Reset body for print: no max-width cap, no decorative padding */
+      body {
+        background: #fff;
+        color: #000;
+        font-size: 11pt;
+        padding: 0;
+        max-width: none;
+        margin: 0;
+      }
+
+      /* Fixed branding would repeat on every page — convert to static so it
+         prints once at the top of the document with the rest of the flow. */
+      .dict-branding {
+        position: static;
+        margin-bottom: 1rem;
+        pointer-events: auto;
+      }
+
+      /* Fixed footer would repeat on every page — convert to static so the
+         copyright line prints once at the end of the document. */
+      .dict-footer {
+        position: static;
+        border-top: 1px solid #ccc;
+        margin-top: 2rem;
+        padding: 0.5rem 0;
+        background: transparent;
+        text-align: center;
+      }
+
+      /* Entity sections: avoid breaking a short section across pages.
+         Oversize sections (with long tables) will still split naturally
+         because the child tables do not have break-inside: avoid. */
+      .entity-section {
+        break-inside: avoid;
+        border: 1px solid #ccc;
+        background: transparent;
+        margin-bottom: 1rem;
+        page-break-inside: avoid; /* legacy alias for older print engines */
+      }
+
+      /* Group headers: keep with the first entity of the group */
+      .group-section {
+        break-before: auto;
+      }
+      .group-header {
+        break-after: avoid;
+        background: transparent;
+        border-left-color: currentColor;
+      }
+
+      /* Preserve group color bands and key markers that carry meaning.
+         Without this, Chromium strips background-color in print mode. */
+      .group-header,
+      .badge,
+      .swatch {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      /* Expand table wrappers that were set to overflow-x: auto on mobile */
+      .attr-table, .rel-table {
+        display: table;
+        overflow: visible;
+        width: 100%;
+      }
+
+      /* Inline link URLs so printed copy is navigable without a browser.
+         Choice: a::after injection. The Noorm powered-by link and any FK
+         anchor targets will print their href beside the link text. */
+      a::after {
+        content: " (" attr(href) ")";
+        font-size: 0.8em;
+        color: #555;
+        word-break: break-all;
+      }
+
+      /* Self-referential anchors (entity jump links, #id hrefs) are noisy
+         in print — suppress them. Only suppress #-prefixed hrefs. */
+      a[href^="#"]::after {
+        content: "";
+      }
+
+      /* Suppress hover row highlight — no pointer in print */
+      .attr-table tr:hover td,
+      .rel-table tr:hover td {
+        background: transparent;
+      }
+
+      /* Hide elements that have no value in a printed document */
+      .legend { display: none; }
+    }
   </style>
 </head>
 <body>
