@@ -61,3 +61,30 @@ All work is in `src/generators/dict.ts`. The generator already emits self-contai
 ## Change log
 
 <!-- empty during drafting; first entry on first post-approval amendment -->
+
+
+## Implementation log
+
+
+### v1 — 2026-05-29
+
+Built across 4 iterations of `/subagent-implementation`. Commits (chronological):
+
+- `d41b0ad` — spec + design drafted
+- `55005fc` — CP-1 branding overlap fix + translucent blurred backdrop (`--dict-branding-height`, `backdrop-filter`)
+- `5992fb8` — CP-2 side nav panel with toggle, outside-click, Esc, localStorage persistence
+- `8d9db0e` — CP-3 IntersectionObserver scrollspy + current-entity highlight + scroll-into-view
+- `5036990` — polish: closed 9 reviewer follow-ups (F-1..F-9)
+
+**Out-of-scope work performed during this build:**
+
+- None.
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- `color-mix(transparent)` quirk on Safari < 16.4 surfaced as F-1. Fixed via an opaque `background: var(--color-background)` fallback emitted before the `color-mix` rule.
+- `setTimeout` was initially used to close the panel after a nav-link click (CP-2); reviewer flagged as brittle, replaced with synchronous close in polish.
+
+**Deferred items still open:**
+
+- None. All 9 follow-ups closed in `5036990`.
