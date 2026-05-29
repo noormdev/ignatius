@@ -20,8 +20,8 @@
  *
  * Screenshot saved to tmp/dict-print.png.
  */
-import { parseModels } from '../src/parse';
-import { generateDict } from '../src/generators/dict';
+import { parseModels } from '../../src/parse';
+import { generateDict } from '../../src/generators/dict';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 
@@ -112,7 +112,16 @@ const breakInsideAvoid = await page.evaluate(() => {
 });
 assert(breakInsideAvoid, 'at least one .entity-section has break-inside: avoid');
 
-// 5. Print mode always uses light CSS variables regardless of generation mode.
+// 5. body padding-top is 0 in print (--dict-branding-height must not carry into paper output)
+const printBodyPaddingTop = await page.evaluate(() => {
+    return window.getComputedStyle(document.body).paddingTop;
+});
+assert(
+    printBodyPaddingTop === '0px',
+    `@media print body padding-top resets to 0 (got: ${printBodyPaddingTop})`,
+);
+
+// 6. Print mode always uses light CSS variables regardless of generation mode.
 //    When generated with mode='dark', --color-background at :root is a dark hex.
 //    The @media print :root override must reset it to the light palette value (#ffffff).
 const printBgVar = await page.evaluate(() => {

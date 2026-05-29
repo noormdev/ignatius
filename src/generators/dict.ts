@@ -342,6 +342,7 @@ export async function generateDict(
   <style>
     :root {
       ${cssVars}
+      --dict-branding-height: 72px;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -352,7 +353,10 @@ export async function generateDict(
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 14px;
       line-height: 1.6;
-      padding: 2rem 2rem 5rem;
+      padding-top: var(--dict-branding-height);
+      padding-right: 2rem;
+      padding-bottom: 5rem;
+      padding-left: 2rem;
       max-width: 1100px;
       margin: 0 auto;
     }
@@ -487,6 +491,11 @@ export async function generateDict(
       gap: 10px;
       z-index: 100;
       pointer-events: none;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--color-background) 70%, transparent);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }
     .dict-branding-logo {
       width: 32px;
@@ -568,9 +577,17 @@ export async function generateDict(
 
     /* ── Mobile responsive ────────────────────────────────────────────────── */
     @media (max-width: 768px) {
+      :root {
+        /* Branding is smaller on mobile (22px logo), so a reduced height suffices */
+        --dict-branding-height: 52px;
+      }
+
       body {
-        /* Shorthand: 0.75rem sides, 4rem bottom to clear the fixed footer */
-        padding: 0.75rem 0.75rem 4rem;
+        /* Keep padding-top from --dict-branding-height; override sides and bottom */
+        padding-top: var(--dict-branding-height);
+        padding-right: 0.75rem;
+        padding-bottom: 4rem;
+        padding-left: 0.75rem;
       }
 
       /* Branding: shrink + move to top-right so it clears the page header */
@@ -589,11 +606,6 @@ export async function generateDict(
       }
       .dict-branding-subtitle {
         font-size: 0.65rem;
-      }
-
-      /* Push page header down enough to clear the relocated branding block */
-      .page-header {
-        margin-top: 2.5rem;
       }
 
       /* Group header: allow text to wrap, reduce padding */
@@ -636,12 +648,14 @@ export async function generateDict(
         ${lightCssVars}
       }
 
-      /* Reset body for print: no max-width cap, no decorative padding */
+      /* Reset body for print: no max-width cap, no decorative padding.
+         Explicit padding-top: 0 overrides the --dict-branding-height variable. */
       body {
         background: #fff;
         color: #000;
         font-size: 11pt;
         padding: 0;
+        padding-top: 0;
         max-width: none;
         margin: 0;
       }
