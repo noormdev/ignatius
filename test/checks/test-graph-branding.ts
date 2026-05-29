@@ -6,9 +6,9 @@
  * branding automatically — IF model.branding is included in JSON.stringify(model).
  * This test asserts that it is.
  */
-import { parseModels } from '../src/parse';
-import { generateGraph } from '../src/generators/graph';
-import { mergeBranding } from '../src/branding-defaults';
+import { parseModels } from '../../src/parse';
+import { generateGraph } from '../../src/generators/graph';
+import { mergeBranding } from '../../src/branding-defaults';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 

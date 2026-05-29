@@ -2,9 +2,9 @@
  * Verifies that semanticColors is mode-aware and that buildThemeCssVars
  * emits the correct badge vars for each mode.
  */
-import { semanticColors } from '../src/theme-defaults';
-import { buildThemeCssVars } from '../src/generators/theme-css';
-import { defaultTheme } from '../src/theme-defaults';
+import { semanticColors } from '../../src/theme-defaults';
+import { buildThemeCssVars } from '../../src/generators/theme-css';
+import { defaultTheme } from '../../src/theme-defaults';
 
 let failures = 0;
 

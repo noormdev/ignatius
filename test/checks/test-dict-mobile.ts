@@ -11,8 +11,8 @@
  *
  * Screenshots saved to tmp/dict-mobile.png and tmp/dict-desktop.png.
  */
-import { parseModels } from '../src/parse';
-import { generateDict } from '../src/generators/dict';
+import { parseModels } from '../../src/parse';
+import { generateDict } from '../../src/generators/dict';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 

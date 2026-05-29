@@ -1,9 +1,9 @@
 // Verification: parseModels returns branding field, merges with defaults correctly
-import { parseModels } from '../src/parse';
-import { defaultBranding } from '../src/branding-defaults';
+import { parseModels } from '../../src/parse';
+import { defaultBranding } from '../../src/branding-defaults';
 import { resolve } from 'path';
 
-const modelsDir = resolve(import.meta.dir, '../models');
+const modelsDir = resolve(import.meta.dir, '../../models');
 const brandingFile = `${modelsDir}/_branding.yaml`;
 
 // Ensure no leftover branding file from a previous run

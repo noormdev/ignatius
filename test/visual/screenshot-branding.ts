@@ -8,11 +8,11 @@
 
 import { chromium } from 'playwright';
 import { resolve } from 'path';
-import { serveCommand } from '../src/server';
+import { serveCommand } from '../../src/server';
 
-const modelsDir = resolve(import.meta.dir, '../models');
+const modelsDir = resolve(import.meta.dir, '../../models');
 const brandingFile = resolve(modelsDir, '_branding.yaml');
-const testBrandingFile = resolve(import.meta.dir, 'test-branding.yaml');
+const testBrandingFile = resolve(import.meta.dir, '../fixtures/test-branding.yaml');
 
 const PORT = 3097;
 const BASE_URL = `http://localhost:${PORT}`;

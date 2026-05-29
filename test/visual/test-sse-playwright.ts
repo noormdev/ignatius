@@ -13,11 +13,11 @@
  */
 
 import { chromium } from 'playwright';
-import { serveCommand } from '../src/server';
+import { serveCommand } from '../../src/server';
 import { resolve } from 'path';
 
 const PORT = 3298;
-const MODELS_DIR = resolve(import.meta.dir, '../models');
+const MODELS_DIR = resolve(import.meta.dir, '../../models');
 const TEST_FILE = resolve(MODELS_DIR, 'identity/Party.md');
 const MARKER_TEXT = 'live-reload-test-desc';
 

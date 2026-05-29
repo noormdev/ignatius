@@ -2,9 +2,9 @@
  * Tests for branding markup in generateDict output.
  * Run against unmodified dict.ts to confirm failures, then green after implementation.
  */
-import { generateDict } from '../src/generators/dict';
-import { defaultBranding, mergeBranding } from '../src/branding-defaults';
-import { parseModels } from '../src/parse';
+import { generateDict } from '../../src/generators/dict';
+import { defaultBranding, mergeBranding } from '../../src/branding-defaults';
+import { parseModels } from '../../src/parse';
 
 let failures = 0;
 

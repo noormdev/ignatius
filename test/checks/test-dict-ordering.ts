@@ -18,10 +18,10 @@
  *   non-numeric sort_key in frontmatter throws with the group name.
  */
 
-import { generateDict } from '../src/generators/dict';
-import type { Model, GroupConfig, ModelNode, ModelEdge, SubtypeCluster, ThemeConfig, Branding } from '../src/parse';
-import { defaultTheme } from '../src/theme-defaults';
-import { defaultBranding } from '../src/branding-defaults';
+import { generateDict } from '../../src/generators/dict';
+import type { Model, GroupConfig, ModelNode, ModelEdge, SubtypeCluster, ThemeConfig, Branding } from '../../src/parse';
+import { defaultTheme } from '../../src/theme-defaults';
+import { defaultBranding } from '../../src/branding-defaults';
 
 let failures = 0;
 
@@ -214,7 +214,7 @@ assertOrder(
 // We can't call parseModels without the filesystem, so we verify the parse guard
 // via a direct import and simulate the frontmatter parsing path.
 
-import { parseModels } from '../src/parse';
+import { parseModels } from '../../src/parse';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';

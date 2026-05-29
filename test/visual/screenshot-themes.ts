@@ -1,9 +1,9 @@
 import { chromium } from 'playwright';
 import { resolve } from 'path';
 
-const modelsDir = resolve(import.meta.dir, '../models');
+const modelsDir = resolve(import.meta.dir, '../../models');
 const themeFile = resolve(modelsDir, '_theme.yaml');
-const testThemeFile = resolve(import.meta.dir, 'test-theme.yaml');
+const testThemeFile = resolve(import.meta.dir, '../fixtures/test-theme.yaml');
 
 async function screenshot(outputPath: string) {
   const browser = await chromium.launch();

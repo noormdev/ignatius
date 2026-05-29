@@ -44,12 +44,12 @@ jobs:
       - name: Run test scripts
         run: |
           set -e
-          bun tmp/test-cli-parse.ts
-          bun tmp/test-theme-parse.ts
-          bun tmp/test-dict-gen.ts
-          bun tmp/test-graph-gen.ts
-          bun tmp/test-sse-live-reload.ts
-          bun tmp/test-cli-binary.ts
+          bun test/checks/test-cli-parse.ts
+          bun test/checks/test-theme-parse.ts
+          bun test/checks/test-dict-gen.ts
+          bun test/checks/test-graph-gen.ts
+          bun test/checks/test-sse-live-reload.ts
+          bun test/checks/test-cli-binary.ts
 
       - name: Typecheck
         run: bunx tsc --noEmit

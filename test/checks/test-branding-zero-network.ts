@@ -11,9 +11,9 @@
  * This test would fail if the SVG logo were fetched at runtime instead of
  * being embedded as a base64 data URI at generation time.
  */
-import { parseModels } from '../src/parse';
-import { generateDict } from '../src/generators/dict';
-import { generateGraph } from '../src/generators/graph';
+import { parseModels } from '../../src/parse';
+import { generateDict } from '../../src/generators/dict';
+import { generateGraph } from '../../src/generators/graph';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 

@@ -1,5 +1,5 @@
-import { parseModels } from '../src/parse';
-import { generateGraph } from '../src/generators/graph';
+import { parseModels } from '../../src/parse';
+import { generateGraph } from '../../src/generators/graph';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 

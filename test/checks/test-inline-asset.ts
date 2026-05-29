@@ -1,8 +1,8 @@
 // Test: inlineAsset() — all input shapes + failure cases
-import { inlineAsset } from '../src/generators/inline-asset';
+import { inlineAsset } from '../../src/generators/inline-asset';
 import { resolve } from 'path';
 
-const fixturesDir = resolve(import.meta.dir, 'test-fixtures');
+const fixturesDir = resolve(import.meta.dir, '../../tmp/test-fixtures');
 await Bun.$`mkdir -p ${fixturesDir}`;
 
 // Write a tiny PNG fixture (1x1 red pixel, minimal valid PNG)

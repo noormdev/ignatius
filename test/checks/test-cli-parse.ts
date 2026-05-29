@@ -2,7 +2,7 @@
  * Verification: CLI argument parser returns the expected shape.
  * Run with: bun test/test-cli-parse.ts
  */
-import { parseArgs } from '../src/cli';
+import { parseArgs } from '../../src/cli';
 
 type ParseResult = ReturnType<typeof parseArgs>;
 

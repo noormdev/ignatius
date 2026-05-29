@@ -1,5 +1,5 @@
-import { parseModels } from '../src/parse';
-import { generateDict } from '../src/generators/dict';
+import { parseModels } from '../../src/parse';
+import { generateDict } from '../../src/generators/dict';
 
 const model = await parseModels('models');
 const html = await generateDict(model, 'dark', { modelsDir: 'models' });

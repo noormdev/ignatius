@@ -1,9 +1,9 @@
 // Verification: parseModels returns theme field, merges with defaults correctly
-import { parseModels } from '../src/parse';
-import { defaultTheme } from '../src/theme-defaults';
+import { parseModels } from '../../src/parse';
+import { defaultTheme } from '../../src/theme-defaults';
 import { resolve } from 'path';
 
-const modelsDir = resolve(import.meta.dir, '../models');
+const modelsDir = resolve(import.meta.dir, '../../models');
 const themeFile = `${modelsDir}/_theme.yaml`;
 
 // --- Test 1: default theme (no _theme.yaml) ---

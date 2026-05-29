@@ -4,10 +4,10 @@
  */
 
 import { resolve } from 'path';
-import { serveCommand } from '../src/server';
+import { serveCommand } from '../../src/server';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 
-const fixtureDir = resolve(import.meta.dir, '../tmp/test-fixtures/asset-route-test');
+const fixtureDir = resolve(import.meta.dir, '../../tmp/test-fixtures/asset-route-test');
 mkdirSync(fixtureDir, { recursive: true });
 writeFileSync(resolve(fixtureDir, 'test-logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
 

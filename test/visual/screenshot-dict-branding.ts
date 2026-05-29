@@ -8,12 +8,12 @@
 
 import { chromium } from 'playwright';
 import { resolve } from 'path';
-import { parseModels } from '../src/parse';
-import { mergeBranding } from '../src/branding-defaults';
-import { generateDict } from '../src/generators/dict';
+import { parseModels } from '../../src/parse';
+import { mergeBranding } from '../../src/branding-defaults';
+import { generateDict } from '../../src/generators/dict';
 
-const modelsDir = resolve(import.meta.dir, '../models');
-const tmpDir = resolve(import.meta.dir, '.');
+const modelsDir = resolve(import.meta.dir, '../../models');
+const tmpDir = resolve(import.meta.dir, '../../tmp');
 
 // ── Dark mode — default branding ──────────────────────────────────────────────
 const defaultModel = await parseModels(modelsDir);
