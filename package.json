@@ -17,6 +17,8 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
+    "@clack/prompts": "^1.5.0",
+    "citty": "^0.2.2",
     "cytoscape": "^3.31.0",
     "cytoscape-elk": "^2.2.0",
     "cytoscape-navigator": "^2.0.2",
