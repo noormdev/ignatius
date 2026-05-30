@@ -123,3 +123,5 @@ Built across 7 iterations of /subagent-implementation (6 CPs + 1 polish pass), t
 - `.claude/project/followups/schema-lint-identity-cluster-no-discriminator.md` — Identity cluster trips `cluster.no_discriminator` on array-form members; decide between fixing the model or loosening the rule.
 
 The originating followup `.claude/project/followups/schema-validation-linter-error-ux.md` (the entry this spec implements) closes with this ship. The classification-mismatch followup (`schema-lint-classification-mismatch-baseline`) is also closed as moot — the rules themselves no longer exist.
+
+**Merged into master as `bf5f37d` — 2026-05-30.**
