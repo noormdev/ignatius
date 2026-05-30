@@ -32,13 +32,13 @@ relationships:
       party_id: party_id
       payment_method_id: payment_method_id
       payment_id: payment_id
-    predicate: is paid by
+    predicate: { fwd: applies to, rev: is paid by }
   - target: SI_Line
     on:
       party_id: party_id
       sales_invoice_id: sales_invoice_id
       line_seq: line_seq
-    predicate: settles
+    predicate: { fwd: is settled via, rev: settles }
 ---
 
 # PaymentAllocation

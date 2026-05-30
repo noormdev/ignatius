@@ -60,6 +60,9 @@ declare global {
     __MODEL__?: Model;
     __THEME_MODE__?: 'dark' | 'light';
     __IGNATIUS_MODE__?: 'live' | 'static';
+    // Debug/test seam: the live Cytoscape core, exposed for the visual harness
+    // to locate nodes and drive hover. Not read by application code.
+    __IGNATIUS_CY__?: cytoscape.Core;
   }
 }
 
@@ -213,7 +216,7 @@ function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mo
         'target-arrow-shape': 'none',
         'source-arrow-shape': 'none',
         'curve-style': 'bezier',
-        'label': 'data(predicate)',
+        'label': 'data(edgeLabel)',
         'font-size': 10,
         'color': p.textMuted,
         'text-rotation': 'autorotate',
@@ -432,7 +435,7 @@ function ChildrenTable({ node, edges, onNavigate }: {
                 </a>
               </td>
               <td>{edge.identifying ? 'Identifying' : 'Referential'}</td>
-              <td>{edge.predicate}</td>
+              <td>{edge.predicate.fwd}{edge.predicate.rev !== edge.predicate.fwd && <span className="predicate-rev">{edge.predicate.rev}</span>}</td>
               <td>{edge.cardinality.parent}:{edge.cardinality.child}</td>
             </tr>
           ))}
@@ -966,7 +969,7 @@ export function App() {
           source: cluster.basetype,
           target: joinerId,
           identifying: 'true',
-          predicate: '',
+          edgeLabel: '',
           parentCard: '1',
           childCard: '',
           subtypeEdge: 'true',
@@ -985,7 +988,7 @@ export function App() {
             source: joinerId,
             target: member,
             identifying: 'true',
-            predicate: '',
+            edgeLabel: '',
             parentCard: '',
             childCard: '0..1',
             subtypeEdge: 'true',
@@ -1004,7 +1007,9 @@ export function App() {
           source: edge.target,
           target: edge.source,
           identifying: String(edge.identifying),
-          predicate: edge.predicate,
+          predicateFwd: edge.predicate.fwd,
+          predicateRev: edge.predicate.rev,
+          edgeLabel: edge.predicate.fwd,
           parentCard: edge.cardinality.parent,
           childCard: edge.cardinality.child,
         },
@@ -1012,7 +1017,7 @@ export function App() {
     }
 
     const longestPredicate = model.edges.reduce(
-      (max, e) => Math.max(max, e.predicate.length), 0
+      (max, e) => Math.max(max, e.predicate.fwd.length), 0
     );
     const charWidth = 6; // ~6px per char at font-size 10
     const markerPadding = 50; // room for markers on both ends
@@ -1048,6 +1053,7 @@ export function App() {
       setCyInitError(msg);
       return;
     }
+    window.__IGNATIUS_CY__ = cy;
 
     if (!svgRef.current) {
       svgRef.current = createMarkerOverlay(graphRef.current);
@@ -1187,6 +1193,29 @@ export function App() {
     }
     window.addEventListener('hashchange', onHashChange);
 
+    // Hover handlers: swap incident edge labels to the node's perspective, restore on mouseout.
+    // On mouseover node N: edges where N is the child (edge.target() === N) flip to rev.
+    // On mouseout: all connected edges restore to fwd.
+    cy.on('mouseover', 'node', (evt) => {
+      const n = evt.target;
+      n.connectedEdges().forEach((edge) => {
+        const rev = edge.data('predicateRev');
+        if (rev === undefined) return; // cluster/joiner edges — skip
+        if (edge.target().id() === n.id()) {
+          edge.data('edgeLabel', rev);
+        }
+      });
+    });
+
+    cy.on('mouseout', 'node', (evt) => {
+      const n = evt.target;
+      n.connectedEdges().forEach((edge) => {
+        const fwd = edge.data('predicateFwd');
+        if (fwd === undefined) return;
+        edge.data('edgeLabel', fwd);
+      });
+    });
+
     cyRef.current = cy;
 
     // Mount navigator HERE — inside the cy lifecycle — so its teardown is
@@ -1210,6 +1239,7 @@ export function App() {
       panelNavigateRef.current = () => {};
       cy.destroy();
       cyRef.current = null;
+      window.__IGNATIUS_CY__ = undefined;
       setCyReady(false);
       if (svgRef.current) {
         svgRef.current.remove();

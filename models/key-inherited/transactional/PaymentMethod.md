@@ -21,11 +21,11 @@ relationships:
   - target: Party
     on:
       party_id: party_id
-    predicate: is held by
+    predicate: { fwd: holds, rev: is held by }
   - target: PaymentMethodType
     on:
       type: code
-    predicate: is classified by
+    predicate: { fwd: classifies, rev: is classified by }
 ---
 
 # PaymentMethod

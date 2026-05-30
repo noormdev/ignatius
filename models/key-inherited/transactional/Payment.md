@@ -26,7 +26,7 @@ relationships:
     on:
       party_id: party_id
       payment_method_id: payment_method_id
-    predicate: is settled by
+    predicate: { fwd: settles, rev: is settled by }
 ---
 
 # Payment
