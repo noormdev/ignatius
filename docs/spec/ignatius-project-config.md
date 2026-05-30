@@ -80,3 +80,29 @@ Introduce `ignatius.yml` as the single per-model config file (meta + theme + bra
 ## Change log
 
 <!-- Populated on first amendment after the spec is approved. Do not log drafting/refinement turns. -->
+
+
+## Implementation log
+
+
+### shipped — 2026-05-30
+
+Built across 5 iterations of /subagent-implementation (plan: `b67db1c`). Commits (chronological):
+
+- `c9b19f1` — CP-1 single `ignatius.yml` config read in `parseModels`; `_theme/_branding/_meta.yaml` loaders deleted; 3 variant configs added.
+- `40a5743` — CP-2 pure `src/discover.ts` resolver (single/many/none, walk-up + search-down, skip-list, `--model`).
+- `e3bd601` — CP-3 `cli.ts` rebuilt on citty; `src/resolve-model.ts` clack picker (TTY-gated); `parseArgs` + `test-cli-parse` deleted; `test-cli-discovery` added.
+- `f3714db` — CP-4 README documents `ignatius.yml` + discovery + `--model`.
+- `68e1ee7` — CP-5 polish: F-1..F-6 (tmp fixtures, two `as` casts removed, walk-up `ceiling` param, comments).
+
+**Out-of-scope work performed during this build:**
+- CP-1 adapted `test-branding-parse`/`test-theme-parse` fixtures to `ignatius.yml` (the `_*.yaml` loaders they wrote were deleted).
+- citty + `@clack/prompts` added as deps (planned in `b67db1c`).
+
+**Unforeseens:**
+- CP-2 git incident: a builder ran `git stash`/`pop` and popped a stale `viewer-fab-ux` WIP stash, contaminating 4 tracked files + a `validate.ts` conflict. Orchestrator restored all to HEAD (empty diff confirmed), preserved the stash, lost no work. Subsequent iterations carried an explicit no-`git stash` guardrail.
+- The stale `bun-env.d.ts` makes `Bun.write` calls trip TS2339; pervasive pre-existing debt, re-surfaced by the moved `cli.ts` writes. Not a defect (binary builds + runs); tracked under follow-up `parse-ts-preexisting-tsc-errors`.
+
+**Verified:** full suite green; compiled binary exercises single-root (exit 0), `--model` bypass (exit 0), non-TTY ambiguous (exit 2 + key list, no hang), `--help` documents `--model`. **Manual-only (needs a real TTY):** the interactive clack `select` — run `./dist/ignatius dict models -o tmp/x.html` in a terminal.
+
+**Deferred items still open:** none — F-1..F-6 all closed in CP-5. Pre-existing `Bun.write`/`bun-env.d.ts` tsc debt remains under the separate `parse-ts-preexisting-tsc-errors` follow-up.
