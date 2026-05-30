@@ -172,3 +172,5 @@ Built across 4 iterations of `/subagent-implementation`. Commits (chronological)
 No items promoted to project-level follow-ups.
 
 **Squashed to 3b22569 — 2026-05-30.** Per-iteration SHAs above are historical (unreachable from any branch).
+
+**Merged into master as 773cfbb — 2026-05-30.**
