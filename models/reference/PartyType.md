@@ -1,6 +1,6 @@
 ---
 entity: PartyType
-classification: Classifier
+reference: true
 group: reference
 pk:
   - code

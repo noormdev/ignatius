@@ -1,6 +1,5 @@
 ---
 entity: SSN
-classification: Subtype
 group: identity
 pk:
   - party_id
@@ -11,7 +10,6 @@ columns:
     type: text
 relationships:
   - target: Identity
-    identifying: true
     on:
       party_id: party_id
     predicate: is a

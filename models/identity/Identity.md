@@ -1,6 +1,5 @@
 ---
 entity: Identity
-classification: Dependent
 group: identity
 pk:
   - party_id
@@ -17,7 +16,6 @@ subtypes:
       - ITIN
 relationships:
   - target: Party
-    identifying: true
     on:
       party_id: party_id
     predicate: identifies

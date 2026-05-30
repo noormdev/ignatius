@@ -1,6 +1,5 @@
 ---
 entity: Person
-classification: Subtype
 group: identity
 pk:
   - party_id
@@ -15,7 +14,6 @@ columns:
     type: date
 relationships:
   - target: Party
-    identifying: true
     on:
       party_id: party_id
     predicate: is a

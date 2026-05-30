@@ -1,6 +1,5 @@
 ---
 entity: Subscription
-classification: Independent
 group: catalog
 pk:
   - subscription_id

@@ -1,6 +1,5 @@
 ---
 entity: Payment
-classification: Dependent
 group: transactional
 pk:
   - party_id
@@ -19,7 +18,6 @@ columns:
     type: datetime
 relationships:
   - target: PaymentMethod
-    identifying: true
     on:
       party_id: party_id
       payment_method_id: payment_method_id

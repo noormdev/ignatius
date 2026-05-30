@@ -1,6 +1,5 @@
 ---
 entity: SI_Line
-classification: Dependent
 group: transactional
 pk:
   - party_id
@@ -29,13 +28,11 @@ subtypes:
         type: LineItemType.code.PRODUCT
 relationships:
   - target: SalesInvoice
-    identifying: true
     on:
       party_id: party_id
       sales_invoice_id: sales_invoice_id
     predicate: is part of
   - target: LineItemType
-    identifying: false
     on:
       type: code
     predicate: is classified by

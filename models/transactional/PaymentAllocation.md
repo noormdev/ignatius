@@ -1,6 +1,5 @@
 ---
 entity: PaymentAllocation
-classification: Associative
 group: transactional
 pk:
   - party_id
@@ -23,14 +22,12 @@ columns:
     type: decimal
 relationships:
   - target: Payment
-    identifying: true
     on:
       party_id: party_id
       payment_method_id: payment_method_id
       payment_id: payment_id
     predicate: is paid by
   - target: SI_Line
-    identifying: true
     on:
       party_id: party_id
       sales_invoice_id: sales_invoice_id

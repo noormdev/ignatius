@@ -1,6 +1,6 @@
 ---
 entity: LineItemType
-classification: Classifier
+reference: true
 group: reference
 pk:
   - code

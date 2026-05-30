@@ -1,6 +1,5 @@
 ---
 entity: Business
-classification: Subtype
 group: identity
 pk:
   - party_id
@@ -17,7 +16,6 @@ ak:
       - tax_id
 relationships:
   - target: Party
-    identifying: true
     on:
       party_id: party_id
     predicate: is a

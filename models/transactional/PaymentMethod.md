@@ -1,6 +1,5 @@
 ---
 entity: PaymentMethod
-classification: Dependent
 group: transactional
 pk:
   - party_id
@@ -16,12 +15,10 @@ columns:
     type: text
 relationships:
   - target: Party
-    identifying: true
     on:
       party_id: party_id
     predicate: is held by
   - target: PaymentMethodType
-    identifying: false
     on:
       type: code
     predicate: is classified by

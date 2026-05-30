@@ -1,6 +1,6 @@
 ---
 entity: PaymentMethodType
-classification: Classifier
+reference: true
 group: reference
 pk:
   - code

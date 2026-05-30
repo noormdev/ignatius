@@ -1,6 +1,5 @@
 ---
 entity: License
-classification: Subtype
 group: identity
 pk:
   - party_id
@@ -22,7 +21,6 @@ ak:
       - issuing_state
 relationships:
   - target: Identity
-    identifying: true
     on:
       party_id: party_id
     predicate: is a

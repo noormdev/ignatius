@@ -1,6 +1,5 @@
 ---
 entity: Passport
-classification: Subtype
 group: identity
 pk:
   - party_id
@@ -17,7 +16,6 @@ columns:
     type: date
 relationships:
   - target: Identity
-    identifying: true
     on:
       party_id: party_id
     predicate: is a

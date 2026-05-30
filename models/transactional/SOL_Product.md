@@ -1,6 +1,5 @@
 ---
 entity: SOL_Product
-classification: Subtype
 group: transactional
 pk:
   - party_id
@@ -17,14 +16,12 @@ columns:
     type: integer
 relationships:
   - target: SO_Line
-    identifying: true
     on:
       party_id: party_id
       sales_order_id: sales_order_id
       line_seq: line_seq
     predicate: is a
   - target: Product
-    identifying: false
     on:
       product_id: product_id
     predicate: sells

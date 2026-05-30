@@ -1,6 +1,5 @@
 ---
 entity: SO_Line
-classification: Dependent
 group: transactional
 pk:
   - party_id
@@ -29,13 +28,11 @@ subtypes:
         type: LineItemType.code.PRODUCT
 relationships:
   - target: SalesOrder
-    identifying: true
     on:
       party_id: party_id
       sales_order_id: sales_order_id
     predicate: is part of
   - target: LineItemType
-    identifying: false
     on:
       type: code
     predicate: is classified by

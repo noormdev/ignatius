@@ -1,6 +1,5 @@
 ---
 entity: Party
-classification: Independent
 group: identity
 pk:
   - party_id
@@ -19,7 +18,6 @@ subtypes:
         type: PartyType.code.PERSON
 relationships:
   - target: PartyType
-    identifying: false
     on:
       type: code
     predicate: is classified by

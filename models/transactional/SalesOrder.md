@@ -1,6 +1,5 @@
 ---
 entity: SalesOrder
-classification: Dependent
 group: transactional
 pk:
   - party_id
@@ -17,7 +16,6 @@ columns:
     type: decimal
 relationships:
   - target: Party
-    identifying: true
     on:
       party_id: party_id
     predicate: is placed by

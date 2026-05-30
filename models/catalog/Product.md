@@ -1,6 +1,5 @@
 ---
 entity: Product
-classification: Independent
 group: catalog
 pk:
   - product_id

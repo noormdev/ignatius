@@ -102,7 +102,6 @@ const shouldBeIdentifying = [
   // Subtype "is a" relationships should be identifying
   ['Business', 'Party'],
   ['Person', 'Party'],
-  ['License', 'Identity'],
   ['Passport', 'Identity'],
   ['SSN', 'Identity'],
   ['ITIN', 'Identity'],
