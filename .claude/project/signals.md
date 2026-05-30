@@ -6,6 +6,7 @@
 - Language: TypeScript (strict, ESM modules, `type: "module"` in package.json)
 - Frontend: React 19, Cytoscape.js 3.31 + cytoscape-elk 2.2 + cytoscape-navigator 2.0, ELK layout engine
 - Markdown parsing: markdown-it 14; YAML parsing: yaml 2.8
+- CLI framework: citty 0.2 (`defineCommand` / `runMain`); interactive picker: @clack/prompts 1.5
 - No Express, no Vite, no webpack — Bun.serve + Bun HTML imports only
 - Dev tools: Playwright (screenshot/SSE tests), webview-bun
 
@@ -17,7 +18,7 @@
 | Build React bundle only | `bun run build:bundle` | package.json |
 | Rename hashed → stable names | `bun run build:stable-names` | scripts/stable-names.ts |
 | Dev server (hot reload) | `bun run dev` | package.json → src/server.ts |
-| Dev CLI (hot reload) | `bun run dev:cli` | package.json → src/cli.ts serve models/ |
+| Dev CLI (hot reload) | `bun run dev:cli` | package.json → src/cli.ts serve models/key-inherited |
 | Run all assertion checks | `bun run test` | package.json globs `test/checks/*.ts` |
 | Run a single check | `bun test/checks/test-<name>.ts` | test/checks/ |
 | Typecheck | `bun run typecheck` | package.json → `bunx tsc --noEmit` |
@@ -28,7 +29,7 @@
 
 `test/` is organized into subdirectories — not a formal test-framework suite:
 
-- `test/checks/` — 20 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI.
+- `test/checks/` — 23 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI.
 - `test/visual/` — 6 Playwright screenshot scripts for manual visual inspection. NOT run by `bun run test`.
 - `test/fixtures/` — 3 YAML fixtures loaded by check scripts.
 - `test/notes/` — 2 markdown dev notes.
@@ -39,11 +40,11 @@ No linter or formatter configured in package.json.
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | ~8240 | 65 | 57% |
-| Markdown | 4091 | 46 | 29% |
-| YAML | 1235 | 7 | 8% |
-| CSS | 497 | 2 | 3% |
-| JSON | 89 | 4 | 0% |
+| TypeScript | 9609 | 71 | 53% |
+| Markdown | 6264 | 109 | 35% |
+| YAML | 1238 | 10 | 6% |
+| CSS | 609 | 2 | 3% |
+| JSON | 92 | 4 | 0% |
 | HTML | 26 | 2 | 0% |
 
 ## DevOps & CI
@@ -60,20 +61,24 @@ No linter or formatter configured in package.json.
 
 | Domain | Repo paths | One-liner | Detail |
 |--------|------------|-----------|--------|
-| cli | src/cli.ts | Arg parsing + subcommand dispatch for `serve`, `dict`, `graph` | (below) |
+| cli | src/cli.ts, src/discover.ts, src/resolve-model.ts | citty-based subcommand dispatch; model-root discovery + interactive picker | (below) |
 | server | src/server.ts | Bun.serve with /dict + /api/model + /events SSE + fs.watch live-reload | (below) |
-| parser | src/parse.ts | Markdown frontmatter → Model: nodes, edges, cardinality derivation, theme loading | (below) |
+| parser | src/parse.ts | `ignatius.yml` config loading → Model: nodes, edges, cardinality + classification derivation | (below) |
 | frontend | src/App.tsx, src/hash-router.ts, src/main.tsx, src/index.html, src/styles.css, src/markers.ts | React 19 Cytoscape.js graph viewer with ELK layout, hash router, expandable FAB, minimap toggle, crow's-foot SVG overlay, theme toggle | (below) |
 | generators | src/generators/ | Static HTML output: dict (self-contained), graph (embeds React bundle), inline-asset inliner, theme CSS vars | (below) |
 | theme | src/theme-defaults.ts, src/branding-defaults.ts, src/generators/theme-css.ts | ThemeConfig + Branding types, default palettes, dark/light merging, CSS var generation | (below) |
-| docs | docs/, spec/spec.md | Design docs, CLI spec, IDEF1X grammar spec | (below) |
+| docs | docs/ | Design docs, CLI spec, project-config spec, derive-classification spec | (below) |
 | scripts | scripts/ | Build helpers: stable-names.ts, convert-yaml-to-md.ts, probe.ts, screenshot.ts | (below) |
 
 ## Domain detail
 
 ### cli
 
-`src/cli.ts` is the binary entry point (`import.meta.main` guard). `parseArgs()` tokenizes `process.argv` into `ParsedArgs` with subcommand + positional + flags. `main()` dispatches to `serveCommand()`, `generateDict()`, or `generateGraph()`. `--port` missing-value sets `NaN`; `main()` detects `isNaN` and exits 1. Subcommand-scoped `--help` prints per-subcommand usage. Three subcommands: `serve` (interactive), `dict` (static HTML), `graph` (static HTML). Default port: 3000. Usage strings reference `ignatius` as the binary name. The `graph` subcommand dynamic-imports `loadEmbeddedBundle` at runtime, wrapped in try/catch that prints "Run: bun run build:bundle" on failure — so `dict` and `serve` work without a prior bundle build.
+`src/cli.ts` is the binary entry point. Three subcommands (`serve`, `dict`, `graph`) built with `citty` `defineCommand`; registered on a root `main` command and dispatched via `runMain(main)`. The hand-rolled `parseArgs`/`ParsedArgs` is gone. Each subcommand accepts an optional positional `[path]` (search base, default: cwd) and a `--model <key>` flag for disambiguation. `--port` is a string flag on `serve`; validated with `isNaN` check, exits 1 on invalid. `graph` dynamic-imports `loadEmbeddedBundle` at runtime (same try/catch guard as before — prints "Run: bun run build:bundle" on failure).
+
+`src/discover.ts` — pure model-root resolver. Exports `resolveModel(base, opts): Promise<ResolveResult>` and `ModelCandidate` / `ResolveResult` types. A model root is any directory containing `ignatius.yml`. Algorithm: (1) base itself has `ignatius.yml` → single; (2) search down (skipping `_*`, `node_modules`, `.git`, `dist`, `tmp`, `trash`, `.worktrees`, `.claude`); (3) if nothing found, walk up toward fs root (or optional `ceiling`); (4) exactly 1 found → single; (5) multiple + `--model` key → filter; (6) multiple + no key → many. No TTY, no clack imports — purely algorithmic. `ResolveResult` discriminated union: `single | many | no-match | none`.
+
+`src/resolve-model.ts` — shared CLI helper. Exports `pickModel(base, modelKey): Promise<string>`. Calls `resolveModel`, handles all four result kinds: single → return dir; none → stderr + exit 1; no-match → stderr + exit 1; many + non-TTY → stderr key list + exit 2; many + TTY → `@clack/prompts` `select` picker (cancel → exit 130). This is the **only** file importing `@clack/prompts`.
 
 ### server
 
@@ -81,15 +86,15 @@ No linter or formatter configured in package.json.
 
 ### parser
 
-`src/parse.ts` exports `parseModels(dir): Promise<Model>`. Reads `_theme.yaml` (optional), `_groups/*.md`, then all `**/*.md` (skipping `_`-prefixed path segments). Each entity file has YAML frontmatter + markdown body. `Model` type: `{ groups, nodes, edges, subtypeClusters, theme, _meta? }`. Cardinality is derived (not declared) from FK columns vs PK, nullability, and AK membership — logic in `deriveCardinality()`. Body markdown rendered to HTML via markdown-it at parse time. `_meta.yaml` (optional) supplies model-level display metadata.
+`src/parse.ts` exports `parseModels(dir): Promise<Model>`. Config loading changed: reads a single `ignatius.yml` at the model root. Top-level keys `name`, `version`, `description`, `updated` populate `_meta`; a `theme:` block is deep-merged via `mergeTheme()`; a `branding:` block is merged via `mergeBranding()`. The old `_theme.yaml` / `_branding.yaml` / `_meta.yaml` loaders no longer exist. `Model` type: `{ groups, nodes, edges, subtypeClusters, theme, branding, _meta? }` — `branding` is now a first-class field. Entity classification is fully derived (5-rule order): Classifier (reference flag or legacy field) → Subtype (appears in a cluster) → Associative (≥2 identifying parents) → Dependent (≥1 identifying parent) → Independent. `identifying` per edge is also derived (all FK child cols in child PK). `deriveCardinality()` uses derived `identifying` + nullability + AK membership. Body markdown rendered to HTML via markdown-it at parse time.
 
 ### frontend
 
-`src/App.tsx` (921L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout and `cytoscape-navigator` plugin for the minimap. `window.__MODEL__` and `window.__THEME_MODE__` used as injection points for static graph output. `src/markers.ts` draws crow's-foot SVG overlays on a canvas element layered over the Cytoscape container. `src/main.tsx` bootstraps the React root. `src/index.html` is the HTML entry point imported by Bun.serve. `src/styles.css` uses CSS custom properties (`--color-*` vars) set by `applyThemeCssVars()` in App.tsx. Theme toggle persists to `localStorage` under key `ignatius-theme`. Minimap open/closed persists to `localStorage` under key `ignatius-minimap`. FAB button (`<button class="fab">`) expands an overlay menu (`fab-menu`) with items: Open Dict (links to `/dict`), Legend, Show/Hide minimap, Copy link. Minimap mounts into `<div id="minimap-panel">` via `cy.navigator({ container: '#minimap-panel' })`; destroyed and DOM-cleared on toggle off. `src/hash-router.ts` is a pure module (no side effects, no imports) — exports `parseHash(hash): HashState` and `serializeHash(state): string`. Hash format: `#entity=<id>&zoom=<n>&pan=<x>,<y>` (all params optional). App.tsx uses hash state to persist and restore viewport (zoom, pan) and selected entity across page loads and link-sharing; writes via `history.replaceState` with 200ms debounce; reads on `hashchange` with feedback-loop guard (`lastWrittenHash`). `App.tsx` imports `Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `GroupConfig` from `./parse` — no local type redeclarations. `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator` (no `@types` package); augments `cytoscape.Core` with `navigator()` method.
+`src/App.tsx` (980L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout and `cytoscape-navigator` plugin for the minimap. `window.__MODEL__` and `window.__THEME_MODE__` used as injection points for static graph output. `src/markers.ts` draws crow's-foot SVG overlays on a canvas element layered over the Cytoscape container. `src/main.tsx` bootstraps the React root. `src/index.html` is the HTML entry point imported by Bun.serve. `src/styles.css` uses CSS custom properties (`--color-*` vars) set by `applyThemeCssVars()` in App.tsx. Theme toggle persists to `localStorage` under key `ignatius-theme`. Minimap open/closed persists to `localStorage` under key `ignatius-minimap`. FAB button (`<button class="fab">`) expands an overlay menu (`fab-menu`) with items: Open Dict (links to `/dict`), Legend, Show/Hide minimap, Copy link. Minimap mounts into `<div id="minimap-panel">` via `cy.navigator({ container: '#minimap-panel' })`; destroyed and DOM-cleared on toggle off. `src/hash-router.ts` is a pure module (no side effects, no imports) — exports `parseHash(hash): HashState` and `serializeHash(state): string`. Hash format: `#entity=<id>&zoom=<n>&pan=<x>,<y>` (all params optional). App.tsx uses hash state to persist and restore viewport (zoom, pan) and selected entity across page loads and link-sharing; writes via `history.replaceState` with 200ms debounce; reads on `hashchange` with feedback-loop guard (`lastWrittenHash`). `App.tsx` imports `Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `GroupConfig` from `./parse` — no local type redeclarations. `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator` (no `@types` package); augments `cytoscape.Core` with `navigator()` method.
 
 ### generators
 
-`src/generators/dict.ts` (967L) — generates self-contained data dictionary HTML with inline CSS, entity sections, attribute tables, FK links, relationship tables, rendered markdown body, group color coding. No external JS dependencies in output.
+`src/generators/dict.ts` (1045L) — generates self-contained data dictionary HTML with inline CSS, entity sections, attribute tables, FK links, relationship tables, rendered markdown body, group color coding. No external JS dependencies in output.
 
 `src/generators/graph.ts` — generates self-contained graph HTML by inlining the React bundle (JS + CSS) and injecting `window.__MODEL__` and `window.__THEME_MODE__` as a script tag. Calls `loadBundleFromDir()` (dev) or the caller passes content from `loadEmbeddedBundle()` (compiled binary).
 
@@ -112,12 +117,18 @@ No linter or formatter configured in package.json.
 `docs/design/branding.md` — design doc for branding system (logo, title, copyright, poweredBy flag).
 `docs/design/dict-navigation.md` — design doc for data dictionary navigation (side nav, anchors).
 `docs/design/viewer-fab-ux.md` — design doc for floating action button UX in the graph viewer.
+`docs/design/ignatius-project-config.md` — design doc for `ignatius.yml` as model-root marker + single config file; model discovery algorithm; citty + clack tooling rationale.
+`docs/design/ignatius-modeling-skill.md` — design doc for the ignatius modeling skill.
+`docs/design/schema-lint-and-error-ux.md` — design doc for schema lint and error UX.
 `docs/spec/cli-and-outputs.md` — implementation contract for the three CLI output modes and theme system.
 `docs/spec/branding.md` — implementation contract for branding in dict and graph outputs.
 `docs/spec/dict-navigation.md` — implementation contract for dict side nav.
 `docs/spec/dict-polish.md` — implementation contract for dict visual polish details.
 `docs/spec/viewer-fab-ux.md` — implementation contract for FAB UX in graph viewer.
-`spec/spec.md` (464L) — IDEF1X grammar spec; carries a `⚠ HISTORICAL — superseded` banner at line 3. Kept for historical reference; derivation rules still apply but §2 YAML grammar describes the old single-file format.
+`docs/spec/ignatius-project-config.md` — implementation contract for `ignatius.yml` config loading, model discovery, CLI picker behavior, and citty/clack integration.
+`docs/spec/derive-classification.md` — implementation contract for the 5-rule classification derivation algorithm (Classifier/Subtype/Associative/Dependent/Independent).
+`docs/spec/ignatius-modeling-skill.md` — implementation contract for the ignatius modeling skill.
+`docs/spec/schema-lint-and-error-ux.md` — implementation contract for schema lint and error UX.
 
 ### scripts
 
@@ -130,11 +141,12 @@ No linter or formatter configured in package.json.
 
 - `trash/` contains v1 components and engine code (YAML-driven), superseded by current markdown-driven implementation. Not imported anywhere in `src/`.
 - `test/` is exploratory tooling organized into `checks/` (CI-run assertions), `visual/` (Playwright, manual only), `fixtures/` (YAML data), `notes/` (markdown). Not a formal suite.
+- `models/` is a container of three sibling model roots — `key-inherited/`, `orm-hybrid/`, `orm-pure/` — each with its own `ignatius.yml`. Same data model, three key-ID techniques. Reference/fixture data, not a domain.
 - `src/types/file-imports.d.ts` — ambient module declarations for `*.html`, `*.css` imports with `{ type: 'file' }` or plain import.
 - `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator` (no upstream `@types`); augments `cytoscape.Core` with `navigator(options?): NavigatorInstance`.
 - `bun-env.d.ts` — ambient Bun type augmentations.
 - `bunfig.toml` — Bun config (2L, minimal).
-- `src/parse.ts` exports canonical model types (`Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `Cardinality`, `GroupConfig`, `ColumnDef`). `src/App.tsx` imports these directly — no local type redeclarations.
+- `src/parse.ts` exports canonical model types (`Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `Cardinality`, `GroupConfig`, `ColumnDef`, `ModelMeta`). `src/App.tsx` imports these directly — no local type redeclarations.
 - Binary name is `ignatius` (`dist/ignatius`); package.json `name` is `ignatius`. The repo *directory* `derek-db-generator/` is the only remaining `derek` reference — a known leftover, not an intentional identifier.
 - `assets/noorm-logo.svg` — default branding logo, imported by `src/branding-defaults.ts` as a file reference.
 - Deterministic substrate: `.claude/project/deterministic-signals.md`
