@@ -27,6 +27,10 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: The
 
   cy.edges().forEach(edge => {
     if (!edge.visible()) return;
+    // Guard against transient null endpoints (edges whose source/target node
+    // has been removed but the edge still iterates, e.g. during teardown or
+    // when triggered from cytoscape-navigator's pan callback mid-frame).
+    if (edge.source().empty() || edge.target().empty()) return;
     const parentCard = edge.data('parentCard') as Cardinality;
     const childCard = edge.data('childCard') as Cardinality;
     const identifying = edge.data('identifying') === 'true';
@@ -34,6 +38,11 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: The
 
     const srcPt = edge.renderedSourceEndpoint();
     const tgtPt = edge.renderedTargetEndpoint();
+    if (!srcPt || !tgtPt) return;
+    // Cytoscape can return NaN endpoints transiently (mid-layout, hidden
+    // compound parents). Skip rather than emit invalid SVG transforms.
+    if (!Number.isFinite(srcPt.x) || !Number.isFinite(srcPt.y)) return;
+    if (!Number.isFinite(tgtPt.x) || !Number.isFinite(tgtPt.y)) return;
 
     const dx = tgtPt.x - srcPt.x;
     const dy = tgtPt.y - srcPt.y;

@@ -19,6 +19,40 @@ cytoscape.use(elk);
 // @ts-expect-error — same interop gap; .use() exists at runtime
 cytoscape.use(cytoscapeNavigator);
 
+type NavigatorInstance = {
+  destroy: () => void;
+  _onRenderHandler?: { cancel?: () => void };
+};
+
+function mountNavigator(cy: cytoscape.Core): NavigatorInstance {
+  // The plugin only honors `container` as a string selector ('#id' or '.class').
+  // Passing an HTMLElement falls through to `document.body.appendChild` of its own
+  // div — see cytoscape-navigator.js:378-389. Use the id selector path.
+  const nav = (cy as cytoscape.Core & {
+    navigator: (opts: Record<string, unknown>) => NavigatorInstance;
+  }).navigator({
+    container: '#minimap-panel',
+    viewLiveFramerate: 0,
+    rerenderDelay: 100,
+    removeCustomContainer: false,
+  });
+  // The plugin only generates the thumbnail on cy.onRender events. After
+  // layoutstop the graph is idle so no render fires; force one so the
+  // initial thumbnail paints.
+  (cy as cytoscape.Core & { resize: () => void; trigger: (e: string) => void }).resize();
+  (cy as cytoscape.Core & { resize: () => void; trigger: (e: string) => void }).trigger('render');
+  return nav;
+}
+
+function teardownNavigator(nav: NavigatorInstance, container: HTMLElement) {
+  // Cancel the throttled render handler's pending trailing setTimeout BEFORE
+  // nav.destroy() — otherwise the tick can fire after cy.destroy() nulls
+  // the renderer and throw "Cannot read properties of null (reading 'png')".
+  nav._onRenderHandler?.cancel?.();
+  nav.destroy();
+  while (container.firstChild) container.removeChild(container.firstChild);
+}
+
 declare global {
   interface Window {
     __MODEL__?: Model;
@@ -351,6 +385,13 @@ export function App() {
   }
   const menuRef = useRef<HTMLDivElement>(null);
   const minimapRef = useRef<HTMLDivElement>(null);
+  // Mirrors minimapOpen for the cy useEffect to read on mount without
+  // adding minimapOpen to its dep array (which would rebuild the graph).
+  const minimapOpenRef = useRef<boolean>(false);
+  minimapOpenRef.current = minimapOpen;
+  // Holds the active navigator instance so the runtime-toggle effect and
+  // the cy effect's cleanup share a single source of truth.
+  const navRef = useRef<NavigatorInstance | null>(null);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (window.__THEME_MODE__) return window.__THEME_MODE__;
     const stored = localStorage.getItem('ignatius-theme');
@@ -404,31 +445,31 @@ export function App() {
     updateMarkers(cyRef.current, svgRef.current, model.theme, themeMode);
   }, [themeMode]);
 
-  // Mount/destroy cytoscape-navigator minimap when minimapOpen or cy readiness changes.
-  // cyReady (not cyRef.current) is in deps because React tracks state changes, not ref mutations.
+  // Toggle minimap at runtime WITHOUT rebuilding cy. The cy useEffect owns
+  // the navigator's lifecycle whenever cy itself is being created/destroyed
+  // — see its body for the mount-on-create + cleanup-before-cy.destroy()
+  // path. This effect only handles the user-driven open/close after cy is
+  // already alive.
+  //
+  // Why split? cytoscape-navigator's render is throttled; its trailing
+  // setTimeout fires INDEPENDENTLY of cy's listener registry. If
+  // nav.destroy() runs AFTER cy.destroy() — which is what happens in
+  // StrictMode dev-double-invoke when two unrelated effects each manage
+  // their own lifecycle — the trailing tick lands on a null renderer and
+  // throws "Cannot read properties of null (reading 'png')". By making nav
+  // teardown strictly nested inside cy teardown, the race is closed.
   useEffect(() => {
+    if (!cyReady) return; // cy effect handles mount-time; ignore the readiness-flip itself.
     const cy = cyRef.current;
     const container = minimapRef.current;
-    if (!minimapOpen || !cy || !container) return;
+    if (!cy || !container) return;
 
-    // The plugin only honors `container` as a string selector ('#id' or '.class').
-    // Passing an HTMLElement falls through to `document.body.appendChild` of its own
-    // div — see cytoscape-navigator.js:378-389. Use the id selector path.
-    const nav = cy.navigator({
-      container: '#minimap-panel',
-      viewLiveFramerate: 0,
-      rerenderDelay: 100,
-      removeCustomContainer: false,
-    });
-    // The plugin only generates the thumbnail on cy.onRender events. After
-    // layoutstop the graph is idle so no render fires; force one so the
-    // initial thumbnail paints.
-    cy.resize();
-    cy.trigger('render');
-    return () => {
-      nav.destroy();
-      while (container.firstChild) container.removeChild(container.firstChild);
-    };
+    if (minimapOpen && !navRef.current) {
+      navRef.current = mountNavigator(cy);
+    } else if (!minimapOpen && navRef.current) {
+      teardownNavigator(navRef.current, container);
+      navRef.current = null;
+    }
   }, [minimapOpen, cyReady]);
 
   function toggleTheme() {
@@ -617,7 +658,12 @@ export function App() {
     }
     const svg = svgRef.current;
 
-    const redrawMarkers = () => updateMarkers(cy, svg, model.theme, themeModeRef.current);
+    const redrawMarkers = () => {
+      if (cy.destroyed()) return;
+      updateMarkers(cy, svg, model.theme, themeModeRef.current);
+    };
+
+
 
     // Tracks the last hash string we wrote ourselves, to break the hashchange feedback loop.
     let lastWrittenHash = '';
@@ -730,8 +776,22 @@ export function App() {
     window.addEventListener('hashchange', onHashChange);
 
     cyRef.current = cy;
+
+    // Mount navigator HERE — inside the cy lifecycle — so its teardown is
+    // guaranteed to run before cy.destroy() nulls the renderer. See the
+    // toggle effect above for the why.
+    if (minimapOpenRef.current && minimapRef.current) {
+      navRef.current = mountNavigator(cy);
+    }
+
     setCyReady(true);
     return () => {
+      // Tear down nav FIRST so any pending throttled tick is cancelled
+      // before cy.destroy() nulls _private.renderer.
+      if (navRef.current && minimapRef.current) {
+        teardownNavigator(navRef.current, minimapRef.current);
+        navRef.current = null;
+      }
       if (writeTimer !== null) clearTimeout(writeTimer);
       window.removeEventListener('hashchange', onHashChange);
       cy.destroy();
