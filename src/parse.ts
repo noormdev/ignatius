@@ -128,24 +128,34 @@ function deriveCardinality(
 }
 
 export async function parseModels(dir: string): Promise<Model> {
-  // Parse optional _theme.yaml and merge with defaults
-  const themeFile = Bun.file(`${dir}/_theme.yaml`);
+  // Parse optional ignatius.yml — single config file for theme, branding, and meta
   let theme: ThemeConfig = defaultTheme;
-  if (await themeFile.exists()) {
-    const raw = parseYaml(await themeFile.text()) as Partial<{
-      dark: Partial<ThemePalette>;
-      light: Partial<ThemePalette>;
-      spacing: Partial<ThemeSpacing>;
-    }>;
-    theme = mergeTheme(raw ?? {});
-  }
-
-  // Parse optional _branding.yaml and merge with defaults
-  const brandingFile = Bun.file(`${dir}/_branding.yaml`);
   let branding: Branding = defaultBranding;
-  if (await brandingFile.exists()) {
-    const raw = parseYaml(await brandingFile.text());
-    branding = mergeBranding(raw ?? {});
+  let _meta: ModelMeta | undefined;
+
+  const configFile = Bun.file(`${dir}/ignatius.yml`);
+  if (await configFile.exists()) {
+    const raw = parseYaml(await configFile.text()) as Record<string, unknown>;
+    // Meta lives at top-level keys (name, version, description, updated)
+    const { name, version, description, updated, theme: themeRaw, branding: brandingRaw } = raw;
+    const metaName = typeof name === 'string' ? name : undefined;
+    const metaVersion = typeof version === 'string' ? version : undefined;
+    const metaDescription = typeof description === 'string' ? description : undefined;
+    const metaUpdated = typeof updated === 'string' ? updated : undefined;
+    if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined) {
+      _meta = {
+        ...(metaName !== undefined ? { name: metaName } : {}),
+        ...(metaVersion !== undefined ? { version: metaVersion } : {}),
+        ...(metaDescription !== undefined ? { desc: metaDescription } : {}),
+        ...(metaUpdated !== undefined ? { updated: metaUpdated } : {}),
+      };
+    }
+    if (themeRaw !== null && typeof themeRaw === 'object') {
+      theme = mergeTheme(themeRaw as Partial<{ dark: Partial<ThemePalette>; light: Partial<ThemePalette>; spacing: Partial<ThemeSpacing> }>);
+    }
+    if (brandingRaw !== null && typeof brandingRaw === 'object') {
+      branding = mergeBranding(brandingRaw as Parameters<typeof mergeBranding>[0]);
+    }
   }
 
   const groups: Record<string, GroupConfig> = {};
@@ -301,14 +311,6 @@ export async function parseModels(dir: string): Promise<Model> {
 
     return { ...edge, cardinality };
   });
-
-  // Parse optional _meta.yaml for display metadata (name, version, desc, updated)
-  let _meta: ModelMeta | undefined;
-  const metaFile = Bun.file(`${dir}/_meta.yaml`);
-  if (await metaFile.exists()) {
-    const raw = parseYaml(await metaFile.text()) as ModelMeta;
-    _meta = raw;
-  }
 
   return { groups, nodes, edges, subtypeClusters, theme, branding, _meta };
 }

@@ -1,17 +1,20 @@
 // Verification: parseModels returns branding field, merges with defaults correctly
+// Config is now loaded from ignatius.yml (not _branding.yaml).
 import { parseModels } from '../../src/parse';
 import { defaultBranding } from '../../src/branding-defaults';
 import { resolve } from 'path';
 
 const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
-const brandingFile = `${modelsDir}/_branding.yaml`;
+const configFile = `${modelsDir}/ignatius.yml`;
 
-// Ensure no leftover branding file from a previous run
-const bf = Bun.file(brandingFile);
-if (await bf.exists()) await Bun.$`rm ${brandingFile}`;
+// Preserve the original file so we can restore it after tests
+const originalContent = await Bun.file(configFile).exists()
+  ? await Bun.file(configFile).text()
+  : null;
 
-// --- Test 1: defaults when no _branding.yaml ---
+// --- Test 1: defaults when no branding block in ignatius.yml ---
 {
+  await Bun.write(configFile, `name: Key-Inherited\n`);
   const model = await parseModels(modelsDir);
   console.assert(model.branding !== undefined, 'FAIL: branding field missing');
   console.assert(model.branding.title === defaultBranding.title,
@@ -21,11 +24,11 @@ if (await bf.exists()) await Bun.$`rm ${brandingFile}`;
   console.assert(model.branding.poweredBy === true, 'FAIL: default poweredBy should be true');
   console.assert(model.branding.logo.dark.startsWith('data:image/svg+xml;base64,'), `FAIL: default logo.dark should be a data URI, got: ${model.branding.logo.dark.slice(0, 60)}`);
   console.assert(model.branding.logo.light.startsWith('data:image/svg+xml;base64,'), `FAIL: default logo.light should be a data URI, got: ${model.branding.logo.light.slice(0, 60)}`);
-  console.log('PASS: defaults when no _branding.yaml');
+  console.log('PASS: defaults when no branding block in ignatius.yml');
 }
 
-// --- Test 2: custom file end-to-end ---
-await Bun.write(brandingFile, `title: "Acme Schema"\nsubtitle: "Internal data"\nlogo: "./assets/logo.svg"\ncopyright:\n  holder: "Acme Corp"\n  year: 2025\npoweredBy: false\n`);
+// --- Test 2: custom branding block end-to-end ---
+await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  title: "Acme Schema"\n  subtitle: "Internal data"\n  logo: "./assets/logo.svg"\n  copyright:\n    holder: "Acme Corp"\n    year: 2025\n  poweredBy: false\n`);
 {
   const model = await parseModels(modelsDir);
   console.assert(model.branding.title === 'Acme Schema',
@@ -37,11 +40,11 @@ await Bun.write(brandingFile, `title: "Acme Schema"\nsubtitle: "Internal data"\n
     `FAIL: copyright holder: ${model.branding.copyright.holder}`);
   console.assert(model.branding.copyright.year === 2025,
     `FAIL: copyright year: ${model.branding.copyright.year}`);
-  console.log('PASS: custom file end-to-end');
+  console.log('PASS: custom branding block end-to-end');
 }
 
 // --- Test 3: string shorthand expansion ---
-await Bun.write(brandingFile, `logo: "./icon.svg"\n`);
+await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  logo: "./icon.svg"\n`);
 {
   const model = await parseModels(modelsDir);
   console.assert(model.branding.logo.dark === './icon.svg',
@@ -52,7 +55,7 @@ await Bun.write(brandingFile, `logo: "./icon.svg"\n`);
 }
 
 // --- Test 4: object form with one missing key falls back to the present one ---
-await Bun.write(brandingFile, `logo:\n  dark: "./logo-dark.svg"\n`);
+await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  logo:\n    dark: "./logo-dark.svg"\n`);
 {
   const model = await parseModels(modelsDir);
   console.assert(model.branding.logo.dark === './logo-dark.svg',
@@ -64,7 +67,7 @@ await Bun.write(brandingFile, `logo:\n  dark: "./logo-dark.svg"\n`);
 
 // --- Test 5: title >50 chars throws ---
 const longTitle = 'A'.repeat(51);
-await Bun.write(brandingFile, `title: "${longTitle}"\n`);
+await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  title: "${longTitle}"\n`);
 {
   let threw = false;
   try {
@@ -81,7 +84,7 @@ await Bun.write(brandingFile, `title: "${longTitle}"\n`);
 
 // --- Test 6: subtitle >50 chars throws ---
 const longSubtitle = 'B'.repeat(51);
-await Bun.write(brandingFile, `subtitle: "${longSubtitle}"\n`);
+await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  subtitle: "${longSubtitle}"\n`);
 {
   let threw = false;
   try {
@@ -96,6 +99,10 @@ await Bun.write(brandingFile, `subtitle: "${longSubtitle}"\n`);
   console.log('PASS: subtitle >50 chars throws');
 }
 
-// Cleanup
-await Bun.$`rm ${brandingFile}`;
+// Restore original content
+if (originalContent !== null) {
+  await Bun.write(configFile, originalContent);
+} else {
+  await Bun.$`rm ${configFile}`;
+}
 console.log('All branding parse tests passed.');
