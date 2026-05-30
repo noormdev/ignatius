@@ -3,20 +3,33 @@
 import { parseModels } from '../../src/parse';
 import { defaultTheme } from '../../src/theme-defaults';
 import { resolve } from 'path';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
 
-const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
-const configFile = `${modelsDir}/ignatius.yml`;
+const BASE_TMP = resolve(import.meta.dir, '../../tmp/fixtures/theme-parse-test');
 
-// Preserve the original file content so we can restore it after tests
-const originalContent = await Bun.file(configFile).exists()
-  ? await Bun.file(configFile).text()
-  : null;
+// Minimal entity file so parseModels has something to scan
+const MINIMAL_ENTITY = `---
+entity: Widget
+pk: [id]
+columns:
+  id: { type: uuid }
+---
+`;
+
+function makeFixtureDir(name: string): string {
+  const dir = `${BASE_TMP}/${name}`;
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(`${dir}/_groups`, { recursive: true });
+  writeFileSync(`${dir}/widget.md`, MINIMAL_ENTITY);
+  return dir;
+}
 
 // --- Test 1: default theme (no theme block in ignatius.yml) ---
 {
-  // The ignatius.yml at key-inherited has only `name:` — no theme block
-  if (originalContent !== null) await Bun.write(configFile, `name: Key-Inherited\n`);
-  const model = await parseModels(modelsDir);
+  const dir = makeFixtureDir('default-theme');
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\n`);
+  const model = await parseModels(dir);
   console.assert(model.theme !== undefined, 'FAIL: theme field missing');
   console.assert(model.theme.dark.background === defaultTheme.dark.background,
     `FAIL: default background mismatch: ${model.theme.dark.background}`);
@@ -25,9 +38,10 @@ const originalContent = await Bun.file(configFile).exists()
 }
 
 // --- Test 2: custom theme overrides via ignatius.yml ---
-await Bun.write(configFile, `name: Key-Inherited\ntheme:\n  dark:\n    background: "#1a0030"\n    border: "#ff6b00"\n`);
 {
-  const model = await parseModels(modelsDir);
+  const dir = makeFixtureDir('custom-theme');
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\ntheme:\n  dark:\n    background: "#1a0030"\n    border: "#ff6b00"\n`);
+  const model = await parseModels(dir);
   console.assert(model.theme.dark.background === '#1a0030',
     `FAIL: custom background: ${model.theme.dark.background}`);
   console.assert(model.theme.dark.border === '#ff6b00',
@@ -41,10 +55,4 @@ await Bun.write(configFile, `name: Key-Inherited\ntheme:\n  dark:\n    backgroun
   console.log('PASS: custom dark palette merged, light and spacing default');
 }
 
-// Restore original content
-if (originalContent !== null) {
-  await Bun.write(configFile, originalContent);
-} else {
-  await Bun.$`rm ${configFile}`;
-}
 console.log('All theme parse tests passed.');

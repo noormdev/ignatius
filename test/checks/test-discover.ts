@@ -93,35 +93,16 @@ setup();
   console.log('PASS (d): walk-up finds enclosing model root → single');
 }
 
-// --- Test (e): none — no ignatius.yml at, below, or above within fixture base ---
+// --- Test (e): none — no ignatius.yml at, below, or above within the fixture ceiling ---
 {
-  // Create an isolated directory outside BASE_TMP so walk-up doesn't find BASE_TMP's parents
-  const isolated = resolve(BASE_TMP, '../discover-isolated');
-  rmSync(isolated, { recursive: true, force: true });
-  mkdirSync(isolated, { recursive: true });
-  mkdirSync(`${isolated}/sub`, { recursive: true });
-  // sub has no ignatius.yml; isolated has no ignatius.yml; walking up will eventually
-  // find either nothing or something outside our fixture. We stop at filesystem root.
-  // Use a path guaranteed to have no ignatius.yml ancestors in the fixture tree.
-  // Walk-up for 'isolated/sub' will go: isolated/sub → isolated → BASE_TMP/../ (tmp/fixtures) →
-  // tmp/ → project root. Project root has no ignatius.yml (confirmed below).
+  // Create an isolated subtree with no ignatius.yml at any level.
+  // Pass ceiling=isolated so the walk-up phase is bounded and can't escape to real ancestors.
+  const isolated = mkdir('none-test');
+  mkdirSync(`${isolated}/child`, { recursive: true });
 
-  // Instead, create a nested isolated path that we control: use sub of isolated with
-  // a sentinel ignatius.yml in isolated to test NONE properly — no, that would find it.
-  // Better: just use isolated/sub and stop walk-up at a depth limit if needed.
-  // The safest approach: the implementation walks up until it either finds ignatius.yml
-  // or reaches fs root. If it finds one anywhere up the chain, that's valid behavior.
-  // For the test we need a subtree with NO ancestors containing ignatius.yml.
-
-  // Create a temp dir directly in /tmp to avoid hitting the project root or any ancestor:
-  const noneDir = resolve('/tmp/discover-none-test');
-  rmSync(noneDir, { recursive: true, force: true });
-  mkdirSync(`${noneDir}/child`, { recursive: true });
-
-  const result = await resolveModel(`${noneDir}/child`);
+  const result = await resolveModel(`${isolated}/child`, { ceiling: isolated });
 
   console.assert(result.kind === 'none', `FAIL (e): expected none, got ${result.kind}`);
-  rmSync(noneDir, { recursive: true, force: true });
   console.log('PASS (e): no ignatius.yml anywhere → none');
 }
 

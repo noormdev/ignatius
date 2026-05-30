@@ -23,6 +23,12 @@ export type ResolveResult =
 export interface ResolveOptions {
   /** Value of --model flag; used to filter candidates when >1 found */
   model?: string;
+  /**
+   * Optional ceiling directory for the walk-up phase (step 3).
+   * Walk-up stops at this directory (inclusive) rather than continuing to fs root.
+   * Useful in tests to prevent walk-up from escaping the fixture tree.
+   */
+  ceiling?: string;
 }
 
 const SKIP_NAMES = new Set([
@@ -45,7 +51,8 @@ function readName(dir: string): string | undefined {
     const raw = readFileSync(ymlPath, 'utf8');
     const parsed = parseYaml(raw);
     if (parsed !== null && typeof parsed === 'object' && 'name' in parsed) {
-      const n = (parsed as Record<string, unknown>).name;
+      // parsed is any (yaml library), 'name' in parsed confirms the key exists
+      const n: unknown = parsed.name;
       return typeof n === 'string' ? n : undefined;
     }
     return undefined;
@@ -90,13 +97,18 @@ function searchDown(dir: string, base: string, results: ModelCandidate[]): void 
   }
 }
 
-/** Walk up from `dir` toward fs root looking for the first ignatius.yml. */
-function walkUp(dir: string): string | null {
+/**
+ * Walk up from `dir` looking for the first ignatius.yml.
+ * Stops at `ceiling` (inclusive) if provided; defaults to fs root.
+ */
+function walkUp(dir: string, ceiling?: string): string | null {
   let current = resolve(dir);
+  const stop = ceiling !== undefined ? resolve(ceiling) : null;
   while (true) {
     if (existsSync(join(current, 'ignatius.yml'))) return current;
     const parent = resolve(current, '..');
     if (parent === current) return null; // reached fs root
+    if (stop !== null && current === stop) return null; // reached ceiling without finding one
     current = parent;
   }
 }
@@ -116,6 +128,7 @@ export async function resolveModel(
   base: string,
   opts: ResolveOptions = {},
 ): Promise<ResolveResult> {
+  const { model: modelKey, ceiling } = opts;
   const absBase = resolve(base);
 
   // Step 1: base itself is a model root
@@ -129,7 +142,7 @@ export async function resolveModel(
 
   // Step 3: nothing below → walk up
   if (candidates.length === 0) {
-    const found = walkUp(absBase);
+    const found = walkUp(absBase, ceiling);
     if (found === null) return { kind: 'none' };
     // The enclosing root's key is relative to itself (empty string), but since the
     // base was inside it, we use the root dir as-is and key relative to the root.
@@ -139,13 +152,16 @@ export async function resolveModel(
   // Step 4: exactly 1
   if (candidates.length === 1) {
     const only = candidates[0];
-    if (only === undefined) return { kind: 'none' }; // unreachable but satisfies strict checks
+    // Guard is unreachable at runtime (length===1 guarantees element exists), but
+    // noUncheckedIndexedAccess makes candidates[0] typed as T|undefined — kept to
+    // avoid a non-null assertion (!), which is forbidden by project rules.
+    if (only === undefined) return { kind: 'none' };
     return { kind: 'single', model: only };
   }
 
   // Step 5 / 6: multiple candidates
-  if (opts.model !== undefined) {
-    const matches = candidates.filter(c => c.key === opts.model);
+  if (modelKey !== undefined) {
+    const matches = candidates.filter(c => c.key === modelKey);
     if (matches.length === 1) {
       const match = matches[0];
       if (match === undefined) return { kind: 'none' }; // unreachable guard

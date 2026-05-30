@@ -65,5 +65,6 @@ export async function pickModel(base: string, modelKey: string | undefined): Pro
     process.exit(130);
   }
 
-  return choice as string;
+  if (typeof choice !== 'string') throw new Error(`Unexpected select result: ${JSON.stringify(choice)}`);
+  return choice;
 }

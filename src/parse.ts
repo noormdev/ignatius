@@ -142,6 +142,7 @@ export async function parseModels(dir: string): Promise<Model> {
     const metaVersion = typeof version === 'string' ? version : undefined;
     const metaDescription = typeof description === 'string' ? description : undefined;
     const metaUpdated = typeof updated === 'string' ? updated : undefined;
+    // _meta is only populated when at least one meta key is present; remains undefined if all are absent
     if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined) {
       _meta = {
         ...(metaName !== undefined ? { name: metaName } : {}),

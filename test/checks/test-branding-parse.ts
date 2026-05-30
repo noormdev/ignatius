@@ -3,19 +3,33 @@
 import { parseModels } from '../../src/parse';
 import { defaultBranding } from '../../src/branding-defaults';
 import { resolve } from 'path';
+import { mkdirSync, rmSync, writeFileSync } from 'fs';
 
-const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
-const configFile = `${modelsDir}/ignatius.yml`;
+const BASE_TMP = resolve(import.meta.dir, '../../tmp/fixtures/branding-parse-test');
 
-// Preserve the original file so we can restore it after tests
-const originalContent = await Bun.file(configFile).exists()
-  ? await Bun.file(configFile).text()
-  : null;
+// Minimal entity file so parseModels has something to scan
+const MINIMAL_ENTITY = `---
+entity: Widget
+pk: [id]
+columns:
+  id: { type: uuid }
+---
+`;
+
+function makeFixtureDir(name: string): string {
+  const dir = `${BASE_TMP}/${name}`;
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(`${dir}/_groups`, { recursive: true });
+  writeFileSync(`${dir}/widget.md`, MINIMAL_ENTITY);
+  return dir;
+}
 
 // --- Test 1: defaults when no branding block in ignatius.yml ---
 {
-  await Bun.write(configFile, `name: Key-Inherited\n`);
-  const model = await parseModels(modelsDir);
+  const dir = makeFixtureDir('defaults');
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\n`);
+  const model = await parseModels(dir);
   console.assert(model.branding !== undefined, 'FAIL: branding field missing');
   console.assert(model.branding.title === defaultBranding.title,
     `FAIL: default title: ${model.branding.title}`);
@@ -28,9 +42,10 @@ const originalContent = await Bun.file(configFile).exists()
 }
 
 // --- Test 2: custom branding block end-to-end ---
-await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  title: "Acme Schema"\n  subtitle: "Internal data"\n  logo: "./assets/logo.svg"\n  copyright:\n    holder: "Acme Corp"\n    year: 2025\n  poweredBy: false\n`);
 {
-  const model = await parseModels(modelsDir);
+  const dir = makeFixtureDir('custom');
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  title: "Acme Schema"\n  subtitle: "Internal data"\n  logo: "./assets/logo.svg"\n  copyright:\n    holder: "Acme Corp"\n    year: 2025\n  poweredBy: false\n`);
+  const model = await parseModels(dir);
   console.assert(model.branding.title === 'Acme Schema',
     `FAIL: custom title: ${model.branding.title}`);
   console.assert(model.branding.subtitle === 'Internal data',
@@ -44,9 +59,10 @@ await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  title: "Acme Sche
 }
 
 // --- Test 3: string shorthand expansion ---
-await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  logo: "./icon.svg"\n`);
 {
-  const model = await parseModels(modelsDir);
+  const dir = makeFixtureDir('shorthand');
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  logo: "./icon.svg"\n`);
+  const model = await parseModels(dir);
   console.assert(model.branding.logo.dark === './icon.svg',
     `FAIL: shorthand dark: ${model.branding.logo.dark}`);
   console.assert(model.branding.logo.light === './icon.svg',
@@ -55,9 +71,10 @@ await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  logo: "./icon.svg
 }
 
 // --- Test 4: object form with one missing key falls back to the present one ---
-await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  logo:\n    dark: "./logo-dark.svg"\n`);
 {
-  const model = await parseModels(modelsDir);
+  const dir = makeFixtureDir('logo-object');
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  logo:\n    dark: "./logo-dark.svg"\n`);
+  const model = await parseModels(dir);
   console.assert(model.branding.logo.dark === './logo-dark.svg',
     `FAIL: object.dark: ${model.branding.logo.dark}`);
   console.assert(model.branding.logo.light === './logo-dark.svg',
@@ -66,12 +83,13 @@ await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  logo:\n    dark: 
 }
 
 // --- Test 5: title >50 chars throws ---
-const longTitle = 'A'.repeat(51);
-await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  title: "${longTitle}"\n`);
 {
+  const dir = makeFixtureDir('long-title');
+  const longTitle = 'A'.repeat(51);
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  title: "${longTitle}"\n`);
   let threw = false;
   try {
-    await parseModels(modelsDir);
+    await parseModels(dir);
   } catch (e: unknown) {
     threw = true;
     const msg = e instanceof Error ? e.message : String(e);
@@ -83,12 +101,13 @@ await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  title: "${longTit
 }
 
 // --- Test 6: subtitle >50 chars throws ---
-const longSubtitle = 'B'.repeat(51);
-await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  subtitle: "${longSubtitle}"\n`);
 {
+  const dir = makeFixtureDir('long-subtitle');
+  const longSubtitle = 'B'.repeat(51);
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  subtitle: "${longSubtitle}"\n`);
   let threw = false;
   try {
-    await parseModels(modelsDir);
+    await parseModels(dir);
   } catch (e: unknown) {
     threw = true;
     const msg = e instanceof Error ? e.message : String(e);
@@ -99,10 +118,4 @@ await Bun.write(configFile, `name: Key-Inherited\nbranding:\n  subtitle: "${long
   console.log('PASS: subtitle >50 chars throws');
 }
 
-// Restore original content
-if (originalContent !== null) {
-  await Bun.write(configFile, originalContent);
-} else {
-  await Bun.$`rm ${configFile}`;
-}
 console.log('All branding parse tests passed.');
