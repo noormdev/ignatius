@@ -170,3 +170,5 @@ Built across 4 iterations of `/subagent-implementation`. Commits (chronological)
 - `F-2` — alternate-keys (E6) was unrequested scope per the original CP-1 list. Resolved at finalize: keep + ratify via the 2026-05-30 spec change log entry above.
 
 No items promoted to project-level follow-ups.
+
+**Squashed to 3b22569 — 2026-05-30.** Per-iteration SHAs above are historical (unreachable from any branch).
