@@ -50,19 +50,21 @@ That produces `./dist/ignatius`.
 ## Quick start
 
 
-Point the dev CLI at a folder of entity files and open the page it serves:
+Point the dev CLI at the bundled reference schema and open the page it serves:
 
 ```bash
 bun run dev:cli
 ```
 
-That serves the bundled `models/` reference schema at `http://localhost:3000`. Edit any file under `models/` and the graph reloads in the browser without a refresh.
+That serves the `models/` reference schema (three variants of the same data model: `key-inherited`, `orm-hybrid`, `orm-pure`) at `http://localhost:3000`. Edit any file under `models/` and the graph reloads in the browser without a refresh.
 
 To run against your own folder, call the CLI directly with the `serve` subcommand:
 
 ```bash
-bun src/cli.ts serve path/to/your/models --port 3000
+ignatius serve path/to/your/models --port 3000
 ```
+
+If the path contains multiple model folders, ignatius lists them and prompts you to pick one. Pass `--model <key>` to skip the prompt.
 
 
 ## Commands
@@ -76,13 +78,19 @@ ignatius has three subcommands. All three read the same folder format and respec
 | `dict` | Writes a self-contained data dictionary as a single HTML file |
 | `graph` | Writes a self-contained interactive graph as a single HTML file |
 
+The `[path]` argument is optional for all three subcommands. When omitted, ignatius searches up and down from the current directory for a model root (a folder containing `ignatius.yml`). When a path is a model root it uses that model directly. When a path contains multiple model roots, ignatius picks one:
+
+- In a terminal it prompts you with a list.
+- Pass `--model <key>` (the folder name) to choose without the prompt.
+- In a non-interactive shell (CI), an ambiguous run exits with an error and prints the available keys instead of hanging.
+
 ### serve
 
 
 Starts a local server with live reload. Editing any `.md` or `.yaml` file in the folder pushes an update to the open browser tab.
 
 ```bash
-ignatius serve <models-dir> [--port <port>]
+ignatius serve [path] [--port <port>] [--model <key>]
 ```
 
 The default port is 3000.
@@ -93,7 +101,7 @@ The default port is 3000.
 Generates a static data dictionary: every entity with its attribute table, foreign-key links, and rendered documentation, as one HTML file with no external dependencies. Open it in any browser or commit it as a shareable artifact.
 
 ```bash
-ignatius dict <models-dir> -o dictionary.html [--theme light|dark]
+ignatius dict [path] -o dictionary.html [--theme light|dark] [--model <key>]
 ```
 
 ### graph
@@ -102,7 +110,7 @@ ignatius dict <models-dir> -o dictionary.html [--theme light|dark]
 Generates a static interactive graph. The output embeds the full viewer, so the file is self-contained. The layout runs in the browser when the file opens, then the graph is interactive. Use this to share a diagram with someone who does not have ignatius installed.
 
 ```bash
-ignatius graph <models-dir> -o graph.html [--theme light|dark]
+ignatius graph [path] -o graph.html [--theme light|dark] [--model <key>]
 ```
 
 Both `dict` and `graph` default to the dark theme. Pass `--theme light` for the light palette.
@@ -111,14 +119,14 @@ Both `dict` and `graph` default to the dark theme. Pass `--theme light` for the 
 ## The folder format
 
 
-Entities are grouped into folders. A `_groups/` folder at the root defines the groups. Any path segment that starts with an underscore is treated as meta-content and skipped during entity scanning.
+Entities are grouped into folders. A folder is a model root when it contains an `ignatius.yml` file. A `_groups/` folder at the root defines the groups. Any path segment that starts with an underscore is treated as meta-content and skipped during entity scanning.
 
 ```
 models/
+  ignatius.yml
   _groups/
     identity.md
     transactional.md
-  _theme.yaml          (optional)
   identity/
     Party.md
     Person.md
@@ -127,6 +135,14 @@ models/
     SalesOrder.md
     SO_Line.md
 ```
+
+`ignatius.yml` marks the model root and carries optional display config. A minimal file is one line:
+
+```yaml
+name: My Schema
+```
+
+You can add `theme` and `branding` blocks to override colors and set a logo, title, or copyright line. When the file has only `name`, ignatius uses its built-in defaults for everything else.
 
 ### An entity file
 
@@ -196,19 +212,21 @@ The full derivation rules live in `docs/design/markdown-driven-erd.md`.
 ## Themes
 
 
-Colors and spacing come from an optional `_theme.yaml` at the folder root. It defines separate `dark` and `light` palettes plus layout spacing. When the file is absent, ignatius uses its built-in defaults. All three subcommands read the same theme, so the interactive view, the data dictionary, and the static graph match.
+Colors and spacing come from a `theme` block in `ignatius.yml`. It defines separate `dark` and `light` palettes plus layout spacing. When the block is absent, ignatius uses its built-in defaults. All three subcommands read the same theme, so the interactive view, the data dictionary, and the static graph match.
 
 ```yaml
-dark:
-  background: "#0e1116"
-  surface: "#161b22"
-  text: "#e6edf3"
-light:
-  background: "#ffffff"
-  surface: "#f6f8fa"
-  text: "#1f2328"
-spacing:
-  nodeSep: 30
+name: My Schema
+theme:
+  dark:
+    background: "#0e1116"
+    surface: "#161b22"
+    text: "#e6edf3"
+  light:
+    background: "#ffffff"
+    surface: "#f6f8fa"
+    text: "#1f2328"
+  spacing:
+    nodeSep: 30
 ```
 
 The interactive viewer also has a light/dark toggle that persists across reloads.
