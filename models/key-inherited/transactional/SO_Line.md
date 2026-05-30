@@ -37,11 +37,11 @@ relationships:
     on:
       party_id: party_id
       sales_order_id: sales_order_id
-    predicate: is part of
+    predicate: { fwd: contains, rev: is part of }
   - target: LineItemType
     on:
       type: code
-    predicate: is classified by
+    predicate: { fwd: classifies, rev: is classified by }
 ---
 
 # SO_Line

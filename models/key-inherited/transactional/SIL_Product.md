@@ -24,11 +24,11 @@ relationships:
       party_id: party_id
       sales_invoice_id: sales_invoice_id
       line_seq: line_seq
-    predicate: is a
+    predicate: { fwd: is realized as, rev: is a }
   - target: Product
     on:
       product_id: product_id
-    predicate: bills
+    predicate: { fwd: is billed via, rev: bills }
 ---
 
 # SIL_Product

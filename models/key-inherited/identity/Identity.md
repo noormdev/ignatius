@@ -19,7 +19,7 @@ relationships:
   - target: Party
     on:
       party_id: party_id
-    predicate: identifies
+    predicate: { fwd: holds, rev: identifies }
 ---
 
 # Identity

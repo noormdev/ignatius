@@ -66,7 +66,7 @@ const edgeA: ModelEdge = {
   target: 'Hat',
   on: { person_id: 'id' },
   identifying: false,
-  predicate: 'placed by',
+  predicate: { fwd: 'places', rev: 'placed by' },
   cardinality: { parent: '1', child: 'N' },
 };
 

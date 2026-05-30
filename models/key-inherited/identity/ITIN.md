@@ -14,7 +14,7 @@ relationships:
   - target: Identity
     on:
       party_id: party_id
-    predicate: is a
+    predicate: { fwd: is realized as, rev: is a }
 ---
 
 # ITIN

@@ -747,6 +747,12 @@ code {
   line-height: 1.4;
 }
 
+.predicate-rev {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  margin-left: 0.4em;
+}
+
 /* Error fallback — shown instead of blank canvas when cy init throws */
 .graph-error-fallback {
   position: fixed;

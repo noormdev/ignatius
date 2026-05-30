@@ -22,7 +22,7 @@ relationships:
   - target: Party
     on:
       party_id: party_id
-    predicate: is placed by
+    predicate: { fwd: places, rev: is placed by }
 ---
 
 # SalesOrder

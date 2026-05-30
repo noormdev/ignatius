@@ -22,7 +22,7 @@ relationships:
   - target: PartyType
     on:
       type: code
-    predicate: is classified by
+    predicate: { fwd: classifies, rev: is classified by }
 ---
 
 # Party

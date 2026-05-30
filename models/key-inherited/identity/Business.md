@@ -21,7 +21,7 @@ relationships:
   - target: Party
     on:
       party_id: party_id
-    predicate: is a
+    predicate: { fwd: is realized as, rev: is a }
 ---
 
 # Business

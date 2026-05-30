@@ -12,6 +12,20 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 export type ColumnDef = { type: string; nullable?: boolean; desc?: string; default?: string };
 
+export type Predicate = { fwd: string; rev: string };
+
+export function normalizePredicate(
+  raw: string | { fwd?: string; rev?: string } | null | undefined,
+): Predicate {
+  if (typeof raw === 'string') return { fwd: raw, rev: raw };
+  if (isRecord(raw)) {
+    const fwd = typeof raw['fwd'] === 'string' ? raw['fwd'] : '';
+    const rev = typeof raw['rev'] === 'string' ? raw['rev'] : '';
+    return { fwd, rev };
+  }
+  return { fwd: '', rev: '' };
+}
+
 type SubtypeClusterDef = {
   exclusive: boolean;
   desc?: string;
@@ -36,7 +50,7 @@ type Frontmatter = {
     // Optional in CP-1 for backward compat; derived from PK+FK structure.
     identifying?: boolean;
     on: Record<string, string>;
-    predicate: string;
+    predicate: string | { fwd?: string; rev?: string };
   }[];
 };
 
@@ -59,7 +73,7 @@ export type ModelEdge = {
   target: string;
   identifying: boolean;
   on: Record<string, string>;
-  predicate: string;
+  predicate: Predicate;
   cardinality: { parent: Cardinality; child: Cardinality };
 };
 
@@ -198,7 +212,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
     source: string;
     target: string;
     on: Record<string, string>;
-    predicate: string;
+    predicate: Predicate;
   };
 
   const rawNodes: RawNode[] = [];
@@ -267,7 +281,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
         source: entityId,
         target: rel.target,
         on: rel.on,
-        predicate: rel.predicate,
+        predicate: normalizePredicate(rel.predicate),
       });
     }
 

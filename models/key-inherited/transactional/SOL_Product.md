@@ -24,11 +24,11 @@ relationships:
       party_id: party_id
       sales_order_id: sales_order_id
       line_seq: line_seq
-    predicate: is a
+    predicate: { fwd: is realized as, rev: is a }
   - target: Product
     on:
       product_id: product_id
-    predicate: sells
+    predicate: { fwd: is sold via, rev: sells }
 ---
 
 # SOL_Product

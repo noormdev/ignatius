@@ -103,7 +103,7 @@ function renderRelationshipsTable(node: ModelNode, edges: ModelEdge[]): string {
     return `      <tr>
         <td><a href="#entity-${esc(e.source)}">${esc(e.source)}</a></td>
         <td>${relType}</td>
-        <td>${esc(e.predicate)}</td>
+        <td>${esc(e.predicate.fwd)}${e.predicate.rev !== e.predicate.fwd ? ` <span class="predicate-rev">${esc(e.predicate.rev)}</span>` : ''}</td>
         <td>${esc(cardinalityLabel(e.cardinality))}</td>
       </tr>`;
   });

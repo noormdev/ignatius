@@ -60,7 +60,7 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
         target: 'Ghost',
         identifying: false,
         on: { ghost_id: 'id' },
-        predicate: 'references',
+        predicate: { fwd: 'references', rev: 'references' },
         cardinality: { parent: '1', child: 'many' },
     };
     const model = baseModel([source], [edge]);
@@ -84,7 +84,7 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
         target: 'Customer',
         identifying: false,
         on: { customer_id: 'id' },
-        predicate: 'belongs to',
+        predicate: { fwd: 'belongs to', rev: 'belongs to' },
         cardinality: { parent: '1', child: 'many' },
     };
     const model = baseModel([source, target], [edge]);
@@ -111,7 +111,7 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
         target: 'Order',
         identifying: true,
         on: { order_id: 'order_id', ghost_col: 'order_id' }, // ghost_col not in source columns
-        predicate: 'belongs to',
+        predicate: { fwd: 'belongs to', rev: 'belongs to' },
         cardinality: { parent: '1', child: 'many' },
     };
     const model = baseModel([source, target], [edge]);
@@ -135,7 +135,7 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
         target: 'Order',
         identifying: true,
         on: { order_id: 'order_id' },
-        predicate: 'belongs to',
+        predicate: { fwd: 'belongs to', rev: 'belongs to' },
         cardinality: { parent: '1', child: 'many' },
     };
     const model = baseModel([source, target], [edge]);

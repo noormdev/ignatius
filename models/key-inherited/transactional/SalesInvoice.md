@@ -22,7 +22,7 @@ relationships:
   - target: Party
     on:
       party_id: party_id
-    predicate: is owed by
+    predicate: { fwd: owes on, rev: is owed by }
 ---
 
 # SalesInvoice
