@@ -260,6 +260,45 @@ That runs three stages in order: it bundles the React app, renames the hashed ou
 The stack is Bun, React 19, Cytoscape.js with the ELK layered layout, `markdown-it` for prose, and `yaml` for frontmatter. The crow's-foot cardinality markers are a custom SVG overlay drawn on top of the graph.
 
 
+## Modeling skill
+
+
+`/ignatius-modeling` is a Claude Code skill that guides you through authoring a new entity file or bootstrapping a complete model skeleton via Q&A, then verifies the result with `ignatius dict`.
+
+**Prerequisites:** Claude Code with skill support; the `ignatius` binary on your `$PATH` or built locally (`bun run build:cli` → `dist/ignatius`).
+
+### Modes
+
+| Invocation | What it does |
+|---|---|
+| `/ignatius-modeling entity` | Interactive Q&A to author one entity `.md` file |
+| `/ignatius-modeling model` | Bootstrap a new model skeleton (`ignatius.yml`, group files, directories) |
+| `/ignatius-modeling` (no arg) | Prompts you to choose `entity` or `model` |
+
+```bash
+# Add a new entity to an existing model
+/ignatius-modeling entity
+
+# Start a new model from scratch
+/ignatius-modeling model
+```
+
+### Authoring convention axis
+
+The skill asks once per model which key convention you are using and carries that answer through the session.
+
+| Convention | PK shape | FK placement |
+|---|---|---|
+| `key-inherited` | Composite: parent PK columns + local discriminator | FK columns live inside the child PK |
+| `orm-oriented` | Single surrogate `id` (integer autoincrement) | FK columns sit outside PK as plain columns |
+
+You never set `classification` or `identifying` manually — the parser derives both from the key shape you describe.
+
+### Verification loop
+
+After writing each file the skill runs `ignatius dict <model-root>` and parses the lint findings from stderr. Findings are reported with fix hints; you can ask the skill to revise and re-run (up to five attempts). A clean run with no findings confirms the file is valid.
+
+
 ## Documentation
 
 

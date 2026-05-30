@@ -10,3 +10,5 @@
 - 2026-05-30 schema-validation-linter-error-ux — "Schema validation/linter + entity & global error UX in the viewer" — *(closed 2026-05-30)*
 - 2026-05-30 schema-lint-classification-mismatch-baseline — "11 classification_mismatch_dependent on subtypes — rule may be over-eager" — *(closed 2026-05-30)*
 - 2026-05-30 schema-lint-identity-cluster-no-discriminator — "Identity cluster fires cluster.no_discriminator — array-form members" — *(closed 2026-05-30)*
+- 2026-05-30 model-validation-test-suite — "Solid test suite covering parser/model failure modes" — *(closed 2026-05-30)*
+- 2026-05-30 ignatius-authoring-skill — "Author a Claude skill for using ignatius (markdown-driven ERD authoring)" — *(closed 2026-05-30)*

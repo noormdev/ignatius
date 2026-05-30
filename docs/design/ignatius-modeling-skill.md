@@ -43,16 +43,21 @@ flowchart TD
     Q1 -->|yes| Parse[parseModels existing]
     AskDir --> Parse
     Parse --> Q2[Ask: entity id]
-    Q2 --> Q3[Ask: classification<br/>kernel/dependent/etc]
-    Q3 --> Q4[Ask: group]
-    Q4 --> Q5[Ask: PK columns]
-    Q5 --> Q6{Is dependent?}
-    Q6 -->|user said dependent| Q7[Ask: parent entity FK<br/>guide them to FK-in-PK]
-    Q6 -->|user said independent| Q8[Skip parent question]
-    Q7 --> Q9[Ask: additional columns]
-    Q8 --> Q9
-    Q9 --> Q10[Ask: optional body description]
-    Q10 --> Write[Write the .md file]
+    Q2 --> Q3[Ask: group]
+    Q3 --> Q4[Pick convention<br/>key-inherited or orm-oriented<br/>inherit from model if known]
+    Q4 --> Q5[Ask: PK columns<br/>guidance per convention]
+    Q5 --> Q6{Has parent relationships?}
+    Q6 -->|yes| Q7[Ask: each parent, target + on mapping]
+    Q6 -->|no| Q8[Skip relationships]
+    Q7 --> Check{Convention contradicted?}
+    Check -->|key-inherited + PK omits parent PK| Resolve[Prompt: include parent PK<br/>or switch convention]
+    Check -->|orm-oriented + FK in PK| Resolve
+    Check -->|consistent| Q8
+    Resolve --> Q5
+    Q8 --> Q9[Ask: additional columns]
+    Q9 --> Q10[Ask: reference table?<br/>default no]
+    Q10 --> Q11[Ask: optional body description]
+    Q11 --> Write[Write the .md file]
     Write --> Lint[Run ignatius dict + lint]
     Lint --> Report{Any findings?}
     Report -->|no| Success
@@ -60,23 +65,24 @@ flowchart TD
     Loop --> Q2
 ```
 
-Key behavior: the skill uses the user's earlier answers to *prevent* lint violations rather than just catching them. Example: if the user says "independent" and then declares an FK as part of the PK, the skill catches the contradiction in the question flow, not at lint time.
+Key behavior: the skill uses the user's earlier answers to *prevent* lint violations rather than just catching them. The classification (`Independent`, `Dependent`, `Associative`, `Subtype`, `Classifier`) is **derived by the parser** from PK/FK structure — the skill does not ask. Instead the skill catches **convention contradictions** in the question flow: if the user picked `key-inherited` but declared a PK that omits parent PK columns, or picked `orm-oriented` but put an FK in the PK, the skill prompts to either fix the keys or switch the convention.
 
 ### `model` flow
 
 ```mermaid
 flowchart TD
     Start[User: /ignatius-modeling model] --> Q1[Ask: target dir<br/>default ./models]
-    Q1 --> Q2[Ask: project name<br/>for _branding title]
-    Q2 --> Q3[Ask: theme<br/>default Noorm / custom?]
-    Q3 --> Q4[Ask: group names + colors<br/>at least 1]
-    Q4 --> Q5[Optional: bootstrap one<br/>reference entity to demo]
-    Q5 --> Write[Write _groups/*.md,<br/>optionally _theme.yaml + _branding.yaml,<br/>optionally one entity]
+    Q1 --> Q2[Ask: model name<br/>for ignatius.yml name + branding title]
+    Q2 --> Q3[Pick default convention<br/>key-inherited or orm-oriented]
+    Q3 --> Q4[Ask: theme<br/>default Noorm / custom?]
+    Q4 --> Q5[Ask: group names + colors<br/>at least 1]
+    Q5 --> Q6[Optional: bootstrap one<br/>reference entity to demo]
+    Q6 --> Write[Write _groups/*.md,<br/>ignatius.yml with theme + branding,<br/>optionally one entity]
     Write --> Lint[Run ignatius dict on new dir]
     Lint --> Success
 ```
 
-The skeleton is intentionally minimal — no inflated example data. One group, optionally one entity, ready to grow.
+The skeleton is intentionally minimal — no inflated example data. One group, optionally one entity, ready to grow. The default convention is recorded as a comment in `ignatius.yml` so subsequent `entity` invocations against this root inherit it.
 
 
 ## Invocation
@@ -91,18 +97,19 @@ The skeleton is intentionally minimal — no inflated example data. One group, o
 
 The single `SKILL.md` must encode:
 
-- The exact required + optional fields for an entity .md file (id, classification, group, pk, columns, alternateKeys, …).
-- The IDEF1X classification → derivation rules, especially:
-    - independent / kernel: no FK in PK.
-    - dependent: at least one FK column also in PK.
-    - subtype: appears in a `subtypeClusters[].members[]` declaration.
-    - classifier / associative: standard IDEF1X rules.
+- The exact required + optional fields for an entity .md file (id, group, pk, columns, relationships, alternateKeys, reference, body). **No `classification`, no per-edge `identifying`** — both are derived by the parser.
+- The **authoring convention axis** (`key-inherited` vs `orm-oriented`) and how key placement differs:
+    - `key-inherited`: parent PK propagates into child composite PK; FK columns live in the child PK.
+    - `orm-oriented`: each entity has a single surrogate `id` PK; FK columns sit outside the PK as plain columns.
+- The convention-contradiction detection rules:
+    - `key-inherited` + PK that omits parent PK columns → prompt to include them or switch convention.
+    - `orm-oriented` + FK column in the PK → prompt to drop it or switch convention.
+- The IDEF1X *intuition* behind the conventions (so the user understands what derivation will produce), but **never as a question the user has to answer**. Classification follows from key shape.
 - The `_groups/*.md` schema (label, color, optional sort_key, optional desc).
-- The `_theme.yaml` schema (dark / light palettes).
-- The `_branding.yaml` schema (logo, title, subtitle, copyright, poweredBy).
+- The `ignatius.yml` schema (`name`, `version`, `description`, `updated`, `theme:`, `branding:` blocks — single config file per `docs/spec/ignatius-project-config.md`).
 - Pointers to the linter rule catalog so the skill's questions map 1:1 with what the linter would flag.
 
-These are kept in sync with the canonical sources by referencing `docs/spec/schema-lint-and-error-ux.md` and `docs/design/markdown-driven-erd.md` in the skill's frontmatter / inline body. If the linter rules change, the skill author updates the skill — explicit, not automatic.
+These are kept in sync with the canonical sources by referencing `docs/spec/schema-lint-and-error-ux.md`, `docs/spec/derive-classification.md`, `docs/spec/ignatius-project-config.md`, and `docs/design/markdown-driven-erd.md` in the skill's frontmatter / inline body. If the linter rules change, the skill author updates the skill — explicit, not automatic.
 
 
 ## Verification loop
@@ -113,7 +120,7 @@ After writing files, the skill runs `ignatius dict <dir> -o /tmp/ignatius-skill-
 - The skill offers to revise: "Update the file?" — if yes, the skill walks the relevant question subset again with the original answers prefilled, writes the file, re-runs.
 - Loop bounded to 5 attempts (defensive against infinite cycles from misbehaving CLI).
 
-The verification step depends on the linter shipping. Until then, the skill can ship with a "soft" verify (run CLI, report exit code only; warnings invisible). The spec marks this as a v1.0 vs v1.1 distinction.
+The verification step depends on the linter's structured stderr — `src/validate.ts:formatFindingsForStderr` is live and emits `<sev>  <ruleId>  <location>  <message>` one line per finding, called from `src/cli.ts` after `parseModels` + `validateModel`. The skill parses that format directly; no soft-verify gate remains.
 
 
 ## Open questions
