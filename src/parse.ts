@@ -5,6 +5,10 @@ import { defaultBranding, mergeBranding, type Branding } from './branding-defaul
 
 const md = new MarkdownIt();
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
 export type ColumnDef = { type: string; nullable?: boolean; desc?: string; default?: string };
 
 type SubtypeClusterDef = {
@@ -135,7 +139,8 @@ export async function parseModels(dir: string): Promise<Model> {
 
   const configFile = Bun.file(`${dir}/ignatius.yml`);
   if (await configFile.exists()) {
-    const raw = parseYaml(await configFile.text()) as Record<string, unknown>;
+    const parsed: unknown = parseYaml(await configFile.text());
+    const raw: Record<string, unknown> = isRecord(parsed) ? parsed : {};
     // Meta lives at top-level keys (name, version, description, updated)
     const { name, version, description, updated, theme: themeRaw, branding: brandingRaw } = raw;
     const metaName = typeof name === 'string' ? name : undefined;
