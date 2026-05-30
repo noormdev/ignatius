@@ -6,16 +6,22 @@ pk:
 columns:
   id:
     type: integer
+    desc: "Surrogate primary key."
   identity_id:
     type: integer
+    desc: "Owning party's Identity container — foreign key to Identity."
   passport_number:
     type: text
+    desc: "Passport number."
   issuing_country:
     type: text
+    desc: "Country that issued the passport."
   issued_on:
     type: date
+    desc: "Date the passport was issued."
   expires_on:
     type: date
+    desc: "Date the passport expires."
 relationships:
   - target: Identity
     on:
@@ -25,4 +31,6 @@ relationships:
 
 # Passport
 
-Passport held by the Party
+A **Passport** is a passport held by a Party, recorded under its `Identity` container. It captures the passport number, the issuing country, and the validity window.
+
+It is its own document type because issuing authority is a country (not a state) and because a Party may hold a passport independently of any other identity document.

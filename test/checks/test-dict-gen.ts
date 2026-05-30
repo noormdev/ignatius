@@ -53,8 +53,8 @@ assert(lightBgMatch !== null, 'light html has --color-background value');
 assert(darkBgMatch?.[1] !== lightBgMatch?.[1], 'dark and light --color-background values differ');
 
 // 6. Markdown body content rendered (bodyHtml inlined)
-// Party has a bodyHtml with "Anyone the system transacts with"
-assert(darkHtml.includes('Anyone the system transacts with'), 'markdown body content rendered in dark output');
+// Party body bolds **Party** → renders to <strong>Party</strong>, proving markdown is inlined AND processed.
+assert(darkHtml.includes('<strong>Party</strong>'), 'markdown body content rendered in dark output');
 
 if (failures > 0) {
   console.error(`\n${failures} assertion(s) failed`);

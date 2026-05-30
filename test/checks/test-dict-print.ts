@@ -123,13 +123,13 @@ assert(
 
 // 6. Print mode always uses light CSS variables regardless of generation mode.
 //    When generated with mode='dark', --color-background at :root is a dark hex.
-//    The @media print :root override must reset it to the light palette value (#ffffff).
+//    The @media print :root override must reset it to the configured light palette value.
 const printBgVar = await page.evaluate(() => {
     return getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim();
 });
 assert(
-    printBgVar === '#ffffff',
-    `@media print :root --color-background resolves to light value (#ffffff), got: ${printBgVar}`,
+    printBgVar === model.theme.light.background,
+    `@media print :root --color-background resolves to the configured light palette value (${model.theme.light.background}), got: ${printBgVar}`,
 );
 
 await page.screenshot({ path: resolve('tmp/dict-print.png'), fullPage: true });

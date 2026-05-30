@@ -6,14 +6,19 @@ pk:
 columns:
   subscription_id:
     type: integer
+    desc: "Unique identifier for the subscription."
   sku:
     type: text
+    desc: "Stock-keeping unit; unique subscription code."
   name:
     type: text
+    desc: "Display name of the subscription plan."
   period_unit:
     type: text
+    desc: "Billing period unit (e.g. month, year)."
   list_price:
     type: decimal
+    desc: "Catalog price per billing period."
 ak:
   - rule: unique subscription code
     columns:
@@ -22,4 +27,10 @@ ak:
 
 # Subscription
 
-A sellable recurring service with a billing period
+A **Subscription** is a sellable recurring service billed on a repeating period — monthly, yearly, and so on. It is the catalog counterpart to a Product for anything sold as an ongoing plan rather than a one-time purchase.
+
+It is modeled apart from Product because recurrence is a first-class property: it carries a billing `period_unit` and a price *per period*, which a one-time product does not have.
+
+## Business rules
+
+- **SKU is unique** — every subscription has exactly one stock-keeping code.

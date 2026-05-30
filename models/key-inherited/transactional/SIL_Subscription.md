@@ -8,12 +8,16 @@ pk:
 columns:
   party_id:
     type: integer
+    desc: "Billed party — foreign key."
   sales_invoice_id:
     type: integer
+    desc: "Parent invoice — foreign key."
   line_seq:
     type: integer
+    desc: "Sequence number within the invoice."
   subscription_id:
     type: integer
+    desc: "Subscription billed on this line — foreign key to Subscription."
 relationships:
   - target: SI_Line
     on:
@@ -27,6 +31,8 @@ relationships:
     predicate: bills
 ---
 
-# SIL Subscription
+# SIL_Subscription
 
-A SalesInvoice line for a Subscription
+A **SIL_Subscription** is a SalesInvoice line that resolves to a specific `Subscription`. It is the subscription specialization of `SI_Line`, present only when the line bills a recurring plan.
+
+It records which catalog subscription is being billed, distinguishing a recurring charge from a one-time product charge on the same invoice.

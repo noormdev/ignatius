@@ -7,15 +7,14 @@ pk:
 columns:
   code:
     type: text
+    desc: "Enumerable code value (SUBSCRIPTION, PRODUCT)."
   description:
     type: text
+    desc: "Human-readable label for the code."
 ---
 
 # LineItemType
 
-Whether a line item refers to a Subscription or a Product
+A **LineItemType** classifies what a sales line refers to — a one-time `Product` or a recurring `Subscription`. It is the discriminator that decides which line subtype applies, so a line can never claim to be both or neither.
 
-## Values
-
-- `SUBSCRIPTION` — Recurring subscription line
-- `PRODUCT` — One-time product line
+Modeling the kinds as a lookup table keeps the rule in the data: every `SO_Line` and `SI_Line` carries a `type` that resolves to exactly one known line kind.

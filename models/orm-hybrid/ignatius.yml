@@ -1,1 +1,20 @@
 name: ORM Hybrid
+
+# Warm (amber/terracotta) — surrogate keys bridging two worlds.
+theme:
+  dark:
+    background: "#17120b"
+    surface: "#221a10"
+    border: "#43331f"
+    text: "#f1e9dd"
+    textMuted: "#b6a488"
+    edgeIdentifying: "#b6a488"
+    edgeReferential: "#5b4a30"
+  light:
+    background: "#fdf8f0"
+    surface: "#f6ece0"
+    border: "#e7d6c1"
+    text: "#2f2518"
+    textMuted: "#7c6a52"
+    edgeIdentifying: "#7c6a52"
+    edgeReferential: "#dac6a9"

@@ -1,1 +1,20 @@
 name: Key-Inherited
+
+# Neutral pastel (slate/stone) — the classic IDEF1X baseline.
+theme:
+  dark:
+    background: "#16171b"
+    surface: "#1f2127"
+    border: "#363941"
+    text: "#e8e9ec"
+    textMuted: "#9aa0a9"
+    edgeIdentifying: "#9aa0a9"
+    edgeReferential: "#454852"
+  light:
+    background: "#f7f7f8"
+    surface: "#eceef0"
+    border: "#d6dade"
+    text: "#23262b"
+    textMuted: "#646b73"
+    edgeIdentifying: "#646b73"
+    edgeReferential: "#c2c8ce"

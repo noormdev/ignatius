@@ -7,13 +7,17 @@ pk:
 columns:
   party_id:
     type: integer
+    desc: "Billed party — foreign key to Party."
   sales_invoice_id:
     type: integer
+    desc: "Identifier of the invoice within the party."
   issued_at:
     type: datetime
+    desc: "Timestamp the invoice was issued."
     default: now
   total:
     type: decimal
+    desc: "Invoice total; reconciles to the sum of its line items."
 relationships:
   - target: Party
     on:
@@ -23,9 +27,10 @@ relationships:
 
 # SalesInvoice
 
-An invoice issued to a Party for outstanding amounts
+A **SalesInvoice** is a bill issued to a Party for amounts owed. It is the demand for payment — the document a `Payment` is ultimately applied against, line by line.
 
-## Constraints
+It is its own entity, distinct from the order, because what was ordered and what is billed can diverge, and because the invoice is the anchor for the money side of the model: allocations settle invoice lines, not order lines.
 
-- **sales invoice total reconciles to lines**: Invoice total must equal sum(SI_Line.qty * SI_Line.unit_price) for matching party_id and sales_invoice_id
-  - Spans: SI_Line
+## Business rules
+
+- **Total reconciles to its lines** — the invoice total must equal the sum of `qty × unit_price` across its `SI_Line` rows.

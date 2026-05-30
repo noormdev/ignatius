@@ -1,1 +1,20 @@
 name: ORM Pure
+
+# Cool (teal/indigo) — flat surrogate-key ORM layout.
+theme:
+  dark:
+    background: "#0c1418"
+    surface: "#121d24"
+    border: "#243845"
+    text: "#e0edf2"
+    textMuted: "#8aa3b0"
+    edgeIdentifying: "#8aa3b0"
+    edgeReferential: "#2f4a59"
+  light:
+    background: "#f2f8fa"
+    surface: "#e6f0f4"
+    border: "#c5d8e0"
+    text: "#18272e"
+    textMuted: "#5a7480"
+    edgeIdentifying: "#5a7480"
+    edgeReferential: "#b4cdd8"
