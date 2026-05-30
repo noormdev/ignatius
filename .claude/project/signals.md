@@ -174,7 +174,7 @@ CP-1 (entity rules) is implemented; parse.* rules (CP-2) are defined in `RuleId`
 
 - `trash/` contains v1 components and engine code (YAML-driven), superseded by current markdown-driven implementation. Not imported anywhere in `src/`.
 - `test/` is exploratory tooling organized into `checks/` (CI-run assertions), `visual/` (Playwright, manual only), `fixtures/` (YAML data), `notes/` (markdown). Not a formal suite. `test/checks/test-findings-panel.ts` is a Playwright check in the `checks/` dir — CI will attempt to run it.
-- `models/` is a container of three sibling model roots — `key-inherited/`, `orm-hybrid/`, `orm-pure/` — each with its own `ignatius.yml`. Same data model, three key-ID techniques. Reference/fixture data, not a domain.
+- `models/` is a container of three sibling model roots — `key-inherited/`, `orm-hybrid/`, `orm-pure/` — each with its own `ignatius.yml`. Same data model, three key-ID techniques. Each `ignatius.yml` now includes a per-variant `theme:` block (dark + light color palettes): Key-Inherited uses neutral slate/stone, ORM Hybrid uses warm amber/terracotta, ORM Pure uses cool teal/indigo. Entity files across all three variants have been enriched with markdown body content (descriptive prose, rationale text). Reference/fixture data, not a domain.
 - `src/types/file-imports.d.ts` — ambient module declarations for `*.html`, `*.css` imports with `{ type: 'file' }` or plain import.
 - `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator` (no upstream `@types`); augments `cytoscape.Core` with `navigator(options?): NavigatorInstance`.
 - `bun-env.d.ts` — ambient Bun type augmentations.
