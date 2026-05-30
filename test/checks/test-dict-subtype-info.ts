@@ -1,8 +1,8 @@
 import { parseModels } from '../../src/parse';
 import { generateDict } from '../../src/generators/dict';
 
-const model = await parseModels('models');
-const html = await generateDict(model, 'dark', { modelsDir: 'models' });
+const model = await parseModels('models/key-inherited');
+const html = await generateDict(model, 'dark', { modelsDir: 'models/key-inherited' });
 
 let failures = 0;
 

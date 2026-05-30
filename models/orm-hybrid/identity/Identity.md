@@ -1,0 +1,32 @@
+---
+entity: Identity
+group: identity
+pk:
+  - id
+columns:
+  id:
+    type: integer
+  party_id:
+    type: integer
+ak:
+  - rule: one identity container per party
+    columns:
+      - party_id
+subtypes:
+  - exclusive: false
+    desc: "A Party may hold any combination of these — inclusive, existence-based"
+    members:
+      - License
+      - Passport
+      - SSN
+      - ITIN
+relationships:
+  - target: Party
+    on:
+      party_id: id
+    predicate: identifies
+---
+
+# Identity
+
+Container for the ID documents a Party holds — 1:1 with Party

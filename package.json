@@ -6,7 +6,7 @@
   "description": "ignatius — a markdown-driven IDEF1X ERD viewer + static site generator",
   "scripts": {
     "dev": "bun --hot src/server.ts",
-    "dev:cli": "bun --hot src/cli.ts serve models/",
+    "dev:cli": "bun --hot src/cli.ts serve models/key-inherited",
     "cli": "bun src/cli.ts",
     "build": "bun build ./src/index.html --outdir=dist --sourcemap --target=browser --minify --define:process.env.NODE_ENV='\"production\"' --env='BUN_PUBLIC_*'",
     "start": "NODE_ENV=production bun src/server.ts",

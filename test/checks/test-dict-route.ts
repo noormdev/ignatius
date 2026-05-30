@@ -15,7 +15,7 @@ import { serveCommand } from '../../src/server';
 import { resolve } from 'path';
 
 const PORT = 3298;
-const MODELS_DIR = resolve(import.meta.dir, '../../models');
+const MODELS_DIR = resolve(import.meta.dir, '../../models/key-inherited');
 
 async function sleep(ms: number) {
   return new Promise<void>(res => setTimeout(res, ms));

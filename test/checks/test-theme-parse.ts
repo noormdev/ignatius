@@ -3,7 +3,7 @@ import { parseModels } from '../../src/parse';
 import { defaultTheme } from '../../src/theme-defaults';
 import { resolve } from 'path';
 
-const modelsDir = resolve(import.meta.dir, '../../models');
+const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
 const themeFile = `${modelsDir}/_theme.yaml`;
 
 // --- Test 1: default theme (no _theme.yaml) ---

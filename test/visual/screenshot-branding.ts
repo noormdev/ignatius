@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { resolve } from 'path';
 import { serveCommand } from '../../src/server';
 
-const modelsDir = resolve(import.meta.dir, '../../models');
+const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
 const brandingFile = resolve(modelsDir, '_branding.yaml');
 const testBrandingFile = resolve(import.meta.dir, '../fixtures/test-branding.yaml');
 

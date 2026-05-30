@@ -23,7 +23,7 @@ function assert(cond: boolean, msg: string) {
     }
 }
 
-const model = await parseModels('models');
+const model = await parseModels('models/key-inherited');
 
 // ── Test 1: Generated graph HTML contains embedded data URI logo ──────────────
 const darkHtml = await generateGraph(model, 'dark');

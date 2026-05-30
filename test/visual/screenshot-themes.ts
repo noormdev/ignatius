@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import { resolve } from 'path';
 
-const modelsDir = resolve(import.meta.dir, '../../models');
+const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
 const themeFile = resolve(modelsDir, '_theme.yaml');
 const testThemeFile = resolve(import.meta.dir, '../fixtures/test-theme.yaml');
 

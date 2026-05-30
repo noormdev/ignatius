@@ -31,9 +31,9 @@ function assert(cond: boolean, msg: string) {
 // ── Setup: generate default-branding dict + graph HTML ───────────────────────
 // parseModels with no _branding.yaml naturally defaults — exercises the full parse→merge path.
 
-const model = await parseModels('models');
+const model = await parseModels('models/key-inherited');
 
-const dictHtml = await generateDict(model, 'dark', { modelsDir: 'models' });
+const dictHtml = await generateDict(model, 'dark', { modelsDir: 'models/key-inherited' });
 const graphHtml = await generateGraph(model, 'dark');
 
 const dictPath = resolve('tmp/zero-network-dict.html');
@@ -157,7 +157,7 @@ try {
     const binaryDictPath = resolve('tmp/zero-network-binary-dict.html');
     const binaryGraphPath = resolve('tmp/zero-network-binary-graph.html');
 
-    const dictProc = Bun.spawn(['./dist/ignatius', 'dict', 'models', '-o', binaryDictPath], {
+    const dictProc = Bun.spawn(['./dist/ignatius', 'dict', 'models/key-inherited', '-o', binaryDictPath], {
         stdout: 'pipe',
         stderr: 'pipe',
     });
@@ -169,7 +169,7 @@ try {
         console.log('PASS: binary dict: exited 0');
     }
 
-    const graphProc = Bun.spawn(['./dist/ignatius', 'graph', 'models', '-o', binaryGraphPath], {
+    const graphProc = Bun.spawn(['./dist/ignatius', 'graph', 'models/key-inherited', '-o', binaryGraphPath], {
         stdout: 'pipe',
         stderr: 'pipe',
     });

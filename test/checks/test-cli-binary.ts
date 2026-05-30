@@ -15,7 +15,7 @@ import { join } from 'path';
 // Resolve paths relative to the project root (worktree root is one dir up from tmp/)
 const ROOT = join(import.meta.dir, '../..');
 const BINARY = join(ROOT, 'dist', 'ignatius');
-const MODELS = join(ROOT, 'models');
+const MODELS = join(ROOT, 'models', 'key-inherited');
 const OUT_DICT = join(ROOT, 'tmp', 'out-binary-dict.html');
 const OUT_GRAPH = join(ROOT, 'tmp', 'out-binary-graph.html');
 

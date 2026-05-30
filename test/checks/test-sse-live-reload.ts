@@ -13,7 +13,7 @@ import { serveCommand } from '../../src/server';
 import { resolve } from 'path';
 
 const PORT = 3299;
-const MODELS_DIR = resolve(import.meta.dir, '../../models');
+const MODELS_DIR = resolve(import.meta.dir, '../../models/key-inherited');
 const TEST_FILE = resolve(MODELS_DIR, 'identity/Party.md');
 
 async function sleep(ms: number) {

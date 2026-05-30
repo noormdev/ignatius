@@ -12,7 +12,7 @@ import { parseModels } from '../../src/parse';
 import { mergeBranding } from '../../src/branding-defaults';
 import { generateDict } from '../../src/generators/dict';
 
-const modelsDir = resolve(import.meta.dir, '../../models');
+const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
 const tmpDir = resolve(import.meta.dir, '../../tmp');
 
 // ── Dark mode — default branding ──────────────────────────────────────────────
