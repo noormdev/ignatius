@@ -15,7 +15,7 @@ import { join, resolve } from 'path';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 
 const ROOT = resolve(import.meta.dir, '../..');
-const MODELS = join(ROOT, 'models/key-inherited');
+const MODELS = join(ROOT, 'models/broken-demo');
 const TMP = join(ROOT, 'tmp');
 mkdirSync(TMP, { recursive: true });
 
@@ -57,35 +57,39 @@ function assert(condition: boolean, label: string, detail?: string): void {
   const { exitCode, stderr } = await run(['dict', MODELS, '-o', OUT]);
 
   // Exit code 0: real models/ has no GlobalErrors (only EntityError warnings)
-  assert(exitCode === 0, 'dict against real models/: exit code 0', `got ${exitCode}\nstderr:\n${stderr.slice(0, 500)}`);
+  // broken-demo has 4 GlobalErrors → exit code 1
+  assert(exitCode === 1, 'dict against broken-demo: exit code 1 (globals present)', `got ${exitCode}\nstderr:\n${stderr.slice(0, 500)}`);
 
   const lines = stderr.split('\n').filter(l => l.trim() !== '');
 
   // Every non-empty line must match the format: severity  ruleId  location  message
-  // (two or more spaces between each field)
-  const formatRe = /^(error|warn)\s{2,}\S+\s{2,}\S+\s{2,}.+$/;
-  const malformed = lines.filter(l => !formatRe.test(l));
+  const formatRe = /^(error|warn)\s{2,}\S+\s{2,}\S+\s{2,}[\s\S]+$/;
+  const malformed = lines.filter(l => !formatRe.test(l) && !l.startsWith('  ') && !l.startsWith('\t'));
   assert(malformed.length === 0, 'dict stderr: all lines match <severity>  <ruleId>  <location>  <message> format',
     malformed.length > 0 ? `malformed lines:\n${malformed.slice(0, 5).join('\n')}` : undefined);
 
-  // Real models/ baseline: 1 entity warning lines (naming rules removed in Phase 3 polish)
+  // broken-demo baseline: 4 errors, 7 warnings.
   const warnLines = lines.filter(l => l.startsWith('warn'));
-  assert(warnLines.length === 1, `dict stderr: 1 warn line (got ${warnLines.length})`,
+  assert(warnLines.length === 7, `dict stderr: 7 warn lines (got ${warnLines.length})`,
     `stderr:\n${stderr.slice(0, 1000)}`);
 
-  // No error lines — real models/ has no parse errors or Class B errors
   const errorLines = lines.filter(l => l.startsWith('error'));
-  assert(errorLines.length === 0, `dict stderr: 0 error lines (got ${errorLines.length})`);
+  assert(errorLines.length === 4, `dict stderr: 4 error lines (got ${errorLines.length})`);
 
-  // Sort order: errors first (zero here), then warnings sorted by ruleId, then entityId
-  // Extract ruleIds from warn lines
-  const ruleIds = warnLines.map(l => {
-    const parts = l.split(/\s{2,}/);
-    return parts[1] ?? '';
-  });
-  const sorted = [...ruleIds].sort();
-  assert(JSON.stringify(ruleIds) === JSON.stringify(sorted),
-    'dict stderr: warn lines sorted by ruleId', `got:\n${ruleIds.join('\n')}`);
+  // Errors should appear before warnings; within each, ruleIds sorted alphabetical.
+  const severityFirst = lines.filter(l => l.startsWith('error') || l.startsWith('warn'));
+  let sawWarn = false;
+  let outOfOrder = false;
+  for (const l of severityFirst) {
+    if (l.startsWith('warn')) sawWarn = true;
+    else if (sawWarn && l.startsWith('error')) { outOfOrder = true; break; }
+  }
+  assert(!outOfOrder, 'dict stderr: errors before warnings');
+
+  const warnRuleIds = warnLines.map(l => l.split(/\s{2,}/)[1] ?? '');
+  const sortedWarnRuleIds = [...warnRuleIds].sort();
+  assert(JSON.stringify(warnRuleIds) === JSON.stringify(sortedWarnRuleIds),
+    'dict stderr: warn lines sorted by ruleId', `got:\n${warnRuleIds.join('\n')}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -100,11 +104,11 @@ function assert(condition: boolean, label: string, detail?: string): void {
     console.log('  SKIP  graph stderr test: dist/static/index.js not built');
   } else {
     const { exitCode, stderr } = await run(['graph', MODELS, '-o', OUT_GRAPH]);
-    assert(exitCode === 0, 'graph against real models/: exit code 0', `stderr:\n${stderr.slice(0, 300)}`);
+    assert(exitCode === 1, 'graph against broken-demo: exit code 1', `stderr:\n${stderr.slice(0, 300)}`);
 
     const lines = stderr.split('\n').filter(l => l.trim() !== '');
     const warnLines = lines.filter(l => l.startsWith('warn'));
-    assert(warnLines.length === 1, `graph stderr: 1 warn line (got ${warnLines.length})`);
+    assert(warnLines.length === 7, `graph stderr: 7 warn lines (got ${warnLines.length})`);
   }
 }
 

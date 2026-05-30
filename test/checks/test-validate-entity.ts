@@ -70,11 +70,12 @@ function hasError(result: ReturnType<typeof validateModel>, ruleId: string, enti
 }
 
 {
-  // Negative: empty columns object (PK-only intersection table — intentional, should not warn)
+  // Positive: empty columns object — parse.ts defaults missing columns to {} so the
+  // rule must fire on empty too, otherwise it'd be unreachable from real models.
   const node = baseNode({ id: 'Tag', pk: ['tag_id'], columns: {} });
   const result = validateModel(baseModel([node]));
-  console.assert(!hasError(result, 'entity.missing_columns', 'Tag'), 'FAIL: entity.missing_columns — empty columns {} wrongly flagged');
-  console.log('PASS: entity.missing_columns negative (empty columns {})');
+  console.assert(hasError(result, 'entity.missing_columns', 'Tag'), 'FAIL: entity.missing_columns — empty columns {} should flag');
+  console.log('PASS: entity.missing_columns positive (empty columns {})');
 }
 
 {

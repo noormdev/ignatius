@@ -11,7 +11,7 @@ import { resolve, join } from 'path';
 import { serveCommand } from '../../src/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
-const MODELS = join(ROOT, 'models/key-inherited');
+const MODELS = join(ROOT, 'models/broken-demo');
 
 const handle = serveCommand(MODELS, { port: 3178 });
 const base = `http://localhost:3178`;
@@ -62,17 +62,25 @@ function assert(condition: boolean, label: string, detail?: string): void {
   assert(Array.isArray(validation?.globalErrors), '/api/model: validation.globalErrors is an array');
   assert('cleanedModel' in (validation ?? {}), '/api/model: validation.cleanedModel exists');
 
-  // Real models/ baseline: 24 nodes
+  // broken-demo baseline: parses 9 entities (3 files skipped: bad-yaml, empty-frontmatter, no-entity-id)
   assert(
-    (model?.nodes as unknown[])?.length === 24,
-    `/api/model: model.nodes has 24 entries (got ${(model?.nodes as unknown[])?.length})`,
+    (model?.nodes as unknown[])?.length === 9,
+    `/api/model: model.nodes has 9 entries (got ${(model?.nodes as unknown[])?.length})`,
   );
 
-  // Real models/ baseline: 1 entityError (entity warnings, naming rules removed in Phase 3 polish)
+  // broken-demo baseline: 7 entity warnings
   const entityErrors = validation?.entityErrors as unknown[];
   assert(
-    entityErrors?.length === 1,
-    `/api/model: validation.entityErrors has 1 entries (got ${entityErrors?.length})`,
+    entityErrors?.length === 7,
+    `/api/model: validation.entityErrors has 7 entries (got ${entityErrors?.length})`,
+  );
+
+  // broken-demo baseline: 1 validator global (edge.unknown_target Order→Cart) +
+  // 3 parse globals = 4 total in payload (parseGlobalErrors separate from validation.globalErrors)
+  const validatorGlobals = validation?.globalErrors as unknown[];
+  assert(
+    validatorGlobals?.length === 1,
+    `/api/model: validation.globalErrors has 1 entry (got ${validatorGlobals?.length})`,
   );
 }
 

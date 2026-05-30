@@ -1,0 +1,23 @@
+name: Broken Demo
+
+# Deliberately-broken model. Each file triggers one or more validator rules
+# so the dict banner, ⚠ triangles, missing-link anchors, CLI stderr output,
+# and live findings panel can all be exercised against real data.
+
+theme:
+  dark:
+    background: "#1a0a0a"
+    surface: "#2a1414"
+    border: "#5a2a2a"
+    text: "#f5e0e0"
+    textMuted: "#c89090"
+    edgeIdentifying: "#c89090"
+    edgeReferential: "#6a3030"
+  light:
+    background: "#fff5f5"
+    surface: "#ffe5e5"
+    border: "#e5b5b5"
+    text: "#3a1010"
+    textMuted: "#7a3030"
+    edgeIdentifying: "#7a3030"
+    edgeReferential: "#d09090"

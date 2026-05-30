@@ -25,7 +25,7 @@ import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
-const MODELS = join(ROOT, 'models/key-inherited');
+const MODELS = join(ROOT, 'models/broken-demo');
 const TMP = join(ROOT, 'tmp');
 mkdirSync(TMP, { recursive: true });
 
@@ -101,9 +101,9 @@ if (!bundleExists) {
       // Give ELK and React one more tick to settle
       await page.waitForTimeout(3000);
 
-      // models/ has 1 entity error, 0 global errors => no global banner expected
+      // broken-demo has globals -> banner expected
       const bannerVisible = await page.locator('.graph-global-banner').isVisible().catch(() => false);
-      assert(!bannerVisible, 'static mode: no global banner (models/ has 0 global errors)');
+      assert(bannerVisible, 'static mode: global banner present (broken-demo has globals)');
 
       // The SVG overlay should have drawn badge circles for entities with errors.
       // We check for SVG circles with fill="#e05252" (our badge color).
@@ -149,9 +149,9 @@ if (!bundleExists) {
     await page.waitForSelector('.graph-panel canvas', { timeout: 20_000 }).catch(() => null);
     await page.waitForTimeout(2000);
 
-    // Verify no global banner (models/ has 0 global errors)
+    // Verify global banner present (broken-demo has globals)
     const bannerVisible = await page.locator('.graph-global-banner').isVisible().catch(() => false);
-    assert(!bannerVisible, 'live mode: no global banner (models/ has 0 global errors)');
+    assert(bannerVisible, 'live mode: global banner present (broken-demo has globals)');
 
     // Verify badge circles present
     const badgeCount = await page.evaluate(() => {

@@ -234,6 +234,62 @@ html, body, #root {
   color: var(--color-text);
 }
 
+/* Legend modal */
+.legend-section {
+  margin-bottom: 24px;
+}
+.legend-section:last-child {
+  margin-bottom: 0;
+}
+.legend-section-title {
+  font-size: 12px;
+  margin: 0 0 8px 0;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+}
+.legend-symbol {
+  flex-shrink: 0;
+  width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.legend-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.legend-term {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.legend-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.legend-entity {
+  width: 48px;
+  height: 26px;
+  border: 2px solid var(--color-text-muted);
+  background: var(--color-surface);
+}
+.legend-entity--independent {
+  border-radius: 0;
+}
+.legend-entity--dependent {
+  border-radius: 8px;
+}
+
 /* Modal */
 .modal-backdrop {
   position: fixed;
@@ -512,10 +568,11 @@ code {
 /* Findings panel — persistent top-right, lists all current findings */
 .findings-panel {
   position: fixed;
-  top: 1rem;
+  /* Top offset clears the theme-toggle (top:16px, 36px tall, 12px gap). */
+  top: 64px;
   right: 1rem;
   width: 360px;
-  max-height: 70vh;
+  max-height: calc(100vh - 96px);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;

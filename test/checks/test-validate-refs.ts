@@ -233,25 +233,24 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
 // ---------------------------------------------------------------------------
 
 {
-    // Positive: hasDiscriminator === false
+    // Positive: exclusive cluster, no discriminator
     const basetype = baseNode({ id: 'SalesLine', columns: { id: { type: 'uuid' } } });
     const memberA = baseNode({ id: 'ProductLine' });
     const cluster: SubtypeCluster = {
         basetype: 'SalesLine',
-        exclusive: false,
+        exclusive: true,
         members: ['ProductLine'],
-        hasDiscriminator: false, // no discriminator column declared
+        hasDiscriminator: false,
     };
     const model = baseModel([basetype, memberA], [], [cluster]);
     const result = validateModel(model);
-    console.assert(hasEntityError(result, 'cluster.no_discriminator', 'SalesLine'), 'FAIL: cluster.no_discriminator — EntityError not emitted on basetype');
-    // Class A: cluster stays
+    console.assert(hasEntityError(result, 'cluster.no_discriminator', 'SalesLine'), 'FAIL: cluster.no_discriminator — EntityError not emitted on exclusive basetype');
     console.assert(result.cleanedModel.subtypeClusters.length === 1, 'FAIL: cluster.no_discriminator — cluster wrongly stripped (Class A)');
-    console.log('PASS: cluster.no_discriminator positive (EntityError on basetype, cluster stays)');
+    console.log('PASS: cluster.no_discriminator positive (exclusive + no discriminator)');
 }
 
 {
-    // Negative: hasDiscriminator === true
+    // Negative: exclusive + discriminator present
     const basetype = baseNode({ id: 'Party', columns: { type: { type: 'text' } } });
     const memberA = baseNode({ id: 'Business' });
     const cluster: SubtypeCluster = {
@@ -264,6 +263,24 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
     const result = validateModel(model);
     console.assert(!hasEntityError(result, 'cluster.no_discriminator', 'Party'), 'FAIL: cluster.no_discriminator — cluster with discriminator wrongly flagged');
     console.log('PASS: cluster.no_discriminator negative (discriminator present)');
+}
+
+{
+    // Negative: inclusive cluster, no discriminator — should NOT fire.
+    // Inclusive subtypes can coexist, so no single column partitions them.
+    const basetype = baseNode({ id: 'Identity', columns: { id: { type: 'uuid' } } });
+    const memberA = baseNode({ id: 'Passport' });
+    const memberB = baseNode({ id: 'License' });
+    const cluster: SubtypeCluster = {
+        basetype: 'Identity',
+        exclusive: false,
+        members: ['Passport', 'License'],
+        hasDiscriminator: false,
+    };
+    const model = baseModel([basetype, memberA, memberB], [], [cluster]);
+    const result = validateModel(model);
+    console.assert(!hasEntityError(result, 'cluster.no_discriminator', 'Identity'), 'FAIL: cluster.no_discriminator — inclusive cluster without discriminator wrongly flagged');
+    console.log('PASS: cluster.no_discriminator negative (inclusive cluster needs no discriminator)');
 }
 
 // ---------------------------------------------------------------------------
@@ -301,14 +318,11 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
 }
 
 // ---------------------------------------------------------------------------
-// Sanity check: real models/key-inherited directory — pinned baseline by rule ID and count
+// Sanity check: real models/key-inherited directory — should be CLEAN.
 //
-// Post master-reconcile: classification rules removed (derived from keys now).
-// Only remaining baseline: Identity cluster uses array-form members → no discriminator.
-//
-// Expected:
-//   cluster.no_discriminator                   = 1
-//   all other rule IDs                         = 0
+// Identity uses an inclusive subtype cluster (exclusive: false) which no
+// longer false-positives on cluster.no_discriminator. Real models should
+// produce zero findings.
 // ---------------------------------------------------------------------------
 
 import { parseModels } from '../../src/parse';
@@ -326,10 +340,8 @@ import { parseModels } from '../../src/parse';
         countByRule[err.ruleId] = (countByRule[err.ruleId] ?? 0) + 1;
     }
 
-    // Pinned expected counts for known violations in models/key-inherited.
-    const EXPECTED: Record<string, number> = {
-        'cluster.no_discriminator': 1,
-    };
+    // Real models should be clean. No expected findings.
+    const EXPECTED: Record<string, number> = {};
 
     for (const [ruleId, expected] of Object.entries(EXPECTED)) {
         const actual = countByRule[ruleId] ?? 0;
@@ -354,6 +366,56 @@ import { parseModels } from '../../src/parse';
     }
 
     console.log(`PASS: real models/ sanity — parseGlobals=${parseGlobals.length}, validatorGlobals=${result.globalErrors.length}, entityErrors=${result.entityErrors.length}`);
+}
+
+// ---------------------------------------------------------------------------
+// Sanity check: models/broken-demo — deliberately-broken model that exercises
+// every rule the validator can produce. Pin the full expected baseline so a
+// rule predicate regression is caught immediately.
+// ---------------------------------------------------------------------------
+
+{
+    const { model, globalErrors: parseGlobals } = await parseModels('models/broken-demo');
+    const result = validateModel(model);
+
+    const EXPECTED_GLOBALS: Record<string, number> = {
+        'parse.invalid_yaml': 1,
+        'parse.missing_id': 1,
+        'parse.empty_frontmatter': 1,
+        'edge.unknown_target': 1,
+    };
+    const EXPECTED_ENTITY: Record<string, number> = {
+        'entity.missing_pk': 1,
+        'entity.missing_columns': 1,
+        'entity.invalid_field_type': 1,
+        'entity.unknown_group': 1,
+        'edge.dangling_fk_column': 1,
+        'cluster.missing_member': 1,
+        'cluster.no_discriminator': 1,
+    };
+
+    const allGlobals = [...parseGlobals, ...result.globalErrors];
+    const globalsByRule: Record<string, number> = {};
+    for (const e of allGlobals) globalsByRule[e.ruleId] = (globalsByRule[e.ruleId] ?? 0) + 1;
+    const entityByRule: Record<string, number> = {};
+    for (const e of result.entityErrors) entityByRule[e.ruleId] = (entityByRule[e.ruleId] ?? 0) + 1;
+
+    for (const [ruleId, expected] of Object.entries(EXPECTED_GLOBALS)) {
+        const actual = globalsByRule[ruleId] ?? 0;
+        console.assert(actual === expected, `FAIL: broken-demo global ${ruleId}: expected ${expected}, got ${actual}`);
+        if (actual === expected) console.log(`PASS: broken-demo global — ${ruleId} = ${actual}`);
+    }
+    for (const [ruleId, expected] of Object.entries(EXPECTED_ENTITY)) {
+        const actual = entityByRule[ruleId] ?? 0;
+        console.assert(actual === expected, `FAIL: broken-demo entity ${ruleId}: expected ${expected}, got ${actual}`);
+        if (actual === expected) console.log(`PASS: broken-demo entity — ${ruleId} = ${actual}`);
+    }
+
+    const totalExpected = Object.values(EXPECTED_GLOBALS).reduce((a, b) => a + b, 0)
+                        + Object.values(EXPECTED_ENTITY).reduce((a, b) => a + b, 0);
+    const totalActual = allGlobals.length + result.entityErrors.length;
+    console.assert(totalActual === totalExpected, `FAIL: broken-demo total findings: expected ${totalExpected}, got ${totalActual}`);
+    console.log(`PASS: broken-demo sanity — globals=${allGlobals.length}, entityErrors=${result.entityErrors.length} (total ${totalActual})`);
 }
 
 console.log('\nAll ref validation tests passed.');

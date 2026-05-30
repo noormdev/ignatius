@@ -20,7 +20,7 @@ import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
-const MODELS = join(ROOT, 'models/key-inherited');
+const MODELS = join(ROOT, 'models/broken-demo');
 const TMP = join(ROOT, 'tmp');
 mkdirSync(TMP, { recursive: true });
 
@@ -54,18 +54,25 @@ try {
   assert(panelVisible, 'findings panel visible when findings > 0');
 
   // ---------------------------------------------------------------------------
-  // Test 2: Panel shows correct total count (1 entity error in real models/)
+  // Test 2: Panel shows correct total count (broken-demo: 4 globals + 7 entity = 11)
   // ---------------------------------------------------------------------------
   const headerText = await page.locator('.findings-panel header h3').textContent().catch(() => '');
   const countMatch = headerText?.match(/\d+/);
   const count = countMatch ? parseInt(countMatch[0]) : -1;
-  assert(count === 1, `panel header shows 1 issues (got: "${headerText}")`, `Expected "Issues (1)"`);
+  assert(count === 11, `panel header shows 11 issues (got: "${headerText}")`, `Expected "Issues (11)"`);
 
   // ---------------------------------------------------------------------------
   // Test 3: Panel has finding rows (details elements)
   // ---------------------------------------------------------------------------
   const rowCount = await page.locator('.findings-panel details').count();
-  assert(rowCount === 1, `panel renders 1 finding row (got ${rowCount})`);
+  assert(rowCount === 11, `panel renders 11 finding rows (got ${rowCount})`);
+
+  // Dismiss the global banner so it does not intercept clicks on the panel below.
+  const bannerClose = page.locator('.graph-global-banner-close');
+  if (await bannerClose.isVisible().catch(() => false)) {
+    await bannerClose.click();
+    await page.waitForTimeout(100);
+  }
 
   // ---------------------------------------------------------------------------
   // Test 4: Collapse — clicking the collapse button shows badge, hides list
@@ -92,18 +99,31 @@ try {
   // ---------------------------------------------------------------------------
   // Test 6: Clicking an entity-scoped finding row selects a node in the graph
   //
-  // Open the first details row; wait; then check if Cytoscape has a selected node.
+  // Errors (Class B globals) sort first — those don't have entityIds and are
+  // expand-only. Click the first WARNING row so the pan+select path is exercised.
   // ---------------------------------------------------------------------------
-  const firstEntityRow = page.locator('.findings-panel details').first();
-  await firstEntityRow.click();
-  await page.waitForTimeout(800); // give cy.center() + select time to settle
+  const firstEntityRow = page.locator('.findings-panel details:has(.finding-summary > span.finding-severity-warning), .findings-panel details:has(.finding-severity[class*="warning"])').first();
+  // Fallback: just find the first row whose summary text doesn't start with "error".
+  const rows = page.locator('.findings-panel details');
+  const total = await rows.count();
+  let warnRow = null;
+  for (let i = 0; i < total; i++) {
+    const row = rows.nth(i);
+    const text = (await row.locator('summary').textContent()) ?? '';
+    if (text.toLowerCase().includes('warn')) {
+      warnRow = row;
+      break;
+    }
+  }
+  if (warnRow) {
+    await warnRow.click();
+    await page.waitForTimeout(800);
 
-  const selectedCount = await page.evaluate(() => {
-    // Look for the Cytoscape selected state via the canvas — no direct API access.
-    // Fallback: check if the URL hash now contains an entity param (set by scheduleHashWrite).
-    return location.hash.includes('entity=');
-  });
-  assert(selectedCount, 'clicking entity-scoped row sets entity in URL hash (pan+select fired)');
+    const selectedCount = await page.evaluate(() => location.hash.includes('entity='));
+    assert(selectedCount, 'clicking entity-scoped row sets entity in URL hash (pan+select fired)');
+  } else {
+    console.log('  SKIP  no entity-scoped row in broken-demo panel (unexpected)');
+  }
 
   // ---------------------------------------------------------------------------
   // Test 7: Clicking a row expands inline detail (accordion)

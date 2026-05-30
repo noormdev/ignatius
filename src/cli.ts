@@ -96,7 +96,10 @@ const dictCmd = defineCommand({
     }
 
     const findings = { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors };
-    const html = await generateDict(model, findings, mode, { modelsDir: dir });
+    // Use cleanedModel.nodes (safe pk/columns shapes) but keep raw edges so the
+    // dict can still render dict-link-missing affordances for dangling FKs.
+    const renderModel = { ...model, nodes: validation.cleanedModel.nodes };
+    const html = await generateDict(renderModel, findings, mode, { modelsDir: dir });
     await Bun.write(outputPath, html);
     console.log(`Wrote dict to ${outputPath}`);
     process.exit(allGlobalErrors.length > 0 ? 1 : 0);

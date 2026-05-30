@@ -86,7 +86,7 @@ export const RULES: Record<RuleId, RuleEntry> = {
   },
   'entity.missing_columns': {
     title: 'No columns defined',
-    explanation: 'The entity has no `columns` field declared. At minimum the PK columns should be listed with their types. An entity with intentionally no non-PK attributes (e.g. a PK-only intersection table) may declare an empty `columns: {}` without triggering this warning.',
+    explanation: 'The entity has no `columns` field declared, or the field is empty. The entity renders with an empty attribute table — declare at least the PK columns with their types.',
     class: 'A',
   },
   'entity.invalid_field_type': {
@@ -135,8 +135,8 @@ export const RULES: Record<RuleId, RuleEntry> = {
     class: 'A',
   },
   'cluster.no_discriminator': {
-    title: 'Subtype cluster has no discriminator column',
-    explanation: 'The subtype cluster was declared with a plain list of members (no discriminator values). An IDEF1X-compliant subtype cluster should include a discriminator column to indicate which subtype each basetype row belongs to. Add discriminator values using the object form of `members`.',
+    title: 'Exclusive subtype cluster has no discriminator',
+    explanation: 'An exclusive subtype cluster needs a column whose value identifies which subtype a basetype instance is. Convert the members from array form to object form (`MemberName: { col: value }`) to declare the discriminator. Inclusive clusters (`exclusive: false`) do not need a discriminator — multiple subtypes can coexist for the same basetype row.',
     class: 'A',
   },
 };
@@ -159,9 +159,18 @@ function checkMissingPk(node: ModelNode): EntityError[] {
 }
 
 function checkMissingColumns(node: ModelNode): EntityError[] {
-  // Only fires when `columns` is missing (undefined). An entity with intentionally
-  // no non-PK attributes (PK-only intersection table) may declare `columns: {}`.
-  if (node.columns !== undefined) return [];
+  // Fires when `columns` is missing OR empty. parse.ts defaults missing columns
+  // to `{}` so undefined-only never fires in practice; emptiness is what consumers
+  // need flagged ("this entity renders an empty attribute table").
+  if (
+    node.columns !== undefined &&
+    node.columns !== null &&
+    typeof node.columns === 'object' &&
+    !Array.isArray(node.columns) &&
+    Object.keys(node.columns).length > 0
+  ) {
+    return [];
+  }
   return [{
     ruleId: 'entity.missing_columns',
     entityId: node.id,
@@ -272,12 +281,16 @@ function checkClusterMissingMembers(
 }
 
 function checkClusterNoDiscriminator(cluster: SubtypeCluster): EntityError[] {
+  // Only exclusive clusters need a discriminator. In inclusive clusters every
+  // subtype can coexist for a basetype instance, so no single column can
+  // partition them — flagging them as missing-discriminator is a false positive.
+  if (!cluster.exclusive) return [];
   if (cluster.hasDiscriminator) return [];
   return [{
     ruleId: 'cluster.no_discriminator',
     entityId: cluster.basetype,
     severity: 'warning',
-    message: `Subtype cluster for '${cluster.basetype}' has no discriminator column declared.`,
+    message: `Subtype cluster for '${cluster.basetype}' is exclusive but has no discriminator column declared.`,
   }];
 }
 
@@ -338,8 +351,25 @@ export function validateModel(model: Model): ValidationResult {
     cleanedClusters.push({ ...cluster, members: cleanedMembers });
   }
 
+  // Coerce nodes with invalid pk/columns shapes to safe defaults so downstream
+  // consumers (dict, graph) never crash on bad data. The original EntityError
+  // already informs the user; cleanedModel exists to keep render paths total.
+  const cleanedNodes = model.nodes.map(node => {
+    const safePk = Array.isArray(node.pk) ? node.pk : [];
+    const safeColumns =
+      node.columns !== null &&
+      node.columns !== undefined &&
+      !Array.isArray(node.columns) &&
+      typeof node.columns === 'object'
+        ? node.columns
+        : {};
+    if (safePk === node.pk && safeColumns === node.columns) return node;
+    return { ...node, pk: safePk, columns: safeColumns };
+  });
+
   const cleanedModel: Model = {
     ...model,
+    nodes: cleanedNodes,
     edges: cleanedEdges,
     subtypeClusters: cleanedClusters,
   };
