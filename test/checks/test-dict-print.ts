@@ -36,8 +36,8 @@ function assert(cond: boolean, msg: string) {
     }
 }
 
-const model = await parseModels('models/key-inherited');
-const dictHtml = await generateDict(model, 'dark', { modelsDir: 'models/key-inherited' });
+const { model, globalErrors: parseGlobalErrors } = await parseModels('models/key-inherited');
+const dictHtml = await generateDict(model, { globalErrors: parseGlobalErrors, entityErrors: [] }, 'dark', { modelsDir: 'models/key-inherited' });
 
 const fixturePath = resolve('tmp/dict-print-fixture.html');
 await Bun.write(fixturePath, dictHtml);

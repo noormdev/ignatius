@@ -23,6 +23,8 @@ import type { Model, GroupConfig, ModelNode, ModelEdge, SubtypeCluster, ThemeCon
 import { defaultTheme } from '../../src/theme-defaults';
 import { defaultBranding } from '../../src/branding-defaults';
 
+const emptyFindings = { globalErrors: [], entityErrors: [] };
+
 let failures = 0;
 
 function assert(cond: boolean, msg: string) {
@@ -86,14 +88,14 @@ const identityModel: Model = {
   ],
   edges: [] satisfies ModelEdge[],
   subtypeClusters: [
-    { basetype: 'Party', exclusive: true, members: ['Business', 'Person'] } satisfies SubtypeCluster,
-    { basetype: 'Identity', exclusive: false, members: ['ITIN', 'License', 'Passport', 'SSN'] } satisfies SubtypeCluster,
+    { basetype: 'Party', exclusive: true, members: ['Business', 'Person'], hasDiscriminator: true } satisfies SubtypeCluster,
+    { basetype: 'Identity', exclusive: false, members: ['ITIN', 'License', 'Passport', 'SSN'], hasDiscriminator: true } satisfies SubtypeCluster,
   ],
   theme: makeTheme(),
   branding: makeBranding(),
 };
 
-const identityHtml = await generateDict(identityModel, 'dark');
+const identityHtml = await generateDict(identityModel, emptyFindings, 'dark');
 
 assertOrder(
   identityHtml,
@@ -122,7 +124,7 @@ const sortKeyModel: Model = {
   branding: makeBranding(),
 };
 
-const sortKeyHtml = await generateDict(sortKeyModel, 'dark');
+const sortKeyHtml = await generateDict(sortKeyModel, emptyFindings, 'dark');
 
 assertOrder(
   sortKeyHtml,
@@ -147,7 +149,7 @@ const collisionModel: Model = {
   branding: makeBranding(),
 };
 
-const collisionHtml = await generateDict(collisionModel, 'dark');
+const collisionHtml = await generateDict(collisionModel, emptyFindings, 'dark');
 
 assertOrder(
   collisionHtml,
@@ -174,7 +176,7 @@ const unsortedModel: Model = {
   branding: makeBranding(),
 };
 
-const unsortedHtml = await generateDict(unsortedModel, 'dark');
+const unsortedHtml = await generateDict(unsortedModel, emptyFindings, 'dark');
 
 assertOrder(
   unsortedHtml,
@@ -183,17 +185,18 @@ assertOrder(
 );
 
 // ─── Test 5: standalone nodes (neither basetype nor subtype) ─────────────────
-// Two standalones: Bravo (Kernel) and Alpha (Dependent). Expected: Alpha independent? No.
-// Standalones classified by their own classification: independent (Kernel) first, then dependent.
-// Alpha is Dependent, Bravo is Kernel → Bravo first (independent tier), Alpha second (dependent tier).
+// Two standalones: Bravo (independent) and Alpha (Dependent). Expected: Bravo first.
+// Post-CP-2, 'kernel' is no longer a canonical classification; use 'independent' instead.
+// Standalones classified by their own classification: independent first, then dependent.
+// Alpha is dependent, Bravo is independent → Bravo first (independent tier), Alpha second (dependent tier).
 
 const standaloneModel: Model = {
   groups: {
     group1: { label: 'Group1', color: '#ff0000' } satisfies GroupConfig,
   },
   nodes: [
-    makeNode('Alpha', 'Dependent', 'group1'),
-    makeNode('Bravo', 'Kernel', 'group1'),
+    makeNode('Alpha', 'dependent', 'group1'),
+    makeNode('Bravo', 'independent', 'group1'),
   ],
   edges: [],
   subtypeClusters: [],
@@ -201,12 +204,12 @@ const standaloneModel: Model = {
   branding: makeBranding(),
 };
 
-const standaloneHtml = await generateDict(standaloneModel, 'dark');
+const standaloneHtml = await generateDict(standaloneModel, emptyFindings, 'dark');
 
 assertOrder(
   standaloneHtml,
   ['Bravo', 'Alpha'],
-  'standalone: Bravo(Kernel=independent) before Alpha(Dependent)',
+  'standalone: Bravo(independent) before Alpha(dependent)',
 );
 
 // ─── Test 6: parse violation test ────────────────────────────────────────────

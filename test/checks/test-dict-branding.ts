@@ -18,19 +18,20 @@ function assert(cond: boolean, msg: string) {
 }
 
 // Use a real parsed model so theme/groups/nodes are valid
-const baseModel = await parseModels('models/key-inherited');
+const { model: baseModel } = await parseModels('models/key-inherited');
+const emptyFindings = { globalErrors: [], entityErrors: [] };
 
 // Override branding with defaults explicitly
 const defaultModel = { ...baseModel, branding: defaultBranding };
 
 // ── Test 1: Default branding embeds data URI logo ─────────────────────────────
-const darkHtml = await generateDict(defaultModel, 'dark', { modelsDir: 'models/key-inherited' });
+const darkHtml = await generateDict(defaultModel, emptyFindings, 'dark', { modelsDir: 'models/key-inherited' });
 assert(
   darkHtml.includes('data:image/svg+xml;base64,'),
   'Default dark: output contains embedded data URI logo',
 );
 
-const lightHtml = await generateDict(defaultModel, 'light', { modelsDir: 'models/key-inherited' });
+const lightHtml = await generateDict(defaultModel, emptyFindings, 'light', { modelsDir: 'models/key-inherited' });
 assert(
   lightHtml.includes('data:image/svg+xml;base64,'),
   'Default light: output contains embedded data URI logo',
@@ -38,7 +39,7 @@ assert(
 
 // ── Test 2: poweredBy: true renders noorm.dev link (default — no explicit flag needed) ──
 const poweredByModel = { ...baseModel, branding: mergeBranding({}) };
-const poweredByHtml = await generateDict(poweredByModel, 'dark', { modelsDir: 'models/key-inherited' });
+const poweredByHtml = await generateDict(poweredByModel, emptyFindings, 'dark', { modelsDir: 'models/key-inherited' });
 assert(
   poweredByHtml.includes('href="https://noorm.dev"'),
   'poweredBy:true includes <a href="https://noorm.dev">',
@@ -46,7 +47,7 @@ assert(
 
 // ── Test 3: poweredBy: false omits noorm.dev link ─────────────────────────────
 const noPowerModel = { ...baseModel, branding: mergeBranding({ poweredBy: false }) };
-const noPowerHtml = await generateDict(noPowerModel, 'dark', { modelsDir: 'models/key-inherited' });
+const noPowerHtml = await generateDict(noPowerModel, emptyFindings, 'dark', { modelsDir: 'models/key-inherited' });
 assert(
   !noPowerHtml.includes('noorm.dev'),
   'poweredBy:false has NO noorm.dev link',
@@ -57,7 +58,7 @@ const customModel = {
   ...baseModel,
   branding: mergeBranding({ title: 'Acme Schema', subtitle: 'Your data mapped' }),
 };
-const customHtml = await generateDict(customModel, 'dark', { modelsDir: 'models/key-inherited' });
+const customHtml = await generateDict(customModel, emptyFindings, 'dark', { modelsDir: 'models/key-inherited' });
 assert(
   customHtml.includes('Acme Schema'),
   'Custom title "Acme Schema" appears in output',
@@ -77,7 +78,7 @@ const holderModel = {
     poweredBy: false,
   }),
 };
-const holderHtml = await generateDict(holderModel, 'dark', { modelsDir: 'models/key-inherited' });
+const holderHtml = await generateDict(holderModel, emptyFindings, 'dark', { modelsDir: 'models/key-inherited' });
 assert(
   holderHtml.includes('Widgets Inc'),
   'Footer contains custom copyright holder',

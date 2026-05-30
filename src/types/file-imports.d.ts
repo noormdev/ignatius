@@ -43,3 +43,4 @@ declare namespace Bun {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function file(bundle: HTMLBundle, options?: BlobPropertyBag): BunFile;
 }
+

@@ -1,9 +1,15 @@
 import { parseModels } from '../../src/parse';
+import { validateModel } from '../../src/validate';
 import { generateDict } from '../../src/generators/dict';
 
-const model = await parseModels('models/key-inherited');
-const darkHtml = await generateDict(model, 'dark', { modelsDir: 'models/key-inherited' });
-const lightHtml = await generateDict(model, 'light', { modelsDir: 'models/key-inherited' });
+const { model, globalErrors: parseGlobalErrors } = await parseModels('models/key-inherited');
+const validation = validateModel(model);
+const findings = {
+  globalErrors: [...parseGlobalErrors, ...validation.globalErrors],
+  entityErrors: validation.entityErrors,
+};
+const darkHtml = await generateDict(model, findings, 'dark', { modelsDir: 'models/key-inherited' });
+const lightHtml = await generateDict(model, findings, 'light', { modelsDir: 'models/key-inherited' });
 
 // Write output files for manual inspection
 await Bun.write('tmp/dict-default.html', darkHtml);

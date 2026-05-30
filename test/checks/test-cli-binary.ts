@@ -128,17 +128,17 @@ assert(existsSync(BINARY), `binary exists at dist/ignatius`);
   // Give the server a moment to bind
   await Bun.sleep(1500);
 
-  let model: { nodes?: unknown[] } = {};
+  let payload: { model?: { nodes?: unknown[] } } = {};
   try {
     const res = await fetch(`http://localhost:${PORT}/api/model`);
-    model = await res.json() as typeof model;
+    payload = await res.json() as typeof payload;
   } finally {
     proc.kill();
     await proc.exited;
   }
 
-  assert(Array.isArray(model.nodes), 'serve: /api/model returns array of nodes');
-  assert((model.nodes as unknown[]).length === 24, `serve: /api/model returns 24 nodes (got ${(model.nodes as unknown[]).length})`);
+  assert(Array.isArray(payload.model?.nodes), 'serve: /api/model returns array of nodes');
+  assert((payload.model?.nodes as unknown[])?.length === 24, `serve: /api/model returns 24 nodes (got ${(payload.model?.nodes as unknown[])?.length})`);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

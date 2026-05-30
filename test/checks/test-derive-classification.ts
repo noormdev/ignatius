@@ -8,7 +8,7 @@
 
 import { parseModels } from '../../src/parse';
 
-const model = await parseModels('models/key-inherited');
+const { model } = await parseModels('models/key-inherited');
 
 let failures = 0;
 

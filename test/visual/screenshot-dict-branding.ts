@@ -16,8 +16,9 @@ const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
 const tmpDir = resolve(import.meta.dir, '../../tmp');
 
 // ── Dark mode — default branding ──────────────────────────────────────────────
-const defaultModel = await parseModels(modelsDir);
-const darkHtml = await generateDict(defaultModel, 'dark', { modelsDir });
+const { model: defaultModel, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
+const emptyFindings = { globalErrors: parseGlobalErrors, entityErrors: [] };
+const darkHtml = await generateDict(defaultModel, emptyFindings, 'dark', { modelsDir });
 const darkPath = resolve(tmpDir, 'dict-branding-dark.html');
 await Bun.write(darkPath, darkHtml);
 console.log(`Wrote ${darkPath}`);
@@ -30,7 +31,7 @@ const customBranding = mergeBranding({
   poweredBy: false,
 });
 const customModel = { ...defaultModel, branding: customBranding };
-const lightHtml = await generateDict(customModel, 'light', { modelsDir });
+const lightHtml = await generateDict(customModel, emptyFindings, 'light', { modelsDir });
 const lightPath = resolve(tmpDir, 'dict-branding-light.html');
 await Bun.write(lightPath, lightHtml);
 console.log(`Wrote ${lightPath}`);

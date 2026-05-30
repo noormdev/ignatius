@@ -1,4 +1,6 @@
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../parse';
+import type { GlobalError, EntityError } from '../validate';
+import { RULES } from '../validate';
 import { buildThemeCssVars } from './theme-css';
 import { inlineAsset } from './inline-asset';
 import { defaultBranding } from '../branding-defaults';
@@ -26,7 +28,7 @@ function cardinalityLabel(c: { parent: string; child: string }): string {
   return `${c.parent} → ${c.child}`;
 }
 
-function renderAttributesTable(node: ModelNode, edges: ModelEdge[]): string {
+function renderAttributesTable(node: ModelNode, edges: ModelEdge[], missingTargets: Set<string>): string {
   // Collect FK mappings: child_col → parent entity
   const fkMap: Record<string, string> = {};
   for (const edge of edges) {
@@ -45,11 +47,19 @@ function renderAttributesTable(node: ModelNode, edges: ModelEdge[]): string {
     const isFk = fkMap[colName];
     let keyCell = '';
     if (isPk && isFk) {
-      keyCell = `PK · <a href="#entity-${esc(isFk)}">${esc(isFk)}</a>`;
+      if (missingTargets.has(isFk)) {
+        keyCell = `PK · <a class="dict-link-missing" href="#missing-${esc(isFk)}">${esc(isFk)}</a>`;
+      } else {
+        keyCell = `PK · <a href="#entity-${esc(isFk)}">${esc(isFk)}</a>`;
+      }
     } else if (isPk) {
       keyCell = 'PK';
     } else if (isFk) {
-      keyCell = `<a href="#entity-${esc(isFk)}">${esc(isFk)}</a>`;
+      if (missingTargets.has(isFk)) {
+        keyCell = `<a class="dict-link-missing" href="#missing-${esc(isFk)}">${esc(isFk)}</a>`;
+      } else {
+        keyCell = `<a href="#entity-${esc(isFk)}">${esc(isFk)}</a>`;
+      }
     }
 
     const nullable = def.nullable ? 'Yes' : 'No';
@@ -118,6 +128,8 @@ function renderEntitySection(
   node: ModelNode,
   edges: ModelEdge[],
   subtypeClusters: SubtypeCluster[],
+  entityErrors: EntityError[],
+  missingTargets: Set<string>,
 ): string {
   const pkList = node.pk.map(col => `<code>${esc(col)}</code>`).join(', ');
   const pkLabel = node.pk.length > 0 ? `<span class="pk-label">PK: ${pkList}</span>` : '';
@@ -137,6 +149,23 @@ function renderEntitySection(
     ? `    <p class="subtype-list">Subtypes: ${isBasetypeOf.members.map(m => `<a href="#entity-${esc(m)}">${esc(m)}</a>`).join(', ')}</p>`
     : '';
 
+  // Per-entity ⚠ triangle + <details> disclosure
+  const nodeErrors = entityErrors.filter(e => e.entityId === node.id);
+  const warningHtml = nodeErrors.length > 0 ? (() => {
+    const items = nodeErrors.map(e => {
+      const rule = RULES[e.ruleId];
+      const title = rule ? esc(rule.title) : esc(e.ruleId);
+      return `          <li><strong>${title}</strong> — ${esc(e.message)}</li>`;
+    }).join('\n');
+    return `
+      <details class="dict-entity-warning">
+        <summary>⚠ ${nodeErrors.length} issue${nodeErrors.length > 1 ? 's' : ''}</summary>
+        <ul class="dict-entity-warning-detail">
+${items}
+        </ul>
+      </details>`;
+  })() : '';
+
   return `  <section class="entity-section" id="entity-${esc(node.id)}">
     <div class="entity-header">
       <h2>${esc(node.id)}</h2>
@@ -144,9 +173,9 @@ function renderEntitySection(
       ${basetypeBadge}
       ${subtypeOfBadge}
       ${pkLabel}
-    </div>
+    </div>${warningHtml}
 ${subtypeList}
-${renderAttributesTable(node, edges)}
+${renderAttributesTable(node, edges, missingTargets)}
 ${renderRelationshipsTable(node, edges)}
     <div class="entity-body">${node.bodyHtml}</div>
   </section>`;
@@ -172,7 +201,6 @@ function sortGroupNodes(
   subtypeClusters: SubtypeCluster[],
 ): ModelNode[] {
   const independentClassifications: Record<string, true> = {
-    kernel: true,
     independent: true,
   };
 
@@ -244,12 +272,14 @@ function renderGroupSection(
   nodes: ModelNode[],
   edges: ModelEdge[],
   subtypeClusters: SubtypeCluster[],
+  entityErrors: EntityError[],
+  missingTargets: Set<string>,
 ): string {
   const groupNodes = nodes.filter(n => n.group === groupKey);
   if (groupNodes.length === 0) return '';
 
   const entitiesHtml = sortGroupNodes(groupNodes, subtypeClusters)
-    .map(n => renderEntitySection(n, edges, subtypeClusters))
+    .map(n => renderEntitySection(n, edges, subtypeClusters, entityErrors, missingTargets))
     .join('\n');
 
   const descHtml = groupConfig.desc ?? '';
@@ -321,11 +351,27 @@ ${swatches}
 
 export async function generateDict(
   model: Model,
+  findings: { globalErrors: GlobalError[]; entityErrors: EntityError[] },
   mode: 'dark' | 'light',
   opts?: { modelsDir?: string },
 ): Promise<string> {
   const modelsDir = opts?.modelsDir ?? '.';
   const branding = model.branding;
+
+  const { globalErrors, entityErrors } = findings;
+
+  // Build set of entity ids that are missing targets (from edge.unknown_target errors).
+  // These are used to render FK links with dict-link-missing class and to generate
+  // placeholder sections at the bottom of the page.
+  const missingTargets = new Set(
+    globalErrors
+      .filter(e => e.ruleId === 'edge.unknown_target')
+      .map(e => {
+        // omitted.id format is "Source→Target"
+        const arrow = e.omitted.id.indexOf('→');
+        return arrow >= 0 ? e.omitted.id.slice(arrow + 1) : e.omitted.id;
+      }),
+  );
 
   // Inline only the active mode's logo to avoid embedding unused assets
   const activeLogo = mode === 'dark' ? branding.logo.dark : branding.logo.light;
@@ -360,7 +406,7 @@ export async function generateDict(
     .map(key => {
       const cfg = model.groups[key];
       if (!cfg) return '';
-      return renderGroupSection(key, cfg, model.nodes, model.edges, model.subtypeClusters);
+      return renderGroupSection(key, cfg, model.nodes, model.edges, model.subtypeClusters, entityErrors, missingTargets);
     })
     .filter(s => s.length > 0)
     .join('\n\n');
@@ -368,12 +414,30 @@ export async function generateDict(
   const ungroupedSection = ungroupedNodes.length > 0
     ? ungroupedNodes
         .sort((a, b) => a.id.localeCompare(b.id))
-        .map(n => renderEntitySection(n, model.edges, model.subtypeClusters))
+        .map(n => renderEntitySection(n, model.edges, model.subtypeClusters, entityErrors, missingTargets))
         .join('\n')
     : '';
 
   const legend = renderGroupLegend(model.groups);
   const sideNav = renderSideNav(groupOrder, model.groups, model.nodes, model.subtypeClusters);
+
+  // Global banner: shown only when there are global errors
+  const globalBannerHtml = globalErrors.length > 0 ? (() => {
+    const rows = globalErrors.map(e => {
+      const rule = RULES[e.ruleId];
+      const title = rule ? esc(rule.title) : esc(e.ruleId);
+      return `      <div class="dict-global-banner-row"><strong>${title}</strong> — ${esc(e.reason)} <em>(${esc(e.omitted.kind)}: ${esc(e.omitted.id)})</em></div>`;
+    }).join('\n');
+    return `  <div class="dict-global-banner">
+${rows}
+  </div>`;
+  })() : '';
+
+  // Missing placeholder sections: one per unique missing target, placed at page bottom
+  const missingSections = missingTargets.size > 0 ? [...missingTargets].map(id => `  <section id="missing-${esc(id)}" class="dict-missing-section">
+    <h2>${esc(id)} (omitted)</h2>
+    <p>This entity was referenced but does not exist in the model.</p>
+  </section>`).join('\n') : '';
 
   return `<!doctype html>
 <html lang="en">
@@ -888,9 +952,84 @@ export async function generateDict(
       .dict-nav-toggle,
       .dict-nav-panel { display: none; }
     }
+
+    /* ── Global error banner ─────────────────────────────────────────────── */
+    .dict-global-banner {
+      background: #7f1d1d;
+      color: #fef2f2;
+      border-bottom: 2px solid #991b1b;
+      padding: 0.75rem 1.5rem;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .dict-global-banner-row {
+      padding: 0.2rem 0;
+    }
+    .dict-global-banner-row strong {
+      font-weight: 600;
+    }
+    .dict-global-banner-row em {
+      color: #fca5a5;
+      font-style: normal;
+    }
+
+    /* ── Per-entity warning disclosure ──────────────────────────────────── */
+    .dict-entity-warning {
+      margin: 0.5rem 0 0.75rem;
+      font-size: 0.82rem;
+    }
+    .dict-entity-warning > summary {
+      cursor: pointer;
+      color: #f59e0b;
+      font-weight: 600;
+      user-select: none;
+      list-style: none;
+      padding: 0.2rem 0;
+    }
+    .dict-entity-warning > summary::-webkit-details-marker { display: none; }
+    .dict-entity-warning[open] > summary { margin-bottom: 0.35rem; }
+    .dict-entity-warning-detail {
+      margin: 0;
+      padding: 0 0 0 1.25rem;
+      color: var(--color-text-muted);
+      list-style: disc;
+    }
+    .dict-entity-warning-detail li {
+      padding: 0.15rem 0;
+    }
+    .dict-entity-warning-detail li strong {
+      color: var(--color-text);
+      font-weight: 600;
+    }
+
+    /* ── Missing FK links ────────────────────────────────────────────────── */
+    a.dict-link-missing {
+      color: #f59e0b;
+      text-decoration: underline dotted;
+    }
+    a.dict-link-missing:hover {
+      color: #d97706;
+    }
+
+    /* ── Missing entity placeholder sections ────────────────────────────── */
+    .dict-missing-section {
+      background: var(--color-surface);
+      border: 1px dashed #f59e0b;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      color: var(--color-text-muted);
+    }
+    .dict-missing-section h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #f59e0b;
+      margin-bottom: 0.5rem;
+    }
   </style>
 </head>
 <body>
+${globalBannerHtml}
   <div class="dict-branding">
     <img class="dict-branding-logo" src="${logoSrc}" alt="${esc(branding.title)} logo">
     <div class="dict-branding-text">
@@ -907,6 +1046,7 @@ export async function generateDict(
   <main>
 ${groupSections}
 ${ungroupedSection}
+${missingSections}
   </main>
   <footer class="dict-footer">
     <div class="dict-footer-copyright">© ${branding.copyright.year} ${esc(branding.copyright.holder)}</div>

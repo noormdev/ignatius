@@ -3,9 +3,11 @@ import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
 import cytoscapeNavigator from 'cytoscape-navigator';
 import 'cytoscape-navigator/cytoscape.js-navigator.css';
-import { createMarkerOverlay, updateMarkers } from './markers';
+import { createMarkerOverlay, updateMarkers, drawWarningBadges } from './markers';
 import { semanticColors, type ThemeConfig, type ThemeMode } from './theme-defaults';
 import { parseHash, serializeHash, type HashState } from './hash-router';
+import { validateModel, RULES } from './validate';
+import type { EntityError, GlobalError } from './validate';
 import type {
   Model,
   ModelNode,
@@ -57,6 +59,7 @@ declare global {
   interface Window {
     __MODEL__?: Model;
     __THEME_MODE__?: 'dark' | 'light';
+    __IGNATIUS_MODE__?: 'live' | 'static';
   }
 }
 
@@ -253,6 +256,82 @@ function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mo
   return base;
 }
 
+function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigate }: {
+  selected: ModelNode;
+  model: Model | null;
+  entityErrors: EntityError[];
+  onClose: () => void;
+  onNavigate: (id: string) => void;
+}) {
+  const groups = model?.groups ?? {};
+  const edges = model?.edges ?? [];
+  const nodes = model?.nodes ?? [];
+  const groupCfg = selected.group ? groups[selected.group] : undefined;
+  const errorsForSelected = entityErrors.filter(e => e.entityId === selected.id);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+        <div className="modal-header">
+          <h1>{selected.id.replace(/_/g, ' ')}</h1>
+          <div className="modal-badges">
+            <span className={`badge ${selected.classification.toLowerCase()}`}>
+              {selected.classification}
+            </span>
+            {groupCfg && (
+              <span
+                className="badge"
+                style={{
+                  background: hexToRgba(groupCfg.color, 0.2),
+                  color: groupCfg.color,
+                }}
+              >
+                {groupCfg.label}
+              </span>
+            )}
+            <span className="pk-label">
+              PK: {selected.pk.join(', ')}
+            </span>
+          </div>
+        </div>
+        <ColumnsTable
+          node={selected}
+          edges={edges}
+          onNavigate={(id) => {
+            const target = nodes.find(n => n.id === id);
+            if (target) onNavigate(id);
+          }}
+        />
+        <div
+          className="doc-body"
+          dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
+        />
+        <ChildrenTable
+          node={selected}
+          edges={edges}
+          onNavigate={(id) => {
+            const target = nodes.find(n => n.id === id);
+            if (target) onNavigate(id);
+          }}
+        />
+        {errorsForSelected.length > 0 && (
+          <div className="graph-modal-issues-section">
+            <h4>Issues</h4>
+            <ul>
+              {errorsForSelected.map(err => (
+                <li key={err.ruleId}>
+                  <strong>{RULES[err.ruleId]?.title ?? err.ruleId}</strong>: {err.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ColumnsTable({ node, edges, onNavigate }: {
   node: ModelNode;
   edges: ModelEdge[];
@@ -363,11 +442,142 @@ function ChildrenTable({ node, edges, onNavigate }: {
   );
 }
 
+// ---------------------------------------------------------------------------
+// FindingsPanel — persistent top-right panel listing all current findings.
+//
+// Renders when totalFindings > 0; hidden when zero (no empty chrome).
+// Each row is a <details> accordion; opening an entity-scoped row fires
+// onNavigate so the graph viewport pans + zooms + selects that entity.
+// Global-scoped rows expand inline only (no entity to navigate to).
+// ---------------------------------------------------------------------------
+
+type FindingRow =
+  | { kind: 'entity'; ruleId: string; entityId: string; severity: 'warning'; message: string }
+  | { kind: 'global'; ruleId: string; severity: 'error'; location: string; reason: string };
+
+function buildFindingRows(
+  globalErrors: GlobalError[],
+  entityErrors: EntityError[],
+): FindingRow[] {
+  const rows: FindingRow[] = [
+    ...globalErrors.map((e): FindingRow => ({
+      kind: 'global',
+      ruleId: e.ruleId,
+      severity: 'error',
+      location: `${e.omitted.kind}:${e.omitted.id}`,
+      reason: e.reason,
+    })),
+    ...entityErrors.map((e): FindingRow => ({
+      kind: 'entity',
+      ruleId: e.ruleId,
+      entityId: e.entityId,
+      severity: 'warning',
+      message: e.message,
+    })),
+  ];
+
+  // Sort: errors before warnings, then ruleId alphabetical, then location/entityId.
+  rows.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'error' ? -1 : 1;
+    if (a.ruleId !== b.ruleId) return a.ruleId.localeCompare(b.ruleId);
+    const aLoc = a.kind === 'entity' ? a.entityId : a.location;
+    const bLoc = b.kind === 'entity' ? b.entityId : b.location;
+    return aLoc.localeCompare(bLoc);
+  });
+
+  return rows;
+}
+
+function FindingsPanel({
+  globalErrors,
+  entityErrors,
+  collapsed,
+  onCollapse,
+  onExpand,
+  onNavigate,
+}: {
+  globalErrors: GlobalError[];
+  entityErrors: EntityError[];
+  collapsed: boolean;
+  onCollapse: () => void;
+  onExpand: () => void;
+  onNavigate: (entityId: string) => void;
+}) {
+  const rows = buildFindingRows(globalErrors, entityErrors);
+  const total = rows.length;
+
+  if (total === 0) return null;
+
+  if (collapsed) {
+    return (
+      <aside className="findings-panel findings-panel--collapsed">
+        <button className="findings-panel-badge" onClick={onExpand}>
+          ⚠ {total} {total === 1 ? 'issue' : 'issues'}
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="findings-panel">
+      <header className="findings-panel-header">
+        <h3>Issues ({total})</h3>
+        <button className="findings-panel-collapse" onClick={onCollapse} aria-label="Collapse panel">
+          −
+        </button>
+      </header>
+      <ul className="findings-panel-list">
+        {rows.map((row, i) => {
+          const rule = RULES[row.ruleId as keyof typeof RULES];
+          const location = row.kind === 'entity' ? row.entityId : row.location;
+          const detail = row.kind === 'entity' ? row.message : row.reason;
+
+          return (
+            <li key={i}>
+              <details
+                onToggle={(e) => {
+                  // Only navigate on open (not on close).
+                  if ((e.target as HTMLDetailsElement).open && row.kind === 'entity') {
+                    onNavigate(row.entityId);
+                  }
+                }}
+              >
+                <summary className="finding-summary">
+                  <span className={`finding-severity finding-severity--${row.severity}`}>
+                    {row.severity === 'error' ? 'ERR' : 'WARN'}
+                  </span>
+                  <span className="finding-rule">{row.ruleId}</span>
+                  <span className="finding-location">{location}</span>
+                </summary>
+                <div className="finding-detail">
+                  {rule && (
+                    <>
+                      <strong className="finding-detail-title">{rule.title}</strong>
+                      <p className="finding-detail-explanation">{rule.explanation}</p>
+                    </>
+                  )}
+                  <p className="finding-detail-message">{detail}</p>
+                </div>
+              </details>
+            </li>
+          );
+        })}
+      </ul>
+    </aside>
+  );
+}
+
 export function App() {
   const graphRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [model, setModel] = useState<Model | null>(null);
+  const [findings, setFindings] = useState<{
+    globalErrors: GlobalError[];
+    entityErrors: EntityError[];
+  }>({ globalErrors: [], entityErrors: [] });
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [cyInitError, setCyInitError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ModelNode | null>(null);
   const [showGroups, setShowGroups] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -376,6 +586,7 @@ export function App() {
   });
   const [cyReady, setCyReady] = useState(false);
   const [copyConfirm, setCopyConfirm] = useState(false);
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const fabRef = useRef<HTMLButtonElement>(null);
   // Set by the cytoscape useEffect; lets modal navigation update the hash
   // without re-entering the useEffect closure.
@@ -383,6 +594,9 @@ export function App() {
   function navigateToEntity(id: string) {
     navigateToEntityRef.current(id);
   }
+  // Direct pan+zoom+select for the findings panel — bypasses hash roundtrip
+  // so the viewport update is synchronous when a user clicks a panel row.
+  const panelNavigateRef = useRef<(id: string) => void>(() => {});
   const menuRef = useRef<HTMLDivElement>(null);
   const minimapRef = useRef<HTMLDivElement>(null);
   // Mirrors minimapOpen for the cy useEffect to read on mount without
@@ -402,24 +616,46 @@ export function App() {
   const themeModeRef = useRef<ThemeMode>(themeMode);
 
   useEffect(() => {
-    // Static mode: model baked in at generation time — skip server entirely
-    if (window.__MODEL__) {
-      setModel(window.__MODEL__);
+    const mode = window.__IGNATIUS_MODE__;
+
+    // Static mode: model baked in at generation time — run validateModel locally.
+    // WHY: static graph.html embeds window.__MODEL__ at build time; the bundle
+    // re-validates so a stale file still shows current findings.
+    if (mode === 'static' && window.__MODEL__) {
+      const rawModel = window.__MODEL__;
+      const validation = validateModel(rawModel);
+      setModel(validation.cleanedModel);
+      setFindings({
+        globalErrors: validation.globalErrors,
+        entityErrors: validation.entityErrors,
+      });
       return;
     }
 
-    fetch('/api/model').then(r => r.json()).then(setModel);
+    // Live mode: server computed validation — use its payload, do not re-validate.
+    function applyPayload(payload: { model: Model; parseGlobalErrors: GlobalError[]; validation: { cleanedModel: Model; globalErrors: GlobalError[]; entityErrors: EntityError[] } }) {
+      const allGlobal = [...payload.parseGlobalErrors, ...payload.validation.globalErrors];
+      setModel(payload.validation.cleanedModel);
+      setFindings({
+        globalErrors: allGlobal,
+        entityErrors: payload.validation.entityErrors,
+      });
+    }
+
+    fetch('/api/model').then(r => r.json()).then(applyPayload);
 
     const es = new EventSource('/events');
     es.addEventListener('model-changed', () => {
       fetch('/api/model')
         .then(r => r.json())
-        .then((newModel: Model) => {
-          setModel(newModel);
+        .then((payload: Parameters<typeof applyPayload>[0]) => {
+          applyPayload(payload);
+          // Reset banner dismissal on fresh data (new findings may have appeared)
+          setBannerDismissed(false);
           // Keep selected node in sync: update it from the new model, or clear if removed
           setSelected(prev => {
             if (!prev) return null;
-            const updated = newModel.nodes.find(n => n.id === prev.id);
+            const updated = payload.validation.cleanedModel.nodes.find(n => n.id === prev.id);
             return updated ?? null;
           });
         });
@@ -443,6 +679,8 @@ export function App() {
     if (!cyRef.current || !model || !svgRef.current) return;
     cyRef.current.style(buildStyles(model.groups, model.theme, themeMode));
     updateMarkers(cyRef.current, svgRef.current, model.theme, themeMode);
+    const badgeIds = new Set(findings.entityErrors.map(e => e.entityId));
+    drawWarningBadges(cyRef.current, svgRef.current, badgeIds);
   }, [themeMode]);
 
   // Toggle minimap at runtime WITHOUT rebuilding cy. The cy useEffect owns
@@ -520,6 +758,11 @@ export function App() {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [menuOpen]);
+
+  // Ref so badge-drawing always sees current findings without adding findings to
+  // the cy useEffect dep array (which would rebuild the graph on each live update).
+  const findingsRef = useRef(findings);
+  findingsRef.current = findings;
 
   useEffect(() => {
     if (!model || !graphRef.current) return;
@@ -630,28 +873,36 @@ export function App() {
     const markerPadding = 50; // room for markers on both ends
     const layerSpacing = Math.max(80, longestPredicate * charWidth + markerPadding);
 
-    const cy = cytoscape({
-      container: graphRef.current,
-      elements,
-      layout: {
-        name: 'elk',
-        elk: {
-          algorithm: 'layered',
-          'elk.direction': 'DOWN',
-          'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
-          'elk.spacing.nodeNode': String(model.theme.spacing.nodeSep),
-          'elk.edgeRouting': 'ORTHOGONAL',
-          'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-          'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-          'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
-          'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
-          'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-        },
-      } as cytoscape.LayoutOptions,
-      style: buildStyles(model.groups, model.theme, themeMode),
-      minZoom: 0.3,
-      maxZoom: 3,
-    });
+    let cy: cytoscape.Core;
+    try {
+      cy = cytoscape({
+        container: graphRef.current,
+        elements,
+        layout: {
+          name: 'elk',
+          elk: {
+            algorithm: 'layered',
+            'elk.direction': 'DOWN',
+            'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
+            'elk.spacing.nodeNode': String(model.theme.spacing.nodeSep),
+            'elk.edgeRouting': 'ORTHOGONAL',
+            'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+            'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+            'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
+            'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+            'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+          },
+        } as cytoscape.LayoutOptions,
+        style: buildStyles(model.groups, model.theme, themeMode),
+        minZoom: 0.3,
+        maxZoom: 3,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[ignatius] Cytoscape init failed:', msg);
+      setCyInitError(msg);
+      return;
+    }
 
     if (!svgRef.current) {
       svgRef.current = createMarkerOverlay(graphRef.current);
@@ -661,6 +912,10 @@ export function App() {
     const redrawMarkers = () => {
       if (cy.destroyed()) return;
       updateMarkers(cy, svg, model.theme, themeModeRef.current);
+      // Draw warning badges for entities with findings on top of crow's-foot markers.
+      // Reads findingsRef so badge set stays current without adding findings as a dep.
+      const badgeIds = new Set(findingsRef.current.entityErrors.map(e => e.entityId));
+      drawWarningBadges(cy, svg, badgeIds);
     };
 
 
@@ -766,6 +1021,18 @@ export function App() {
       scheduleHashWrite({ ...viewportState(), entity: id });
     };
 
+    // Direct navigate for the findings panel: select + center immediately, then sync hash.
+    panelNavigateRef.current = (id: string) => {
+      const target = cy.$(`#${CSS.escape(id)}`);
+      if (target.length === 0) return;
+      cy.elements().unselect();
+      target.select();
+      cy.center(target);
+      const node = modelNonNull.nodes.find(n => n.id === id);
+      if (node) setSelected(node);
+      scheduleHashWrite({ ...viewportState(), entity: id });
+    };
+
     // hashchange: re-apply if different from what we last wrote (avoids feedback loops)
     function onHashChange() {
       const newHash = location.hash.startsWith('#') ? location.hash.slice(1) : '';
@@ -794,6 +1061,8 @@ export function App() {
       }
       if (writeTimer !== null) clearTimeout(writeTimer);
       window.removeEventListener('hashchange', onHashChange);
+      navigateToEntityRef.current = () => {};
+      panelNavigateRef.current = () => {};
       cy.destroy();
       cyRef.current = null;
       setCyReady(false);
@@ -811,8 +1080,40 @@ export function App() {
     ? (themeMode === 'dark' ? branding.logo.dark : branding.logo.light)
     : undefined;
 
+  // Error fallback — cytoscape init threw; render banner instead of blank canvas
+  if (cyInitError) {
+    return (
+      <div className="graph-error-fallback">
+        <div className="graph-error-fallback-box">
+          <h2>Graph failed to render</h2>
+          <p>The graph initializer encountered an error. The model may contain data that Cytoscape cannot process. Check the global errors below and correct the model.</p>
+          <pre>{cyInitError}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  const showBanner = !bannerDismissed && findings.globalErrors.length > 0;
+
   return (
     <div className="app">
+      {showBanner && (
+        <div className="graph-global-banner" role="alert">
+          <button
+            className="graph-global-banner-close"
+            onClick={() => setBannerDismissed(true)}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+          {findings.globalErrors.map((err, i) => (
+            <div key={i} className="graph-global-banner-row">
+              <strong>{RULES[err.ruleId]?.title ?? err.ruleId}:</strong>
+              <span>{err.reason}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="graph-panel" ref={graphRef} />
       {minimapOpen && <div ref={minimapRef} id="minimap-panel" className="minimap" />}
       {branding && (
@@ -906,59 +1207,19 @@ export function App() {
         </div>
       )}
       {selected && (
-        <div className="modal-backdrop" onClick={() => setSelected(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelected(null)}>×</button>
-            <div className="modal-header">
-              <h1>{selected.id.replace(/_/g, ' ')}</h1>
-              <div className="modal-badges">
-                <span className={`badge ${selected.classification.toLowerCase()}`}>
-                  {selected.classification}
-                </span>
-                {selected.group && model?.groups[selected.group] && (
-                  <span
-                    className="badge"
-                    style={{
-                      background: hexToRgba(model.groups[selected.group].color, 0.2),
-                      color: model.groups[selected.group].color,
-                    }}
-                  >
-                    {model.groups[selected.group].label}
-                  </span>
-                )}
-                <span className="pk-label">
-                  PK: {selected.pk.join(', ')}
-                </span>
-              </div>
-            </div>
-            <ColumnsTable
-              node={selected}
-              edges={model?.edges ?? []}
-              onNavigate={(id) => {
-                const target = model?.nodes.find(n => n.id === id);
-                if (target) {
-                  setSelected(target);
-                  navigateToEntity(id);
-                }
-              }}
-            />
-            <div
-              className="doc-body"
-              dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
-            />
-            <ChildrenTable
-              node={selected}
-              edges={model?.edges ?? []}
-              onNavigate={(id) => {
-                const target = model?.nodes.find(n => n.id === id);
-                if (target) {
-                  setSelected(target);
-                  navigateToEntity(id);
-                }
-              }}
-            />
-          </div>
-        </div>
+        <SelectedEntityModal
+          selected={selected}
+          model={model}
+          entityErrors={findings.entityErrors}
+          onClose={() => setSelected(null)}
+          onNavigate={(id) => {
+            const target = model?.nodes.find(n => n.id === id);
+            if (target) {
+              setSelected(target);
+              navigateToEntity(id);
+            }
+          }}
+        />
       )}
       {branding && (
         <footer className="branding-footer">
@@ -975,6 +1236,14 @@ export function App() {
           )}
         </footer>
       )}
+      <FindingsPanel
+        globalErrors={findings.globalErrors}
+        entityErrors={findings.entityErrors}
+        collapsed={panelCollapsed}
+        onCollapse={() => setPanelCollapsed(true)}
+        onExpand={() => setPanelCollapsed(false)}
+        onNavigate={(id) => panelNavigateRef.current(id)}
+      />
     </div>
   );
 }

@@ -88,8 +88,11 @@ export async function generateGraph(
   // the original value at runtime.
   const jsContent = jsRaw.replace(/<\/script>/gi, () => '<\\/script>');
 
-  // Inject the model and theme before the React module so App can read them synchronously
-  const injection = `<script>window.__MODEL__ = ${JSON.stringify(model)}; window.__THEME_MODE__ = "${mode}";</script>`;
+  // Inject the model, theme, and mode flag before the React module so App can read them synchronously.
+  // WHY the injection must come before the module script: the module script (type="module") is
+  // deferred; synchronous scripts run in document order, so placing the injection immediately
+  // before the module script guarantees it executes first.
+  const injection = `<script>window.__IGNATIUS_MODE__ = "static"; window.__MODEL__ = ${JSON.stringify(model)}; window.__THEME_MODE__ = "${mode}";</script>`;
 
   // Replace external CSS link with inlined <style>.
   // Use a function replacement to prevent $ signs in cssContent being interpreted as
@@ -108,6 +111,13 @@ export async function generateGraph(
     /<script type="module"[^>]*src="[^"]*index-[^"]+\.js"[^>]*><\/script>/,
     () => inlinedScript,
   );
+
+  // Strip the body 'live' mode script that Bun bundles from src/index.html.
+  // WHY: dist/static/index.html retains `window.__IGNATIUS_MODE__ = 'live'` in the
+  // <body> from src/index.html. That body script runs AFTER the head injection, so it
+  // would overwrite 'static' back to 'live'. Remove it so the injection's 'static' wins.
+  html = html.replace(/<script>window\.__IGNATIUS_MODE__ = 'live';<\/script>/g, '');
+
 
   return html;
 }

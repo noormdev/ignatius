@@ -31,9 +31,9 @@ function assert(cond: boolean, msg: string) {
 // ── Setup: generate default-branding dict + graph HTML ───────────────────────
 // parseModels with no _branding.yaml naturally defaults — exercises the full parse→merge path.
 
-const model = await parseModels('models/key-inherited');
+const { model, globalErrors: parseGlobalErrors } = await parseModels('models/key-inherited');
 
-const dictHtml = await generateDict(model, 'dark', { modelsDir: 'models/key-inherited' });
+const dictHtml = await generateDict(model, { globalErrors: parseGlobalErrors, entityErrors: [] }, 'dark', { modelsDir: 'models/key-inherited' });
 const graphHtml = await generateGraph(model, 'dark');
 
 const dictPath = resolve('tmp/zero-network-dict.html');

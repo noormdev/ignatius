@@ -1,5 +1,6 @@
 import index from './index.html';
 import { parseModels } from './parse';
+import { validateModel } from './validate';
 import { generateDict } from './generators/dict';
 import { resolve, normalize, isAbsolute } from 'path';
 import { watch } from 'fs';
@@ -66,15 +67,18 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         const url = new URL(req.url);
         const rawTheme = url.searchParams.get('theme');
         const mode = rawTheme === 'light' ? 'light' : 'dark';
-        const model = await parseModels(modelsDir);
-        const html = await generateDict(model, mode, { modelsDir });
+        const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
+        const validation = validateModel(model);
+        const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
+        const html = await generateDict(model, { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors }, mode, { modelsDir });
         return new Response(html, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
       },
       '/api/model': async () => {
-        const model = await parseModels(modelsDir);
-        return Response.json(model);
+        const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
+        const validation = validateModel(model);
+        return Response.json({ model, parseGlobalErrors, validation });
       },
       '/api/asset': async (req) => {
         const url = new URL(req.url);

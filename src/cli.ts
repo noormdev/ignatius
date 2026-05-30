@@ -84,10 +84,22 @@ const dictCmd = defineCommand({
     const base = args.path ? resolve(args.path) : process.cwd();
     const dir = await pickModel(base, args.model);
     const mode = args.theme === 'light' ? 'light' : 'dark';
-    const model = await parseModels(dir);
-    const html = await generateDict(model, mode, { modelsDir: dir });
+    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
+    const { validateModel, formatFindingsForStderr } = await import('./validate');
+    const validation = validateModel(model);
+
+    // Print all findings to stderr before writing output.
+    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
+    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors);
+    for (const line of stderrLines) {
+      process.stderr.write(line + '\n');
+    }
+
+    const findings = { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors };
+    const html = await generateDict(model, findings, mode, { modelsDir: dir });
     await Bun.write(outputPath, html);
     console.log(`Wrote dict to ${outputPath}`);
+    process.exit(allGlobalErrors.length > 0 ? 1 : 0);
   },
 });
 
@@ -131,7 +143,15 @@ const graphCmd = defineCommand({
     const base = args.path ? resolve(args.path) : process.cwd();
     const dir = await pickModel(base, args.model);
     const mode = args.theme === 'light' ? 'light' : 'dark';
-    const model = await parseModels(dir);
+    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
+    const { validateModel, formatFindingsForStderr } = await import('./validate');
+    const validation = validateModel(model);
+
+    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
+    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors);
+    for (const line of stderrLines) {
+      process.stderr.write(line + '\n');
+    }
 
     // Dynamic import so `dict`/`serve` work without a prior bundle build.
     let bundle;
@@ -151,6 +171,7 @@ const graphCmd = defineCommand({
     const html = await generateGraph(model, mode, bundle);
     await Bun.write(outputPath, html);
     console.log(`Wrote graph to ${outputPath}`);
+    process.exit(allGlobalErrors.length > 0 ? 1 : 0);
   },
 });
 

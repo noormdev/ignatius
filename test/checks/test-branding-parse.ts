@@ -29,7 +29,7 @@ function makeFixtureDir(name: string): string {
 {
   const dir = makeFixtureDir('defaults');
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\n`);
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
   console.assert(model.branding !== undefined, 'FAIL: branding field missing');
   console.assert(model.branding.title === defaultBranding.title,
     `FAIL: default title: ${model.branding.title}`);
@@ -45,7 +45,7 @@ function makeFixtureDir(name: string): string {
 {
   const dir = makeFixtureDir('custom');
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  title: "Acme Schema"\n  subtitle: "Internal data"\n  logo: "./assets/logo.svg"\n  copyright:\n    holder: "Acme Corp"\n    year: 2025\n  poweredBy: false\n`);
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
   console.assert(model.branding.title === 'Acme Schema',
     `FAIL: custom title: ${model.branding.title}`);
   console.assert(model.branding.subtitle === 'Internal data',
@@ -62,7 +62,7 @@ function makeFixtureDir(name: string): string {
 {
   const dir = makeFixtureDir('shorthand');
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  logo: "./icon.svg"\n`);
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
   console.assert(model.branding.logo.dark === './icon.svg',
     `FAIL: shorthand dark: ${model.branding.logo.dark}`);
   console.assert(model.branding.logo.light === './icon.svg',
@@ -74,7 +74,7 @@ function makeFixtureDir(name: string): string {
 {
   const dir = makeFixtureDir('logo-object');
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  logo:\n    dark: "./logo-dark.svg"\n`);
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
   console.assert(model.branding.logo.dark === './logo-dark.svg',
     `FAIL: object.dark: ${model.branding.logo.dark}`);
   console.assert(model.branding.logo.light === './logo-dark.svg',

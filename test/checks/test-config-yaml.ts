@@ -44,7 +44,7 @@ branding:
   poweredBy: false
 `);
 
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
 
   console.assert(model._meta !== undefined, 'FAIL (a): _meta should be defined');
   console.assert(model._meta?.name === 'Full Model', `FAIL (a): _meta.name = ${model._meta?.name}`);
@@ -67,7 +67,7 @@ branding:
   const dir = makeFixtureDir('name-only');
   writeFileSync(`${dir}/ignatius.yml`, `name: Name-Only Model\n`);
 
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
 
   console.assert(model._meta !== undefined, 'FAIL (b): _meta should be defined');
   console.assert(model._meta?.name === 'Name-Only Model', `FAIL (b): _meta.name = ${model._meta?.name}`);
@@ -84,7 +84,7 @@ branding:
   const dir = makeFixtureDir('no-config');
   // no ignatius.yml written
 
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
 
   console.assert(model._meta === undefined, `FAIL (c): _meta should be undefined, got ${JSON.stringify(model._meta)}`);
   console.assert(model.theme.dark.background === defaultTheme.dark.background, `FAIL (c): theme should default`);

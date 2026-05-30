@@ -3,7 +3,7 @@ import { generateGraph } from '../../src/generators/graph';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 
-const model = await parseModels('models/key-inherited');
+const { model } = await parseModels('models/key-inherited');
 
 let failures = 0;
 

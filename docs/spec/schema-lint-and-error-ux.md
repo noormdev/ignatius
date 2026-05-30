@@ -94,10 +94,32 @@ CLI stderr printing is consolidated in `src/cli.ts` after `parseModels` + `valid
 
 **Why:** Deriving classification from keys eliminates the declared-vs-structural mismatch this linter was partly designed to catch.
 
-**Superseded / impacted (pending rule-catalog redesign):**
+**Superseded / impacted (rule-catalog redesign applied in this ship):**
 
-- `entity.classification_mismatch_dependent` / `entity.classification_mismatch_independent` — moot: no declared classification to mismatch. The check becomes "is the key structure internally coherent" (e.g. associative requires ≥2 identifying parents), not "does the declared label match the keys".
-- `entity.unknown_classification` — replaced by validating the `reference` boolean flag instead of a free-string classification.
-- Models no longer carry `classification:` / `identifying:` lines, so the CP-1/CP-2 references to those declarations and the "reference `models/` set may contain wrong classification declarations" risk no longer apply as written.
+- `entity.classification_mismatch_dependent` / `entity.classification_mismatch_independent` — **removed**. No declared classification to mismatch.
+- `entity.unknown_classification` — **removed**. Classification isn't user-input anymore.
+- Models no longer carry `classification:` / `identifying:` lines, so the CP-1/CP-2 references to those declarations no longer apply as originally written.
 
-Full rule-catalog redesign deferred to the linter's own implementation pass.
+
+## Implementation log
+
+### shipped — 2026-05-30
+
+Built across 7 iterations of /subagent-implementation (6 CPs + 1 polish pass), then rebased onto master to reconcile with the `ignatius.yml` config + derived-classification + citty-CLI rewrite that landed on master in parallel.
+
+**Out-of-scope work performed during this build:**
+
+- CP-5 caught and fixed a CP-4 bug: the inline `window.__IGNATIUS_MODE__ = 'live'` in src/index.html survived bundling and ran AFTER `generateGraph`'s `'static'` injection, overwriting it. CP-5 added a strip step in `generateGraph` so `'static'` wins for static graph output.
+- Polish pass removed `entity.naming_not_pascal_case` and `entity.column_not_snake_case` per user feedback ("naming shouldn't matter, people are different").
+- Master-reconcile pass removed `entity.classification_mismatch_dependent`, `entity.classification_mismatch_independent`, and `entity.unknown_classification` since classification is now derived from PK/FK structure (see Change log entry above). Final rule catalog: 12 rules across `parse.*` / `entity.*` / `edge.*` / `cluster.*`.
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- CP-2 iteration 1: the builder + reviewer both reported success but **no source code changes landed** — `git diff` against the CP-1 commit was empty. Caught by the orchestrator running tests independently before commit. Workflow tightened: every subsequent CP required the builder to paste actual command output AND the orchestrator independently re-ran every command before commit. CP-2 retry (iteration 3) shipped genuinely.
+- Real `models/key-inherited` baseline post-reconcile: 1 entity finding (`cluster.no_discriminator` on Identity). The 11 classification mismatches and 6 naming violations that drove CP-2's baseline are gone — naming rules removed in polish, classification rules removed during reconcile.
+
+**Deferred items still open (after reconcile):**
+
+- `.claude/project/followups/schema-lint-identity-cluster-no-discriminator.md` — Identity cluster trips `cluster.no_discriminator` on array-form members; decide between fixing the model or loosening the rule.
+
+The originating followup `.claude/project/followups/schema-validation-linter-error-ux.md` (the entry this spec implements) closes with this ship. The classification-mismatch followup (`schema-lint-classification-mismatch-baseline`) is also closed as moot — the rules themselves no longer exist.

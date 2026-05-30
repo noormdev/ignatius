@@ -7,3 +7,5 @@
 - 2026-05-29 graph-hash-router — "Graph: hash-router state pinning (entity / pan / zoom)" — *(closed 2026-05-29)*
 - 2026-05-29 graph-minimap — "Graph: minimap with viewport indicator + click-to-pan" — *(closed 2026-05-29)*
 - 2026-05-29 viewer-mode-toggle — "Server viewer: in-app toggle between dict and graph modes" — *(closed 2026-05-29)*
+- 2026-05-30 schema-validation-linter-error-ux — "Schema validation/linter + entity & global error UX in the viewer" — *(closed 2026-05-30)*
+- 2026-05-30 schema-lint-classification-mismatch-baseline — "11 classification_mismatch_dependent on subtypes — rule may be over-eager" — *(closed 2026-05-30)*

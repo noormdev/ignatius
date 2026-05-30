@@ -2,6 +2,7 @@ import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import { defaultTheme, mergeTheme, type ThemeConfig, type ThemePalette, type ThemeSpacing } from './theme-defaults';
 import { defaultBranding, mergeBranding, type Branding } from './branding-defaults';
+import type { GlobalError } from './validate';
 
 const md = new MarkdownIt();
 
@@ -18,15 +19,16 @@ type SubtypeClusterDef = {
 };
 
 type Frontmatter = {
-  entity: string;
+  // Optional so the per-file try/catch can detect parse.missing_id at runtime.
+  entity?: string;
   // Optional in CP-1 for backward compat; CP-2 will remove hand-authored values.
   // Used only as a legacy Classifier signal — parser derives all other values.
   classification?: string;
   // reference: true marks a classifier/lookup table (preferred over legacy classification: Classifier)
   reference?: boolean;
   group?: string;
-  pk: string[];
-  columns: Record<string, ColumnDef>;
+  pk?: string[];
+  columns?: Record<string, ColumnDef>;
   ak?: { rule: string; columns: string[] }[];
   subtypes?: SubtypeClusterDef[];
   relationships?: {
@@ -65,6 +67,7 @@ export type SubtypeCluster = {
   basetype: string;
   exclusive: boolean;
   members: string[];
+  hasDiscriminator: boolean;
   desc?: string;
 };
 
@@ -112,7 +115,7 @@ function deriveCardinality(
   const fkChildCols = Object.keys(edge.on);
 
   if (edge.identifying) {
-    if (childNode.classification === 'Subtype') {
+    if (childNode.classification === 'subtype') {
       return { parent: '1', child: '0..1' };
     }
     if (arraysEqual(childNode.pk, fkChildCols)) {
@@ -131,7 +134,9 @@ function deriveCardinality(
   return { parent: '1', child: fkFormsAk ? '1' : 'many' };
 }
 
-export async function parseModels(dir: string): Promise<Model> {
+export type ParseResult = { model: Model; globalErrors: GlobalError[] };
+
+export async function parseModels(dir: string): Promise<ParseResult> {
   // Parse optional ignatius.yml — single config file for theme, branding, and meta
   let theme: ThemeConfig = defaultTheme;
   let branding: Branding = defaultBranding;
@@ -199,26 +204,67 @@ export async function parseModels(dir: string): Promise<Model> {
   const rawNodes: RawNode[] = [];
   const rawEdges: RawEdge[] = [];
   const subtypeClusters: SubtypeCluster[] = [];
+  const globalErrors: GlobalError[] = [];
 
   for await (const path of glob.scan(dir)) {
     if (path.split('/').some(seg => seg.startsWith('_'))) continue;
-    const content = await Bun.file(`${dir}/${path}`).text();
-    const { frontmatter, body } = parseFrontmatter(content);
+    const filePath = `${dir}/${path}`;
+
+    let frontmatter: Frontmatter;
+    let body: string;
+    try {
+      const content = await Bun.file(filePath).text();
+      const parsed = parseFrontmatter(content);
+      // parseFrontmatter calls parseYaml which may return null for empty fences
+      if (parsed.frontmatter === null || parsed.frontmatter === undefined) {
+        globalErrors.push({
+          ruleId: 'parse.empty_frontmatter',
+          severity: 'error',
+          omitted: { kind: 'entity', id: filePath },
+          reason: `File "${filePath}" has empty YAML frontmatter.`,
+        });
+        continue;
+      }
+      frontmatter = parsed.frontmatter;
+      body = parsed.body;
+    } catch (err) {
+      globalErrors.push({
+        ruleId: 'parse.invalid_yaml',
+        severity: 'error',
+        omitted: { kind: 'entity', id: filePath },
+        reason: `Cannot parse YAML frontmatter in "${filePath}": ${err instanceof Error ? err.message : String(err)}`,
+      });
+      continue;
+    }
+
+    // parse.missing_id: frontmatter parsed but entity field absent or empty
+    if (!frontmatter.entity) {
+      globalErrors.push({
+        ruleId: 'parse.missing_id',
+        severity: 'error',
+        omitted: { kind: 'entity', id: filePath },
+        reason: `File "${filePath}" has no "entity" field in frontmatter.`,
+      });
+      continue;
+    }
+
+    const entityId = frontmatter.entity;
 
     rawNodes.push({
-      id: frontmatter.entity,
+      id: entityId,
       legacyClassification: frontmatter.classification,
       referenceFlag: frontmatter.reference === true,
       group: frontmatter.group,
-      pk: frontmatter.pk,
-      columns: frontmatter.columns,
+      // Default pk to [] and columns to {} when absent
+      pk: frontmatter.pk ?? [],
+      columns: frontmatter.columns ?? {},
       alternateKeys: frontmatter.ak ?? [],
       bodyHtml: md.render(body),
     });
 
     for (const rel of frontmatter.relationships ?? []) {
       rawEdges.push({
-        source: frontmatter.entity,
+        source: entityId,
         target: rel.target,
         on: rel.on,
         predicate: rel.predicate,
@@ -227,13 +273,16 @@ export async function parseModels(dir: string): Promise<Model> {
 
     if (frontmatter.subtypes) {
       for (const cluster of frontmatter.subtypes) {
-        const members = Array.isArray(cluster.members)
-          ? cluster.members
-          : Object.keys(cluster.members);
+        // Array-form members = no discriminator column; object-form = has discriminator
+        const isArrayForm = Array.isArray(cluster.members);
+        const members = isArrayForm
+          ? (cluster.members as string[])
+          : Object.keys(cluster.members as Record<string, unknown>);
         subtypeClusters.push({
-          basetype: frontmatter.entity,
+          basetype: entityId,
           exclusive: cluster.exclusive,
           members,
+          hasDiscriminator: !isArrayForm,
           desc: cluster.desc,
         });
       }
@@ -318,5 +367,8 @@ export async function parseModels(dir: string): Promise<Model> {
     return { ...edge, cardinality };
   });
 
-  return { groups, nodes, edges, subtypeClusters, theme, branding, _meta };
+  return {
+    model: { groups, nodes, edges, subtypeClusters, theme, branding, _meta },
+    globalErrors,
+  };
 }

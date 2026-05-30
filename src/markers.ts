@@ -3,6 +3,62 @@ import type { ThemeConfig, ThemeMode } from './theme-defaults';
 
 type Cardinality = '1' | '0..1' | 'many';
 
+/**
+ * Draw ⚠ corner badges on nodes that have validation findings.
+ * Called after updateMarkers (or independently) on the same SVG overlay.
+ *
+ * WHY a separate function: markers.ts owns the SVG overlay; badge rendering
+ * needs cy node positions, so it belongs here alongside crow's-foot rendering.
+ * Caller passes the set of affected entity ids — no validate.ts import needed.
+ */
+export function drawWarningBadges(
+  cy: cytoscape.Core,
+  svg: SVGSVGElement,
+  entityIds: Set<string>,
+): void {
+  if (entityIds.size === 0) return;
+
+  cy.nodes().forEach(node => {
+    if (!node.visible()) return;
+    if (node.data('cluster') === 'true' || node.data('joiner') === 'true') return;
+
+    const id = node.id();
+    if (!entityIds.has(id)) return;
+
+    const bb = node.renderedBoundingBox({});
+    if (!bb) return;
+    if (!Number.isFinite(bb.x1) || !Number.isFinite(bb.y1)) return;
+
+    // Place badge at top-right corner of the node bounding box
+    const cx = bb.x2 - 7;
+    const cy2 = bb.y1 + 7;
+    const r = 7;
+
+    // Filled red circle background
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', `${cx}`);
+    circle.setAttribute('cy', `${cy2}`);
+    circle.setAttribute('r', `${r}`);
+    circle.setAttribute('fill', '#e05252');
+    circle.setAttribute('stroke', '#0e1116');
+    circle.setAttribute('stroke-width', '1');
+    svg.appendChild(circle);
+
+    // ⚠ text — use a simple "!" for crisp rendering at small size
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', `${cx}`);
+    text.setAttribute('y', `${cy2 + 4}`);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', '#ffffff');
+    text.setAttribute('font-size', '9');
+    text.setAttribute('font-weight', '700');
+    text.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif');
+    text.setAttribute('pointer-events', 'none');
+    text.textContent = '!';
+    svg.appendChild(text);
+  });
+}
+
 export function createMarkerOverlay(container: HTMLDivElement): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.style.position = 'absolute';

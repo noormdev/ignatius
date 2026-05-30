@@ -29,7 +29,7 @@ function makeFixtureDir(name: string): string {
 {
   const dir = makeFixtureDir('default-theme');
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\n`);
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
   console.assert(model.theme !== undefined, 'FAIL: theme field missing');
   console.assert(model.theme.dark.background === defaultTheme.dark.background,
     `FAIL: default background mismatch: ${model.theme.dark.background}`);
@@ -41,7 +41,7 @@ function makeFixtureDir(name: string): string {
 {
   const dir = makeFixtureDir('custom-theme');
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\ntheme:\n  dark:\n    background: "#1a0030"\n    border: "#ff6b00"\n`);
-  const model = await parseModels(dir);
+  const { model } = await parseModels(dir);
   console.assert(model.theme.dark.background === '#1a0030',
     `FAIL: custom background: ${model.theme.dark.background}`);
   console.assert(model.theme.dark.border === '#ff6b00',
