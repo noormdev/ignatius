@@ -80,3 +80,12 @@ Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring
 **Why:** Reviewing the original clarify round: user picked "Both: authoring helper + model bootstrap as **separate sub-modes**" — the label explicitly says "one skill, two args". Initial spec drafted two independent skills, contradicting the user's selection. Amendment reverses that.
 
 **Superseded:** The prior contract had `/new-entity` and `/new-model` as independent skill files at `.claude/skills/new-entity/SKILL.md` and `.claude/skills/new-model/SKILL.md`. The new contract is one file at `.claude/skills/ignatius-modeling/SKILL.md` with mode dispatched by positional arg.
+
+
+### 2026-05-30 — Classification + identifying now derived from keys
+
+**What changed:** `classification` and per-relationship `identifying` are no longer hand-authored — the parser derives them from PK/FK structure (see `docs/spec/derive-classification.md`, commits `50b6897` + `20c7dd5`). The entity Q&A must NOT ask for classification; it asks for keys + relationships and lets derivation classify. The only surviving hand-authored signal is `reference: true` for classifier/lookup tables. Reconcile flag — full Q&A redesign deferred.
+
+**Why:** In IDEF1X an identifying relationship ≡ FK-in-PK ≡ dependence. Deriving from keys removes a redundant, unvalidated field and the whole class of declared-vs-structural contradictions.
+
+**Superseded:** The success criterion "When the user selects classification = independent and then nominates an FK column as part of the PK, the skill prompts to resolve the contradiction" is moot — that contradiction cannot exist when classification is derived from the keys. The entity-flow `Q3: Ask classification` step (design doc) is replaced by deriving classification from the key/relationship answers plus a `reference?` question for lookup tables.

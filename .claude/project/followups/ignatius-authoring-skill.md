@@ -86,3 +86,14 @@ Authoring ORM-oriented (surrogate PK, FK-not-in-PK) sends every relationship dow
 
 - Open Questions 1-3 (emit-or-not, which ORMs, surrogate-at-emit) — RESOLVED: no emission. Output is markdown.
 - "ORM-vs-key-inheritance tension / Clash 1-3" reasoning above still holds as *authoring-convention* differences, but the reconciliation is no longer "emit-time translation" — it's "two documented authoring conventions in one skill," with the open question being whether ignatius *renders* the ORM convention well.
+
+---
+
+## Update (2026-05-30) — classification/identifying now derived from keys
+
+Shipped `docs/spec/derive-classification.md` (commits `50b6897` + `20c7dd5`): the parser now DERIVES `classification` and per-relationship `identifying` from PK/FK structure. Model files no longer carry either field; the only hand-authored signal left is `reference: true` for classifier/lookup tables.
+
+Impact on this skill:
+- The authoring Q&A must NOT ask for classification — derive it from keys + relationships. Ask only: keys, relationships (with `on` mapping), and `reference?` for lookup tables.
+- The earlier "ORM-vs-key-inherited" axis is now cleaner: ORM-style = surrogate `id` PK + FK-not-in-PK → derives Independent + referential everywhere (no dependent/associative). Key-inherited = FK-in-PK → derives dependent/associative. Both render identically (verified via gather-evidence; ORM-full == key-inherited topology). The skill teaches key placement; classification follows automatically.
+- Reconcile notes appended to `docs/spec/ignatius-modeling-skill.md` and `docs/spec/schema-lint-and-error-ux.md` change logs.

@@ -86,3 +86,18 @@ CLI stderr printing is consolidated in `src/cli.ts` after `parseModels` + `valid
 ## Change log
 
 <!-- empty during drafting; first entry on first post-approval amendment -->
+
+
+### 2026-05-30 — Classification is now derived, not declared (reconcile flag)
+
+**What changed:** `classification` is derived from PK/FK structure by the parser (see `docs/spec/derive-classification.md`, commits `50b6897` + `20c7dd5`). Reconcile flag — the rule catalog above is NOT yet rewritten.
+
+**Why:** Deriving classification from keys eliminates the declared-vs-structural mismatch this linter was partly designed to catch.
+
+**Superseded / impacted (pending rule-catalog redesign):**
+
+- `entity.classification_mismatch_dependent` / `entity.classification_mismatch_independent` — moot: no declared classification to mismatch. The check becomes "is the key structure internally coherent" (e.g. associative requires ≥2 identifying parents), not "does the declared label match the keys".
+- `entity.unknown_classification` — replaced by validating the `reference` boolean flag instead of a free-string classification.
+- Models no longer carry `classification:` / `identifying:` lines, so the CP-1/CP-2 references to those declarations and the "reference `models/` set may contain wrong classification declarations" risk no longer apply as written.
+
+Full rule-catalog redesign deferred to the linter's own implementation pass.
