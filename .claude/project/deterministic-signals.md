@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-05-30T18:29:31Z
+generated_at: 2026-05-30T18:33:27Z
 atomic_version: 2.1.0
 ---
 # Deterministic signals
@@ -34,7 +34,7 @@ atomic_version: 2.1.0
 │       ├── dict-polish.md (ec6f9d7, 87L, 6590ch, 6620B)
 │       ├── ignatius-modeling-skill.md (2fe26a3, 91L, 9770ch, 9810B)
 │       ├── ignatius-project-config.md (9cbf90e, 108L, 9814ch, 9879B)
-│       ├── schema-lint-and-error-ux.md (5355390, 125L, 19412ch, 19468B)
+│       ├── schema-lint-and-error-ux.md (efe3cf2, 127L, 19463ch, 19521B)
 │       └── viewer-fab-ux.md (9a889a1, 101L, 8717ch, 8759B)
 ├── models/ (4)
 │   ├── key-inherited/ (6)
@@ -272,7 +272,7 @@ atomic_version: 2.1.0
 ## Languages
 
 - TypeScript: 12522 LOC (57%), 85 files (39%)
-- Markdown: 6846 LOC (31%), 109 files (51%)
+- Markdown: 6848 LOC (31%), 109 files (51%)
 - YAML: 1295 LOC (5%), 10 files (4%)
 - CSS: 921 LOC (4%), 2 files (0%)
 - JSON: 92 LOC (0%), 4 files (1%)
