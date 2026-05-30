@@ -119,3 +119,9 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+
+
+## Visual changes
+
+
+When visual changes are made (UI, layout, graph rendering, theming), take Playwright screenshots via the existing harness at `scripts/screenshot.ts` and `test/visual/`. Never claim a visual change works without seeing it. Don't build a new capture path — extend the existing harness instead.
