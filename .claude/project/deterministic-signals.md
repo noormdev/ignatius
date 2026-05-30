@@ -1,11 +1,15 @@
 ---
-generated_at: 2026-05-30T20:11:06Z
+generated_at: 2026-05-30T20:43:20Z
 atomic_version: 2.1.0
 ---
 # Deterministic signals
 
 ## Tree
 
+├── .claude/ (1)
+│   └── skills/ (1)
+│       └── ignatius-modeling/ (1)
+│           └── SKILL.md (1804b9b, 573L, 17214ch, 17321B)
 ├── .cursor/ (1)
 │   └── rules/ (1)
 │       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (93ee39d, 127L, 3092ch, 3094B)
@@ -22,7 +26,7 @@ atomic_version: 2.1.0
 │   │   ├── branding.md (2873b25, 160L, 7672ch, 7955B)
 │   │   ├── cli-and-outputs.md (3e1968a, 135L, 5345ch, 5413B)
 │   │   ├── dict-navigation.md (0c0f0f7, 100L, 5253ch, 5278B)
-│   │   ├── ignatius-modeling-skill.md (8d580e3, 133L, 7779ch, 7819B)
+│   │   ├── ignatius-modeling-skill.md (f0433ee, 140L, 9393ch, 9441B)
 │   │   ├── ignatius-project-config.md (cd0a6e5, 97L, 6366ch, 6396B)
 │   │   ├── markdown-driven-erd.md (9d50d04, 319L, 11584ch, 11708B)
 │   │   ├── schema-lint-and-error-ux.md (945cb42, 205L, 15444ch, 15516B)
@@ -34,7 +38,7 @@ atomic_version: 2.1.0
 │       ├── derive-classification.md (e6b0392, 72L, 4334ch, 4373B)
 │       ├── dict-navigation.md (07a7ce2, 90L, 6183ch, 6205B)
 │       ├── dict-polish.md (ec6f9d7, 87L, 6590ch, 6620B)
-│       ├── ignatius-modeling-skill.md (2fe26a3, 91L, 9770ch, 9810B)
+│       ├── ignatius-modeling-skill.md (ee9d427, 176L, 19361ch, 19468B)
 │       ├── ignatius-project-config.md (9cbf90e, 108L, 9814ch, 9879B)
 │       ├── schema-lint-and-error-ux.md (efe3cf2, 127L, 19463ch, 19521B)
 │       └── viewer-fab-ux.md (9a889a1, 101L, 8717ch, 8759B)
@@ -276,7 +280,7 @@ atomic_version: 2.1.0
 ├── CHANGELOG.md (daf77a9, 5L, 187ch, 187B)
 ├── CLAUDE.md (93ee39d, 127L, 3092ch, 3094B)
 ├── CONTRIBUTING.md (37360a3, 53L, 2063ch, 2067B)
-├── README.md (4ee05fd, 267L, 9928ch, 9928B)
+├── README.md (c01ca2b, 306L, 11583ch, 11587B)
 ├── bun-env.d.ts (4404f36, 16L, 284ch, 284B)
 ├── bun.lock (caa1079, 95L, 6860ch, 6860B)
 ├── bunfig.toml (3ab75b0, 2L, 35ch, 35B)
@@ -291,8 +295,8 @@ atomic_version: 2.1.0
 
 ## Languages
 
-- TypeScript: 13135 LOC (57%), 87 files (37%)
-- Markdown: 7285 LOC (31%), 124 files (53%)
+- TypeScript: 13135 LOC (55%), 87 files (37%)
+- Markdown: 7989 LOC (33%), 125 files (53%)
 - YAML: 1318 LOC (5%), 11 files (4%)
 - CSS: 984 LOC (4%), 2 files (0%)
 - JSON: 92 LOC (0%), 4 files (1%)

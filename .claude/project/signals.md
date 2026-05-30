@@ -28,8 +28,8 @@
 
 `test/` is organized into subdirectories — not a formal test-framework suite:
 
-- `test/checks/` — 32 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI. Includes `test-validate-entity.ts` and `test-validate-refs.ts` which pin `key-inherited` as the clean baseline and `broken-demo` as the broken fixture (4 global + 7 entity = 11 total expected findings).
-- `test/visual/` — 6 Playwright screenshot scripts for manual visual inspection. NOT run by `bun run test`.
+- `test/checks/` — 33 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI. Includes `test-validate-entity.ts` and `test-validate-refs.ts` which pin `key-inherited` as the clean baseline and `broken-demo` as the broken fixture (4 global + 7 entity = 11 total expected findings). `test-parse-predicate.ts` covers `Predicate` type normalization and `ModelEdge.predicate` shape.
+- `test/visual/` — 11 Playwright screenshot scripts for manual visual inspection. NOT run by `bun run test`. Includes `screenshot-predicate-hover.ts` for the edge-label mouseover swap.
 - `test/fixtures/` — 3 YAML fixtures loaded by check scripts.
 - `test/notes/` — 2 markdown dev notes.
 
@@ -39,10 +39,10 @@ No linter or formatter configured in package.json.
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 12804 | 85 | 57% |
-| Markdown | 7061 | 122 | 31% |
+| TypeScript | 13135 | 87 | 55% |
+| Markdown | 7989 | 125 | 33% |
 | YAML | 1318 | 11 | 5% |
-| CSS | 978 | 2 | 4% |
+| CSS | 984 | 2 | 4% |
 | JSON | 92 | 4 | 0% |
 | HTML | 27 | 2 | 0% |
 
@@ -68,7 +68,7 @@ No linter or formatter configured in package.json.
 | generators | src/generators/ | Static HTML output: dict (findings-aware), graph (embeds React bundle + mode flag), inline-asset inliner, theme CSS vars | (below) |
 | theme | src/theme-defaults.ts, src/branding-defaults.ts, src/generators/theme-css.ts | ThemeConfig + Branding types, default palettes, dark/light merging, CSS var generation | (below) |
 | skill | .claude/skills/ignatius-modeling/ | Project-scoped Claude skill: Q&A-driven entity authoring + model bootstrap, convention-aware, writes files + verifies with `ignatius dict` | (below) |
-| docs | docs/ | Design docs, CLI spec, project-config spec, derive-classification spec, schema-lint-and-error-ux spec, modeling-skill spec | (below) |
+| docs | docs/ | Design docs, CLI spec, project-config spec, derive-classification spec, schema-lint-and-error-ux spec, modeling-skill spec, bidirectional-predicates spec | (below) |
 | scripts | scripts/ | Build helpers: stable-names.ts, convert-yaml-to-md.ts, probe.ts, screenshot.ts | (below) |
 
 ## Domain detail
@@ -95,6 +95,8 @@ No linter or formatter configured in package.json.
 
 `src/parse.ts` exports `parseModels(dir): Promise<ParseResult>`. `ParseResult = { model: Model; globalErrors: GlobalError[] }` — the return type changed from `Promise<Model>` to `Promise<ParseResult>` to carry parse-time errors (CP-2 rule violations: `parse.invalid_yaml`, `parse.missing_id`, `parse.empty_frontmatter`) up to the caller. `GlobalError` type is imported from `./validate`. Config loading: reads a single `ignatius.yml` at the model root; top-level keys `name`, `version`, `description`, `updated` populate `_meta`; `theme:` block deep-merged via `mergeTheme()`; `branding:` block merged via `mergeBranding()`. The old `_theme.yaml` / `_branding.yaml` / `_meta.yaml` loaders no longer exist. `Model` type: `{ groups, nodes, edges, subtypeClusters, theme, branding, _meta? }`. Entity classification fully derived (5-rule order): Classifier (reference flag or legacy field) → Subtype (appears in a cluster) → Associative (≥2 identifying parents) → Dependent (≥1 identifying parent) → Independent. `identifying` per edge also derived. `deriveCardinality()` uses derived `identifying` + nullability + AK membership. Body markdown rendered to HTML via markdown-it at parse time.
 
+**Predicates:** `src/parse.ts` exports `Predicate = { fwd: string; rev: string }` and `normalizePredicate(raw: string | { fwd?: string; rev?: string } | null | undefined): Predicate`. Normalization: string input → `{ fwd: s, rev: s }`; object input → fills missing keys with `''`; null/undefined → `{ fwd: '', rev: '' }`. `Frontmatter.relationships[].predicate` accepts `string | { fwd?; rev? }`. `ModelEdge.predicate` is always a normalized `Predicate` — callers never receive the raw input form. `models/key-inherited/` uses object form (`{ fwd: '...', rev: '...' }`); `models/orm-hybrid/` and `models/orm-pure/` use string form.
+
 ### validate
 
 `src/validate.ts` — pure module with no Node/Bun I/O; imports only types from `./parse`. Browser-safe and unit-testable with plain Model literals.
@@ -117,7 +119,7 @@ CP-1 (entity rules) is implemented; parse.* rules (CP-2) are defined in `RuleId`
 
 ### frontend
 
-`src/App.tsx` (980L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout and `cytoscape-navigator` plugin for the minimap. `window.__MODEL__`, `window.__THEME_MODE__`, and `window.__IGNATIUS_MODE__` ('live' | 'static') are injection points read at startup. `src/index.html` sets `window.__IGNATIUS_MODE__ = 'live'` via an inline script in `<body>`.
+`src/App.tsx` (1432L) is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout and `cytoscape-navigator` plugin for the minimap. `window.__MODEL__`, `window.__THEME_MODE__`, and `window.__IGNATIUS_MODE__` ('live' | 'static') are injection points read at startup. `src/index.html` sets `window.__IGNATIUS_MODE__ = 'live'` via an inline script in `<body>`. `window.__IGNATIUS_CY__` is set to the Cytoscape instance on init and cleared to `undefined` on teardown — debug/test seam only, not part of the public API.
 
 **Mode dispatch in App.tsx:** `useEffect` reads `window.__IGNATIUS_MODE__`. Static mode (`'static'`): reads `window.__MODEL__`, calls `validateModel()` locally, sets findings from result. Live mode (default): fetches `/api/model`, reads `{ model, parseGlobalErrors, validation }` payload, merges `parseGlobalErrors + validation.globalErrors` as `allGlobal`, updates findings state; also subscribes to SSE `model-changed` events for live reload.
 
@@ -127,11 +129,13 @@ CP-1 (entity rules) is implemented; parse.* rules (CP-2) are defined in `RuleId`
 
 **Warning badges:** `src/markers.ts` exports `drawWarningBadges(cy, svg, entityIds: Set<string>)` — draws ⚠ corner badges on Cytoscape nodes with findings. Called after crow's-foot marker drawing. Badge set read from `findingsRef` (a ref, not state dep) to avoid graph rebuild on live updates.
 
+**Predicate edge labels:** Cytoscape edge style uses `data(edgeLabel)` for the label. Each edge's data carries `predicateFwd` (forward predicate string), `predicateRev` (reverse predicate string), and `edgeLabel` (active label, initialized to `predicateFwd`). Node `mouseover`/`mouseout` event handlers swap incident child-end edge labels between `predicateRev` and `predicateFwd` so hovering a target entity shows the reverse read direction. `src/styles.css` defines `.predicate-rev` for secondary (reverse) predicate display in the dict.
+
 `src/markers.ts` also exports `createMarkerOverlay`, `updateMarkers` (crow's-foot SVG overlays). `src/main.tsx` bootstraps the React root. `src/styles.css` uses CSS custom properties (`--color-*` vars). `.findings-panel` is `position: fixed; top: 64px` (clears the theme toggle which sits at `top: 16px` with 36px height + 12px gap). Theme toggle z-index is 50. Theme toggle persists to `localStorage` under key `ignatius-theme`. Minimap open/closed persists to `localStorage` under key `ignatius-minimap`. FAB button (`<button class="fab">`) expands an overlay menu (`fab-menu`) with items: Open Dict, Legend, Show/Hide minimap, Copy link. Minimap mounts into `<div id="minimap-panel">` via `cy.navigator({ container: '#minimap-panel' })`; destroyed and DOM-cleared on toggle off. `src/hash-router.ts` — pure module, exports `parseHash(hash): HashState` and `serializeHash(state): string`. Hash format: `#entity=<id>&zoom=<n>&pan=<x>,<y>`. App.tsx uses hash state for viewport + entity persistence; writes via `history.replaceState` with 200ms debounce; reads on `hashchange` with `lastWrittenHash` guard. `App.tsx` imports model types from `./parse`, validate types/RULES from `./validate` — no local type redeclarations. `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator`; augments `cytoscape.Core` with `navigator()` method.
 
 ### generators
 
-`src/generators/dict.ts` (1045L) — signature: `generateDict(model, findings, mode, opts)` where `findings = { globalErrors: GlobalError[]; entityErrors: EntityError[] }`. Renders a global error banner (`<div class="dict-global-banner">`) when `globalErrors.length > 0`. Each entity section renders a `<details class="dict-entity-warning">` disclosure when that entity has `entityErrors`. FK links to missing targets render as `<a class="dict-link-missing">` with amber styling. Missing-target entities get placeholder `<section class="dict-missing-section">` stubs. `RULES` imported from `../validate` for human-readable rule titles. No external JS dependencies in output.
+`src/generators/dict.ts` (1185L) — signature: `generateDict(model, findings, mode, opts)` where `findings = { globalErrors: GlobalError[]; entityErrors: EntityError[] }`. Renders a global error banner (`<div class="dict-global-banner">`) when `globalErrors.length > 0`. Each entity section renders a `<details class="dict-entity-warning">` disclosure when that entity has `entityErrors`. FK links to missing targets render as `<a class="dict-link-missing">` with amber styling. Missing-target entities get placeholder `<section class="dict-missing-section">` stubs. `RULES` imported from `../validate` for human-readable rule titles. No external JS dependencies in output. Relationship rows render `edge.predicate.fwd` as primary label; when `rev !== fwd`, appends `<span class="predicate-rev">` with the reverse predicate.
 
 `src/generators/graph.ts` (124L) — signature: `generateGraph(model, mode, sourceOrDir)`. Injects `window.__IGNATIUS_MODE__ = "static"`, `window.__MODEL__`, and `window.__THEME_MODE__` as a synchronous `<script>` before the React module script. Also strips the live-mode body script (`window.__IGNATIUS_MODE__ = 'live'`) that Bun bundles from `src/index.html` into `dist/static/index.html`, so the static injection's `'static'` value wins. Calls `loadBundleFromDir()` (dev) or accepts `BundleContent` directly (compiled binary).
 
@@ -165,6 +169,7 @@ Coupling: references `docs/spec/ignatius-modeling-skill.md` (implementation cont
 
 ### docs
 
+`docs/design/bidirectional-predicates.md` — design doc for the bidirectional predicate feature: `{ fwd, rev }` shape, normalization rules, graph hover-swap UX, dict rendering.
 `docs/design/cli-and-outputs.md` — design doc for CLI modes and static output approach.
 `docs/design/markdown-driven-erd.md` — design doc for markdown-driven entity file format.
 `docs/design/branding.md` — design doc for branding system (logo, title, copyright, poweredBy flag).
@@ -181,6 +186,7 @@ Coupling: references `docs/spec/ignatius-modeling-skill.md` (implementation cont
 `docs/spec/ignatius-project-config.md` — implementation contract for `ignatius.yml` config loading, model discovery, CLI picker behavior, and citty/clack integration.
 `docs/spec/derive-classification.md` — implementation contract for the 5-rule classification derivation algorithm (Classifier/Subtype/Associative/Dependent/Independent).
 `docs/spec/ignatius-modeling-skill.md` — implementation contract for the ignatius modeling skill; Q&A redesigned (no `classification` prompt), ORM-vs-key-inherited convention axis added, AK step ratified, full implementation log.
+`docs/spec/bidirectional-predicates.md` — implementation contract for bidirectional predicates: `Predicate` type, `normalizePredicate` behavior, `ModelEdge.predicate` normalization at parse time, Cytoscape edge data keys (`predicateFwd`, `predicateRev`, `edgeLabel`), mouseover swap protocol, dict `predicate-rev` span, `models/key-inherited/` object form vs string form in other roots.
 `docs/spec/schema-lint-and-error-ux.md` (103L) — implementation contract for schema lint and error UX: `validateModel` API, `ValidationResult` shape, `generateDict` findings signature, `/api/model` payload shape, CLI stderr sort+format rules, `window.__IGNATIUS_MODE__` protocol, findings panel React component contract.
 
 ### scripts
@@ -199,7 +205,7 @@ Coupling: references `docs/spec/ignatius-modeling-skill.md` (implementation cont
 - `src/types/cytoscape-navigator.d.ts` — ambient declarations for `cytoscape-navigator` (no upstream `@types`); augments `cytoscape.Core` with `navigator(options?): NavigatorInstance`.
 - `bun-env.d.ts` — ambient Bun type augmentations.
 - `bunfig.toml` — Bun config (2L, minimal).
-- `src/parse.ts` exports canonical model types (`Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `Cardinality`, `GroupConfig`, `ColumnDef`, `ModelMeta`) and `ParseResult`. `src/validate.ts` exports `ValidationResult`, `EntityError`, `GlobalError`, `RuleId`, `RuleEntry`, `RULES`. Both are imported by `src/App.tsx`, `src/generators/dict.ts`, `src/server.ts`, and `src/cli.ts` — no local type redeclarations.
+- `src/parse.ts` exports canonical model types (`Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster`, `Cardinality`, `GroupConfig`, `ColumnDef`, `ModelMeta`, `Predicate`) and `ParseResult`, plus helper `normalizePredicate`. `src/validate.ts` exports `ValidationResult`, `EntityError`, `GlobalError`, `RuleId`, `RuleEntry`, `RULES`. Both are imported by `src/App.tsx`, `src/generators/dict.ts`, `src/server.ts`, and `src/cli.ts` — no local type redeclarations.
 - Findings flow: `parse.ts` → `ParseResult.globalErrors` (parse-time) + `validateModel()` → `ValidationResult.globalErrors + .entityErrors` → merged by callers (server, cli, frontend) before rendering.
 - Binary name is `ignatius` (`dist/ignatius`); package.json `name` is `ignatius`. The repo *directory* `derek-db-generator/` is the only remaining `derek` reference — a known leftover, not an intentional identifier.
 - `assets/noorm-logo.svg` — default branding logo, imported by `src/branding-defaults.ts` as a file reference.
