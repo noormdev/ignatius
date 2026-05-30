@@ -15,7 +15,11 @@ type SubtypeClusterDef = {
 
 type Frontmatter = {
   entity: string;
-  classification: string;
+  // Optional in CP-1 for backward compat; CP-2 will remove hand-authored values.
+  // Used only as a legacy Classifier signal — parser derives all other values.
+  classification?: string;
+  // reference: true marks a classifier/lookup table (preferred over legacy classification: Classifier)
+  reference?: boolean;
   group?: string;
   pk: string[];
   columns: Record<string, ColumnDef>;
@@ -23,7 +27,8 @@ type Frontmatter = {
   subtypes?: SubtypeClusterDef[];
   relationships?: {
     target: string;
-    identifying: boolean;
+    // Optional in CP-1 for backward compat; derived from PK+FK structure.
+    identifying?: boolean;
     on: Record<string, string>;
     predicate: string;
   }[];
@@ -163,16 +168,20 @@ export async function parseModels(dir: string): Promise<Model> {
   }
 
   const glob = new Bun.Glob('**/*.md');
-  const skipPrefix = '_';
-  const nodes: ModelNode[] = [];
-  const rawEdges: {
+  // Intermediate: partial node without derived classification; classifier signal from frontmatter
+  type RawNode = Omit<ModelNode, 'classification'> & {
+    legacyClassification?: string;
+    referenceFlag: boolean;
+  };
+  type RawEdge = {
     source: string;
     target: string;
-    identifying: boolean;
     on: Record<string, string>;
     predicate: string;
-  }[] = [];
+  };
 
+  const rawNodes: RawNode[] = [];
+  const rawEdges: RawEdge[] = [];
   const subtypeClusters: SubtypeCluster[] = [];
 
   for await (const path of glob.scan(dir)) {
@@ -180,9 +189,10 @@ export async function parseModels(dir: string): Promise<Model> {
     const content = await Bun.file(`${dir}/${path}`).text();
     const { frontmatter, body } = parseFrontmatter(content);
 
-    nodes.push({
+    rawNodes.push({
       id: frontmatter.entity,
-      classification: frontmatter.classification,
+      legacyClassification: frontmatter.classification,
+      referenceFlag: frontmatter.reference === true,
       group: frontmatter.group,
       pk: frontmatter.pk,
       columns: frontmatter.columns,
@@ -194,7 +204,6 @@ export async function parseModels(dir: string): Promise<Model> {
       rawEdges.push({
         source: frontmatter.entity,
         target: rel.target,
-        identifying: rel.identifying,
         on: rel.on,
         predicate: rel.predicate,
       });
@@ -215,11 +224,76 @@ export async function parseModels(dir: string): Promise<Model> {
     }
   }
 
-  // Derive cardinality for each edge
+  // Build fast-lookup structures for derivation
+  const rawNodeById: Record<string, RawNode> = {};
+  for (const node of rawNodes) rawNodeById[node.id] = node;
+
+  // Derive `identifying` per edge: every FK child col in edge.on must be in child PK
+  type DerivedEdge = RawEdge & { identifying: boolean };
+  const derivedEdges: DerivedEdge[] = rawEdges.map(edge => {
+    const childNode = rawNodeById[edge.source];
+    if (!childNode) return { ...edge, identifying: false };
+    const childPkSet: Record<string, true> = {};
+    for (const col of childNode.pk) childPkSet[col] = true;
+    const fkCols = Object.keys(edge.on);
+    const identifying = fkCols.length > 0 && fkCols.every(col => childPkSet[col] === true);
+    return { ...edge, identifying };
+  });
+
+  // Build subtype membership set for classification rule 2
+  const subtypeMemberSet: Record<string, true> = {};
+  for (const cluster of subtypeClusters) {
+    for (const member of cluster.members) subtypeMemberSet[member] = true;
+  }
+
+  // Build per-node count of distinct identifying parents (for Associative rule)
+  const identifyingParentsByChild: Record<string, Set<string>> = {};
+  for (const edge of derivedEdges) {
+    if (!edge.identifying) continue;
+    const parents = identifyingParentsByChild[edge.source] ?? new Set<string>();
+    parents.add(edge.target);
+    identifyingParentsByChild[edge.source] = parents;
+  }
+
+  // Derive `classification` per node — 5-rule order, first match wins
+  function deriveClassification(node: RawNode): string {
+    // Rule 1: Classifier — reference flag OR legacy classification field
+    if (node.referenceFlag || node.legacyClassification === 'Classifier') {
+      return 'Classifier';
+    }
+    // Rule 2: Subtype — appears in any cluster's members
+    if (subtypeMemberSet[node.id] === true) {
+      return 'Subtype';
+    }
+    const identifyingParents = identifyingParentsByChild[node.id];
+    // Rule 3: Associative — ≥2 distinct identifying parents
+    if (identifyingParents && identifyingParents.size >= 2) {
+      return 'Associative';
+    }
+    // Rule 4: Dependent — ≥1 identifying relationship
+    if (identifyingParents && identifyingParents.size >= 1) {
+      return 'Dependent';
+    }
+    // Rule 5: Independent
+    return 'Independent';
+  }
+
+  // Build final nodes with derived classification
+  const nodes: ModelNode[] = rawNodes.map(rawNode => ({
+    id: rawNode.id,
+    classification: deriveClassification(rawNode),
+    group: rawNode.group,
+    pk: rawNode.pk,
+    columns: rawNode.columns,
+    alternateKeys: rawNode.alternateKeys,
+    bodyHtml: rawNode.bodyHtml,
+  }));
+
+  // Derive cardinality for each edge using fully derived node + edge values
   const nodeMap: Record<string, ModelNode> = {};
   for (const node of nodes) nodeMap[node.id] = node;
 
-  const edges: ModelEdge[] = rawEdges.map(edge => {
+  const edges: ModelEdge[] = derivedEdges.map(edge => {
     const childNode = nodeMap[edge.source];
     const cardinality = childNode
       ? deriveCardinality(edge, childNode, childNode.alternateKeys)
