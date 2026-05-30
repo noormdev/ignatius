@@ -1,0 +1,37 @@
+## Verification loop (CP-3)
+
+After writing any files, run:
+```
+ignatius dict <model-root> -o /tmp/ignatius-skill-check.html
+```
+
+Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces between fields).
+
+**Rule reference table** (for reporting fix hints without grepping source):
+
+| ruleId | Severity | Class | Title | Fix hint |
+|--------|----------|-------|-------|----------|
+| `parse.invalid_yaml` | error | B | Invalid YAML frontmatter | Fix YAML syntax — check indentation, unclosed brackets, invalid characters |
+| `parse.missing_id` | error | B | Missing entity id | Add `entity: <EntityName>` to frontmatter |
+| `parse.empty_frontmatter` | error | B | Empty frontmatter | Add at minimum `entity: <EntityName>` between the `---` fences |
+| `entity.missing_pk` | warn | A | Missing primary key | Add `pk:` array with at least one column name |
+| `entity.missing_columns` | warn | A | No columns defined | Add `columns:` map with at least the PK column types |
+| `entity.invalid_field_type` | warn | A | Invalid field shape | `pk` must be an array of strings, `columns` must be a map — fix the field shape |
+| `entity.unknown_group` | warn | A | Unknown group | Create `_groups/<name>.md` or correct the `group:` value |
+| `edge.unknown_target` | error | B | Edge target not in model | Add the missing entity file or correct the `target:` name |
+| `edge.dangling_fk_column` | warn | A | FK column not on source entity | Add the column to the entity's `columns` map or fix the `on:` mapping |
+| `cluster.missing_basetype` | error | B | Subtype cluster basetype not in model | Add the basetype entity file or fix the basetype name |
+| `cluster.missing_member` | warn | A | Subtype cluster member not in model | Add the member entity file or remove it from `members:` |
+| `cluster.no_discriminator` | warn | A | Exclusive subtype cluster has no discriminator | Convert `members:` from list form to map form with discriminator values |
+
+**Loop behavior:**
+
+- Exit code 0, no stderr lines → success. Report "Verified clean — 0 findings."
+- Findings present → report each as: `[<sev>] <ruleId> @ <location>: <message>` + fix hint from table above.
+- Ask: "Revise the file(s) to fix these findings? (y/n)"
+  - If yes: re-ask only the relevant Q&A steps with prior answers prefilled, rewrite, re-run.
+  - If no: leave as-is, surface findings to user, exit.
+- Max 5 attempts. On attempt 5 failure: "Max attempts reached. Remaining findings: <list>. Fix manually."
+
+---
+

@@ -1,15 +1,11 @@
 ---
-generated_at: 2026-05-30T20:43:20Z
-atomic_version: 2.1.0
+generated_at: 2026-05-30T22:42:50Z
+atomic_version: 3.0.0
 ---
 # Deterministic signals
 
 ## Tree
 
-├── .claude/ (1)
-│   └── skills/ (1)
-│       └── ignatius-modeling/ (1)
-│           └── SKILL.md (1804b9b, 573L, 17214ch, 17321B)
 ├── .cursor/ (1)
 │   └── rules/ (1)
 │       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (93ee39d, 127L, 3092ch, 3094B)
@@ -175,6 +171,15 @@ atomic_version: 2.1.0
 │   ├── probe.ts (3eb0e3a, 95L, 2865ch, 2865B)
 │   ├── screenshot.ts (641f151, 82L, 3044ch, 3048B)
 │   └── stable-names.ts (a69a3aa, 46L, 2038ch, 2040B)
+├── skills/ (1)
+│   └── ignatius-modeling/ (2)
+│       ├── references/ (5)
+│       │   ├── conventions.md (89a838d, 41L, 1459ch, 1475B)
+│       │   ├── entity-flow.md (4fdf5a7, 114L, 3981ch, 4019B)
+│       │   ├── model-flow.md (2fcc027, 63L, 1854ch, 1878B)
+│       │   ├── templates.md (b7491d9, 266L, 5450ch, 5465B)
+│       │   └── verification.md (4060061, 37L, 2485ch, 2495B)
+│       └── SKILL.md (5784df1, 38L, 2182ch, 2204B)
 ├── spec/ (1)
 │   └── spec.md (1472997, 464L, 20238ch, 20368B) [generated]
 ├── src/ (16)
@@ -295,8 +300,8 @@ atomic_version: 2.1.0
 
 ## Languages
 
-- TypeScript: 13135 LOC (55%), 87 files (37%)
-- Markdown: 7989 LOC (33%), 125 files (53%)
+- TypeScript: 13135 LOC (55%), 87 files (36%)
+- Markdown: 7975 LOC (33%), 130 files (54%)
 - YAML: 1318 LOC (5%), 11 files (4%)
 - CSS: 984 LOC (4%), 2 files (0%)
 - JSON: 92 LOC (0%), 4 files (1%)
