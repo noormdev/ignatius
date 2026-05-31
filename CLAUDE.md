@@ -125,3 +125,31 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 
 When visual changes are made (UI, layout, graph rendering, theming), take Playwright screenshots via the existing harness at `scripts/screenshot.ts` and `test/visual/`. Never claim a visual change works without seeing it. Don't build a new capture path — extend the existing harness instead.
+
+
+## Feature ↔ documentation ↔ skill map
+
+
+**Rule: a feature is not done until every surface that covers it is consistent.** When you add or change functionality, update its row below — the design doc (the *why*), the spec (the *contract*), the user guide (the *how*), and the skill section that authors or verifies it. If a change has no row, add one; if it touches a surface not yet listed, add the surface. Drift between these is a reliability bug — the skill teaches one thing, the spec contracts another, the guide documents a third.
+
+Paths are relative to `docs/design/`, `docs/spec/`, `docs/guides/`, and `skills/ignatius-modeling/`. This map is the human-facing complement to `.claude/project/signals.md` (which maps domains → source code).
+
+| Feature | Design | Spec | Guide | Skill |
+|---------|--------|------|-------|-------|
+| Markdown entity / folder format | markdown-driven-erd | — | folder-format | entity-flow E1/E2/E7/E10, templates |
+| Classification + cardinality derivation | markdown-driven-erd | derive-classification | derivation | conventions (derivation tables) |
+| Two-path convention (key-inherited vs orm) | ignatius-modeling-skill | ignatius-modeling-skill | derivation, modeling-skill | SKILL core rules, entity-flow E3 + E5 nudge, model-flow M3 |
+| Subtype clusters | markdown-driven-erd | derive-classification, schema-lint-and-error-ux | derivation | entity-flow E5a, templates (subtype example) |
+| Bidirectional predicates | bidirectional-predicates | bidirectional-predicates | predicates | entity-flow E5 |
+| Schema lint + error UX (findings) | schema-lint-and-error-ux | schema-lint-and-error-ux | validation | verification (rule table + loop) |
+| CLI subcommands + static/live outputs | cli-and-outputs | cli-and-outputs | commands, building-from-source, getting-started | verification (runs `ignatius dict`) |
+| Project config + model discovery (`ignatius.yml`) | ignatius-project-config | ignatius-project-config | getting-started, folder-format | entity-flow E0, model-flow M1–M8, templates |
+| Themes | cli-and-outputs | cli-and-outputs | themes-and-branding | model-flow M4 |
+| Branding | branding | branding | themes-and-branding | model-flow M5 |
+| Dict navigation + polish | dict-navigation | dict-navigation, dict-polish | — | — |
+| Graph viewer FAB UX | viewer-fab-ux | viewer-fab-ux | — | — |
+| Business-narrative body + existence/cascade rules | markdown-driven-erd | ignatius-modeling-skill | modeling-skill | entity-flow E9, templates (body sections) |
+| The modeling skill itself | ignatius-modeling-skill | ignatius-modeling-skill | modeling-skill | SKILL + all references |
+| Example / sample instance tables ⚠ | example-instance-tables | example-instance-tables | — | entity-flow E9 + templates `## Sample rows` |
+
+⚠ **Example instance tables — design and spec authored, implementation pending, surfaces currently diverge.** The spec contracts a structured `examples:` frontmatter array → `ModelNode.examples` → dict/graph accordions + an `example_unknown_column` validator rule. The skill today emits only a prose `## Sample rows` markdown section in the entity body. Reconcile before shipping: either the skill authors `examples:` frontmatter, or the spec adopts the prose form. Until then this row is the canonical record of the gap.
