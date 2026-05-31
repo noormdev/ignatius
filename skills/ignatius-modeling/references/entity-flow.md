@@ -41,13 +41,27 @@ color: "<color>"
 
 Create directory `<slug>/` if it doesn't exist.
 
-### Step E3 — Convention
+### Step E3 — Convention (derived default, not a mode)
 
-If you already know the model convention (from existing entities or model bootstrap), state it:
-> "This model uses `key-inherited` convention. Continuing with that — say 'switch' to change."
+Convention is not a mode you set — it is a consequence of how each entity shapes its key.
+Read the prevailing style from the existing entities and use it only as the *default
+suggestion* for this entity's PK. The user's structural choice wins; you follow it.
 
-Otherwise ask: "Authoring convention — `key-inherited` (parent PK propagates into child PK)
-or `orm-oriented` (surrogate `id` per entity, FK columns outside PK)?"
+- **Detect:** scan a few existing entities. A composite PK that contains a foreign-key column
+  → `key-inherited`. A single surrogate `id` PK with foreign keys as non-PK columns →
+  `orm-oriented`.
+- **If a prevailing style is clear,** state it as the default and move on — do not ask the
+  user to confirm a mode:
+  > "Existing entities here migrate parent keys into the child PK (key-inherited). I'll
+  > default this entity to that shape; your PK choice at the next step decides it for real."
+- **If the model is new or mixed** (no clear prevailing style), briefly describe the two
+  shapes so the user's PK answer is informed, but still do not force a global choice:
+  > "Two key styles are in play: key-inherited (parent PK migrates into the child PK) and
+  > orm-oriented (surrogate `id`, FKs outside the PK). Pick per entity — your PK at the next
+  > step is the decision."
+
+Never record the convention as a declared mode. The next entity is free to differ; Step E5
+nudges once if it does (see below).
 
 ### Step E4 — PK columns
 
@@ -68,18 +82,85 @@ Ask: "Does this entity reference any parent entities? (FK relationships)"
 If yes, for each relationship collect:
 1. `target` — parent entity name (PascalCase)
 2. `on` mapping — `{ child_col: parent_col }` pairs
-3. `predicate` — short phrase describing the relationship from child's perspective (e.g. "is placed by")
+3. `predicate` — the relationship in the language of the business. Ask for both readings:
+   > "How would a domain expert describe this link, in both directions? Forward, parent → child (e.g. Party **makes payments using** PaymentMethod); reverse, child → parent (e.g. PaymentMethod **is used for payments by** Party)."
 
-**Convention-contradiction check (run before proceeding to E6):**
+   - Write the object form `predicate: { fwd: <parent→child>, rev: <child→parent> }`. If the user gives only one phrase, accept the plain string form `predicate: <phrase>` (it applies to both directions).
+   - Push past generic ORM verbs. If the user says "has many" / "belongs to" / "has", ask for the real domain verb: "What does the parent actually *do* with the child here?" The cardinality is already drawn by the crow's-foot marker; the predicate should add business meaning, not repeat it.
+   - A good predicate is a verb phrase that makes the edge read as a complete sentence: `<Parent> <fwd> <Child>` and `<Child> <rev> <Parent>` should both be true sentences a stakeholder would recognize.
 
-| Convention | Contradiction | Prompt |
-|------------|---------------|--------|
-| `key-inherited` | PK does not include the parent's PK columns from the `on` mapping | "key-inherited requires the parent PK column(s) in the child PK. Include `<cols>` in PK, or switch to orm-oriented?" |
-| `orm-oriented` | A FK column (`on` key) appears in the declared PK | "orm-oriented keeps FKs outside the PK. Remove `<col>` from PK, or switch to key-inherited?" |
+**Convention nudge (one-time, non-blocking):**
 
-If the user resolves by switching convention, loop back to E3.
-If the user fixes the PK, loop back to E4 with the corrected answer prefilled.
-Continue once consistent.
+The user's PK shape *is* the convention for this entity — derive it, don't enforce it. If
+this entity's key style differs from the prevailing style detected at E3, and you have not
+already nudged once this session, surface it once as a question, not a correction:
+
+> "Heads up — most entities here use surrogate `id` (orm-oriented), but this one migrates a
+> composite key into its PK (key-inherited). Intentional? (either is fine.)"
+
+Whatever the user answers, proceed with their structure. Record the deviation in the final
+summary (e.g. "Note: Payment uses key-inherited keys; the rest of this model is orm-oriented
+— derived from your PK shape."). Do not re-ask on later entities in the same session, and
+never block or demand a fix. A model may legitimately mix key styles entity by entity.
+
+Reference/code tables (`reference: true`, Step E8) are exempt: a natural-key PK like `code`
+is neither orm-oriented nor key-inherited, so a code table never triggers the nudge.
+
+### Step E5a — Subtype cluster (conditional)
+
+Ask only when relevant — skip silently if the entity is neither a base that divides into
+kinds nor a member of one:
+
+> "Is this entity part of a subtype split — either a base type that divides into kinds, or
+> one of those kinds?"
+
+Subtype clustering is independent of key style; it is its own modeling decision, derived from
+the cluster declaration — never ask the user to label an entity "Subtype". Two paths:
+
+**A. This entity is the BASE (it divides into kinds).**
+
+1. List the member entity names (each becomes its own entity file sharing this base's PK).
+2. Exclusive or inclusive?
+   - **Exclusive** — every base row is exactly one member (a Party is a Person XOR a
+     Business). Requires a discriminator.
+   - **Inclusive** — a base row may be several members at once. No discriminator required.
+3. For an exclusive cluster, name the discriminator column (already a column on this base,
+   often an FK to a code table) and the value that selects each member.
+
+Write a `subtypes:` block on this base entity. Map form carries the discriminator; array form
+is for inclusive clusters with no discriminator:
+
+    subtypes:
+      - exclusive: true
+        desc: Every Party is exactly one of Business or Person
+        members:
+          Business: { type: PartyType.code.BUSINESS }
+          Person:   { type: PartyType.code.PERSON }
+
+    # inclusive, no discriminator:
+    subtypes:
+      - exclusive: false
+        members: [Business, Person]
+
+Each member entity must still be authored (run the entity flow for each) — it shares the
+base's PK and carries a relationship back to the base (predicate reads `is a` / `is realized
+as`).
+
+**B. This entity is a MEMBER of an existing base.**
+
+1. Confirm the base entity name.
+2. Give this entity the base's PK column(s) — it shares identity, it does not invent a new
+   key — plus only the columns specific to this kind. Reuse the base's PK column name
+   verbatim, even when it is a generic `id`; do not rename it to `<base>_id`. (So a member of
+   an orm-oriented base whose PK is `id` also has PK `id`, mapped back as `id: id`.)
+3. Add a relationship back to the base on the shared PK, predicate e.g.
+   `{ fwd: is realized as, rev: is a }`.
+4. **Edit the base entity** to list this member under its `subtypes.members` (with the
+   discriminator value if the cluster is exclusive). Membership is declared on the base —
+   without that edit the cluster is incomplete and the linter will not classify this entity
+   as a Subtype.
+
+Classification as Subtype is derived from cluster membership — never declare it.
 
 ### Step E6 — Alternate keys (optional)
 
@@ -100,9 +181,25 @@ Ask: "Is this a lookup/code table (reference: true)? (y/n, default n)"
 
 Only say yes for static code tables like PartyType, Status, Currency.
 
-### Step E9 — Body description (optional)
+### Step E9 — Business context and rules
 
-Ask: "Optional one-sentence description for the entity body? (leave blank to skip)"
+This is the step that makes an ignatius model more than a data dictionary. Do not reduce it to a one-liner. Draw out the business story behind the entity and record it in the body so it survives past this conversation and is available when someone develops against the schema.
+
+Ask, in order, capturing whatever the user offers (skip a prompt only if they have nothing for it):
+
+1. **Purpose** — "In one or two sentences, what does this entity represent in the business, and why does it exist?"
+2. **Business rules and constraints** — "Any rules the business imposes on this data? Allowed value ranges, required combinations, things that must never happen." Treat answers as design inputs:
+   - A value limit (e.g. "no payments under $5") is a **check constraint** — record the rule and that it constrains this entity.
+   - A required-before-allowed condition is a **guard**; note what it gates.
+3. **Lifecycle and state** — "Does a row move through states or require approval/authorization before it is fully usable? (e.g. new users authorized before full access)" If yes, this implies a **state machine / gate** and often additional tables (a permission gate, a transfer into authoritative tables once the gate passes). Capture the states, the transition, and what structures the gate implies — flag the implied tables to the user as follow-up entities to model.
+4. **Existence and cascade** — ask only when the entity has a parent (a `relationships:` edge): "Can this entity exist without its parent — is the FK ever null? And if the parent row is deleted, what happens to this one — deleted too, blocked, or orphaned?" In the orm-oriented style nothing in the *key* records this, so it must be written down:
+   - A mandatory parent is `nullable: false` on the FK column — surface it: the parent is an existence dependency even though no key migrated. The derived cardinality already reflects this (a non-null FK reads as `1 : many`, a nullable FK as `0..1 : many`).
+   - Record the answer as a **Business rules** line, e.g. "An SO_Line cannot exist without its SalesOrder (FK NOT NULL); deleting a SalesOrder cascade-deletes its lines. Source: …". This is the rule key-inherited would assert through key placement; in orm-oriented it becomes a documented constraint, not a lost one.
+5. **Justification for complexity** — for any rule or structure above, "Who decided this and why?" Record the source and rationale (e.g. "Billing department, 2026-05: chargeback costs below \$5 exceed revenue"). The justification is what stops a future developer from deleting complexity they don't understand.
+
+**Sample rows (optional, high value).** For any entity with a mandatory parent or a subtype cluster, offer to capture 2–4 illustrative rows in a `## Sample rows` section. Concrete instances expose wrong rules that pass every structural check — one Party that is a Person and one that is a Business shows the exclusivity is real; a child row beside its parent shows no orphan is possible. Ask: "Want to sketch a few sample rows? They catch nullability and exclusivity mistakes the linter can't see." Skip if the user declines.
+
+Write what you gather into the entity body under clear headings (see the template). Capture the **source and reasoning**, not just the rule. If the user truly has nothing beyond a name, write a one-sentence purpose and move on — but ask first.
 
 ### Step E10 — Write the file
 

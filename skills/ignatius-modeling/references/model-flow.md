@@ -8,10 +8,23 @@ Ask: "Target directory for the new model? (default: `./models/<name>`)"
 
 Ask: "Model name (for `ignatius.yml` `name:` field and branding title)?"
 
-### Step M3 — Default convention
+### Step M2a — Model purpose
 
-Ask: "Default authoring convention — `key-inherited` or `orm-oriented`?
-(This is recorded as a comment in `ignatius.yml` for future entity invocations.)"
+Ask: "In a sentence or two, what business or domain does this model cover, and who uses it?"
+
+Write the answer into the `description:` field of `ignatius.yml` (uncomment it). This is the top-level business context for the whole model — the orienting paragraph a new developer reads first. Encourage a domain-level answer, not "a database for the app."
+
+### Step M3 — Default key style (suggestion, not a mode)
+
+A new model has no existing entities to derive a prevailing style from, so ask which key
+style to *default* new entities toward — but frame it as a non-binding suggestion, not a mode:
+
+> "Which key style should new entities default to — `key-inherited` (parent PK migrates into
+> the child PK) or `orm-oriented` (surrogate `id`, FKs outside)? Individual entities may still
+> differ; this only sets the default suggestion."
+
+Record it as a comment in `ignatius.yml` for future entity invocations. It is a hint the
+entity flow reads at E3, never a constraint it enforces.
 
 ### Step M4 — Theme (optional)
 

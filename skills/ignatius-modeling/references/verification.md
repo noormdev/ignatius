@@ -26,12 +26,22 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 
 **Loop behavior:**
 
-- Exit code 0, no stderr lines → success. Report "Verified clean — 0 findings."
-- Findings present → report each as: `[<sev>] <ruleId> @ <location>: <message>` + fix hint from table above.
-- Ask: "Revise the file(s) to fix these findings? (y/n)"
-  - If yes: re-ask only the relevant Q&A steps with prior answers prefilled, rewrite, re-run.
+- Findings present → reflect before acting. Read each finding, map it to the Q&A step that produced it, and re-ask only those steps (prior answers prefilled) rather than regenerating the whole file. Report each as: `[<sev>] <ruleId> @ <location>: <message>` + fix hint from table above.
+  - Ask: "Revise the file(s) to fix these findings? (y/n)"
+  - If yes: rewrite, re-run.
   - If no: leave as-is, surface findings to user, exit.
 - Max 5 attempts. On attempt 5 failure: "Max attempts reached. Remaining findings: <list>. Fix manually."
+- Exit code 0, no stderr lines → structurally clean, but do not stop here. Run the final self-check below before declaring done.
+
+**Final self-check (runs after a clean `dict`):**
+
+The linter validates structure; it cannot see whether the business story was captured. Before reporting success, confirm:
+
+1. The entity body states its purpose, and any business rules, constraints, or lifecycle the user mentioned are written down with their source and justification (Step E9). If the user gave context that did not make it into the body, add it now.
+2. Each predicate reads as a true sentence in both directions (`<Parent> <fwd> <Child>`, `<Child> <rev> <Parent>`) in domain language, not a generic "has many".
+3. For any entity with a mandatory parent (non-null FK) or a subtype cluster: sketch 2–3 sample rows and read them back against the rules. Does a real row violate exclusivity? Can a child exist with a null parent it shouldn't? Sample instances surface wrong rules that pass every structural check — this is the check the linter cannot perform. If the body has a `## Sample rows` section, verify the rows actually satisfy the stated rules.
+
+Only when structure is clean **and** these hold: report "Verified clean — 0 findings, business context captured, sample rows consistent."
 
 ---
 

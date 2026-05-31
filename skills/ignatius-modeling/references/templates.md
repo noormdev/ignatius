@@ -25,13 +25,37 @@ columns:
 #   - target: <ParentEntity>
 #     on:
 #       <child_col>: <parent_col>
-#     predicate: <short phrase>
+#     predicate: { fwd: <parent→child business verb>, rev: <child→parent business verb> }
+#     # or a single string applied to both directions: predicate: <business verb phrase>
 # reference: true      # omit unless this is a lookup/code table
 ---
 
 # <EntityName>
 
-<Optional one-sentence description.>
+<One or two sentences: what this entity represents in the business and why it exists.>
+
+<!-- Include the sections below only when the user gave you content for them. -->
+
+## Business rules
+
+- <Rule, with the constraint it implies and its source. e.g. "Payment amount must be ≥ $5 (check constraint). Source: Billing, 2026-05 — chargeback cost below $5 exceeds revenue.">
+
+## Lifecycle
+
+- <States and transitions, and any gate/approval. e.g. "New rows start `pending`; a permission gate authorizes them to `active` before full access. Implies a separate authorization table.">
+
+## Notes
+
+- <Justification for any structural complexity — who decided and why.>
+
+## Sample rows
+
+<!-- Optional, high value for entities with a mandatory parent or a subtype cluster.
+     2–4 concrete rows that show the rules hold (no orphan possible, exclusivity is real). -->
+
+| <pk_col> | <col> | <col> |
+|----------|-------|-------|
+| <value>  | ...   | ...   |
 ```
 
 ### key-inherited dependent entity example
@@ -118,7 +142,7 @@ relationships:
   - target: Party
     on:
       party_id: party_id
-    predicate: is placed by
+    predicate: { fwd: places, rev: is placed by }
 ---
 
 # SalesOrder
@@ -202,13 +226,152 @@ relationships:
   - target: Party
     on:
       party_id: id
-    predicate: is placed by
+    predicate: { fwd: places, rev: is placed by }
 ---
 
 # SalesOrder
 
 A sales order placed by a Party.
 ```
+
+### Business-context example (the body carries the story)
+
+What an entity looks like when Step E9 actually captured the business rules. The frontmatter is ordinary; the body is where the value lives. Note the bidirectional predicate phrased in domain language and the recorded source/justification for each rule. This is an illustration of the shape, not a required structure — capture whatever business context the user has.
+
+<example name="entity-with-business-context">
+
+```markdown
+---
+entity: Payment
+group: billing
+pk:
+  - party_id
+  - payment_id
+columns:
+  party_id:
+    type: integer
+    desc: "Paying party — foreign key to Party."
+  payment_id:
+    type: integer
+    desc: "Identifier of the payment within the party."
+  amount:
+    type: decimal
+    desc: "Payment amount in account currency."
+  status:
+    type: text
+    desc: "Lifecycle state: pending | cleared | reversed."
+relationships:
+  - target: Party
+    on:
+      party_id: party_id
+    predicate: { fwd: makes, rev: is made by }
+---
+
+# Payment
+
+A single payment a Party makes toward an outstanding balance.
+
+## Business rules
+
+- `amount` must be ≥ $5.00 (check constraint). Source: Billing department, 2026-05 — processing and chargeback costs below $5 exceed the revenue, so sub-$5 payments are rejected at write time rather than collected.
+
+## Lifecycle
+
+- A Payment starts `pending`, moves to `cleared` once the processor confirms settlement, or `reversed` on chargeback. Only `cleared` payments count toward a balance.
+
+## Notes
+
+- The status state machine, not a boolean `is_paid`, is intentional: reversals must be distinguishable from never-cleared payments for reconciliation. Decided with Finance, 2026-05.
+```
+
+</example>
+
+### Subtype cluster example (base + members, self-contained)
+
+A complete exclusive cluster: a base entity that divides into two mutually-exclusive kinds,
+selected by a discriminator. The `subtypes:` block lives on the **base**; each member is its
+own entity sharing the base's PK with a relationship back. Sample rows show the exclusivity is
+real — every base row is exactly one member. This is the shape, not a required structure.
+
+<example name="subtype-cluster">
+
+_Party.md (base — declares the cluster):_
+```markdown
+---
+entity: Party
+group: identity
+pk:
+  - party_id
+columns:
+  party_id:
+    type: integer
+    desc: "Unique identifier for the party."
+  type:
+    type: text
+    desc: "Party kind — foreign key to PartyType.code (BUSINESS or PERSON)."
+subtypes:
+  - exclusive: true
+    desc: Every Party is exactly one of Business or Person
+    members:
+      Business: { type: PartyType.code.BUSINESS }
+      Person:   { type: PartyType.code.PERSON }
+relationships:
+  - target: PartyType
+    on:
+      type: code
+    predicate: { fwd: classifies, rev: is classified by }
+---
+
+# Party
+
+A person or organization the business transacts with. The Party holds what is common to both
+kinds; each subtype holds what is specific to it.
+
+## Sample rows
+
+| party_id | type     |
+|----------|----------|
+| 1        | BUSINESS |
+| 2        | PERSON   |
+```
+
+_Business.md (member — shares Party's PK, relates back):_
+```markdown
+---
+entity: Business
+group: identity
+pk:
+  - party_id
+columns:
+  party_id:
+    type: integer
+    desc: "The Party this business is — shared key, foreign key to Party."
+  legal_name:
+    type: text
+    desc: "Registered legal name of the business."
+relationships:
+  - target: Party
+    on:
+      party_id: party_id
+    predicate: { fwd: is realized as, rev: is a }
+---
+
+# Business
+
+The specialization of a Party that is a legal entity. Shares its identity with its Party — it
+does not invent a new key.
+```
+
+_Person.md is authored the same way: PK `party_id`, person-specific columns, and the same
+`is realized as` / `is a` relationship back to Party. Both members are listed in Party's
+`subtypes.members` — membership is declared on the base, and classification as Subtype is
+derived from it._
+
+_The base above is key-inherited (PK `party_id`). When the base is orm-oriented instead (PK
+`id`), members reuse that exact `id` column as their own PK and map back `id: id` — they share
+the surrogate key verbatim, never introducing a renamed `<base>_id` column._
+
+</example>
 
 ### `_groups/<slug>.md` template
 
@@ -223,13 +386,14 @@ color: "#<hex>"
 
 ### `ignatius.yml` template
 
-When emitting this file, substitute the convention chosen at M3 into the first comment line.
-For example: `# Model convention: key-inherited` or `# Model convention: orm-oriented`.
-Do not write the literal placeholder — replace `<chosen-convention>` with the actual value.
+When emitting this file, substitute the default key style chosen at M3 into the first comment
+line. For example: `# Default key style: key-inherited` or `# Default key style: orm-oriented`.
+Do not write the literal placeholder — replace `<chosen-default>` with the actual value.
 
 ```yaml
-# Model convention: <chosen-convention>
-# (used by /ignatius-modeling skill to guide new entity authoring)
+# Default key style: <chosen-default>
+# (a suggestion the /ignatius-modeling skill reads when authoring new entities;
+#  individual entities may differ — it is not enforced)
 name: <Model Name>
 # version: "1.0"
 # description: <optional description>
