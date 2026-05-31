@@ -79,7 +79,7 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: The
   const p = mode === 'light' ? theme.light : theme.dark;
   const [minScale, maxScale] = theme.spacing.markerScale;
   const zoom = cy.zoom();
-  const scale = Math.min(Math.max(zoom, minScale), maxScale);
+  const scale = Math.min(Math.max(zoom, minScale), maxScale) * 0.5;
 
   cy.edges().forEach(edge => {
     if (!edge.visible()) return;
@@ -161,10 +161,12 @@ function drawEndMarker(
       break;
     }
     case 'many': {
-      const convX = offset + forkLen;
-      ln(g, convX, 0, offset, 0, color, sw);
-      ln(g, convX, 0, offset, -fan, color, sw);
-      ln(g, convX, 0, offset, fan, color, sw);
+      // 'many' is exempt from markerOffset — the crow's-foot prongs should
+      // touch the entity edge so the fan reads as "many of this entity".
+      const convX = forkLen;
+      ln(g, convX, 0, 0, 0, color, sw);
+      ln(g, convX, 0, 0, -fan, color, sw);
+      ln(g, convX, 0, 0, fan, color, sw);
       bar(g, convX + 4, h, color, sw);
       break;
     }

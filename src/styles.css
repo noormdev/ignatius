@@ -34,6 +34,10 @@ html, body, #root {
   gap: 10px;
   z-index: 50;
   user-select: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .branding-logo {
   width: 32px;
@@ -73,6 +77,10 @@ html, body, #root {
   z-index: 50;
   pointer-events: none;
   max-width: calc(100% - var(--fab-region));
+  padding: 6px 14px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .branding-copyright {
   font-size: 11px;

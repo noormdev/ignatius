@@ -222,6 +222,10 @@ function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mo
         'text-rotation': 'autorotate',
         'text-margin-y': -10,
         'arrow-scale': 1.2,
+        'text-background-color': p.background,
+        'text-background-opacity': 0.95,
+        'text-background-padding': '4px',
+        'text-background-shape': 'roundrectangle',
       },
     },
     {

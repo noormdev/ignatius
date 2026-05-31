@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-05-31T06:19:21Z
+generated_at: 2026-05-31T08:44:45Z
 atomic_version: 3.0.0
 ---
 # Deterministic signals
@@ -34,7 +34,7 @@ atomic_version: 3.0.0
 │   │   ├── folder-format.md (74c05cf, 112L, 2989ch, 2991B)
 │   │   ├── getting-started.md (537e01e, 71L, 2276ch, 2284B)
 │   │   ├── modeling-skill.md (bc72458, 43L, 1795ch, 1795B)
-│   │   ├── predicates.md (ab87ec5, 67L, 2285ch, 2285B)
+│   │   ├── predicates.md (502da1e, 83L, 3790ch, 3790B)
 │   │   ├── themes-and-branding.md (b3535e3, 57L, 1867ch, 1867B)
 │   │   └── validation.md (34213ab, 84L, 3788ch, 3800B)
 │   └── spec/ (10)
@@ -185,16 +185,16 @@ atomic_version: 3.0.0
 │   └── ignatius-modeling/ (2)
 │       ├── references/ (5)
 │       │   ├── conventions.md (89a838d, 41L, 1459ch, 1475B)
-│       │   ├── entity-flow.md (4fdf5a7, 114L, 3981ch, 4019B)
-│       │   ├── model-flow.md (2fcc027, 63L, 1854ch, 1878B)
-│       │   ├── templates.md (b7491d9, 266L, 5450ch, 5465B)
-│       │   └── verification.md (4060061, 37L, 2485ch, 2495B)
-│       └── SKILL.md (5784df1, 38L, 2182ch, 2204B)
+│       │   ├── entity-flow.md (d4b2803, 130L, 6733ch, 6793B)
+│       │   ├── model-flow.md (21acdb0, 69L, 2237ch, 2265B)
+│       │   ├── templates.md (31ead7c, 333L, 7968ch, 8001B)
+│       │   └── verification.md (026260b, 46L, 3345ch, 3355B)
+│       └── SKILL.md (70715a6, 52L, 4860ch, 4890B)
 ├── spec/ (1)
 │   └── spec.md (1472997, 464L, 20238ch, 20368B) [generated]
 ├── src/ (16)
 │   ├── generators/ (5)
-│   │   ├── dict.ts (99d4625, 1185L, 38122ch, 39002B)
+│   │   ├── dict.ts (93aa181, 1682L, 56953ch, 58059B)
 │   │   ├── embedded-bundle.ts (af3a94c, 52L, 2176ch, 2184B)
 │   │   ├── graph.ts (dfddf12, 123L, 5498ch, 5498B)
 │   │   ├── inline-asset.ts (ff2b51e, 61L, 2080ch, 2088B)
@@ -202,18 +202,18 @@ atomic_version: 3.0.0
 │   ├── types/ (2)
 │   │   ├── cytoscape-navigator.d.ts (10d3feb, 51L, 1802ch, 1806B)
 │   │   └── file-imports.d.ts (c8fc2ce, 46L, 1951ch, 1953B)
-│   ├── App.tsx (2da88fe, 1503L, 55823ch, 55916B)
+│   ├── App.tsx (b4d67b9, 1507L, 56004ch, 56097B)
 │   ├── branding-defaults.ts (b7554ee, 78L, 2508ch, 2510B)
 │   ├── cli.ts (ef87271, 197L, 6518ch, 7768B)
 │   ├── discover.ts (2a355d6, 176L, 5910ch, 5940B)
 │   ├── hash-router.ts (5ae0819, 70L, 2075ch, 2075B)
 │   ├── index.html (e560504, 14L, 396ch, 396B)
 │   ├── main.tsx (881fa67, 12L, 293ch, 293B)
-│   ├── markers.ts (569ebb1, 201L, 7280ch, 7290B)
+│   ├── markers.ts (f268ff5, 203L, 7412ch, 7424B)
 │   ├── parse.ts (a26a0aa, 388L, 13850ch, 13868B)
 │   ├── resolve-model.ts (0c23743, 70L, 2276ch, 2294B)
-│   ├── server.ts (4209d61, 157L, 5709ch, 5717B)
-│   ├── styles.css (6e6608c, 797L, 16062ch, 16082B)
+│   ├── server.ts (cd84629, 157L, 5725ch, 5733B)
+│   ├── styles.css (0199c9f, 805L, 16290ch, 16310B)
 │   ├── theme-defaults.ts (14619a1, 95L, 2567ch, 2569B)
 │   └── validate.ts (970bce2, 441L, 16574ch, 16599B)
 ├── test/ (4)
@@ -311,10 +311,10 @@ atomic_version: 3.0.0
 
 ## Languages
 
-- TypeScript: 13308 LOC (55%), 88 files (35%)
-- Markdown: 8308 LOC (34%), 139 files (56%)
+- TypeScript: 13811 LOC (55%), 88 files (35%)
+- Markdown: 8436 LOC (34%), 139 files (56%)
 - YAML: 1318 LOC (5%), 11 files (4%)
-- CSS: 984 LOC (4%), 2 files (0%)
+- CSS: 992 LOC (4%), 2 files (0%)
 - JSON: 92 LOC (0%), 4 files (1%)
 - HTML: 27 LOC (0%), 2 files (0%)
 - TOML: 2 LOC (0%), 1 file (0%)

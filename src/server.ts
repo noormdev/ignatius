@@ -71,7 +71,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         const validation = validateModel(model);
         const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
         const renderModel = { ...model, nodes: validation.cleanedModel.nodes };
-        const html = await generateDict(renderModel, { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors }, mode, { modelsDir });
+        const html = await generateDict(renderModel, { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors }, mode, { modelsDir, graphHref: '/' });
         return new Response(html, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
