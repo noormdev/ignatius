@@ -27,12 +27,12 @@
 ## Authoring convention axis
 
 
-The skill asks once per model which key convention you are using and carries that answer through the session.
+The skill detects which key convention a model uses from the shape of its existing entities, rather than asking you to pick a mode — and a model can mix both styles per entity.
 
 | Convention | PK shape | FK placement |
 |---|---|---|
 | `key-inherited` | Composite: parent PK columns + local discriminator | FK columns live inside the child PK |
-| `orm-oriented` | Single surrogate `id` (integer autoincrement) | FK columns sit outside the PK as plain columns |
+| `orm-oriented` | Single surrogate `id` (a plain column, typically integer or uuid) | FK columns sit outside the PK as plain columns |
 
 You never set `classification` or `identifying` manually. The parser derives both from the key shape you describe. See [What gets derived](derivation.md).
 

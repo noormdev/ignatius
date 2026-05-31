@@ -26,20 +26,20 @@ You don't manually tag or release. The pipeline does it:
 
 ## CI
 
-Every push and PR runs the CI workflow: install deps, build the React bundle, compile the binary, then run all six `tmp/test-*.ts` scripts plus a typecheck. Playwright's Chromium headless shell is cached by `bun.lock` hash.
+Every push and PR runs the CI workflow: install deps, build the React bundle, compile the binary, then run every check under `test/checks/` plus a typecheck. Playwright's Chromium headless shell is cached by `bun.lock` hash.
 
 ## Tests
 
-There's no test framework — tests are raw assertion scripts under `tmp/`. Run a single one:
+There's no test framework — tests are raw assertion scripts under `test/checks/`. Run a single one:
 
 ```bash
-bun tmp/test-cli-parse.ts
+bun test/checks/test-cli-validate.ts
 ```
 
 Or all of them:
 
 ```bash
-for f in tmp/test-*.ts; do bun "$f" || break; done
+bun run test
 ```
 
 A test passes if it exits 0 with no thrown error.

@@ -24,11 +24,11 @@
 
 `build:cli` sequence: `build:bundle` → `build:stable-names` → `bun build --compile src/cli.ts --outfile dist/ignatius`
 
-`bun run test` runs a shell loop over `test/checks/*.ts` in order; exits 1 on first failure. CI (.github/workflows/ci.yml) runs `test/checks/` scripts individually (not via `bun run test`) after building the binary.
+`bun run test` runs a shell loop over `test/checks/*.ts` in order; exits 1 on first failure. CI (.github/workflows/ci.yml) runs every `test/checks/*.ts` via a loop (same set as `bun run test`) after building the binary.
 
 `test/` is organized into subdirectories — not a formal test-framework suite:
 
-- `test/checks/` — 33 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI. Includes `test-validate-entity.ts` and `test-validate-refs.ts` which pin `key-inherited` as the clean baseline and `broken-demo` as the broken fixture (4 global + 7 entity = 11 total expected findings). `test-parse-predicate.ts` covers `Predicate` type normalization and `ModelEdge.predicate` shape.
+- `test/checks/` — 34 raw assertion scripts (PASS/FAIL/throw). Run by `bun run test` and CI. Includes `test-validate-entity.ts` and `test-validate-refs.ts` which pin `key-inherited` as the clean baseline and `broken-demo` as the broken fixture (4 global + 7 entity = 11 total expected findings). `test-parse-predicate.ts` covers `Predicate` type normalization and `ModelEdge.predicate` shape.
 - `test/visual/` — 12 Playwright screenshot scripts for manual visual inspection. NOT run by `bun run test`. Includes `screenshot-predicate-hover.ts` (assertions check verb + arrow presence on hover) and `screenshot-hover-fade.ts` (verifies `.faded` class application + element count via `window.__IGNATIUS_CY__`).
 - `test/fixtures/` — 3 YAML fixtures loaded by check scripts.
 - `test/notes/` — 2 markdown dev notes.
@@ -49,7 +49,7 @@ No linter or formatter configured in package.json.
 ## DevOps & CI
 
 - CI provider: GitHub Actions (`.github/workflows/ci.yml`). Triggers on all branch pushes and PRs to master/main.
-- CI pipeline: install deps → cache Playwright → build bundle + stable-names → compile binary → run `test/checks/` scripts individually → typecheck (`continue-on-error: true`).
+- CI pipeline: install deps → cache Playwright → build bundle + stable-names → compile binary → run all `test/checks/*.ts` → typecheck (`continue-on-error: true`).
 - Release pipeline: `.github/workflows/release-please.yml` + `.github/workflows/release.yml` (release-please driven).
 - Binary is built locally or in CI via `bun run build:cli`; produces `dist/ignatius`.
 - package.json `name` is `ignatius`. The repo *directory* is still named `derek-db-generator/` — the one remaining derek reference, a known leftover.
@@ -75,13 +75,15 @@ No linter or formatter configured in package.json.
 
 ### cli
 
-`src/cli.ts` is the binary entry point. Three subcommands (`serve`, `dict`, `graph`) built with `citty` `defineCommand`; dispatched via `runMain(main)`. Each subcommand accepts an optional positional `[path]` (search base, default: cwd) and a `--model <key>` flag. `--port` is a string flag on `serve`; validated with `isNaN` check, exits 1 on invalid.
+`src/cli.ts` is the binary entry point. Four subcommands (`serve`, `dict`, `graph`, `validate`) built with `citty` `defineCommand`; dispatched via `runMain(main)`. Each subcommand accepts an optional positional `[path]` (search base, default: cwd) and a `--model <key>` flag. `--port` is a string flag on `serve`; validated with `isNaN` check, exits 1 on invalid.
 
 `dict` and `graph` subcommands: call `parseModels(dir)` → destructure `{ model, globalErrors: parseGlobalErrors }` → dynamic-import `{ validateModel, formatFindingsForStderr }` from `./validate` → merge `allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors]` → call `formatFindingsForStderr(allGlobalErrors, validation.entityErrors)` and write each line to `process.stderr` → write output HTML → `process.exit(allGlobalErrors.length > 0 ? 1 : 0)`. Exit code 1 when any global errors are present; 0 otherwise.
 
 `dict` subcommand passes `renderModel = { ...model, nodes: validation.cleanedModel.nodes }` (coerced-safe node shapes, raw edges) to `generateDict` — raw edges are preserved so the dict can render `dict-link-missing` affordances for dangling FKs even when their targets are absent. `graph` subcommand passes the raw `model` to `generateGraph` (graph output does not render missing-target affordances, so cleanedModel is not needed there).
 
 `graph` dynamic-imports `loadEmbeddedBundle` at runtime with try/catch that prints "Run: bun run build:bundle" on failure.
+
+`validate` subcommand: same `parseModels` → `validateModel` → `formatFindingsForStderr` → stderr flow as `dict`/`graph`, but writes **no** HTML output (no `-o` flag, no generator import). Prints a one-line stdout summary (`✓ … valid` / `✗ … N error(s), M warning(s)`) and `process.exit(allGlobalErrors.length > 0 ? 1 : 0)`. The validate-only quality gate used by the noorm-modeling skill's verification loop.
 
 `src/discover.ts` — pure model-root resolver. Exports `resolveModel(base, opts): Promise<ResolveResult>` and `ModelCandidate` / `ResolveResult` types. A model root is any directory containing `ignatius.yml`. Algorithm: (1) base itself has `ignatius.yml` → single; (2) search down (skipping `_*`, `node_modules`, `.git`, `dist`, `tmp`, `trash`, `.worktrees`, `.claude`); (3) if nothing found, walk up toward fs root (or optional `ceiling`); (4) exactly 1 found → single; (5) multiple + `--model` key → filter; (6) multiple + no key → many. No TTY, no clack imports — purely algorithmic. `ResolveResult` discriminated union: `single | many | no-match | none`.
 
@@ -149,7 +151,7 @@ CP-1 (entity rules) is implemented; parse.* rules (CP-2) are defined in `RuleId`
 
 **Predicate pills in relationship table:** `renderRelationshipsTable` renders `.rel-table--predicates`. Each row's predicate cell contains inline pills: when `fwd !== rev`, `.predicate-pill--primary` (child's-perspective: `predicate.rev` + `→` arrow) and `.predicate-pill--inverse` (`←` arrow + `predicate.fwd`). When `fwd === rev`, a single `.predicate-pill--shared`. `.predicate-arrow` glyphs are rendered with `&rarr;` / `&larr;`. Pill backgrounds use `color-mix(in srgb, var(--color-link) 12%, ...)` for primary, muted surface for inverse.
 
-Renders global error banner (`<div class="dict-global-banner">`), per-entity `<details class="dict-entity-warning">` disclosures, `<a class="dict-link-missing">` FK links, and `<section class="dict-missing-section">` stubs — unchanged from prior. `RULES` imported from `../validate` for human-readable rule titles.
+Renders global errors as rows inside the findings panel (`<aside class="dict-findings-panel">` — the standalone `dict-global-banner` div was retired; only its now-unused CSS rules remain), per-entity `<details class="dict-entity-warning">` disclosures, `<a class="dict-link-missing">` FK links, and `<section class="dict-missing-section">` stubs. `RULES` imported from `../validate` for human-readable rule titles.
 
 `src/generators/graph.ts` (124L) — signature: `generateGraph(model, mode, sourceOrDir)`. Injects `window.__IGNATIUS_MODE__ = "static"`, `window.__MODEL__`, and `window.__THEME_MODE__` as a synchronous `<script>` before the React module script. Also strips the live-mode body script (`window.__IGNATIUS_MODE__ = 'live'`) that Bun bundles from `src/index.html` into `dist/static/index.html`, so the static injection's `'static'` value wins. Calls `loadBundleFromDir()` (dev) or accepts `BundleContent` directly (compiled binary).
 

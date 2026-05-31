@@ -19,6 +19,7 @@ A standalone CLI (`ignatius`) that takes a models directory and produces one of 
 - [ ] `ignatius serve models/` starts the interactive server on the models dir
 - [ ] `ignatius dict models/ -o dict.html` writes a self-contained data dictionary HTML file
 - [ ] `ignatius graph models/ -o graph.html` writes a self-contained graph HTML file (open in any browser, ELK lays it out client-side, pan/zoom/click work)
+- [x] `ignatius validate models/` validates the model and reports findings to stderr without writing any output; exits 1 on global errors, 0 otherwise
 - [ ] Interactive app has a light/dark mode toggle that persists to localStorage
 - [ ] Data dictionary HTML has: entity sections with attributes tables, FK links as anchor jumps, relationships tables, rendered markdown body, group color coding
 - [ ] All three surfaces respect `--theme light|dark` flag (static outputs) or toggle (interactive)
@@ -42,6 +43,7 @@ The existing React app (Cytoscape + ELK + markers) already does all the renderin
 - `serve`: spins up Bun.serve(), routes `/` to embedded static bundle, `/api/model` to a fresh `parseModels(dir)` call, watches the dir for changes
 - `graph`: reads the embedded HTML template, injects the parsed Model as `window.__MODEL__`, writes one self-contained HTML file
 - `dict`: ignores the React bundle; generates pure HTML string templates from the Model + theme
+- `validate`: parses + validates only; prints findings to stderr and a one-line summary to stdout, writes no file (no `-o`, no generator import) — the fast quality gate
 
 The graph output is the same React app, with the model baked in instead of fetched. ELK runs client-side when the user opens the file. ~3-4MB total (acceptable for a shareable artifact).
 
@@ -72,6 +74,12 @@ The graph output is the same React app, with the model baked in instead of fetch
 
 
 ## Change log
+
+### 2026-05-31 — Add `validate` subcommand
+
+**What changed:** New `validate` subcommand: parses + validates a model and prints findings to stderr (same `<sev>  <ruleId>  <location>  <message>` format as `dict`/`graph`) plus a one-line stdout summary, writing no HTML. No `-o` flag. Exit code matches the other commands (1 on global errors, 0 otherwise). Added to the success criteria and approach.
+
+**Why:** A validate-only path is a fast quality gate for authoring loops (no bundle, no file written) — adopted by the noorm-modeling skill's verification loop in place of generating a throwaway dict HTML purely to lint.
 
 ### 2026-05-28 — Rename CLI from `derek` to `ignatius`
 

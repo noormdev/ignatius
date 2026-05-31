@@ -142,7 +142,7 @@ Paths are relative to `docs/design/`, `docs/spec/`, `docs/guides/`, and `skills/
 | Subtype clusters | markdown-driven-erd | derive-classification, schema-lint-and-error-ux | derivation | entity-flow E5a, templates (subtype example) |
 | Bidirectional predicates | bidirectional-predicates | bidirectional-predicates | predicates | entity-flow E5 |
 | Schema lint + error UX (findings) | schema-lint-and-error-ux | schema-lint-and-error-ux | validation | verification (rule table + loop) |
-| CLI subcommands + static/live outputs | cli-and-outputs | cli-and-outputs | commands, building-from-source, getting-started | verification (runs `ignatius dict`) |
+| CLI subcommands (serve/dict/graph/validate) + static/live outputs | cli-and-outputs | cli-and-outputs | commands, building-from-source, getting-started | verification (runs `ignatius validate`) |
 | Project config + model discovery (`ignatius.yml`) | ignatius-project-config | ignatius-project-config | getting-started, folder-format | entity-flow E0, model-flow M1–M8, templates |
 | Themes | cli-and-outputs | cli-and-outputs | themes-and-branding | model-flow M4 |
 | Branding | branding | branding | themes-and-branding | model-flow M5 |

@@ -7,7 +7,7 @@ Authoring an ignatius entity file today means:
 
 1. Hand-write the YAML frontmatter without IDE help (no schema, no completion).
 2. Remember the IDEF1X classification rules (independent vs dependent vs subtype — including the FK-in-PK = dependent rule that even seasoned users get wrong).
-3. Know that group color, sort_key, and theme must live in `_groups/*.md` and `_theme.yaml`, not on the entity itself.
+3. Know that group color, sort_key, and theme must live in `_groups/*.md` and `ignatius.yml`, not on the entity itself.
 4. Run `ignatius dict` afterwards to discover mistakes — by which point the lint surface is reactive, not preventive.
 
 The result: every new contributor's first entity is a half-broken file that produces lint warnings on first run. Reviewers spend cycles on mechanical issues. The skill is the antidote — a guided authoring loop that produces a properly-formed file the first time and verifies it by invoking the CLI.
@@ -18,9 +18,9 @@ The result: every new contributor's first entity is a half-broken file that prod
 - **Goals**
     - One skill (`/noorm-modeling`) with two modes selected by a positional arg:
         - **`entity`** — author a single entity .md file given an existing `models/` root.
-        - **`model`** — bootstrap a complete `models/` skeleton (`_groups/`, optional `_theme.yaml`, optional `_branding.yaml`, one or two reference entities).
+        - **`model`** — bootstrap a complete `models/` skeleton (`_groups/`, a single `ignatius.yml` carrying optional theme + branding, one or two reference entities).
     - The skill knows the IDEF1X rules — it asks the right questions in the right order so the resulting file satisfies the linter on first run.
-    - After writing, the skill runs `ignatius dict <models>` and reports any lint findings. If findings appear, the skill prompts the user to fix them iteratively.
+    - After writing, the skill runs `ignatius validate <models>` and reports any lint findings. If findings appear, the skill prompts the user to fix them iteratively.
     - The skill is invoked via the standard Claude Code skill mechanism: `/noorm-modeling entity` or `/noorm-modeling model`. Bare `/noorm-modeling` asks the user to pick.
     - Skill output: real file(s) on disk, staged but not committed.
 
@@ -87,7 +87,7 @@ The skeleton is intentionally minimal — no inflated example data. One group, o
 
 ## Invocation
 
-- Skill file lives in this repo so it ships with the project. Path: `.claude/skills/noorm-modeling/SKILL.md` (project-scoped skill).
+- Skill file lives in this repo so it ships with the project. Path: `skills/noorm-modeling/SKILL.md` (project-scoped skill).
 - Name: `/noorm-modeling`. One skill, one file. Mode selected by positional arg: `entity` or `model`.
 - Bare `/noorm-modeling` (no arg) prompts the user to pick which mode. Unknown args fall to the same prompt.
 - Invokable from anywhere; if not inside an ignatius `models/`-bearing project the skill asks for paths.
@@ -114,7 +114,7 @@ These are kept in sync with the canonical sources by referencing `docs/spec/sche
 
 ## Verification loop
 
-After writing files, the skill runs `ignatius dict <dir> -o /tmp/ignatius-skill-check.html` and parses the CLI's stderr lint output (the format defined by `schema-lint-and-error-ux`). For each finding:
+After writing files, the skill runs `ignatius validate <dir>` (the validate-only quality gate — no HTML output) and parses the CLI's stderr lint output (the format defined by `schema-lint-and-error-ux`). For each finding:
 
 - The skill reports the category + message + fix hint to the user.
 - The skill offers to revise: "Update the file?" — if yes, the skill walks the relevant question subset again with the original answers prefilled, writes the file, re-runs.

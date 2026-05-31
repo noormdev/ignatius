@@ -37,7 +37,7 @@ How to run both flows well. These reflect how Claude works best as an interactiv
 - **Explain the WHY when you ask for something non-obvious.** "Parent PK columns first, because key-inherited propagates them into the child key" lands better than a bare demand and teaches the convention as you go. State motivation, not just the rule.
 - **Act, don't just suggest.** Once a step's answer is in hand, write or update the file — do not stop at proposing YAML and waiting for permission. The user invoked the skill to produce files. Writing into the model directory is local and reversible; only confirm before overwriting an existing entity.
 - **Infer before asking.** Read existing entities, `_groups/`, and `ignatius.yml` first to detect the convention, list groups, and prefill answers. Ask only what the files cannot tell you.
-- **Reflect after verification.** When `ignatius dict` returns findings, read them and decide the smallest set of Q&A steps to re-ask before rewriting. Do not blindly regenerate the whole file.
+- **Reflect after verification.** When `ignatius validate` returns findings, read them and decide the smallest set of Q&A steps to re-ask before rewriting. Do not blindly regenerate the whole file.
 - **Self-check before declaring done.** The linter checks structure, not story. A clean `dict` run is necessary but not sufficient. Before reporting success, confirm the entity actually captured its business rules and rationale (Step E9) and that each predicate reads as a true sentence in both directions — these are the parts no rule can catch.
 - **Prefer the positive form.** Tell the user what to write, with a concrete example, rather than listing what to avoid.
 
@@ -47,6 +47,6 @@ Load only the file for the step you are on:
 
 - `references/entity-flow.md` — entity Q&A steps, the one-time convention nudge, and the subtype-cluster step.
 - `references/model-flow.md` — new-model bootstrap Q&A steps.
-- `references/verification.md` — the `ignatius dict` loop and the rule reference table.
+- `references/verification.md` — the `ignatius validate` loop and the rule reference table.
 - `references/templates.md` — entity, group, and `ignatius.yml` templates with worked examples.
 - `references/conventions.md` — column types and the classification and cardinality derivation tables.

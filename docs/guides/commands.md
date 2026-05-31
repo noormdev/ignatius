@@ -1,13 +1,14 @@
 # Commands
 
 
-ignatius has three subcommands. All three read the same folder format and respect the same theme.
+ignatius has four subcommands. All read the same folder format, and the output commands respect the same theme.
 
 | Subcommand | What it does |
 |---|---|
 | `serve` | Starts an interactive server and watches the folder for changes |
 | `dict` | Writes a self-contained data dictionary as a single HTML file |
 | `graph` | Writes a self-contained interactive graph as a single HTML file |
+| `validate` | Checks the model and reports findings without writing any output |
 
 
 ## Model discovery
@@ -60,7 +61,19 @@ ignatius graph [path] -o graph.html [--theme light|dark] [--model <key>]
 Both `dict` and `graph` default to the dark theme. Pass `--theme light` for the light palette.
 
 
+## validate
+
+
+Checks the model and reports findings without generating any HTML. This is the fast path when you only want to know whether the model is sound: no bundle, no file written.
+
+```bash
+ignatius validate [path] [--model <key>]
+```
+
+It prints each finding to stderr in the same format as the other commands and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. Use it as a lightweight quality gate while authoring or in CI.
+
+
 ## Exit codes
 
 
-`dict` and `graph` print any schema findings to stderr and exit `1` when the model has errors (omitted edges, dangling targets, unparseable files), `0` otherwise. Warnings alone do not fail the command. This makes the static commands usable as a CI gate. See [Validation and findings](validation.md) for the rule catalog.
+`dict`, `graph`, and `validate` print any schema findings to stderr and exit `1` when the model has errors (omitted edges, dangling targets, unparseable files), `0` otherwise. Warnings alone do not fail the command. This makes the commands usable as a CI gate. See [Validation and findings](validation.md) for the rule catalog.

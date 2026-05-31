@@ -1,9 +1,13 @@
 ## Verification loop (CP-3)
 
-After writing any files, run:
+After writing any files, run the validate-only quality gate:
 ```
-ignatius dict <model-root> -o /tmp/ignatius-skill-check.html
+ignatius validate <model-root>
 ```
+
+`validate` parses and validates without generating any HTML — the fast gate for
+authoring loops. It prints findings to stderr and a one-line summary to stdout,
+and exits non-zero when global (Class B) errors are present.
 
 Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces between fields).
 
@@ -32,8 +36,9 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
   - If no: leave as-is, surface findings to user, exit.
 - Max 5 attempts. On attempt 5 failure: "Max attempts reached. Remaining findings: <list>. Fix manually."
 - Exit code 0, no stderr lines → structurally clean, but do not stop here. Run the final self-check below before declaring done.
+- Warnings (Class A) keep exit 0 but are still real findings — drive them to zero too, do not stop at "exit 0" while warnings remain.
 
-**Final self-check (runs after a clean `dict`):**
+**Final self-check (runs after a clean `validate`):**
 
 The linter validates structure; it cannot see whether the business story was captured. Before reporting success, confirm:
 
