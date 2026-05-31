@@ -10,6 +10,13 @@ columns:
   type:
     type: text
     desc: "Party kind — foreign key to PartyType.code (Business or Person)."
+examples:
+  - id: 1
+    type: BUSINESS
+  - id: 2
+    type: PERSON
+  - id: 3
+    type: PERSON
 relationships:
   - target: PartyType
     on:

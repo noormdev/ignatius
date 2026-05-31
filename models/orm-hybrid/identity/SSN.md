@@ -13,6 +13,13 @@ columns:
   ssn:
     type: text
     desc: "US Social Security Number."
+examples:
+  - id: 1
+    identity_id: 1
+    ssn: "***-**-4471"
+  - id: 2
+    identity_id: 2
+    ssn: "***-**-8830"
 relationships:
   - target: Identity
     on:

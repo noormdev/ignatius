@@ -17,6 +17,13 @@ ak:
   - rule: one SIL_Product per SI_Line
     columns:
       - si_line_id
+examples:
+  - id: 1
+    si_line_id: 1
+    product_id: 10
+  - id: 2
+    si_line_id: 4
+    product_id: 11
 relationships:
   - target: SI_Line
     on:

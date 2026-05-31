@@ -13,6 +13,13 @@ columns:
   subscription_id:
     type: integer
     desc: "Subscription billed on this line — foreign key to Subscription."
+examples:
+  - id: 1
+    si_line_id: 2
+    subscription_id: 5
+  - id: 2
+    si_line_id: 3
+    subscription_id: 7
 relationships:
   - target: SI_Line
     on:

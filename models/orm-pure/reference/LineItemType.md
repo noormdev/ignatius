@@ -11,6 +11,11 @@ columns:
   description:
     type: text
     desc: "Human-readable label for the code."
+examples:
+  - code: PRODUCT
+    description: One-time physical or digital product purchase
+  - code: SUBSCRIPTION
+    description: Recurring subscription plan billed per period
 ---
 
 # LineItemType

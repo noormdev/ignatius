@@ -18,6 +18,13 @@ subtypes:
         type: PartyType.code.BUSINESS
       Person:
         type: PartyType.code.PERSON
+examples:
+  - id: 1
+    type: BUSINESS
+  - id: 2
+    type: PERSON
+  - id: 3
+    type: PERSON
 relationships:
   - target: PartyType
     on:

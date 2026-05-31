@@ -17,6 +17,13 @@ ak:
   - rule: one SOL_Subscription per SO_Line
     columns:
       - so_line_id
+examples:
+  - id: 1
+    so_line_id: 2
+    subscription_id: 5
+  - id: 2
+    so_line_id: 3
+    subscription_id: 7
 relationships:
   - target: SO_Line
     on:

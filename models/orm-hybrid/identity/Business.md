@@ -20,6 +20,15 @@ ak:
   - rule: unique tax identifier
     columns:
       - tax_id
+examples:
+  - id: 1
+    party_id: 1
+    legal_name: Meridian Analytics LLC
+    tax_id: "47-3819204"
+  - id: 2
+    party_id: 4
+    legal_name: Northshore Capital Partners Inc.
+    tax_id: "82-0041567"
 relationships:
   - target: Party
     on:

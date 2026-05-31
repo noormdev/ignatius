@@ -11,6 +11,13 @@ columns:
   description:
     type: text
     desc: "Human-readable label for the code."
+examples:
+  - code: CREDIT_CARD
+    description: Credit or debit card payment
+  - code: BANK_TRANSFER
+    description: ACH or wire bank transfer
+  - code: CHECK
+    description: Paper or electronic check
 ---
 
 # PaymentMethodType

@@ -30,6 +30,25 @@ subtypes:
         type: LineItemType.code.SUBSCRIPTION
       SIL_Product:
         type: LineItemType.code.PRODUCT
+examples:
+  - id: 1
+    sales_invoice_id: 1
+    line_seq: 1
+    type: PRODUCT
+    qty: 1
+    unit_price: 49.00
+  - id: 2
+    sales_invoice_id: 1
+    line_seq: 2
+    type: SUBSCRIPTION
+    qty: 1
+    unit_price: 89.00
+  - id: 3
+    sales_invoice_id: 2
+    line_seq: 1
+    type: SUBSCRIPTION
+    qty: 1
+    unit_price: 4999.00
 relationships:
   - target: SalesInvoice
     on:

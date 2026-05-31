@@ -13,6 +13,13 @@ columns:
   product_id:
     type: integer
     desc: "Product billed on this line — foreign key to Product."
+examples:
+  - id: 1
+    si_line_id: 1
+    product_id: 10
+  - id: 2
+    si_line_id: 4
+    product_id: 11
 relationships:
   - target: SI_Line
     on:

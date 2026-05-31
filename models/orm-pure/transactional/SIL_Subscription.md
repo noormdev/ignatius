@@ -17,6 +17,13 @@ ak:
   - rule: one SIL_Subscription per SI_Line
     columns:
       - si_line_id
+examples:
+  - id: 1
+    si_line_id: 2
+    subscription_id: 5
+  - id: 2
+    si_line_id: 3
+    subscription_id: 7
 relationships:
   - target: SI_Line
     on:

@@ -19,6 +19,17 @@ columns:
   birthdate:
     type: date
     desc: "Date of birth."
+examples:
+  - id: 1
+    party_id: 2
+    first_name: Elena
+    last_name: Vasquez
+    birthdate: "1988-03-14"
+  - id: 2
+    party_id: 3
+    first_name: Marcus
+    last_name: Okonkwo
+    birthdate: "1975-11-02"
 relationships:
   - target: Party
     on:

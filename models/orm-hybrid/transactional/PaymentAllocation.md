@@ -16,6 +16,19 @@ columns:
   amount:
     type: decimal
     desc: "Portion of the payment applied to this line; positive."
+examples:
+  - id: 1
+    payment_id: 1
+    si_line_id: 1
+    amount: 49.00
+  - id: 2
+    payment_id: 1
+    si_line_id: 2
+    amount: 89.00
+  - id: 3
+    payment_id: 2
+    si_line_id: 3
+    amount: 4999.00
 relationships:
   - target: Payment
     on:

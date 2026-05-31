@@ -13,6 +13,13 @@ columns:
   itin:
     type: text
     desc: "US Individual Taxpayer Identification Number."
+examples:
+  - id: 1
+    identity_id: 3
+    itin: "9XX-70-3241"
+  - id: 2
+    identity_id: 4
+    itin: "9XX-72-8814"
 relationships:
   - target: Identity
     on:

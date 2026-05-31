@@ -17,6 +17,13 @@ ak:
   - rule: one SOL_Product per SO_Line
     columns:
       - so_line_id
+examples:
+  - id: 1
+    so_line_id: 1
+    product_id: 10
+  - id: 2
+    so_line_id: 4
+    product_id: 11
 relationships:
   - target: SO_Line
     on:

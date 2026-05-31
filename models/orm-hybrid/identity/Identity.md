@@ -22,6 +22,11 @@ subtypes:
       - Passport
       - SSN
       - ITIN
+examples:
+  - id: 1
+    party_id: 2
+  - id: 2
+    party_id: 3
 relationships:
   - target: Party
     on:
