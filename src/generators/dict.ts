@@ -1042,9 +1042,13 @@ ${entityRows}
     /* ── Print stylesheet ─────────────────────────────────────────────────── */
     @media print {
       /* Force light-mode CSS variables when printing, regardless of the theme
-         used at generation time. Same specificity as the :root block above, but
-         this rule only applies in print media — so it wins via cascade order. */
-      :root {
+         used at generation time. Must match the runtime theme selectors
+         (:root[data-theme="..."]) — those carry higher specificity than a bare
+         :root, so a plain :root rule here would lose to the active dark palette.
+         Listing all three at equal specificity + later source order wins. */
+      :root,
+      :root[data-theme="dark"],
+      :root[data-theme="light"] {
         ${lightCssVars}
       }
 
@@ -1344,7 +1348,10 @@ ${entityRows}
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 50;
+      /* Above the side-nav panel (z-index 150) so the FAB and its menu stay
+         reachable while the sidebar is open — otherwise the open panel occludes
+         the "Toggle sidebar" item and the sidebar can't be closed via the FAB. */
+      z-index: 200;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
       transition: border-color 0.15s;
       color: var(--color-text-muted);
@@ -1379,7 +1386,7 @@ ${entityRows}
       display: none;
       flex-direction: column;
       min-width: 160px;
-      z-index: 60;
+      z-index: 201;
       overflow: hidden;
     }
     .dict-fab-menu.dict-fab-menu--open { display: flex; }
