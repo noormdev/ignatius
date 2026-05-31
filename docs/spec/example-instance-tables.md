@@ -109,3 +109,32 @@ Live-only validation:
 **Why:** the original wording conflated `mode` (theme `'dark' | 'light'`) with surface. Discovered at CP-3 brief authoring time when the implementer would have had to guess the distinguisher. An explicit field is cleaner than overloading `graphHref` presence.
 
 **Superseded:** prior criterion that read "The static dict generator (`generateDict(... mode = 'static' ...)`) omits live-only findings from its findings banner; the live server path still surfaces them."
+
+## Implementation log
+
+### v1 — 2026-05-31
+
+Built across 7 checkpoint iterations of `/subagent-implementation`, then squashed and rebased onto the renamed default branch (`origin/main`).
+
+- `337c04e` — squashed delivery covering all seven CPs:
+    - CP-1 schema + parser pass-through (`src/parse.ts`, `test/checks/test-parse-examples.ts`)
+    - CP-2 validator rule + `liveOnly` filter (`src/validate.ts`, `test/checks/test-validate-examples.ts`)
+    - CP-3 dict accordion + static-surface findings filter (`src/generators/dict.ts`, `src/server.ts`, `test/checks/test-dict-examples.ts`, `test/visual/screenshot-dict-examples.ts`)
+    - CP-4 graph entity-detail modal accordion + decoupled close (`src/App.tsx`, `src/styles.css`, `test/visual/screenshot-entity-modal.ts`)
+    - CP-5 always-on E7b skill step (`skills/noorm-modeling/references/entity-flow.md`, `skills/noorm-modeling/references/verification.md`, `docs/design/noorm-modeling-skill.md`, `docs/spec/noorm-modeling-skill.md` change log)
+    - CP-6 broken-demo Customer.md amend + test pin update (`models/broken-demo/Customer.md`, `test/checks/test-validate-refs.ts`, `test/checks/test-api-model.ts`)
+    - CP-7 24-entity backfill under `models/key-inherited/{catalog,identity,reference,transactional}/`
+
+**Out-of-scope work performed during this build:**
+- F-1 family: when finalization's full test run surfaced pre-existing baseline regressions from the prior dict UX parity refactor (commit `a26dd17`), the orchestrator patched four stale tests in-iteration (`test-dict-findings`, `test-dict-gen`, `test-dict-route`, `test-dict-mobile`, `test-dict-print`, `test-findings-panel`, `test-parse-globals`). These overlapped with parallel work on `origin/main` (commits `015a4a7 test(ci): repair stale checks`, `ef095ba fix(dict): force light palette in print`) and were superseded by `main`'s versions during the final rebase — main's fixes won, my duplicates were discarded by `git checkout --ours` on the conflicting files.
+- The original spec language for CP-5 said step `E5b between E5 (columns) and E6 (description)` reflecting a stale view of the entity flow; was re-anchored to `E7b between E7 (Columns) and E8 (Reference table)` after reading the actual `entity-flow.md` ordering (E5=Relationships, E6=AKs, E7=Columns).
+
+**Unforeseens — surprises that emerged during implementation:**
+- An entity-detail modal already existed in `src/App.tsx:276` (`SelectedEntityModal`); CP-4 reduced from "build the modal" to "add the examples accordion + decouple close from selection".
+- `generateDict`'s `mode` param turned out to be theme (`dark`/`light`), not surface — CP-3 required adding an explicit `surface?: 'live' | 'static'` opt to distinguish CLI-static from server-live.
+- `origin/main` had advanced ten commits past the branch base while the loop was running, including a rename of `skills/ignatius-modeling/` → `skills/noorm-modeling/` and a `feat(cli): add validate subcommand`. The rebase merged my CP-5 edits into the renamed paths automatically.
+
+**Deferred items still open:**
+- None. The four cosmetic nits (F-2 through F-5) in the in-loop FOLLOWUPS ledger were stylistic and dropped — they all reflected choices consistent with the file's existing conventions. The scratchpad is deleted at the end of finalization.
+
+Pre-existing baseline failure F-1 (stale `test-dict-findings.ts:97` assertion) was first patched in-iteration; the rebase replaced my patch with `main`'s own fix for the same regression. Either path lands `bun run test` green.
