@@ -19,7 +19,7 @@ While `0.x.y`, breaking changes bump the minor (not the major). Once we hit `1.0
 
 You don't manually tag or release. The pipeline does it:
 
-1. Land your conventional-commit PRs on `master`.
+1. Land your conventional-commit PRs on `main`.
 2. The **release-please** workflow opens (or updates) a release PR that bumps the version and the CHANGELOG based on commits since the last release.
 3. When the release PR is merged, release-please creates a `v*` tag.
 4. The **release** workflow fires on that tag, cross-compiles the binary for darwin-arm64, darwin-x64, linux-x64, linux-arm64, and windows-x64, and attaches them plus a `checksums.txt` to the GitHub Release.

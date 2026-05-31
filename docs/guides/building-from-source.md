@@ -4,6 +4,8 @@
 ignatius is built with [Bun](https://bun.com). `bun build --compile` produces a single executable named `ignatius` with the Bun runtime, the CLI, and the React viewer bundled in. It runs on its own with no install step.
 
 ```bash
+git clone https://github.com/noormdev/ignatius.git
+cd ignatius
 bun install
 bun run build:cli
 ```

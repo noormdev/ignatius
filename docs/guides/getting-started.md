@@ -32,9 +32,11 @@ Releases include `checksums.txt` if you want to verify the download with `shasum
 ### From source
 
 
-ignatius is built with [Bun](https://bun.com). Install Bun first, then:
+ignatius is built with [Bun](https://bun.com). Install Bun first, then clone and build:
 
 ```bash
+git clone https://github.com/noormdev/ignatius.git
+cd ignatius
 bun install
 bun run build:cli
 ```

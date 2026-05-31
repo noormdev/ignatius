@@ -4,6 +4,14 @@
   "private": true,
   "type": "module",
   "description": "ignatius — a markdown-driven IDEF1X ERD viewer + static site generator",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noormdev/ignatius.git"
+  },
+  "homepage": "https://github.com/noormdev/ignatius#readme",
+  "bugs": {
+    "url": "https://github.com/noormdev/ignatius/issues"
+  },
   "scripts": {
     "dev": "bun --hot src/server.ts",
     "dev:cli": "bun --hot src/cli.ts serve models/key-inherited",
