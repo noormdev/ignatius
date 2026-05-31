@@ -10,16 +10,16 @@ Install ignatius, then point it at a folder of entity files and open the graph i
 ### Download a release (recommended)
 
 
-Pick the binary for your platform from the [latest GitHub release](https://github.com/<owner>/<repo>/releases/latest) and put it on your `$PATH`:
+Pick the binary for your platform from the [latest GitHub release](https://github.com/noormdev/ignatius/releases/latest) and put it on your `$PATH`:
 
 ```bash
 # macOS arm64
-curl -L -o ignatius https://github.com/<owner>/<repo>/releases/latest/download/ignatius-darwin-arm64
+curl -L -o ignatius https://github.com/noormdev/ignatius/releases/latest/download/ignatius-darwin-arm64
 chmod +x ignatius
 sudo mv ignatius /usr/local/bin/
 
 # Linux x64
-curl -L -o ignatius https://github.com/<owner>/<repo>/releases/latest/download/ignatius-linux-x64
+curl -L -o ignatius https://github.com/noormdev/ignatius/releases/latest/download/ignatius-linux-x64
 chmod +x ignatius
 sudo mv ignatius /usr/local/bin/
 ```

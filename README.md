@@ -15,7 +15,7 @@ A diagram drawn by hand drifts from the schema it documents. ignatius removes th
 ## Quick start
 
 
-Download the binary for your platform from the [latest release](https://github.com/<owner>/<repo>/releases/latest), put it on your `$PATH`, then point it at a folder of entity files:
+Download the binary for your platform from the [latest release](https://github.com/noormdev/ignatius/releases/latest), put it on your `$PATH`, then point it at a folder of entity files:
 
 ```bash
 ignatius serve path/to/your/models --port 3000
