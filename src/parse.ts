@@ -129,7 +129,7 @@ function deriveCardinality(
   const fkChildCols = Object.keys(edge.on);
 
   if (edge.identifying) {
-    if (childNode.classification === 'subtype') {
+    if (childNode.classification === 'Subtype') {
       return { parent: '1', child: '0..1' };
     }
     if (arraysEqual(childNode.pk, fkChildCols)) {
