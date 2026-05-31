@@ -54,7 +54,7 @@ function makeModel(nodes: ModelNode[], edges: ModelEdge[] = []): Model {
 
 // ---------------------------------------------------------------------------
 // Fixture A — model with one global error (edge.unknown_target) + one entity
-// error (entity.missing_pk). This exercises the global banner and entity triangle.
+// error (entity.missing_pk). This exercises the findings panel and entity triangle.
 // ---------------------------------------------------------------------------
 
 const nodeA: ModelNode = makeNode({ id: 'Person', pk: [], columns: { name: { type: 'text', nullable: false } } });
@@ -93,12 +93,12 @@ const htmlA = await generateDict(
   {},
 );
 
-// 1. Global banner is present when globalErrors exist
-assert(htmlA.includes('<div class="dict-global-banner">'), 'global banner present when globalErrors exist');
+// 1. Findings panel is present when findings exist (global errors render as rows in it)
+assert(htmlA.includes('class="dict-findings-panel"'), 'findings panel present when findings exist');
 
-// 2. Global banner row names the missing target edge
-assert(htmlA.includes('Edge target not in model'), 'global banner contains rule title "Edge target not in model"');
-assert(htmlA.includes('Hat'), 'global banner row references omitted entity "Hat"');
+// 2. A finding row names the missing-target rule + the omitted entity
+assert(htmlA.includes('Edge target not in model'), 'findings panel contains rule title "Edge target not in model"');
+assert(htmlA.includes('Hat'), 'findings panel row references omitted entity "Hat"');
 
 // 3. Per-entity triangle present for Person (has entity.missing_pk)
 assert(htmlA.includes('class="dict-entity-warning"'), 'entity warning triangle class present for entity with errors');
@@ -133,8 +133,8 @@ const htmlB = await generateDict(
   {},
 );
 
-// 11. No banner when no global errors
-assert(!htmlB.includes('<div class="dict-global-banner">'), 'no global banner when globalErrors is empty');
+// 11. No findings panel when there are no findings
+assert(!htmlB.includes('class="dict-findings-panel"'), 'no findings panel when model is clean');
 
 // 12. No warning triangle when no entity errors
 assert(!htmlB.includes('class="dict-entity-warning"'), 'no entity warning triangle when entityErrors is empty');

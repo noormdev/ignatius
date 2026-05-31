@@ -199,7 +199,7 @@ Body.
 }
 
 // ---------------------------------------------------------------------------
-// Classification normalized to lowercase in ModelNode
+// Classification is derived (PascalCase), not taken from the legacy field
 // ---------------------------------------------------------------------------
 
 {
@@ -218,10 +218,13 @@ columns:
         await Bun.write(join(dir, 'MyEntity.md'), pascalCaseClassification);
         const { model } = await parseModels(dir);
 
-        console.assert(model.nodes.length === 1, 'FAIL: classification normalize — entity not in model');
-        console.assert(model.nodes[0]!.classification === 'independent',
-            `FAIL: classification not lowercased (got: ${model.nodes[0]!.classification})`);
-        console.log('PASS: classification normalized to lowercase (Independent → independent)');
+        // An entity with a single-column pk and no identifying parents derives to
+        // 'Independent'. Classification is structural + PascalCase — the legacy
+        // `classification:` frontmatter field is not lowercased or echoed.
+        console.assert(model.nodes.length === 1, 'FAIL: classification — entity not in model');
+        console.assert(model.nodes[0]!.classification === 'Independent',
+            `FAIL: classification should derive to 'Independent' (got: ${model.nodes[0]!.classification})`);
+        console.log('PASS: classification derived as PascalCase Independent');
     } finally {
         await cleanup(dir);
     }

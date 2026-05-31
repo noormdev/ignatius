@@ -51,32 +51,33 @@ async function main() {
   // Party is an entity in the models dir — its anchor must be present
   assert(dictHtml.includes('id="entity-Party"'), 'GET /dict body contains entity anchor id="entity-Party"');
 
-  // ---- Assertion 2: Default (no query param) is dark mode ----
-  const darkBgMatch = dictHtml.match(/--color-background:\s*([^;]+);/);
-  assert(darkBgMatch !== null, 'GET /dict (dark) has --color-background value in CSS');
+  // The mode only sets the initial data-theme on <html>; both palettes are
+  // always embedded as :root[data-theme="…"] blocks (runtime theme switching).
+  // So the distinguishing signal is the <html> tag attribute, not the first
+  // --color-background match (which is identical across modes).
+  const htmlTheme = (html: string) => html.match(/<html[^>]*\sdata-theme="([^"]+)"/)?.[1];
 
-  // ---- Assertion 3: GET /dict?theme=light returns light mode ----
+  // ---- Assertion 2: Default (no query param) initializes dark mode ----
+  assert(htmlTheme(dictHtml) === 'dark', `GET /dict (default) initializes data-theme="dark" (got ${htmlTheme(dictHtml)})`);
+  // Both dark + light palettes are embedded with distinct background values.
+  const distinctBgs = new Set(
+    [...dictHtml.matchAll(/--color-background:\s*([^;]+);/g)].map(m => m[1]?.trim()),
+  );
+  assert(distinctBgs.size >= 2, `dict embeds distinct dark + light --color-background palettes (got ${[...distinctBgs].join(', ')})`);
+
+  // ---- Assertion 3: GET /dict?theme=light initializes light mode ----
   const lightRes = await fetch(`${base}/dict?theme=light`);
   assert(lightRes.status === 200, `GET /dict?theme=light returns 200 (got ${lightRes.status})`);
 
   const lightHtml = await lightRes.text();
-  const lightBgMatch = lightHtml.match(/--color-background:\s*([^;]+);/);
-  assert(lightBgMatch !== null, 'GET /dict?theme=light has --color-background value in CSS');
-  assert(
-    darkBgMatch?.[1] !== lightBgMatch?.[1],
-    `dark and light --color-background values differ (dark: ${darkBgMatch?.[1]?.trim()}, light: ${lightBgMatch?.[1]?.trim()})`,
-  );
+  assert(htmlTheme(lightHtml) === 'light', `GET /dict?theme=light initializes data-theme="light" (got ${htmlTheme(lightHtml)})`);
 
   // ---- Assertion 4: Invalid theme param falls back to dark ----
   const invalidRes = await fetch(`${base}/dict?theme=rainbow`);
   assert(invalidRes.status === 200, `GET /dict?theme=rainbow returns 200 (got ${invalidRes.status})`);
 
   const invalidHtml = await invalidRes.text();
-  const invalidBgMatch = invalidHtml.match(/--color-background:\s*([^;]+);/);
-  assert(
-    invalidBgMatch?.[1] === darkBgMatch?.[1],
-    `Invalid theme falls back to dark (expected: ${darkBgMatch?.[1]?.trim()}, got: ${invalidBgMatch?.[1]?.trim()})`,
-  );
+  assert(htmlTheme(invalidHtml) === 'dark', `Invalid theme falls back to data-theme="dark" (got ${htmlTheme(invalidHtml)})`);
 
   // ---- Assertion 5: GET / (graph) still returns 200 ----
   const graphRes = await fetch(`${base}/`);

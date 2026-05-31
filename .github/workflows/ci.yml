@@ -42,14 +42,14 @@ jobs:
         run: bun build --compile src/cli.ts --outfile dist/ignatius
 
       - name: Run test scripts
+        # Run every check under test/checks/ (same as `bun run test`) so the
+        # suite can't silently drift to a stale or missing hardcoded filename.
         run: |
           set -e
-          bun test/checks/test-cli-parse.ts
-          bun test/checks/test-theme-parse.ts
-          bun test/checks/test-dict-gen.ts
-          bun test/checks/test-graph-gen.ts
-          bun test/checks/test-sse-live-reload.ts
-          bun test/checks/test-cli-binary.ts
+          for f in test/checks/*.ts; do
+            echo "=== $f ==="
+            bun "$f"
+          done
 
       - name: Typecheck
         run: bunx tsc --noEmit

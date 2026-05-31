@@ -45,18 +45,21 @@ for (const id of entityIds) {
 const fkMatches = darkHtml.match(/href="#entity-/g) ?? [];
 assert(fkMatches.length >= 27, `at least 27 FK anchor refs (got ${fkMatches.length})`);
 
-// 5. Light theme produces different output (different CSS variable values)
+// 5. Theme handling: both files embed dark + light CSS blocks; the mode arg
+//    only sets the initial data-theme on <html>, so the two outputs differ by
+//    that attribute, and each file's dark/light blocks carry distinct palettes.
 assert(darkHtml !== lightHtml, 'dark and light outputs differ');
+assert(darkHtml.includes('data-theme="dark"'), 'dark mode sets initial data-theme="dark"');
+assert(lightHtml.includes('data-theme="light"'), 'light mode sets initial data-theme="light"');
 
-// Confirm themes actually differ structurally — both contain --color-background: but with different values
-assert(darkHtml.includes('--color-background:'), 'dark html contains --color-background: CSS var');
-assert(lightHtml.includes('--color-background:'), 'light html contains --color-background: CSS var');
-// Extract each theme's background value and verify they differ
-const darkBgMatch = darkHtml.match(/--color-background:\s*([^;]+);/);
-const lightBgMatch = lightHtml.match(/--color-background:\s*([^;]+);/);
-assert(darkBgMatch !== null, 'dark html has --color-background value');
-assert(lightBgMatch !== null, 'light html has --color-background value');
-assert(darkBgMatch?.[1] !== lightBgMatch?.[1], 'dark and light --color-background values differ');
+// Both theme blocks are emitted in either file (data-theme switching at runtime).
+assert(darkHtml.includes(':root[data-theme="dark"]') && darkHtml.includes(':root[data-theme="light"]'),
+  'output embeds both dark and light :root[data-theme] blocks');
+
+// The two palettes use different background values (proves themes are structurally distinct).
+const bgValues = [...darkHtml.matchAll(/--color-background:\s*([^;]+);/g)].map(m => m[1]?.trim());
+const distinctBgs = new Set(bgValues);
+assert(distinctBgs.size >= 2, `dark and light blocks use different --color-background (got ${[...distinctBgs].join(', ')})`);
 
 // 6. Markdown body content rendered (bodyHtml inlined)
 // Party body bolds **Party** → renders to <strong>Party</strong>, proving markdown is inlined AND processed.

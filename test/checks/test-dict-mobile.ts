@@ -60,12 +60,15 @@ assert(
 );
 
 // 3. First entity heading is not occluded by the fixed branding block.
-//    We probe the element at the center of the h2's bounding rect.
-//    The topmost element must be the h2 itself or a descendant of it —
-//    not a .dict-branding descendant (which would indicate occlusion).
+//    The first entity h2 sits below the reader-legend, off the initial fold, so
+//    we scroll it to the viewport center (well clear of the top branding) before
+//    probing — elementFromPoint only resolves points inside the viewport.
+//    The topmost element at the h2's center must be the h2 itself or a descendant
+//    of it — not a .dict-branding descendant (which would indicate occlusion).
 const occlusionResult = await mobilePage.evaluate(() => {
-    const h2 = document.querySelector('h2');
-    if (!h2) return { ok: false, reason: 'no h2 found' };
+    const h2 = document.querySelector('.entity-section h2');
+    if (!h2) return { ok: false, reason: 'no entity-section h2 found' };
+    h2.scrollIntoView({ block: 'center' });
     const rect = h2.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
