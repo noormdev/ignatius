@@ -256,6 +256,16 @@ function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mo
     });
   }
 
+  base.push({
+    selector: '.faded',
+    style: { 'opacity': 0.3 },
+  });
+
+  base.push({
+    selector: 'node.hover-focus',
+    style: { 'border-width': 3 },
+  });
+
   return base;
 }
 
@@ -1010,6 +1020,7 @@ export function App() {
           predicateFwd: edge.predicate.fwd,
           predicateRev: edge.predicate.rev,
           edgeLabel: edge.predicate.fwd,
+          predicateMode: 'fwd',
           parentCard: edge.cardinality.parent,
           childCard: edge.cardinality.child,
         },
@@ -1193,6 +1204,54 @@ export function App() {
     }
     window.addEventListener('hashchange', onHashChange);
 
+    // Compute screen-direction-aware arrow placement.
+    // Cytoscape autorotate flips text 180° when the edge angle would render it
+    // upside-down. We bake the arrow into the label, so it must flip with the text.
+    // Returns the verb wrapped with an arrow that always visually points to the
+    // intended end (child for fwd, parent for rev) on screen.
+    function applyArrow(edge: cytoscape.EdgeSingular, verb: string, dir: 'fwd' | 'rev'): string {
+      if (!verb) return '';
+      const s = edge.sourceEndpoint();
+      const t = edge.targetEndpoint();
+      if (!s || !t || !Number.isFinite(s.x) || !Number.isFinite(t.x)) {
+        return dir === 'fwd' ? `${verb} →` : `← ${verb}`;
+      }
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      // Autorotate flips when the edge angle would point text upside-down.
+      // The flip threshold matches the model-coordinate direction (dx<0).
+      const flipped = dx < 0;
+      if (dir === 'fwd') return flipped ? `← ${verb}` : `${verb} →`;
+      return flipped ? `${verb} →` : `← ${verb}`;
+      // Suppress unused-var if dy isn't read; reserved for future tuning.
+      void dy;
+    }
+
+    // Refresh all edge labels with current direction-aware arrows. Called after
+    // layout, drag, and on mount once nodes have positions. Reads predicateMode
+    // so hovered child-end edges (showing rev) also re-orient during drag.
+    function refreshArrows() {
+      cy.edges().forEach((edge) => {
+        const fwd = edge.data('predicateFwd');
+        if (fwd === undefined) return;
+        const mode = edge.data('predicateMode') as 'fwd' | 'rev' | undefined;
+        if (mode === 'rev') {
+          const rev = edge.data('predicateRev');
+          edge.data('edgeLabel', applyArrow(edge, rev, 'rev'));
+        } else {
+          edge.data('edgeLabel', applyArrow(edge, fwd, 'fwd'));
+        }
+      });
+    }
+
+    cy.on('layoutstop', refreshArrows);
+    cy.on('position', 'node', refreshArrows);
+    cy.on('drag', 'node', refreshArrows);
+    cy.on('free', 'node', refreshArrows);
+    // Initial pass: edges were created with raw verb text — apply arrows once
+    // positions are settled. Defer one tick so the initial layout completes.
+    setTimeout(refreshArrows, 0);
+
     // Hover handlers: swap incident edge labels to the node's perspective, restore on mouseout.
     // On mouseover node N: edges where N is the child (edge.target() === N) flip to rev.
     // On mouseout: all connected edges restore to fwd.
@@ -1202,9 +1261,17 @@ export function App() {
         const rev = edge.data('predicateRev');
         if (rev === undefined) return; // cluster/joiner edges — skip
         if (edge.target().id() === n.id()) {
-          edge.data('edgeLabel', rev);
+          edge.data('predicateMode', 'rev');
+          edge.data('edgeLabel', applyArrow(edge, rev, 'rev'));
         }
       });
+      const direct = n.closedNeighborhood().union(n);
+      const joiners = direct.nodes('[joiner = "true"]');
+      const keep = direct.union(joiners.incomers());
+      const keepWithAncestors = keep.union(keep.ancestors());
+      cy.elements().difference(keepWithAncestors).addClass('faded');
+      n.addClass('hover-focus');
+      redrawMarkers();
     });
 
     cy.on('mouseout', 'node', (evt) => {
@@ -1212,8 +1279,12 @@ export function App() {
       n.connectedEdges().forEach((edge) => {
         const fwd = edge.data('predicateFwd');
         if (fwd === undefined) return;
-        edge.data('edgeLabel', fwd);
+        edge.data('predicateMode', 'fwd');
+        edge.data('edgeLabel', applyArrow(edge, fwd, 'fwd'));
       });
+      cy.elements().removeClass('faded');
+      cy.nodes().removeClass('hover-focus');
+      redrawMarkers();
     });
 
     cyRef.current = cy;

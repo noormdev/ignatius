@@ -110,16 +110,18 @@ try {
     if (e.fwd === undefined) continue;
     const af = afterById.get(e.id);
     const rs = restoredById.get(e.id);
+    const hasArrow = (s: unknown) => typeof s === 'string' && (s.includes('→') || s.includes('←'));
+    const containsVerb = (s: unknown, verb: string) => typeof s === 'string' && s.includes(verb);
     if (e.isChildEnd && e.rev !== e.fwd) {
-      // default must be fwd, hover must show rev
-      if (e.label !== e.fwd) fail(`edge ${e.id} default label "${e.label}" != fwd "${e.fwd}"`);
-      if (af !== e.rev) fail(`edge ${e.id} hover label "${af}" != rev "${e.rev}"`);
-      else { note(`  swap OK: "${e.fwd}" -> "${e.rev}" (edge ${e.id})`); swaps++; }
+      // default must show fwd verb + arrow; hover must show rev verb + arrow
+      if (!containsVerb(e.label, e.fwd) || !hasArrow(e.label)) fail(`edge ${e.id} default "${e.label}" missing fwd "${e.fwd}" or arrow`);
+      if (!containsVerb(af, e.rev) || !hasArrow(af)) fail(`edge ${e.id} hover "${af}" missing rev "${e.rev}" or arrow`);
+      else { note(`  swap OK: "${e.label}" -> "${af}" (edge ${e.id})`); swaps++; }
     } else {
       // parent-end edges keep fwd on hover
       if (af !== e.label) fail(`parent-end edge ${e.id} changed on hover: "${e.label}" -> "${af}"`);
     }
-    if (rs !== e.fwd) fail(`edge ${e.id} did not restore to fwd "${e.fwd}" (got "${rs}") on mouseout`);
+    if (!containsVerb(rs, e.fwd) || !hasArrow(rs)) fail(`edge ${e.id} did not restore to fwd "${e.fwd}" (got "${rs}") on mouseout`);
   }
 
   if (swaps === 0) fail('no fwd->rev swap observed');

@@ -108,8 +108,9 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: The
     const srcAngle = Math.atan2(dy, dx);
     const tgtAngle = Math.atan2(-dy, -dx);
 
-    drawEndMarker(svg, srcPt.x, srcPt.y, srcAngle, parentCard, color, scale, p.background, theme.spacing.markerOffset);
-    drawEndMarker(svg, tgtPt.x, tgtPt.y, tgtAngle, childCard, color, scale, p.background, theme.spacing.markerOffset);
+    const faded = edge.hasClass('faded');
+    drawEndMarker(svg, srcPt.x, srcPt.y, srcAngle, parentCard, color, scale, p.background, theme.spacing.markerOffset, faded);
+    drawEndMarker(svg, tgtPt.x, tgtPt.y, tgtAngle, childCard, color, scale, p.background, theme.spacing.markerOffset, faded);
   });
 }
 
@@ -135,9 +136,11 @@ function drawEndMarker(
   scale: number,
   bgColor: string,
   offset: number,
+  faded: boolean,
 ) {
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   g.setAttribute('transform', `translate(${x},${y}) rotate(${angle * 180 / Math.PI}) scale(${scale})`);
+  if (faded) g.setAttribute('opacity', '0.3');
 
   const sw = 1.8;
   const h = 10;
