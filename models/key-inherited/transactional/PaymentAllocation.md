@@ -26,6 +26,25 @@ columns:
   amount:
     type: decimal
     desc: "Portion of the payment applied to this line; positive."
+examples:
+  - party_id: 2
+    payment_method_id: 1
+    payment_id: 3001
+    sales_invoice_id: 5001
+    line_seq: 1
+    amount: 49.00
+  - party_id: 2
+    payment_method_id: 1
+    payment_id: 3001
+    sales_invoice_id: 5001
+    line_seq: 2
+    amount: 89.00
+  - party_id: 1
+    payment_method_id: 1
+    payment_id: 3002
+    sales_invoice_id: 5002
+    line_seq: 1
+    amount: 4999.00
 relationships:
   - target: Payment
     on:

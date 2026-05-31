@@ -21,6 +21,17 @@ columns:
   paid_at:
     type: datetime
     desc: "Timestamp the payment was confirmed."
+examples:
+  - party_id: 2
+    payment_method_id: 1
+    payment_id: 3001
+    amount: 138.00
+    paid_at: "2024-03-05T14:30:00Z"
+  - party_id: 1
+    payment_method_id: 1
+    payment_id: 3002
+    amount: 4999.00
+    paid_at: "2024-04-01T09:15:00Z"
 relationships:
   - target: PaymentMethod
     on:

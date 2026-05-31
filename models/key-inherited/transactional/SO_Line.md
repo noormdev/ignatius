@@ -24,6 +24,25 @@ columns:
   unit_price:
     type: decimal
     desc: "Price per unit at order time; non-negative."
+examples:
+  - party_id: 2
+    sales_order_id: 1001
+    line_seq: 1
+    type: PRODUCT
+    qty: 1
+    unit_price: 49.00
+  - party_id: 2
+    sales_order_id: 1001
+    line_seq: 2
+    type: SUBSCRIPTION
+    qty: 1
+    unit_price: 89.00
+  - party_id: 1
+    sales_order_id: 1002
+    line_seq: 1
+    type: SUBSCRIPTION
+    qty: 1
+    unit_price: 4999.00
 subtypes:
   - exclusive: true
     desc: "Each line is exactly one of: subscription or product"

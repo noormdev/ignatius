@@ -18,6 +18,15 @@ columns:
   total:
     type: decimal
     desc: "Invoice total; reconciles to the sum of its line items."
+examples:
+  - party_id: 2
+    sales_invoice_id: 5001
+    issued_at: "2024-03-05T14:25:00Z"
+    total: 138.00
+  - party_id: 1
+    sales_invoice_id: 5002
+    issued_at: "2024-04-01T09:05:00Z"
+    total: 4999.00
 relationships:
   - target: Party
     on:

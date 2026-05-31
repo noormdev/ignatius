@@ -10,6 +10,11 @@ columns:
   itin:
     type: text
     desc: "US Individual Taxpayer Identification Number."
+examples:
+  - party_id: 5
+    itin: "9XX-70-3241"
+  - party_id: 6
+    itin: "9XX-72-8814"
 relationships:
   - target: Identity
     on:

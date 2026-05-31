@@ -55,7 +55,8 @@ flowchart TD
     Check -->|consistent| Q8
     Resolve --> Q5
     Q8 --> Q9[Ask: additional columns]
-    Q9 --> Q10[Ask: reference table?<br/>default no]
+    Q9 --> Q9b[Ask: example rows?<br/>optional — goes in examples: frontmatter]
+    Q9b --> Q10[Ask: reference table?<br/>default no]
     Q10 --> Q11[Ask: optional body description]
     Q11 --> Write[Write the .md file]
     Write --> Lint[Run ignatius dict + lint]

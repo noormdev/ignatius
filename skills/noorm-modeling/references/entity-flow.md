@@ -175,6 +175,31 @@ Valid types: `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binar
 
 Note: PK columns must also appear in `columns` with their types.
 
+### Step E7b — Examples
+
+Always run this step — do not skip or make it optional.
+
+Generate 2–3 example rows for this entity. Do not ask the user to supply them; produce them yourself using the column definitions and business context gathered so far, then show the rows and offer to add more.
+
+**Row authoring guidance:**
+
+- Use plausible domain values — names, dates, codes, amounts — that a domain expert would recognize. Not `foo`, `bar`, `1`, `test`.
+- Exercise the interesting axes of this entity:
+  - **Nullability** — at least one row should have a nullable column set to a value, and (when there are multiple rows) at least one should leave it null.
+  - **Classification membership** — if the entity is part of a subtype cluster, let one row represent one member kind and another row represent a different kind (where possible).
+  - **FK populations** — populate FK columns with values that match the example rows of the parent entity (use a realistic value, not `1` or `<parent_id>`). If parent examples are not yet written, use a plausible surrogate (e.g. the parent entity's natural key pattern).
+- Rows are a `Record<string, unknown>[]` — keys must be a subset of `pk ∪ columns`. Every key outside that set produces a live-mode warning (`entity.example_unknown_column` — see `references/verification.md`); the structural check will catch stray keys when you verify.
+
+**After generating:**
+
+1. Show the rows to the user as a YAML preview.
+2. Ask: "Add more rows? (y/n)"
+3. If yes, collect them and extend the list.
+
+Write the approved rows as the `examples:` block in the entity frontmatter (see template in `references/templates.md`).
+
+Canonical source: `docs/spec/example-instance-tables.md`.
+
 ### Step E8 — Reference table
 
 Ask: "Is this a lookup/code table (reference: true)? (y/n, default n)"
@@ -197,7 +222,7 @@ Ask, in order, capturing whatever the user offers (skip a prompt only if they ha
    - Record the answer as a **Business rules** line, e.g. "An SO_Line cannot exist without its SalesOrder (FK NOT NULL); deleting a SalesOrder cascade-deletes its lines. Source: …". This is the rule key-inherited would assert through key placement; in orm-oriented it becomes a documented constraint, not a lost one.
 5. **Justification for complexity** — for any rule or structure above, "Who decided this and why?" Record the source and rationale (e.g. "Billing department, 2026-05: chargeback costs below \$5 exceed revenue"). The justification is what stops a future developer from deleting complexity they don't understand.
 
-**Sample rows (optional, high value).** For any entity with a mandatory parent or a subtype cluster, offer to capture 2–4 illustrative rows in a `## Sample rows` section. Concrete instances expose wrong rules that pass every structural check — one Party that is a Person and one that is a Business shows the exclusivity is real; a child row beside its parent shows no orphan is possible. Ask: "Want to sketch a few sample rows? They catch nullability and exclusivity mistakes the linter can't see." Skip if the user declines.
+**Example rows (optional, high value).** Example rows go in the `examples:` frontmatter block (see Step E7b), not in the body markdown. For any entity with a mandatory parent or a subtype cluster, offer to capture 2–4 illustrative rows there. Concrete instances expose wrong rules that pass every structural check — one Party that is a Person and one that is a Business shows the exclusivity is real; a child row beside its parent shows no orphan is possible. Ask: "Want to sketch a few example rows? They catch nullability and exclusivity mistakes the linter can't see." Skip if the user declines.
 
 Write what you gather into the entity body under clear headings (see the template). Capture the **source and reasoning**, not just the rule. If the user truly has nothing beyond a name, write a one-sentence purpose and move on — but ask first.
 

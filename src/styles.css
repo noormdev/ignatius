@@ -761,6 +761,44 @@ code {
   margin-left: 0.4em;
 }
 
+/* Entity-modal examples accordion */
+.modal-examples {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-surface-alt);
+}
+
+.modal-examples summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.modal-examples summary::-webkit-details-marker {
+  display: none;
+}
+
+.modal-examples summary::before {
+  content: '▶ ';
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+.modal-examples[open] summary::before {
+  content: '▼ ';
+}
+
+.example-empty {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
 /* Error fallback — shown instead of blank canvas when cy init throws */
 .graph-error-fallback {
   position: fixed;

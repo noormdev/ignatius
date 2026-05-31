@@ -54,18 +54,22 @@ try {
   assert(panelVisible, 'findings panel visible when findings > 0');
 
   // ---------------------------------------------------------------------------
-  // Test 2: Panel shows correct total count (broken-demo: 4 globals + 7 entity = 11)
+  // Test 2: Panel shows correct total count.
+  // broken-demo baseline: 4 globals + 8 entity = 12. The 8th entity error is the
+  // live-only `entity.example_unknown_column` on Customer.md (added in the
+  // example-instance-tables feature). The graph viewer runs in live mode here so
+  // the live-only finding surfaces in the panel.
   // ---------------------------------------------------------------------------
   const headerText = await page.locator('.findings-panel header h3').textContent().catch(() => '');
   const countMatch = headerText?.match(/\d+/);
   const count = countMatch ? parseInt(countMatch[0]) : -1;
-  assert(count === 11, `panel header shows 11 issues (got: "${headerText}")`, `Expected "Issues (11)"`);
+  assert(count === 12, `panel header shows 12 issues (got: "${headerText}")`, `Expected "Issues (12)"`);
 
   // ---------------------------------------------------------------------------
   // Test 3: Panel has finding rows (details elements)
   // ---------------------------------------------------------------------------
   const rowCount = await page.locator('.findings-panel details').count();
-  assert(rowCount === 11, `panel renders 11 finding rows (got ${rowCount})`);
+  assert(rowCount === 12, `panel renders 12 finding rows (got ${rowCount})`);
 
   // Dismiss the global banner so it does not intercept clicks on the panel below.
   const bannerClose = page.locator('.graph-global-banner-close');

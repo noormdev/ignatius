@@ -20,6 +20,19 @@ ak:
   - rule: unique product code
     columns:
       - sku
+examples:
+  - product_id: 10
+    sku: HW-DONGLE-USB
+    name: Meridian USB Security Dongle
+    list_price: 49.00
+  - product_id: 11
+    sku: SW-DESKTOP-WIN
+    name: Meridian Desktop Client (Windows)
+    list_price: 129.00
+  - product_id: 12
+    sku: SW-DESKTOP-MAC
+    name: Meridian Desktop Client (macOS)
+    list_price: 129.00
 ---
 
 # Product

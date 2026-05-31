@@ -27,6 +27,8 @@ export type RuleId =
   | 'entity.missing_columns'
   | 'entity.invalid_field_type'
   | 'entity.unknown_group'
+  // entity (CP-2) — live-only advisory
+  | 'entity.example_unknown_column'
   // edge (CP-2)
   | 'edge.unknown_target'
   | 'edge.dangling_fk_column'
@@ -72,6 +74,13 @@ export type RuleEntry = {
   explanation: string;
   /** 'A' = render degraded + warning triangle; 'B' = omit + global banner */
   class: 'A' | 'B';
+  /**
+   * When true, the rule is surfaced only in live mode (graph viewer findings
+   * panel, /api/model payload). `formatFindingsForStderr` omits liveOnly rows
+   * so CI stderr stays quiet, and the static dict generator's findings banner
+   * omits them too (CP-3). Omitted or false = default behavior, all surfaces.
+   */
+  liveOnly?: boolean;
 };
 
 /**
@@ -98,6 +107,12 @@ export const RULES: Record<RuleId, RuleEntry> = {
     title: 'Unknown group',
     explanation: 'The entity references a group that has no corresponding `_groups/<name>.md` file. The entity will render without a group color band. Create the group file or correct the group name.',
     class: 'A',
+  },
+  'entity.example_unknown_column': {
+    title: 'Example row contains unknown column',
+    explanation: 'An example row includes a key that is not declared in the entity\'s `pk` or `columns`. The example renders as-is but the unknown key has no column header. Add the key to `columns`, correct the key name, or remove it from the example.',
+    class: 'A',
+    liveOnly: true,
   },
   'parse.invalid_yaml': {
     title: 'Invalid YAML frontmatter',
@@ -216,6 +231,33 @@ function checkUnknownGroup(node: ModelNode, groups: Record<string, unknown>): En
   }];
 }
 
+function checkExampleColumns(node: ModelNode): EntityError[] {
+  if (!node.examples || node.examples.length === 0) return [];
+
+  // Build the set of valid keys: all pk columns + all declared columns
+  const validKeys = new Set<string>([
+    ...(Array.isArray(node.pk) ? node.pk : []),
+    ...Object.keys(node.columns ?? {}),
+  ]);
+
+  const errors: EntityError[] = [];
+  for (let i = 0; i < node.examples.length; i++) {
+    const row = node.examples[i];
+    if (!row || typeof row !== 'object' || Array.isArray(row)) continue;
+    for (const key of Object.keys(row)) {
+      if (!validKeys.has(key)) {
+        errors.push({
+          ruleId: 'entity.example_unknown_column',
+          entityId: node.id,
+          severity: 'warning',
+          message: `Entity '${node.id}' example row ${i} contains unknown key '${key}' (not in pk or columns).`,
+        });
+      }
+    }
+  }
+  return errors;
+}
+
 // ---------------------------------------------------------------------------
 // Edge rule detectors
 // ---------------------------------------------------------------------------
@@ -313,6 +355,7 @@ export function validateModel(model: Model): ValidationResult {
       ...checkMissingPk(node),
       ...checkMissingColumns(node),
       ...checkUnknownGroup(node, model.groups),
+      ...checkExampleColumns(node),
     );
   }
 
@@ -418,7 +461,7 @@ export function formatFindingsForStderr(
       location: e.entityId,
       message: e.message,
     })),
-  ];
+  ].filter(r => !RULES[r.ruleId]?.liveOnly);
 
   rows.sort((a, b) => {
     // errors before warnings

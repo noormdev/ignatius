@@ -18,6 +18,15 @@ columns:
   product_id:
     type: integer
     desc: "Product sold on this line — foreign key to Product."
+examples:
+  - party_id: 2
+    sales_order_id: 1001
+    line_seq: 1
+    product_id: 10
+  - party_id: 3
+    sales_order_id: 1003
+    line_seq: 1
+    product_id: 11
 relationships:
   - target: SO_Line
     on:

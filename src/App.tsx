@@ -344,6 +344,7 @@ function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigat
             </ul>
           </div>
         )}
+        <ExamplesAccordion node={selected} />
       </div>
     </div>
   );
@@ -456,6 +457,46 @@ function ChildrenTable({ node, edges, onNavigate }: {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ExamplesAccordion({ node }: { node: ModelNode }) {
+  const examples = node.examples;
+  if (!examples || examples.length === 0) return null;
+
+  // Column order: PK first, then declared columns in declaration order.
+  const pkSet: Record<string, true> = {};
+  for (const k of node.pk) pkSet[k] = true;
+  const declaredCols = Object.keys(node.columns).filter(k => !pkSet[k]);
+  const headers = [...node.pk, ...declaredCols];
+
+  const isOpen = examples.length <= 3;
+
+  return (
+    <details className="modal-examples doc-section" open={isOpen || undefined}>
+      <summary>Examples ({examples.length})</summary>
+      <table>
+        <thead>
+          <tr>
+            {headers.map(h => <th key={h}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {examples.map((row, i) => (
+            <tr key={i}>
+              {headers.map(h => (
+                <td key={h}>
+                  {row[h] !== undefined && row[h] !== null && row[h] !== ''
+                    ? String(row[h])
+                    : <span className="example-empty">–</span>
+                  }
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
   );
 }
 
@@ -740,6 +781,7 @@ export function App() {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [cyInitError, setCyInitError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ModelNode | null>(null);
+  const [showEntityModal, setShowEntityModal] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -920,6 +962,23 @@ export function App() {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [menuOpen]);
+
+  // ESC handler for the entity-detail modal.
+  // Closes the modal only — does not clear selected (selection persists in hash).
+  useEffect(() => {
+    if (!showEntityModal) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setShowEntityModal(false);
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showEntityModal]);
 
   // Ref so badge-drawing always sees current findings without adding findings to
   // the cy useEffect dep array (which would rebuild the graph on each live update).
@@ -1140,7 +1199,10 @@ export function App() {
             cy.center(target);
           }
           const node = modelNonNull.nodes.find(n => n.id === state.entity);
-          if (node) setSelected(node);
+          if (node) {
+            setSelected(node);
+            setShowEntityModal(true);
+          }
         }
         // Unknown entity: silently ignore
       }
@@ -1169,6 +1231,7 @@ export function App() {
       const node = model.nodes.find(n => n.id === nodeId);
       if (node) {
         setSelected(node);
+        setShowEntityModal(true);
         // Use nodeId directly — cy.$('node:selected') hasn't updated yet at tap time.
         scheduleHashWrite({ ...viewportState(), entity: nodeId });
       }
@@ -1177,6 +1240,7 @@ export function App() {
     cy.on('tap', (evt) => {
       if (evt.target === cy) {
         setSelected(null);
+        setShowEntityModal(false);
         // Clear entity from hash when background tap deselects.
         scheduleHashWrite(viewportState());
       }
@@ -1464,12 +1528,16 @@ export function App() {
         </div>
       )}
       {showLegend && <LegendModal onClose={() => setShowLegend(false)} />}
-      {selected && (
+      {selected && showEntityModal && (
         <SelectedEntityModal
           selected={selected}
           model={model}
-          entityErrors={findings.entityErrors}
-          onClose={() => setSelected(null)}
+          entityErrors={
+            window.__IGNATIUS_MODE__ === 'static'
+              ? findings.entityErrors.filter(e => !RULES[e.ruleId]?.liveOnly)
+              : findings.entityErrors
+          }
+          onClose={() => setShowEntityModal(false)}
           onNavigate={(id) => {
             const target = model?.nodes.find(n => n.id === id);
             if (target) {
@@ -1496,7 +1564,11 @@ export function App() {
       )}
       <FindingsPanel
         globalErrors={findings.globalErrors}
-        entityErrors={findings.entityErrors}
+        entityErrors={
+          window.__IGNATIUS_MODE__ === 'static'
+            ? findings.entityErrors.filter(e => !RULES[e.ruleId]?.liveOnly)
+            : findings.entityErrors
+        }
         collapsed={panelCollapsed}
         onCollapse={() => setPanelCollapsed(true)}
         onExpand={() => setPanelCollapsed(false)}

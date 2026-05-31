@@ -52,6 +52,7 @@ type Frontmatter = {
     on: Record<string, string>;
     predicate: string | { fwd?: string; rev?: string };
   }[];
+  examples?: Record<string, unknown>[];
 };
 
 export type GroupConfig = { label: string; color: string; desc?: string; sort_key?: number };
@@ -66,6 +67,7 @@ export type ModelNode = {
   columns: Record<string, ColumnDef>;
   alternateKeys: { rule: string; columns: string[] }[];
   bodyHtml: string;
+  examples?: Record<string, unknown>[];
 };
 
 export type ModelEdge = {
@@ -274,6 +276,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       columns: frontmatter.columns ?? {},
       alternateKeys: frontmatter.ak ?? [],
       bodyHtml: md.render(body),
+      ...(frontmatter.examples !== undefined ? { examples: frontmatter.examples } : {}),
     });
 
     for (const rel of frontmatter.relationships ?? []) {
@@ -366,6 +369,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
     columns: rawNode.columns,
     alternateKeys: rawNode.alternateKeys,
     bodyHtml: rawNode.bodyHtml,
+    ...(rawNode.examples !== undefined ? { examples: rawNode.examples } : {}),
   }));
 
   // Derive cardinality for each edge using fully derived node + edge values

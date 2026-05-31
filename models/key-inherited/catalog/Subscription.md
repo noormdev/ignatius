@@ -23,6 +23,22 @@ ak:
   - rule: unique subscription code
     columns:
       - sku
+examples:
+  - subscription_id: 5
+    sku: SVC-ANALYTICS-PRO-MO
+    name: Meridian Analytics Pro (Monthly)
+    period_unit: month
+    list_price: 89.00
+  - subscription_id: 6
+    sku: SVC-ANALYTICS-PRO-YR
+    name: Meridian Analytics Pro (Annual)
+    period_unit: year
+    list_price: 899.00
+  - subscription_id: 7
+    sku: SVC-ANALYTICS-ENTERPRISE-YR
+    name: Meridian Analytics Enterprise (Annual)
+    period_unit: year
+    list_price: 4999.00
 ---
 
 # Subscription

@@ -68,11 +68,11 @@ function assert(condition: boolean, label: string, detail?: string): void {
     `/api/model: model.nodes has 9 entries (got ${(model?.nodes as unknown[])?.length})`,
   );
 
-  // broken-demo baseline: 7 entity warnings
+  // broken-demo baseline: 8 entity warnings (7 + 1 live-only example_unknown_column on Customer)
   const entityErrors = validation?.entityErrors as unknown[];
   assert(
-    entityErrors?.length === 7,
-    `/api/model: validation.entityErrors has 7 entries (got ${entityErrors?.length})`,
+    entityErrors?.length === 8,
+    `/api/model: validation.entityErrors has 8 entries (got ${entityErrors?.length})`,
   );
 
   // broken-demo baseline: 1 validator global (edge.unknown_target Order→Cart) +

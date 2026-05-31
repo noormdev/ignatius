@@ -17,6 +17,19 @@ columns:
   label:
     type: text
     desc: "User-facing label (e.g. 'Visa ending 4242')."
+examples:
+  - party_id: 2
+    payment_method_id: 1
+    type: CREDIT_CARD
+    label: Visa ending 4471
+  - party_id: 1
+    payment_method_id: 1
+    type: BANK_TRANSFER
+    label: Silicon Valley Bank ••1847
+  - party_id: 3
+    payment_method_id: 1
+    type: CHECK
+    label: Personal check account
 relationships:
   - target: Party
     on:

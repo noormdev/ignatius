@@ -11,6 +11,11 @@ columns:
   description:
     type: text
     desc: "Human-readable label for the code."
+examples:
+  - code: BUSINESS
+    description: Legal entity (corporation, LLC, partnership)
+  - code: PERSON
+    description: Natural human individual
 ---
 
 # PartyType

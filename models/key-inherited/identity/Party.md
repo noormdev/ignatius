@@ -10,6 +10,13 @@ columns:
   type:
     type: text
     desc: "Party kind — foreign key to PartyType.code (Business or Person)."
+examples:
+  - party_id: 1
+    type: BUSINESS
+  - party_id: 2
+    type: PERSON
+  - party_id: 3
+    type: PERSON
 subtypes:
   - exclusive: true
     desc: Every Party is exactly one of Business or Person

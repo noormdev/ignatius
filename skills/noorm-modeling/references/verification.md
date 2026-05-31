@@ -27,6 +27,7 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 | `cluster.missing_basetype` | error | B | Subtype cluster basetype not in model | Add the basetype entity file or fix the basetype name |
 | `cluster.missing_member` | warn | A | Subtype cluster member not in model | Add the member entity file or remove it from `members:` |
 | `cluster.no_discriminator` | warn | A | Exclusive subtype cluster has no discriminator | Convert `members:` from list form to map form with discriminator values |
+| `entity.example_unknown_column` | warn | A | Example row contains unknown key | Remove or rename the key — every key in an `examples:` row must be in `pk ∪ columns`; this warning surfaces in live server mode only (suppressed by the CLI `dict` subcommand) |
 
 **Loop behavior:**
 

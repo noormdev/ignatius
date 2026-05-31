@@ -392,6 +392,7 @@ import { parseModels } from '../../src/parse';
         'edge.dangling_fk_column': 1,
         'cluster.missing_member': 1,
         'cluster.no_discriminator': 1,
+        'entity.example_unknown_column': 1,
     };
 
     const allGlobals = [...parseGlobals, ...result.globalErrors];

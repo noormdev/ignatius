@@ -10,6 +10,11 @@ columns:
   ssn:
     type: text
     desc: "US Social Security Number."
+examples:
+  - party_id: 2
+    ssn: "***-**-4471"
+  - party_id: 3
+    ssn: "***-**-8830"
 relationships:
   - target: Identity
     on:

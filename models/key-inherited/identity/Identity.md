@@ -7,6 +7,9 @@ columns:
   party_id:
     type: integer
     desc: "The Party whose identity documents this groups — foreign key to Party (1:1)."
+examples:
+  - party_id: 2
+  - party_id: 3
 subtypes:
   - exclusive: false
     desc: A Party may hold any combination of these — inclusive, existence-based

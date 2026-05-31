@@ -24,6 +24,17 @@ ak:
     columns:
       - license_number
       - issuing_state
+examples:
+  - party_id: 2
+    license_number: V7423091
+    issuing_state: CA
+    issued_on: "2019-06-15"
+    expires_on: "2027-06-15"
+  - party_id: 3
+    license_number: TXD-884-2200
+    issuing_state: TX
+    issued_on: "2021-02-08"
+    expires_on: "2029-02-08"
 relationships:
   - target: Identity
     on:

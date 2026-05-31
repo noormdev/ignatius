@@ -19,6 +19,17 @@ columns:
   expires_on:
     type: date
     desc: "Date the passport expires."
+examples:
+  - party_id: 2
+    passport_number: "A09284731"
+    issuing_country: US
+    issued_on: "2018-09-22"
+    expires_on: "2028-09-22"
+  - party_id: 3
+    passport_number: "B54017662"
+    issuing_country: NG
+    issued_on: "2020-04-10"
+    expires_on: "2030-04-10"
 relationships:
   - target: Identity
     on:

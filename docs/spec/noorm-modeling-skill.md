@@ -150,6 +150,18 @@ Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring
 
 **Superseded:** the gate command `ignatius dict <dir> -o /tmp/ignatius-skill-check.html` is replaced by `ignatius validate <dir>`.
 
+### 2026-05-31 — Add always-on E7b examples step to entity flow
+
+**What changed:** `skills/noorm-modeling/references/entity-flow.md` gains a new step **E7b — Examples** inserted between E7 (Columns) and E8 (Reference table). The step is always-on (not skippable): the skill generates 2–3 example rows using the column definitions and business context gathered so far, shows them to the user, and offers to add more before writing the `examples:` frontmatter block.
+
+Row authoring guidance encoded in the step: plausible domain values (not `foo/bar`); exercise nullability, classification membership, and FK populations; every row key must be within `pk ∪ columns` (stray keys produce a live-mode `entity.example_unknown_column` warning caught by the existing verification loop).
+
+`skills/noorm-modeling/references/verification.md` gains a rule-table entry for `entity.example_unknown_column`, noting it is live-server-only (suppressed by the CLI `dict` subcommand in static mode).
+
+**Why:** CP-5 of `docs/spec/example-instance-tables.md`. Example rows expose nullability and exclusivity mistakes the structural linter cannot catch; generating them in the authoring flow ensures every new entity arrives in the model with concrete instance data.
+
+**Superseded:** the "Sample rows" note in step E9 (Business context) was an optional, user-driven aside — "Want to sketch a few sample rows?" The new E7b step replaces that by making example generation the skill's responsibility, not the user's, and anchoring it to the `examples:` frontmatter field (which the parser and dict now render). The E9 note remains for the free-form narrative body, but example rows now live in the structured `examples:` block, not an inline `## Sample rows` markdown section.
+
 
 ## Implementation log
 

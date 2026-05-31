@@ -142,6 +142,7 @@ function renderEntitySection(
   subtypeClusters: SubtypeCluster[],
   entityErrors: EntityError[],
   missingTargets: Set<string>,
+  surface: 'live' | 'static' = 'static',
 ): string {
   const pkList = node.pk.map(col => `<code>${esc(col)}</code>`).join(', ');
   const pkLabel = node.pk.length > 0 ? `<span class="pk-label">PK: ${pkList}</span>` : '';
@@ -178,6 +179,8 @@ ${items}
       </details>`;
   })() : '';
 
+  const examplesHtml = renderExamplesAccordion(node);
+
   return `  <section class="entity-section" id="entity-${esc(node.id)}">
     <div class="entity-header">
       <h2>${esc(node.id)}</h2>
@@ -190,6 +193,7 @@ ${subtypeList}
 ${renderAttributesTable(node, edges, missingTargets)}
 ${renderRelationshipsTable(node, edges)}
     <div class="entity-body">${node.bodyHtml}</div>
+${examplesHtml}
   </section>`;
 }
 
@@ -286,12 +290,13 @@ function renderGroupSection(
   subtypeClusters: SubtypeCluster[],
   entityErrors: EntityError[],
   missingTargets: Set<string>,
+  surface: 'live' | 'static' = 'static',
 ): string {
   const groupNodes = nodes.filter(n => n.group === groupKey);
   if (groupNodes.length === 0) return '';
 
   const entitiesHtml = sortGroupNodes(groupNodes, subtypeClusters)
-    .map(n => renderEntitySection(n, edges, subtypeClusters, entityErrors, missingTargets))
+    .map(n => renderEntitySection(n, edges, subtypeClusters, entityErrors, missingTargets, surface))
     .join('\n');
 
   const descHtml = groupConfig.desc ?? '';
@@ -413,14 +418,61 @@ ${groupSwatches}
 </details>`;
 }
 
+function renderExamplesAccordion(node: ModelNode): string {
+  if (!node.examples || node.examples.length === 0) return '';
+
+  // Header order: PK columns first (in pk order), then declared columns order
+  const pkSet: Record<string, true> = {};
+  for (const col of node.pk) pkSet[col] = true;
+
+  const headers: string[] = [
+    ...node.pk,
+    ...Object.keys(node.columns).filter(col => !pkSet[col]),
+  ];
+
+  const openAttr = node.examples.length <= 3 ? ' open' : '';
+
+  const headerRow = headers
+    .map(h => `          <th><code>${esc(h)}</code></th>`)
+    .join('\n');
+
+  const bodyRows = node.examples.map(row => {
+    const cells = headers.map(h => {
+      const val = (row as Record<string, unknown>)[h];
+      if (val === undefined || val === null) {
+        return `          <td><span class="dict-example-empty">&ndash;</span></td>`;
+      }
+      return `          <td>${esc(String(val))}</td>`;
+    });
+    return `        <tr>\n${cells.join('\n')}\n        </tr>`;
+  }).join('\n');
+
+  return `    <details class="dict-examples"${openAttr}>
+      <summary class="dict-examples-summary">Examples (${node.examples.length} row${node.examples.length === 1 ? '' : 's'})</summary>
+      <div class="dict-examples-table-wrap">
+        <table class="dict-examples-table">
+          <thead>
+            <tr>
+${headerRow}
+            </tr>
+          </thead>
+          <tbody>
+${bodyRows}
+          </tbody>
+        </table>
+      </div>
+    </details>`;
+}
+
 export async function generateDict(
   model: Model,
   findings: { globalErrors: GlobalError[]; entityErrors: EntityError[] },
   mode: 'dark' | 'light',
-  opts?: { modelsDir?: string; graphHref?: string },
+  opts?: { modelsDir?: string; graphHref?: string; surface?: 'live' | 'static' },
 ): Promise<string> {
   const modelsDir = opts?.modelsDir ?? '.';
   const graphHref = opts?.graphHref;
+  const surface = opts?.surface ?? 'static';
   const branding = model.branding;
 
   const { globalErrors, entityErrors } = findings;
@@ -472,7 +524,7 @@ export async function generateDict(
     .map(key => {
       const cfg = model.groups[key];
       if (!cfg) return '';
-      return renderGroupSection(key, cfg, model.nodes, model.edges, model.subtypeClusters, entityErrors, missingTargets);
+      return renderGroupSection(key, cfg, model.nodes, model.edges, model.subtypeClusters, entityErrors, missingTargets, surface);
     })
     .filter(s => s.length > 0)
     .join('\n\n');
@@ -480,7 +532,7 @@ export async function generateDict(
   const ungroupedSection = ungroupedNodes.length > 0
     ? ungroupedNodes
         .sort((a, b) => a.id.localeCompare(b.id))
-        .map(n => renderEntitySection(n, model.edges, model.subtypeClusters, entityErrors, missingTargets))
+        .map(n => renderEntitySection(n, model.edges, model.subtypeClusters, entityErrors, missingTargets, surface))
         .join('\n')
     : '';
 
@@ -488,7 +540,11 @@ export async function generateDict(
   const sideNav = renderSideNav(groupOrder, model.groups, model.nodes, model.subtypeClusters);
 
   // Findings panel (top-right, mirrors graph viewer). Shows global + entity findings.
-  const totalFindings = globalErrors.length + entityErrors.length;
+  // When surface is 'static', liveOnly findings are suppressed (they belong only in live mode).
+  const visibleEntityErrors = surface === 'live'
+    ? entityErrors
+    : entityErrors.filter(e => !RULES[e.ruleId]?.liveOnly);
+  const totalFindings = globalErrors.length + visibleEntityErrors.length;
   const findingsPanelHtml = totalFindings > 0 ? (() => {
     const globalRows = globalErrors.map(e => {
       const rule = RULES[e.ruleId];
@@ -508,7 +564,7 @@ export async function generateDict(
         <div class="finding-location">${location}</div>
       </li>`;
     }).join('\n');
-    const entityRows = entityErrors.map(e => {
+    const entityRows = visibleEntityErrors.map(e => {
       const rule = RULES[e.ruleId];
       const title = rule ? esc(rule.title) : esc(e.ruleId);
       return `      <li>
@@ -1200,6 +1256,57 @@ ${entityRows}
       color: var(--color-text);
       font-weight: 600;
     }
+
+    /* ── Examples accordion ─────────────────────────────────────────────── */
+    .dict-examples {
+      margin-top: 1rem;
+      border-top: 1px solid var(--color-border);
+      padding-top: 0.75rem;
+    }
+    .dict-examples-summary {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      padding: 0.2rem 0;
+    }
+    .dict-examples-summary::-webkit-details-marker { display: none; }
+    .dict-examples[open] .dict-examples-summary { margin-bottom: 0.5rem; }
+    .dict-examples-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .dict-examples-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .dict-examples-table th {
+      background: var(--color-surface-alt);
+      color: var(--color-text-muted);
+      text-align: left;
+      padding: 0.35rem 0.6rem;
+      border-bottom: 1px solid var(--color-border);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .dict-examples-table td {
+      padding: 0.3rem 0.6rem;
+      border-bottom: 1px solid var(--color-border);
+      color: var(--color-text);
+      vertical-align: top;
+    }
+    .dict-examples-table tr:last-child td { border-bottom: none; }
+    .dict-examples-table tr:hover td { background: var(--color-surface-alt); }
+    .dict-example-empty {
+      color: var(--color-text-muted);
+      font-size: 0.85em;
+    }
+    @media print { .dict-examples { break-inside: avoid; } }
 
     /* ── Missing FK links ────────────────────────────────────────────────── */
     a.dict-link-missing {

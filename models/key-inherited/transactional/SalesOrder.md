@@ -18,6 +18,15 @@ columns:
   total:
     type: decimal
     desc: "Order total; reconciles to the sum of its line items."
+examples:
+  - party_id: 2
+    sales_order_id: 1001
+    ordered_at: "2024-03-05T14:22:00Z"
+    total: 138.00
+  - party_id: 1
+    sales_order_id: 1002
+    ordered_at: "2024-04-01T09:00:00Z"
+    total: 4999.00
 relationships:
   - target: Party
     on:
