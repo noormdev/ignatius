@@ -179,6 +179,56 @@ const graphCmd = defineCommand({
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// validate
+// ──────────────────────────────────────────────────────────────────────────────
+
+const validateCmd = defineCommand({
+  meta: {
+    name: 'validate',
+    description: 'Validate a model and report findings without generating any output',
+  },
+  args: {
+    path: {
+      type: 'positional',
+      description: 'Path to search for a model root (default: cwd)',
+      required: false,
+    },
+    model: {
+      type: 'string',
+      description: 'Model key to use when multiple models are found',
+    },
+  },
+  async run({ args }) {
+    const base = args.path ? resolve(args.path) : process.cwd();
+    const dir = await pickModel(base, args.model);
+    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
+    const { validateModel, formatFindingsForStderr } = await import('./validate');
+    const validation = validateModel(model);
+
+    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
+    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors);
+    for (const line of stderrLines) {
+      process.stderr.write(line + '\n');
+    }
+
+    const entityCount = Object.keys(model.nodes).length;
+    const noun = entityCount === 1 ? 'entity' : 'entities';
+    const errorCount = allGlobalErrors.length;
+    const warningCount = validation.entityErrors.length;
+
+    if (errorCount > 0) {
+      console.log(`✗ ${dir}: ${errorCount} error(s), ${warningCount} warning(s) across ${entityCount} ${noun}.`);
+    } else if (warningCount > 0) {
+      console.log(`✓ ${dir}: valid with ${warningCount} warning(s) across ${entityCount} ${noun}.`);
+    } else {
+      console.log(`✓ ${dir}: valid — ${entityCount} ${noun}, no findings.`);
+    }
+
+    process.exit(errorCount > 0 ? 1 : 0);
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // main
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -191,6 +241,7 @@ const main = defineCommand({
     serve: serveCmd,
     dict: dictCmd,
     graph: graphCmd,
+    validate: validateCmd,
   },
 });
 
