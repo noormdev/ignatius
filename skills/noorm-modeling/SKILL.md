@@ -1,11 +1,11 @@
 ---
-name: ignatius-modeling
+name: noorm-modeling
 description: Author an ignatius entity or bootstrap a new model through guided Q&A then verify with the ignatius CLI. Use when adding an entity or starting a model.
 argument-hint: "[entity|model]"
 allowed-tools: Read Write Edit Bash Glob AskUserQuestion
 ---
 
-# Ignatius modeling
+# Noorm modeling
 
 Guide the user through authoring an ignatius entity `.md` file or bootstrapping a new model, writing real files to disk and verifying them with the `ignatius` CLI.
 

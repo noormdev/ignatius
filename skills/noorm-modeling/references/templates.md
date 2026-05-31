@@ -392,7 +392,7 @@ Do not write the literal placeholder — replace `<chosen-default>` with the act
 
 ```yaml
 # Default key style: <chosen-default>
-# (a suggestion the /ignatius-modeling skill reads when authoring new entities;
+# (a suggestion the /noorm-modeling skill reads when authoring new entities;
 #  individual entities may differ — it is not enforced)
 name: <Model Name>
 # version: "1.0"

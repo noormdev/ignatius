@@ -1,9 +1,9 @@
-# Ignatius modeling skill — spec
+# Noorm modeling skill — spec
 
 
 ## Goal
 
-Ship a single Claude Code skill `/ignatius-modeling` that guides a user through authoring an ignatius entity OR bootstrapping a new model via a Q&A loop, encodes IDEF1X rules to prevent lint violations before they occur, writes real files to disk, and verifies the output by invoking the `ignatius` CLI.
+Ship a single Claude Code skill `/noorm-modeling` that guides a user through authoring an ignatius entity OR bootstrapping a new model via a Q&A loop, encodes IDEF1X rules to prevent lint violations before they occur, writes real files to disk, and verifies the output by invoking the `ignatius` CLI.
 
 
 ## Non-goals
@@ -23,9 +23,9 @@ The skill takes one positional argument selecting the mode:
 
 | Invocation | Mode | Output |
 |------------|------|--------|
-| `/ignatius-modeling entity` | New entity | Single entity `.md` file written under an existing `models/` tree |
-| `/ignatius-modeling model` | New model | Skeleton `models/` tree (`_groups/`, `ignatius.yml` for theme/branding/meta, optional one reference entity) |
-| `/ignatius-modeling` (no arg) | Ask | Skill prompts the user to pick `entity` or `model` before continuing |
+| `/noorm-modeling entity` | New entity | Single entity `.md` file written under an existing `models/` tree |
+| `/noorm-modeling model` | New model | Skeleton `models/` tree (`_groups/`, `ignatius.yml` for theme/branding/meta, optional one reference entity) |
+| `/noorm-modeling` (no arg) | Ask | Skill prompts the user to pick `entity` or `model` before continuing |
 
 ## Authoring convention axis
 
@@ -43,8 +43,8 @@ The convention is picked once per model: in `model` mode the user selects at boo
 
 ## Success criteria
 
-- `/ignatius-modeling entity` produces a `.md` entity file with zero lint findings on first run for the happy-path inputs the skill was designed to handle (verified by parsing the structured stderr from `ignatius dict`).
-- `/ignatius-modeling model` produces a minimal skeleton (`_groups/*.md`, single `ignatius.yml`, optional one entity) with zero lint findings on first run.
+- `/noorm-modeling entity` produces a `.md` entity file with zero lint findings on first run for the happy-path inputs the skill was designed to handle (verified by parsing the structured stderr from `ignatius dict`).
+- `/noorm-modeling model` produces a minimal skeleton (`_groups/*.md`, single `ignatius.yml`, optional one entity) with zero lint findings on first run.
 - Both modes ask about the models dir when not determinable from context.
 - The skill never asks for `classification` or per-edge `identifying` — both are derived by the parser from key/relationship shape (`docs/spec/derive-classification.md`). The Q&A asks for keys, relationships (with `on` mapping), and an optional `reference: true` flag for classifier/lookup tables.
 - When the user picks the `key-inherited` convention and then declares a PK that does not include the parent's PK columns, the skill prompts to either include the parent PK columns (key-inherited) or switch the convention to `orm-oriented` BEFORE writing the file.
@@ -52,24 +52,24 @@ The convention is picked once per model: in `model` mode the user selects at boo
 - After writing, the skill runs `ignatius dict <dir>` and surfaces structured findings (one line per finding, `<sev>  <ruleId>  <location>  <message>` — the format emitted by `src/validate.ts:formatFindingsForStderr`) with a fix-or-skip prompt.
 - The verification loop is bounded to 5 attempts per invocation. If the limit is exceeded, the skill surfaces all remaining findings to the user and exits — it does not silently stop.
 - When the user opts into custom branding or theme during `model` mode, the resulting `ignatius.yml` carries all required top-level keys for those blocks (dark palette under `theme:`; `title` + `copyright` under `branding:`).
-- Skill lives at `.claude/skills/ignatius-modeling/SKILL.md` (project-scoped).
+- Skill lives at `.claude/skills/noorm-modeling/SKILL.md` (project-scoped).
 - Invoking the skill from outside an ignatius project does not error — the skill asks for the models dir path.
 - Invoking with no arg, an unknown arg, or both modes fails gracefully — the skill asks the user to pick `entity` or `model`.
 
 
 ## Approach
 
-Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring + model bootstrap), the authoring-convention axis (key-inherited vs orm-oriented), and the file schemas described in `docs/design/ignatius-modeling-skill.md` and `docs/design/markdown-driven-erd.md`. The skill body branches on the positional arg early — `entity` enters the entity flow, `model` enters the bootstrap flow, missing/unknown arg asks the user to pick. The skill body references `docs/spec/schema-lint-and-error-ux.md` as the authority on linter rules so the question ordering stays aligned with what the linter flags. The verification loop (CP-3) parses the structured stderr emitted by `src/validate.ts:formatFindingsForStderr` (live in the shipped CLI).
+Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring + model bootstrap), the authoring-convention axis (key-inherited vs orm-oriented), and the file schemas described in `docs/design/noorm-modeling-skill.md` and `docs/design/markdown-driven-erd.md`. The skill body branches on the positional arg early — `entity` enters the entity flow, `model` enters the bootstrap flow, missing/unknown arg asks the user to pick. The skill body references `docs/spec/schema-lint-and-error-ux.md` as the authority on linter rules so the question ordering stays aligned with what the linter flags. The verification loop (CP-3) parses the structured stderr emitted by `src/validate.ts:formatFindingsForStderr` (live in the shipped CLI).
 
 
 ## Checkpoints
 
 | # | Checkpoint | Deliverable | Verifies |
 |---|------------|-------------|----------|
-| CP-1 | Skill scaffold + entity flow | `.claude/skills/ignatius-modeling/SKILL.md` containing skill frontmatter, mode-arg parsing + dispatch, and the entity Q&A flow. Q&A asks: entity id, group, convention (`key-inherited` \| `orm-oriented`), PK columns (with convention-specific guidance), relationships (with `on` mapping), optional alternate keys, columns, optional `reference: true`, optional body description. No `classification` or per-edge `identifying` prompt. Template emits the per-entity markdown frontmatter format documented in `docs/design/markdown-driven-erd.md`. | Invoking `/ignatius-modeling entity` walks the entity Q&A, writes a well-formed entity `.md` file, and `ignatius dict <dir>` exits 0 against the output; convention contradiction (key-inherited convention + PK that omits parent PK cols, OR orm-oriented convention + FK-in-PK) is caught during the flow, not post-write. |
-| CP-2 | Model bootstrap flow | Same `SKILL.md` extended with the model-bootstrap Q&A (encoded `_groups/*.md` schema and a single `ignatius.yml` covering `name`, optional `theme`, optional `branding`, optional `_meta` fields + file write step). User picks the model's default convention at bootstrap; the choice is recorded in `ignatius.yml` as a comment for the skill to inherit on subsequent `entity` runs against this root. | Invoking `/ignatius-modeling model` walks the bootstrap Q&A, writes the skeleton, and `ignatius dict <dir>` exits 0 against it. |
+| CP-1 | Skill scaffold + entity flow | `.claude/skills/noorm-modeling/SKILL.md` containing skill frontmatter, mode-arg parsing + dispatch, and the entity Q&A flow. Q&A asks: entity id, group, convention (`key-inherited` \| `orm-oriented`), PK columns (with convention-specific guidance), relationships (with `on` mapping), optional alternate keys, columns, optional `reference: true`, optional body description. No `classification` or per-edge `identifying` prompt. Template emits the per-entity markdown frontmatter format documented in `docs/design/markdown-driven-erd.md`. | Invoking `/noorm-modeling entity` walks the entity Q&A, writes a well-formed entity `.md` file, and `ignatius dict <dir>` exits 0 against the output; convention contradiction (key-inherited convention + PK that omits parent PK cols, OR orm-oriented convention + FK-in-PK) is caught during the flow, not post-write. |
+| CP-2 | Model bootstrap flow | Same `SKILL.md` extended with the model-bootstrap Q&A (encoded `_groups/*.md` schema and a single `ignatius.yml` covering `name`, optional `theme`, optional `branding`, optional `_meta` fields + file write step). User picks the model's default convention at bootstrap; the choice is recorded in `ignatius.yml` as a comment for the skill to inherit on subsequent `entity` runs against this root. | Invoking `/noorm-modeling model` walks the bootstrap Q&A, writes the skeleton, and `ignatius dict <dir>` exits 0 against it. |
 | CP-3 | Verification loop | `SKILL.md` post-write block runs `ignatius dict <dir>`, parses the structured stderr emitted by `src/validate.ts:formatFindingsForStderr` (one line per finding, `<sev>  <ruleId>  <location>  <message>`), reports findings with fix hints (keyed off `RULES[ruleId]` titles), and re-loops (max 5 attempts). | After writing a file with a deliberate lint violation (e.g. missing pk → `entity.missing_pk`), the skill surfaces the finding, offers to revise, and the corrected file passes on the next run; the parsing handles both `error` and `warn` severities. |
-| CP-4 | README update | `README.md` amended with a "Modeling skill" section announcing `/ignatius-modeling`, both modes, the convention axis, prerequisites (Claude Code, `ignatius` binary in PATH), and one example invocation per mode | Section is present and accurate; no broken links. |
+| CP-4 | README update | `README.md` amended with a "Modeling skill" section announcing `/noorm-modeling`, both modes, the convention axis, prerequisites (Claude Code, `ignatius` binary in PATH), and one example invocation per mode | Section is present and accurate; no broken links. |
 
 
 ## Risks
@@ -90,11 +90,11 @@ Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring
 
 ### 2026-05-29 — Collapse two skills into one
 
-**What changed:** Spec reframed from two separate skills (`/new-entity` + `/new-model`) into a single `/ignatius-modeling` skill with a positional mode arg (`entity` or `model`). Modes table added. Success criteria updated to reference one skill path. Checkpoints renumbered around the single skill file.
+**What changed:** Spec reframed from two separate skills (`/new-entity` + `/new-model`) into a single `/noorm-modeling` skill with a positional mode arg (`entity` or `model`). Modes table added. Success criteria updated to reference one skill path. Checkpoints renumbered around the single skill file.
 
 **Why:** Reviewing the original clarify round: user picked "Both: authoring helper + model bootstrap as **separate sub-modes**" — the label explicitly says "one skill, two args". Initial spec drafted two independent skills, contradicting the user's selection. Amendment reverses that.
 
-**Superseded:** The prior contract had `/new-entity` and `/new-model` as independent skill files at `.claude/skills/new-entity/SKILL.md` and `.claude/skills/new-model/SKILL.md`. The new contract is one file at `.claude/skills/ignatius-modeling/SKILL.md` with mode dispatched by positional arg.
+**Superseded:** The prior contract had `/new-entity` and `/new-model` as independent skill files at `.claude/skills/new-entity/SKILL.md` and `.claude/skills/new-model/SKILL.md`. The new contract is one file at `.claude/skills/noorm-modeling/SKILL.md` with mode dispatched by positional arg.
 
 
 ### 2026-05-30 — Classification + identifying now derived from keys
@@ -150,7 +150,7 @@ Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring
 Built across 4 iterations of `/subagent-implementation`. Commits (chronological):
 
 - `0faa15c` — spec amendment: Q&A redesign + ORM-vs-key-inherited axis + linter dependency unblocked
-- `6f1f8c4` — CP-1 + CP-2 + CP-3: `.claude/skills/ignatius-modeling/SKILL.md` (entity flow, model bootstrap, verification loop)
+- `6f1f8c4` — CP-1 + CP-2 + CP-3: `.claude/skills/noorm-modeling/SKILL.md` (entity flow, model bootstrap, verification loop)
 - `7109c3a` — CP-4: README "Modeling skill" section
 
 **Out-of-scope work performed during this build:**

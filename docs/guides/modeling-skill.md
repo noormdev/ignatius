@@ -1,7 +1,7 @@
 # The modeling skill
 
 
-`/ignatius-modeling` is a Claude Code skill that guides you through authoring a new entity file or bootstrapping a complete model skeleton via Q&A, then verifies the result with `ignatius dict`.
+`/noorm-modeling` is a Claude Code skill that guides you through authoring a new entity file or bootstrapping a complete model skeleton via Q&A, then verifies the result with `ignatius dict`.
 
 **Prerequisites:** Claude Code with skill support, and the `ignatius` binary on your `$PATH` or built locally (`bun run build:cli` produces `dist/ignatius`).
 
@@ -11,16 +11,16 @@
 
 | Invocation | What it does |
 |---|---|
-| `/ignatius-modeling entity` | Interactive Q&A to author one entity `.md` file |
-| `/ignatius-modeling model` | Bootstrap a new model skeleton (`ignatius.yml`, group files, directories) |
-| `/ignatius-modeling` (no arg) | Prompts you to choose `entity` or `model` |
+| `/noorm-modeling entity` | Interactive Q&A to author one entity `.md` file |
+| `/noorm-modeling model` | Bootstrap a new model skeleton (`ignatius.yml`, group files, directories) |
+| `/noorm-modeling` (no arg) | Prompts you to choose `entity` or `model` |
 
 ```bash
 # Add a new entity to an existing model
-/ignatius-modeling entity
+/noorm-modeling entity
 
 # Start a new model from scratch
-/ignatius-modeling model
+/noorm-modeling model
 ```
 
 

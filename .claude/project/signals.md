@@ -67,7 +67,7 @@ No linter or formatter configured in package.json.
 | frontend | src/App.tsx, src/hash-router.ts, src/main.tsx, src/index.html, src/styles.css, src/markers.ts | React 19 Cytoscape.js graph viewer; live/static mode flag; findings panel, global error banner, entity warning badges | (below) |
 | generators | src/generators/ | Static HTML output: dict (findings-aware), graph (embeds React bundle + mode flag), inline-asset inliner, theme CSS vars | (below) |
 | theme | src/theme-defaults.ts, src/branding-defaults.ts, src/generators/theme-css.ts | ThemeConfig + Branding types, default palettes, dark/light merging, CSS var generation | (below) |
-| skill | .claude/skills/ignatius-modeling/ | Project-scoped Claude skill: Q&A-driven entity authoring + model bootstrap, convention-aware, writes files + verifies with `ignatius dict` | (below) |
+| skill | skills/noorm-modeling/ | Project-scoped Claude skill: Q&A-driven entity authoring + model bootstrap, convention-aware, writes files + verifies with `ignatius dict` | (below) |
 | docs | docs/ | Design docs, CLI spec, project-config spec, derive-classification spec, schema-lint-and-error-ux spec, modeling-skill spec, bidirectional-predicates spec | (below) |
 | scripts | scripts/ | Build helpers: stable-names.ts, convert-yaml-to-md.ts, probe.ts, screenshot.ts | (below) |
 
@@ -167,7 +167,7 @@ Renders global error banner (`<div class="dict-global-banner">`), per-entity `<d
 
 ### skill
 
-`.claude/skills/ignatius-modeling/SKILL.md` (~573L) — project-scoped Claude skill. First (and only) entry in `.claude/skills/`. Frontmatter: `name: ignatius-modeling`, triggers on `/ignatius-modeling`, `new entity`, `bootstrap a model`, `new ignatius model`, `add entity`. `canonical_sources` lists `docs/spec/schema-lint-and-error-ux.md`, `docs/spec/derive-classification.md`, `docs/spec/ignatius-project-config.md`, `docs/design/markdown-driven-erd.md`.
+`skills/noorm-modeling/SKILL.md` (~573L) — project-scoped Claude skill. First (and only) entry in `skills/`. Frontmatter: `name: noorm-modeling`, triggers on `/noorm-modeling`, `new entity`, `bootstrap a model`, `new ignatius model`, `add entity`. `canonical_sources` lists `docs/spec/schema-lint-and-error-ux.md`, `docs/spec/derive-classification.md`, `docs/spec/ignatius-project-config.md`, `docs/design/markdown-driven-erd.md`.
 
 Two modes dispatched from a positional arg: `entity` (add one entity file) and `model` (bootstrap a new model skeleton). Missing/unknown arg prompts the user to choose.
 
@@ -179,7 +179,7 @@ Two modes dispatched from a positional arg: `entity` (add one entity file) and `
 
 Skill writes real files and runs `ignatius dict <model-dir> 2>&1` to verify output; exits the verify loop only when dict exits 0 or the user aborts.
 
-Coupling: references `docs/spec/ignatius-modeling-skill.md` (implementation contract), `docs/design/ignatius-modeling-skill.md` (entity-flow mermaid, knowledge-encoded section), `docs/spec/derive-classification.md` (classification rules), `docs/spec/ignatius-project-config.md` (model discovery), `docs/spec/schema-lint-and-error-ux.md` (rule catalog). Changes to any of those specs may require updating this skill's Q&A logic or verification steps.
+Coupling: references `docs/spec/noorm-modeling-skill.md` (implementation contract), `docs/design/noorm-modeling-skill.md` (entity-flow mermaid, knowledge-encoded section), `docs/spec/derive-classification.md` (classification rules), `docs/spec/ignatius-project-config.md` (model discovery), `docs/spec/schema-lint-and-error-ux.md` (rule catalog). Changes to any of those specs may require updating this skill's Q&A logic or verification steps.
 
 ### docs
 
@@ -190,7 +190,7 @@ Coupling: references `docs/spec/ignatius-modeling-skill.md` (implementation cont
 `docs/design/dict-navigation.md` — design doc for data dictionary navigation (side nav, anchors).
 `docs/design/viewer-fab-ux.md` — design doc for floating action button UX in the graph viewer.
 `docs/design/ignatius-project-config.md` — design doc for `ignatius.yml` as model-root marker + single config file; model discovery algorithm; citty + clack tooling rationale.
-`docs/design/ignatius-modeling-skill.md` — design doc for the ignatius modeling skill; includes entity-flow mermaid, knowledge-encoded section (ORM-vs-key-inherited axis, AK step, verification loop), Q&A redesign notes (no `classification` prompt).
+`docs/design/noorm-modeling-skill.md` — design doc for the ignatius modeling skill; includes entity-flow mermaid, knowledge-encoded section (ORM-vs-key-inherited axis, AK step, verification loop), Q&A redesign notes (no `classification` prompt).
 `docs/design/schema-lint-and-error-ux.md` (205L) — design doc for the schema lint and error UX feature: rule catalog, two-tier severity model (Class A warn/degrade vs Class B omit), findings surfaces (CLI stderr, dict banners, graph viewer panel), CP phasing.
 `docs/spec/cli-and-outputs.md` — implementation contract for the three CLI output modes and theme system.
 `docs/spec/branding.md` — implementation contract for branding in dict and graph outputs.
@@ -199,7 +199,7 @@ Coupling: references `docs/spec/ignatius-modeling-skill.md` (implementation cont
 `docs/spec/viewer-fab-ux.md` — implementation contract for FAB UX in graph viewer.
 `docs/spec/ignatius-project-config.md` — implementation contract for `ignatius.yml` config loading, model discovery, CLI picker behavior, and citty/clack integration.
 `docs/spec/derive-classification.md` — implementation contract for the 5-rule classification derivation algorithm (Classifier/Subtype/Associative/Dependent/Independent).
-`docs/spec/ignatius-modeling-skill.md` — implementation contract for the ignatius modeling skill; Q&A redesigned (no `classification` prompt), ORM-vs-key-inherited convention axis added, AK step ratified, full implementation log.
+`docs/spec/noorm-modeling-skill.md` — implementation contract for the ignatius modeling skill; Q&A redesigned (no `classification` prompt), ORM-vs-key-inherited convention axis added, AK step ratified, full implementation log.
 `docs/spec/bidirectional-predicates.md` — implementation contract for bidirectional predicates: `Predicate` type, `normalizePredicate` behavior, `ModelEdge.predicate` normalization at parse time, Cytoscape edge data keys (`predicateFwd`, `predicateRev`, `edgeLabel`), mouseover swap protocol, dict `predicate-rev` span, `models/key-inherited/` object form vs string form in other roots.
 `docs/spec/schema-lint-and-error-ux.md` (103L) — implementation contract for schema lint and error UX: `validateModel` API, `ValidationResult` shape, `generateDict` findings signature, `/api/model` payload shape, CLI stderr sort+format rules, `window.__IGNATIUS_MODE__` protocol, findings panel React component contract.
 

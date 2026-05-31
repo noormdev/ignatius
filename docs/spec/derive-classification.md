@@ -62,7 +62,7 @@ Built across 2 iterations of /subagent-implementation (inline brief, no prior sp
 - The compiled binary embeds a parser snapshot; stripping the fields broke the old binary until rebuilt. Confirms the binary must be rebuilt whenever parser-visible model shape changes.
 
 **Deferred items still open (disposition at finalize):**
-- `docs/spec/ignatius-modeling-skill.md`, `docs/spec/schema-lint-and-error-ux.md`, and followup `ignatius-authoring-skill` reference a hand-authored `classification` that no longer exists — reconcile needed.
+- `docs/spec/noorm-modeling-skill.md`, `docs/spec/schema-lint-and-error-ux.md`, and followup `ignatius-authoring-skill` reference a hand-authored `classification` that no longer exists — reconcile needed.
 - 6 pre-existing `tsc --noEmit` errors in `src/parse.ts` (predate this work).
 
 

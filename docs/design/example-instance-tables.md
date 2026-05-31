@@ -119,7 +119,7 @@ New rule `entity.example_unknown_column` — Class A, severity `warning`, `liveO
 
 E5b runs every time an entity is created. It is not skippable — examples are part of modeling, not a polish step. Verification loop at E8 also checks that the generated examples parse cleanly (no `example_unknown_column` warnings in `ignatius dict` output).
 
-`docs/design/ignatius-modeling-skill.md` mermaid updates to show E5b between E5 (columns) and E6 (description). `docs/spec/ignatius-modeling-skill.md` gets a change log entry recording the new step.
+`docs/design/noorm-modeling-skill.md` mermaid updates to show E5b between E5 (columns) and E6 (description). `docs/spec/noorm-modeling-skill.md` gets a change log entry recording the new step.
 
 ## Resolved questions
 

@@ -1,4 +1,4 @@
-# Ignatius modeling skill
+# Noorm modeling skill
 
 
 ## Problem
@@ -16,12 +16,12 @@ The result: every new contributor's first entity is a half-broken file that prod
 ## Goals / Non-goals
 
 - **Goals**
-    - One skill (`/ignatius-modeling`) with two modes selected by a positional arg:
+    - One skill (`/noorm-modeling`) with two modes selected by a positional arg:
         - **`entity`** — author a single entity .md file given an existing `models/` root.
         - **`model`** — bootstrap a complete `models/` skeleton (`_groups/`, optional `_theme.yaml`, optional `_branding.yaml`, one or two reference entities).
     - The skill knows the IDEF1X rules — it asks the right questions in the right order so the resulting file satisfies the linter on first run.
     - After writing, the skill runs `ignatius dict <models>` and reports any lint findings. If findings appear, the skill prompts the user to fix them iteratively.
-    - The skill is invoked via the standard Claude Code skill mechanism: `/ignatius-modeling entity` or `/ignatius-modeling model`. Bare `/ignatius-modeling` asks the user to pick.
+    - The skill is invoked via the standard Claude Code skill mechanism: `/noorm-modeling entity` or `/noorm-modeling model`. Bare `/noorm-modeling` asks the user to pick.
     - Skill output: real file(s) on disk, staged but not committed.
 
 - **Non-goals**
@@ -38,7 +38,7 @@ The result: every new contributor's first entity is a half-broken file that prod
 
 ```mermaid
 flowchart TD
-    Start[User: /ignatius-modeling entity] --> Q1{Models dir specified?}
+    Start[User: /noorm-modeling entity] --> Q1{Models dir specified?}
     Q1 -->|no| AskDir[Ask for models/ path]
     Q1 -->|yes| Parse[parseModels existing]
     AskDir --> Parse
@@ -71,7 +71,7 @@ Key behavior: the skill uses the user's earlier answers to *prevent* lint violat
 
 ```mermaid
 flowchart TD
-    Start[User: /ignatius-modeling model] --> Q1[Ask: target dir<br/>default ./models]
+    Start[User: /noorm-modeling model] --> Q1[Ask: target dir<br/>default ./models]
     Q1 --> Q2[Ask: model name<br/>for ignatius.yml name + branding title]
     Q2 --> Q3[Pick default convention<br/>key-inherited or orm-oriented]
     Q3 --> Q4[Ask: theme<br/>default Noorm / custom?]
@@ -87,9 +87,9 @@ The skeleton is intentionally minimal — no inflated example data. One group, o
 
 ## Invocation
 
-- Skill file lives in this repo so it ships with the project. Path: `.claude/skills/ignatius-modeling/SKILL.md` (project-scoped skill).
-- Name: `/ignatius-modeling`. One skill, one file. Mode selected by positional arg: `entity` or `model`.
-- Bare `/ignatius-modeling` (no arg) prompts the user to pick which mode. Unknown args fall to the same prompt.
+- Skill file lives in this repo so it ships with the project. Path: `.claude/skills/noorm-modeling/SKILL.md` (project-scoped skill).
+- Name: `/noorm-modeling`. One skill, one file. Mode selected by positional arg: `entity` or `model`.
+- Bare `/noorm-modeling` (no arg) prompts the user to pick which mode. Unknown args fall to the same prompt.
 - Invokable from anywhere; if not inside an ignatius `models/`-bearing project the skill asks for paths.
 
 
