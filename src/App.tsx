@@ -1320,6 +1320,30 @@ export function App() {
     // positions are settled. Defer one tick so the initial layout completes.
     setTimeout(refreshArrows, 0);
 
+    // Walk the key-inheritance lineage upward from a node to the root(s).
+    // Graph edges run parent→child, so an incoming edge points to a child; we
+    // follow only identifying edges (key inherited) and stop at referential
+    // ones — signifying you can reach the root because the key travels with you.
+    // Joiner nodes (basetype→joiner→subtype) are identifying, so subtype lineage
+    // passes through them transparently up to the basetype and beyond.
+    function collectLineage(start: cytoscape.NodeCollection) {
+      let acc = cy.collection();
+      let frontier = start;
+      const seen = new Set<string>([start.id()]);
+      while (frontier.nonempty()) {
+        const inEdges = frontier.incomers('edge[identifying = "true"]');
+        if (inEdges.empty()) break;
+        const parents = inEdges.sources();
+        acc = acc.union(inEdges).union(parents);
+        frontier = parents.filter((p) => {
+          if (seen.has(p.id())) return false;
+          seen.add(p.id());
+          return true;
+        });
+      }
+      return acc;
+    }
+
     // Hover handlers: swap incident edge labels to the node's perspective, restore on mouseout.
     // On mouseover node N: edges where N is the child (edge.target() === N) flip to rev.
     // On mouseout: all connected edges restore to fwd.
@@ -1335,7 +1359,8 @@ export function App() {
       });
       const direct = n.closedNeighborhood().union(n);
       const joiners = direct.nodes('[joiner = "true"]');
-      const keep = direct.union(joiners.incomers());
+      const lineage = collectLineage(n);
+      const keep = direct.union(joiners.incomers()).union(lineage);
       const keepWithAncestors = keep.union(keep.ancestors());
       cy.elements().difference(keepWithAncestors).addClass('faded');
       n.addClass('hover-focus');
