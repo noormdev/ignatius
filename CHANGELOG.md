@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/noormdev/ignatius/compare/v0.3.0...v0.4.0) (2026-06-01)
+
+
+### Features
+
+* install tooling, version/update, graph fixes ([ffaa252](https://github.com/noormdev/ignatius/commit/ffaa252f3858a0a794434afe14410aa6851bb778))
+
 ## [0.3.0](https://github.com/noormdev/ignatius/compare/v0.2.0...v0.3.0) (2026-06-01)
 
 
