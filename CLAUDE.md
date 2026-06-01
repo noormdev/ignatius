@@ -149,7 +149,9 @@ Paths are relative to `docs/design/`, `docs/spec/`, `docs/guides/`, and `skills/
 | Branding | branding | branding | themes-and-branding | model-flow M5 |
 | Dict navigation + polish | dict-navigation | dict-navigation, dict-polish | — | — |
 | Graph viewer FAB UX | viewer-fab-ux | viewer-fab-ux | — | — |
+| Graph node position persistence (drag-to-save, reset) | graph-position-persistence | graph-position-persistence | — | — |
 | Business-narrative body + existence/cascade rules | markdown-driven-erd | noorm-modeling-skill | modeling-skill | entity-flow E9, templates (body sections) |
+| Entity body wiki-links `[[Entity]]` | wiki-entity-links | wiki-entity-links, schema-lint-and-error-ux | folder-format | entity-flow E9 (body authoring) |
 | The modeling skill itself | noorm-modeling-skill | noorm-modeling-skill | modeling-skill | SKILL + all references |
 | Example / sample instance tables ⚠ | example-instance-tables | example-instance-tables | — | entity-flow E9 + templates `## Sample rows` |
 

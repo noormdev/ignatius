@@ -68,9 +68,9 @@ function assert(condition: boolean, label: string, detail?: string): void {
   assert(malformed.length === 0, 'dict stderr: all lines match <severity>  <ruleId>  <location>  <message> format',
     malformed.length > 0 ? `malformed lines:\n${malformed.slice(0, 5).join('\n')}` : undefined);
 
-  // broken-demo baseline: 4 errors, 7 warnings.
+  // broken-demo baseline: 4 errors, 8 warnings (incl. body.unknown_link).
   const warnLines = lines.filter(l => l.startsWith('warn'));
-  assert(warnLines.length === 7, `dict stderr: 7 warn lines (got ${warnLines.length})`,
+  assert(warnLines.length === 8, `dict stderr: 8 warn lines (got ${warnLines.length})`,
     `stderr:\n${stderr.slice(0, 1000)}`);
 
   const errorLines = lines.filter(l => l.startsWith('error'));
@@ -108,7 +108,7 @@ function assert(condition: boolean, label: string, detail?: string): void {
 
     const lines = stderr.split('\n').filter(l => l.trim() !== '');
     const warnLines = lines.filter(l => l.startsWith('warn'));
-    assert(warnLines.length === 7, `graph stderr: 7 warn lines (got ${warnLines.length})`);
+    assert(warnLines.length === 8, `graph stderr: 8 warn lines (got ${warnLines.length})`);
   }
 }
 

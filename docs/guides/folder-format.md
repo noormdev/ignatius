@@ -66,6 +66,24 @@ Party that is a natural person.
 You do not set `classification` or per-edge `identifying` — ignatius derives both from the key shape. See [What gets derived](derivation.md).
 
 
+### Linking to other entities
+
+
+Reference another entity from the body with double brackets and it becomes a link:
+
+
+```markdown
+A **Person** is the specialization of a [[Party]] that is a natural human.
+A customer settles invoices with a [[PaymentMethod|payment method]] on file.
+```
+
+
+`[[Party]]` links to the Party entity and shows "Party". `[[PaymentMethod|payment method]]` links to PaymentMethod but shows "payment method". In the graph viewer the link opens that entity's modal; in the data dictionary it jumps to that entity's section.
+
+
+The target must match an entity id exactly (PascalCase). A link to an entity that does not exist renders as muted, non-clickable text and is reported as a `body.unknown_link` finding, so a typo never passes silently. See [Validation and findings](validation.md).
+
+
 ### Columns
 
 

@@ -36,7 +36,7 @@ relationships:
 
 # SalesInvoice
 
-A **SalesInvoice** is a bill issued to a Party for amounts owed. It is the demand for payment — the document a `Payment` is ultimately applied against, line by line.
+A **SalesInvoice** is a bill issued to a [[Party]] for amounts owed. It is the demand for payment — the document a `Payment` is ultimately applied against, line by line.
 
 It is its own entity, distinct from the order, because what was ordered and what is billed can diverge, and because the invoice is the anchor for the money side of the model: allocations settle invoice lines, not order lines.
 

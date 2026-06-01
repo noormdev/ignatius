@@ -2,9 +2,11 @@ import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import { defaultTheme, mergeTheme, type ThemeConfig, type ThemePalette, type ThemeSpacing } from './theme-defaults';
 import { defaultBranding, mergeBranding, type Branding } from './branding-defaults';
+import { wikiLinkPlugin, type WikiLinkEnv } from './wikilink';
 import type { GlobalError } from './validate';
 
 const md = new MarkdownIt();
+md.use(wikiLinkPlugin);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -67,6 +69,8 @@ export type ModelNode = {
   columns: Record<string, ColumnDef>;
   alternateKeys: { rule: string; columns: string[] }[];
   bodyHtml: string;
+  /** Entity ids referenced via `[[…]]` wiki-links in the body, in source order. */
+  bodyLinks?: string[];
   examples?: Record<string, unknown>[];
 };
 
@@ -205,10 +209,14 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   }
 
   const glob = new Bun.Glob('**/*.md');
-  // Intermediate: partial node without derived classification; classifier signal from frontmatter
-  type RawNode = Omit<ModelNode, 'classification'> & {
+  // Intermediate: partial node without derived classification; classifier signal
+  // from frontmatter. Holds the raw body — bodyHtml/bodyLinks are rendered in a
+  // second pass once every entity id is known (so `[[…]]` links can be resolved
+  // against the full set).
+  type RawNode = Omit<ModelNode, 'classification' | 'bodyHtml' | 'bodyLinks'> & {
     legacyClassification?: string;
     referenceFlag: boolean;
+    body: string;
   };
   type RawEdge = {
     source: string;
@@ -275,7 +283,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       pk: frontmatter.pk ?? [],
       columns: frontmatter.columns ?? {},
       alternateKeys: frontmatter.ak ?? [],
-      bodyHtml: md.render(body),
+      body,
       ...(frontmatter.examples !== undefined ? { examples: frontmatter.examples } : {}),
     });
 
@@ -360,17 +368,25 @@ export async function parseModels(dir: string): Promise<ParseResult> {
     return 'Independent';
   }
 
-  // Build final nodes with derived classification
-  const nodes: ModelNode[] = rawNodes.map(rawNode => ({
-    id: rawNode.id,
-    classification: deriveClassification(rawNode),
-    group: rawNode.group,
-    pk: rawNode.pk,
-    columns: rawNode.columns,
-    alternateKeys: rawNode.alternateKeys,
-    bodyHtml: rawNode.bodyHtml,
-    ...(rawNode.examples !== undefined ? { examples: rawNode.examples } : {}),
-  }));
+  // Build final nodes with derived classification. Render each body now that the
+  // full id set is known, so `[[…]]` links resolve and unknown targets are
+  // marked missing + collected for validation.
+  const knownIds = new Set(rawNodes.map(n => n.id));
+  const nodes: ModelNode[] = rawNodes.map(rawNode => {
+    const env: WikiLinkEnv = { knownIds, links: [] };
+    const bodyHtml = md.render(rawNode.body, env);
+    return {
+      id: rawNode.id,
+      classification: deriveClassification(rawNode),
+      group: rawNode.group,
+      pk: rawNode.pk,
+      columns: rawNode.columns,
+      alternateKeys: rawNode.alternateKeys,
+      bodyHtml,
+      bodyLinks: env.links,
+      ...(rawNode.examples !== undefined ? { examples: rawNode.examples } : {}),
+    };
+  });
 
   // Derive cardinality for each edge using fully derived node + edge values
   const nodeMap: Record<string, ModelNode> = {};

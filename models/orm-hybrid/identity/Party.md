@@ -42,7 +42,7 @@ Modeling everyone as one Party — rather than separate Customer, Vendor, and Em
 
 Every Party is exactly one of two kinds — mutually exclusive and total:
 
-- **Business** — a legal entity (corporation, LLC, partnership), where `type = PartyType.code.BUSINESS`.
-- **Person** — a natural person, where `type = PartyType.code.PERSON`.
+- **[[Business]]** — a legal entity (corporation, LLC, partnership), where `type = PartyType.code.BUSINESS`.
+- **[[Person]]** — a natural person, where `type = PartyType.code.PERSON`.
 
 The Party record holds what is common to both; the subtype holds what is specific — legal name and tax id for a Business, given and family name and birthdate for a Person.

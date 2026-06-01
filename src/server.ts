@@ -2,6 +2,7 @@ import index from './index.html';
 import { parseModels } from './parse';
 import { validateModel } from './validate';
 import { generateDict } from './generators/dict';
+import { layoutFingerprint } from './layout-fingerprint';
 import { resolve, normalize, isAbsolute } from 'path';
 import { watch } from 'fs';
 
@@ -79,7 +80,8 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
       '/api/model': async () => {
         const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
         const validation = validateModel(model);
-        return Response.json({ model, parseGlobalErrors, validation });
+        const layoutKey = layoutFingerprint(model);
+        return Response.json({ model, parseGlobalErrors, validation, layoutKey });
       },
       '/api/asset': async (req) => {
         const url = new URL(req.url);

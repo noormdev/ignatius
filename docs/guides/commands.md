@@ -33,10 +33,10 @@ The search skips meta and build directories: any path segment starting with `_`,
 Starts a local server with live reload. Editing any `.md` or `.yaml` file in the folder pushes an update to the open browser tab over server-sent events.
 
 ```bash
-ignatius serve [path] [-p|--port <port>] [--model <key>]
+ignatius serve [path] [-p|--port <port>] [--model <key>] [-o|--open]
 ```
 
-`server` is an accepted alias for `serve`. The port flag takes either `-p` or `--port`; the default is 3000. When the chosen port is already in use, ignatius finds the next free one by counting up (3000 → 3001 → 3002 …). In a terminal it asks which port to use, with that next free port as the default — press enter to accept it or type another. Run non-interactively (a pipe or CI), it advances automatically and prints the port it settled on. The server also exposes `/dict` (the data dictionary, with `?theme=light|dark`) and `/api/model` (the parsed model plus validation findings as JSON).
+`server` is an accepted alias for `serve`. The port flag takes either `-p` or `--port`; the default is 3000. When the chosen port is already in use, ignatius finds the next free one by counting up (3000 → 3001 → 3002 …). In a terminal it asks which port to use, with that next free port as the default — press enter to accept it or type another. Run non-interactively (a pipe or CI), it advances automatically and prints the port it settled on. Pass `-o` or `--open` to open the server in your default browser once it has bound (it opens the port it actually settled on, even after a fallback). The server also exposes `/dict` (the data dictionary, with `?theme=light|dark`) and `/api/model` (the parsed model plus validation findings as JSON).
 
 While serving, a findings panel in the top-right corner lists any schema problems and updates on every save. See [Validation and findings](validation.md).
 

@@ -32,6 +32,12 @@ const serveCmd = defineCommand({
       type: 'string',
       description: 'Model key to use when multiple models are found',
     },
+    open: {
+      type: 'boolean',
+      alias: 'o',
+      description: 'Open the server in the default browser after it starts',
+      default: false,
+    },
   },
   async run({ args }) {
     const base = args.path ? resolve(args.path) : process.cwd();
@@ -42,7 +48,11 @@ const serveCmd = defineCommand({
     }
 
     const dir = await pickModel(base, args.model);
-    await serveWithPortFallback(dir, port);
+    const boundPort = await serveWithPortFallback(dir, port);
+    if (args.open) {
+      const { openBrowser } = await import('./open-browser');
+      openBrowser(`http://localhost:${boundPort}`);
+    }
   },
 });
 

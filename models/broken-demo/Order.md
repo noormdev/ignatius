@@ -28,4 +28,4 @@ relationships:
 
 The relationship to `Cart` references an entity that does not exist anywhere in the model. The validator strips the dangling edge from `cleanedModel.edges` and adds a `GlobalError` to the banner. In the dict the `Cart` FK link renders with `dict-link-missing` and points at a `#missing-Cart` placeholder section at page bottom.
 
-The relationship to `Customer` is clean and survives.
+The relationship to [[Customer]] is clean and survives — but the narrative below links to [[Cart]], an entity that does not exist, which trips `body.unknown_link`.

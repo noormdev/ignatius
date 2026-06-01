@@ -34,7 +34,7 @@ relationships:
 
 # Payment
 
-A **Payment** records money actually received from a Party through one of its payment methods. It is the settlement event — distinct from an invoice, which only states what is owed. A single payment can be spread across several invoice lines through `PaymentAllocation`, so the model never assumes one payment settles exactly one invoice.
+A **Payment** records money actually received from a [[Party]] through one of its payment methods. It is the settlement event — distinct from a [[SalesInvoice|sales invoice]], which only states what is owed. A single payment can be spread across several invoice lines through `PaymentAllocation`, so the model never assumes one payment settles exactly one invoice.
 
 Capturing payments as first-class records — rather than a `paid` flag on the invoice — preserves the full money trail: when funds arrived, which method settled them, and exactly how they were applied. That history is what reconciliation, refunds, and audit depend on.
 

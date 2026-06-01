@@ -4,7 +4,7 @@
  * Verifies:
  * - Validates without generating any HTML output (no -o, no "Wrote ..." line).
  * - Clean model (key-inherited) → exit 0, "valid" summary, no error lines.
- * - Broken model (broken-demo) → exit 1, same 4 errors + 7 warnings as dict/graph.
+ * - Broken model (broken-demo) → exit 1, same 4 errors + 8 warnings as dict/graph.
  * - Findings print to stderr in the shared "<severity>  <ruleId>  <location>  <message>" format.
  *
  * WHY run via `bun src/cli.ts` not the binary: faster CI iteration, no prior build:cli.
@@ -55,7 +55,7 @@ function assert(condition: boolean, label: string, detail?: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Test 2: broken model → exit 1, 4 errors + 7 warnings, shared stderr format
+// Test 2: broken model → exit 1, 4 errors + 8 warnings, shared stderr format
 // ---------------------------------------------------------------------------
 {
   const { exitCode, stdout, stderr } = await run(['validate', BROKEN]);
@@ -66,7 +66,7 @@ function assert(condition: boolean, label: string, detail?: string): void {
   const warnLines = lines.filter(l => l.startsWith('warn'));
   assert(errorLines.length === 4, `validate broken model: 4 error lines (got ${errorLines.length})`,
     `stderr:\n${stderr.slice(0, 800)}`);
-  assert(warnLines.length === 7, `validate broken model: 7 warn lines (got ${warnLines.length})`);
+  assert(warnLines.length === 8, `validate broken model: 8 warn lines (got ${warnLines.length})`);
 
   const formatRe = /^(error|warn)\s{2,}\S+\s{2,}\S+\s{2,}[\s\S]+$/;
   const malformed = lines.filter(l => (l.startsWith('error') || l.startsWith('warn')) && !formatRe.test(l));

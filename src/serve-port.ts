@@ -55,13 +55,16 @@ async function promptForPort(takenPort: number, suggested: number): Promise<numb
  *   - terminal: ask which port to use, defaulting to the next free one
  *   - non-interactive: advance to the next port and retry, logging the choice
  * Loops until a bind succeeds. Exits 130 if the user cancels the prompt.
+ *
+ * Returns the port the server actually bound to (may differ from
+ * `requestedPort` after a fallback) so callers can address the live URL.
  */
-export async function serveWithPortFallback(dir: string, requestedPort: number): Promise<void> {
+export async function serveWithPortFallback(dir: string, requestedPort: number): Promise<number> {
   let port = requestedPort;
   while (true) {
     try {
-      serveCommand(dir, { port });
-      return;
+      const { server } = serveCommand(dir, { port });
+      return server.port;
     } catch (err) {
       if (!isAddrInUse(err)) throw err;
 

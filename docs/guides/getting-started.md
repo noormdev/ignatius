@@ -78,6 +78,8 @@ To run against your own folder, call the CLI directly with the `serve` subcomman
 ignatius serve path/to/your/models --port 3000
 ```
 
+Add `-o` (or `--open`) to launch the graph in your default browser as soon as the server starts.
+
 If the path contains multiple model folders, ignatius lists them and prompts you to pick one. Pass `--model <key>` to skip the prompt. See [Commands](commands.md) for the full discovery rules.
 
 

@@ -447,6 +447,23 @@ html, body, #root {
   text-decoration: underline;
 }
 
+/* [[Entity]] body links. Navigable links read as links; unknown targets render
+   as muted, non-interactive text so a typo is visible but not clickable. */
+.entity-link {
+  color: var(--color-link);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-link) 40%, transparent);
+}
+.entity-link:hover {
+  border-bottom-color: var(--color-link);
+}
+.entity-link--missing {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  border-bottom: 1px dashed var(--color-text-muted);
+}
+
 code {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 12px;

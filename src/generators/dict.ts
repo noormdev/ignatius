@@ -951,6 +951,19 @@ ${entityRows}
     }
     .entity-body p { margin-bottom: 0.5rem; }
     .entity-body ul, .entity-body ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    /* [[Entity]] body links — navigable anchors jump to the entity section;
+       unknown targets render as muted, non-interactive text. */
+    .entity-link {
+      color: var(--color-link);
+      text-decoration: none;
+      border-bottom: 1px solid color-mix(in srgb, var(--color-link) 40%, transparent);
+    }
+    .entity-link:hover { border-bottom-color: var(--color-link); }
+    .entity-link--missing {
+      color: var(--color-text-muted);
+      cursor: not-allowed;
+      border-bottom: 1px dashed var(--color-text-muted);
+    }
     .entity-body table {
       width: 100%;
       border-collapse: collapse;

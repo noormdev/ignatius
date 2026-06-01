@@ -9,6 +9,7 @@ import { parseHash, serializeHash, type HashState } from './hash-router';
 import { validateModel, RULES } from './validate';
 import type { EntityError, GlobalError } from './validate';
 import { wrapEntityLabel } from './wrap-label';
+import { createLayoutStore } from './layout-store';
 import type {
   Model,
   ModelNode,
@@ -61,6 +62,7 @@ declare global {
     __MODEL__?: Model;
     __THEME_MODE__?: 'dark' | 'light';
     __IGNATIUS_MODE__?: 'live' | 'static';
+    __LAYOUT_KEY__?: string;
     // Debug/test seam: the live Cytoscape core, exposed for the visual harness
     // to locate nodes and drive hover. Not read by application code.
     __IGNATIUS_CY__?: cytoscape.Core;
@@ -332,6 +334,18 @@ function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigat
         />
         <div
           className="doc-body"
+          onClick={(e) => {
+            // Body HTML is injected, so its `[[…]]` anchors can't carry React
+            // handlers — delegate: intercept clicks on entity links and route
+            // them through the same navigation the FK links use.
+            const el = e.target;
+            if (!(el instanceof Element)) return;
+            const link = el.closest('a[data-entity]');
+            if (!link) return;
+            e.preventDefault();
+            const id = link.getAttribute('data-entity');
+            if (id && nodes.some(n => n.id === id)) onNavigate(id);
+          }}
           dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
         />
         <ChildrenTable
@@ -833,6 +847,13 @@ export function App() {
   });
   // Ref so viewport/position listeners always read the current mode without needing cy rebuild
   const themeModeRef = useRef<ThemeMode>(themeMode);
+  // Ref so drag-save and layoutstop-restore listeners always read the live
+  // layoutKey (updated by SSE rebuilds) without forcing a graph rebuild.
+  // Mirror of the themeModeRef / findingsRef pattern.
+  const layoutKeyRef = useRef<string>('');
+  // Set by the cy-init effect; lets the FAB "Reset layout" button clear the
+  // saved arrangement and re-run ELK from outside the effect closure.
+  const resetLayoutRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const mode = window.__IGNATIUS_MODE__;
@@ -848,17 +869,22 @@ export function App() {
         globalErrors: validation.globalErrors,
         entityErrors: validation.entityErrors,
       });
+      // Static graph injects window.__LAYOUT_KEY__ beside window.__MODEL__.
+      layoutKeyRef.current = window.__LAYOUT_KEY__ ?? '';
       return;
     }
 
     // Live mode: server computed validation — use its payload, do not re-validate.
-    function applyPayload(payload: { model: Model; parseGlobalErrors: GlobalError[]; validation: { cleanedModel: Model; globalErrors: GlobalError[]; entityErrors: EntityError[] } }) {
+    function applyPayload(payload: { model: Model; parseGlobalErrors: GlobalError[]; validation: { cleanedModel: Model; globalErrors: GlobalError[]; entityErrors: EntityError[] }; layoutKey?: string }) {
       const allGlobal = [...payload.parseGlobalErrors, ...payload.validation.globalErrors];
       setModel(payload.validation.cleanedModel);
       setFindings({
         globalErrors: allGlobal,
         entityErrors: payload.validation.entityErrors,
       });
+      // Store the layoutKey from the server payload so the cy listeners (drag-save,
+      // layoutstop-restore) always read the current key, including after SSE rebuilds.
+      layoutKeyRef.current = payload.layoutKey ?? '';
     }
 
     fetch('/api/model').then(r => r.json()).then(applyPayload);
@@ -1112,26 +1138,28 @@ export function App() {
     const markerPadding = 50; // room for markers on both ends
     const layerSpacing = Math.max(80, longestPredicate * charWidth + markerPadding);
 
+    const elkLayoutOpts = {
+      name: 'elk',
+      elk: {
+        algorithm: 'layered',
+        'elk.direction': 'DOWN',
+        'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
+        'elk.spacing.nodeNode': String(model.theme.spacing.nodeSep),
+        'elk.edgeRouting': 'ORTHOGONAL',
+        'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+        'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+        'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
+        'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+        'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+      },
+    } as cytoscape.LayoutOptions;
+
     let cy: cytoscape.Core;
     try {
       cy = cytoscape({
         container: graphRef.current,
         elements,
-        layout: {
-          name: 'elk',
-          elk: {
-            algorithm: 'layered',
-            'elk.direction': 'DOWN',
-            'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
-            'elk.spacing.nodeNode': String(model.theme.spacing.nodeSep),
-            'elk.edgeRouting': 'ORTHOGONAL',
-            'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-            'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
-            'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
-            'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
-            'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-          },
-        } as cytoscape.LayoutOptions,
+        layout: elkLayoutOpts,
         style: buildStyles(model.groups, model.theme, themeMode),
         minZoom: 0.3,
         maxZoom: 3,
@@ -1223,7 +1251,25 @@ export function App() {
       }
     }
 
+    const layoutStore = createLayoutStore();
     cy.one('layoutstop', () => {
+      // Restore saved positions (if any) BEFORE fitting, so the fit centers on
+      // the user-arranged layout. All-or-nothing: key match → restore all; miss → ELK stands.
+      const savedKey = layoutKeyRef.current;
+      if (savedKey) {
+        const saved = layoutStore.load(savedKey);
+        if (saved) {
+          for (const [id, pos] of Object.entries(saved)) {
+            const node = cy.$id(id);
+            // Skip compound parents (subtype-cluster boxes): setting a parent's
+            // position translates its children, displacing them from their own
+            // saved absolute positions. Restore children only; the parent's
+            // bounding box recomputes around them.
+            if (!node.empty() && !node.isParent()) node.position(pos);
+          }
+        }
+      }
+
       cy.fit(undefined, 30);
       redrawMarkers();
 
@@ -1264,6 +1310,19 @@ export function App() {
     // Expose hash writes to JSX paths outside this closure (e.g. modal links).
     navigateToEntityRef.current = (id: string) => {
       scheduleHashWrite({ ...viewportState(), entity: id });
+    };
+
+    // Clears saved arrangement for the current layoutKey and re-runs ELK from scratch.
+    // cy.one('layoutstop') at init already fired — the reset closure handles fit/markers itself.
+    resetLayoutRef.current = () => {
+      if (saveTimer !== null) clearTimeout(saveTimer);
+      layoutStore.clear(layoutKeyRef.current);
+      const lo = cy.layout(elkLayoutOpts);
+      lo.one('layoutstop', () => {
+        cy.fit(undefined, 30);
+        redrawMarkers();
+      });
+      lo.run();
     };
 
     // Direct navigate for the findings panel: select + center immediately, then sync hash.
@@ -1334,6 +1393,24 @@ export function App() {
     // Initial pass: edges were created with raw verb text — apply arrows once
     // positions are settled. Defer one tick so the initial layout completes.
     setTimeout(refreshArrows, 0);
+
+    // Save node positions to localStorage on drag-end (~400ms debounced).
+    // Keyed by layoutKeyRef so SSE rebuilds always write under the current key.
+    // Skip when the key is absent (e.g. server hasn't responded yet).
+    let saveTimer: ReturnType<typeof setTimeout> | null = null;
+    cy.on('free', 'node', () => {
+      if (saveTimer !== null) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const key = layoutKeyRef.current;
+        if (!key) return;
+        const positions: Record<string, { x: number; y: number }> = {};
+        cy.nodes().forEach((node) => {
+          const pos = node.position();
+          positions[node.id()] = { x: pos.x, y: pos.y };
+        });
+        layoutStore.save(key, positions);
+      }, 400);
+    });
 
     // Walk the key-inheritance lineage upward from a node to the root(s).
     // Graph edges run parent→child, so an incoming edge points to a child; we
@@ -1413,9 +1490,11 @@ export function App() {
         navRef.current = null;
       }
       if (writeTimer !== null) clearTimeout(writeTimer);
+      if (saveTimer !== null) clearTimeout(saveTimer);
       window.removeEventListener('hashchange', onHashChange);
       navigateToEntityRef.current = () => {};
       panelNavigateRef.current = () => {};
+      resetLayoutRef.current = null;
       cy.destroy();
       cyRef.current = null;
       window.__IGNATIUS_CY__ = undefined;
@@ -1540,6 +1619,13 @@ export function App() {
             onClick={handleCopyLink}
           >
             Copy link
+          </button>
+          <button
+            className="fab-menu-item"
+            role="menuitem"
+            onClick={() => { setMenuOpen(false); resetLayoutRef.current?.(); }}
+          >
+            Reset layout
           </button>
         </div>
       )}

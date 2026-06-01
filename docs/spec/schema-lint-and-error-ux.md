@@ -88,6 +88,13 @@ CLI stderr printing is consolidated in `src/cli.ts` after `parseModels` + `valid
 <!-- empty during drafting; first entry on first post-approval amendment -->
 
 
+### 2026-06-01 — Added `body.unknown_link` rule
+
+**What changed:** New Class A entity rule `body.unknown_link` for `[[Entity]]` wiki-links in entity bodies that name a non-existent entity. Not live-only — surfaces on all findings surfaces (CLI stderr, dict, graph panel). Full contract in `docs/spec/wiki-entity-links.md`.
+
+**Why:** Body links are a new reference type; a dangling `[[…]]` should be surfaced like any other broken reference (`edge.unknown_target`, `cluster.missing_member`).
+
+
 ### 2026-05-30 — Classification is now derived, not declared (reconcile flag)
 
 **What changed:** `classification` is derived from PK/FK structure by the parser (see `docs/spec/derive-classification.md`, commits `50b6897` + `20c7dd5`). Reconcile flag — the rule catalog above is NOT yet rewritten.

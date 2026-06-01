@@ -68,11 +68,12 @@ function assert(condition: boolean, label: string, detail?: string): void {
     `/api/model: model.nodes has 9 entries (got ${(model?.nodes as unknown[])?.length})`,
   );
 
-  // broken-demo baseline: 8 entity warnings (7 + 1 live-only example_unknown_column on Customer)
+  // broken-demo baseline: 9 entity warnings (7 + 1 live-only example_unknown_column
+  // on Customer + 1 body.unknown_link from Order's [[Cart]] body link)
   const entityErrors = validation?.entityErrors as unknown[];
   assert(
-    entityErrors?.length === 8,
-    `/api/model: validation.entityErrors has 8 entries (got ${entityErrors?.length})`,
+    entityErrors?.length === 9,
+    `/api/model: validation.entityErrors has 9 entries (got ${entityErrors?.length})`,
   );
 
   // broken-demo baseline: 1 validator global (edge.unknown_target Order→Cart) +
@@ -81,6 +82,12 @@ function assert(condition: boolean, label: string, detail?: string): void {
   assert(
     validatorGlobals?.length === 1,
     `/api/model: validation.globalErrors has 1 entry (got ${validatorGlobals?.length})`,
+  );
+
+  // layoutKey must be a non-empty string
+  assert(
+    typeof payload.layoutKey === 'string' && payload.layoutKey.length > 0,
+    `/api/model: payload has a non-empty "layoutKey" string (got ${JSON.stringify(payload.layoutKey)})`,
   );
 }
 

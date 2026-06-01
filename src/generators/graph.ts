@@ -1,4 +1,5 @@
 import type { Model } from '../parse';
+import { layoutFingerprint } from '../layout-fingerprint';
 import { Glob } from 'bun';
 import { join } from 'node:path';
 
@@ -92,7 +93,8 @@ export async function generateGraph(
   // WHY the injection must come before the module script: the module script (type="module") is
   // deferred; synchronous scripts run in document order, so placing the injection immediately
   // before the module script guarantees it executes first.
-  const injection = `<script>window.__IGNATIUS_MODE__ = "static"; window.__MODEL__ = ${JSON.stringify(model)}; window.__THEME_MODE__ = "${mode}";</script>`;
+  const layoutKey = layoutFingerprint(model);
+  const injection = `<script>window.__IGNATIUS_MODE__ = "static"; window.__MODEL__ = ${JSON.stringify(model)}; window.__THEME_MODE__ = "${mode}"; window.__LAYOUT_KEY__ = ${JSON.stringify(layoutKey)};</script>`;
 
   // Replace external CSS link with inlined <style>.
   // Use a function replacement to prevent $ signs in cssContent being interpreted as

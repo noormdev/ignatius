@@ -393,6 +393,8 @@ import { parseModels } from '../../src/parse';
         'cluster.missing_member': 1,
         'cluster.no_discriminator': 1,
         'entity.example_unknown_column': 1,
+        // Order's body links to [[Cart]], which is not an entity.
+        'body.unknown_link': 1,
     };
 
     const allGlobals = [...parseGlobals, ...result.globalErrors];

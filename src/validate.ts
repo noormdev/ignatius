@@ -29,6 +29,8 @@ export type RuleId =
   | 'entity.unknown_group'
   // entity (CP-2) — live-only advisory
   | 'entity.example_unknown_column'
+  // body (CP-2)
+  | 'body.unknown_link'
   // edge (CP-2)
   | 'edge.unknown_target'
   | 'edge.dangling_fk_column'
@@ -113,6 +115,11 @@ export const RULES: Record<RuleId, RuleEntry> = {
     explanation: 'An example row includes a key that is not declared in the entity\'s `pk` or `columns`. The example renders as-is but the unknown key has no column header. Add the key to `columns`, correct the key name, or remove it from the example.',
     class: 'A',
     liveOnly: true,
+  },
+  'body.unknown_link': {
+    title: 'Body links to unknown entity',
+    explanation: 'A `[[Entity]]` link in the body markdown names an entity that does not exist in the model. The link renders as non-navigating text. Correct the entity id (match it exactly, PascalCase) or remove the link.',
+    class: 'A',
   },
   'parse.invalid_yaml': {
     title: 'Invalid YAML frontmatter',
@@ -217,6 +224,26 @@ function checkInvalidFieldType(node: ModelNode): EntityError[] {
     });
   }
 
+  return errors;
+}
+
+function checkBodyLinks(node: ModelNode, nodeIds: Set<string>): EntityError[] {
+  const links = node.bodyLinks;
+  if (!links || links.length === 0) return [];
+  // One finding per distinct unknown target; a target repeated in the body is
+  // reported once.
+  const seen = new Set<string>();
+  const errors: EntityError[] = [];
+  for (const target of links) {
+    if (nodeIds.has(target) || seen.has(target)) continue;
+    seen.add(target);
+    errors.push({
+      ruleId: 'body.unknown_link',
+      entityId: node.id,
+      severity: 'warning',
+      message: `Body links to unknown entity '${target}'.`,
+    });
+  }
   return errors;
 }
 
@@ -356,6 +383,7 @@ export function validateModel(model: Model): ValidationResult {
       ...checkMissingColumns(node),
       ...checkUnknownGroup(node, model.groups),
       ...checkExampleColumns(node),
+      ...checkBodyLinks(node, nodeIds),
     );
   }
 
