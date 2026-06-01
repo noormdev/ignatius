@@ -21,7 +21,7 @@ theme:
     surface: "#f6f8fa"
     text: "#1f2328"
   spacing:
-    nodeSep: 30
+    nodeSep: 60
 ```
 
 The interactive viewer has a light/dark toggle that persists across reloads. The static `dict` and `graph` commands default to the dark palette; pass `--theme light` for the light one.

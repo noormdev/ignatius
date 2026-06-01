@@ -102,7 +102,7 @@ light:
   pastelMix: 0.15
 
 spacing:
-  nodeSep: 30
+  nodeSep: 60
   markerOffset: 10
   markerScale: [0.5, 2.5]
 ```

@@ -220,10 +220,12 @@ ELK layered algorithm with:
 
 - Direction: top-down (DOWN)
 - Orthogonal edge routing
-- Layer spacing: dynamically computed from the longest predicate label (`charCount * 6px + 50px padding`, minimum 80px)
+- Layer spacing (vertical): dynamically computed from the longest predicate label (`charCount * 6px + 50px markers + 30px padding`, minimum 110px)
+- Node spacing (horizontal): 60px between siblings in a layer (theme `spacing.nodeSep`)
 - Compound nodes for subtype clusters with `INCLUDE_CHILDREN` hierarchy handling
 - NETWORK_SIMPLEX for node placement and layering
-- EDGE_LENGTH post-compaction
+- Crossing minimization: LAYER_SWEEP + TWO_SIDED greedy switch, thoroughness 30, favor straight edges
+- No post-compaction (NONE) — EDGE_LENGTH compaction pulled nodes into overlap
 
 
 ## UI
