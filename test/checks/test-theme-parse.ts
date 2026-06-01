@@ -33,7 +33,7 @@ function makeFixtureDir(name: string): string {
   console.assert(model.theme !== undefined, 'FAIL: theme field missing');
   console.assert(model.theme.dark.background === defaultTheme.dark.background,
     `FAIL: default background mismatch: ${model.theme.dark.background}`);
-  console.assert(model.theme.spacing.nodeSep === 30, 'FAIL: default nodeSep');
+  console.assert(model.theme.spacing.nodeSep === defaultTheme.spacing.nodeSep, 'FAIL: default nodeSep');
   console.log('PASS: default theme (no theme block in ignatius.yml)');
 }
 

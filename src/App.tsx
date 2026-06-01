@@ -1147,9 +1147,15 @@ export function App() {
         'elk.spacing.nodeNode': String(model.theme.spacing.nodeSep),
         'elk.edgeRouting': 'ORTHOGONAL',
         'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+        // Greedy post-pass: swap adjacent nodes whenever it removes a crossing.
+        'elk.layered.crossingMinimization.greedySwitch.type': 'TWO_SIDED',
+        // More crossing-minimization iterations (default 7). Slower, fewer crossings.
+        'elk.layered.thoroughness': '30',
         'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+        // Pull edges toward straight lines, reducing near-crossings.
+        'elk.layered.nodePlacement.favorStraightEdges': 'true',
         'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
-        'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+        'elk.layered.compaction.postCompaction.strategy': 'NONE',
         'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       },
     } as cytoscape.LayoutOptions;

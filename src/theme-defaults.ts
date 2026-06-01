@@ -76,7 +76,7 @@ export const defaultTheme: ThemeConfig = {
     pastelMix: 0.15,
   },
   spacing: {
-    nodeSep: 30,
+    nodeSep: 45,
     markerOffset: 10,
     markerScale: [0.5, 2.5],
   },
