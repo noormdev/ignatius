@@ -76,21 +76,23 @@ function renderAttributesTable(node: ModelNode, edges: ModelEdge[], missingTarge
       </tr>`;
   });
 
-  return `    <table class="attr-table">
-      <thead>
-        <tr>
-          <th>Attribute</th>
-          <th>Type</th>
-          <th>Key</th>
-          <th>Nullable</th>
-          <th>Default</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
+  return `    <div class="dict-table-wrap">
+      <table class="attr-table">
+        <thead>
+          <tr>
+            <th>Attribute</th>
+            <th>Type</th>
+            <th>Key</th>
+            <th>Nullable</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
 ${rows.join('\n')}
-      </tbody>
-    </table>`;
+        </tbody>
+      </table>
+    </div>`;
 }
 
 function renderRelationshipsTable(node: ModelNode, edges: ModelEdge[]): string {
@@ -121,19 +123,21 @@ function renderRelationshipsTable(node: ModelNode, edges: ModelEdge[]): string {
   });
 
   return `    <h4 class="rel-heading">Downstream relationships</h4>
-    <table class="rel-table rel-table--predicates">
-      <thead>
-        <tr>
-          <th>Child entity</th>
-          <th>Type</th>
-          <th>Predicate</th>
-          <th>Cardinality</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div class="dict-table-wrap">
+      <table class="rel-table rel-table--predicates">
+        <thead>
+          <tr>
+            <th>Child entity</th>
+            <th>Type</th>
+            <th>Predicate</th>
+            <th>Cardinality</th>
+          </tr>
+        </thead>
+        <tbody>
 ${rows.join('\n')}
-      </tbody>
-    </table>`;
+        </tbody>
+      </table>
+    </div>`;
 }
 
 function renderEntitySection(
@@ -780,10 +784,17 @@ ${entityRows}
     }
 
     /* Tables */
+    /* Wide attribute/relationship tables scroll within this wrapper instead of
+       pushing the entity section (and page) wider. */
+    .dict-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-bottom: 2rem;
+    }
     .attr-table, .rel-table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 2rem;
       font-size: 0.85rem;
     }
     .attr-table th, .rel-table th {
@@ -1001,14 +1012,7 @@ ${entityRows}
         flex-wrap: wrap;
       }
 
-      /* Tables: scroll within their container on narrow viewports */
-      .attr-table, .rel-table {
-        display: block;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        /* Prevent the table from pushing the page wider */
-        max-width: 100%;
-      }
+      /* Tables already scroll within .dict-table-wrap at every width. */
 
       /* Legend: let items wrap naturally */
       .legend-list {
@@ -1171,11 +1175,9 @@ ${entityRows}
         -webkit-print-color-adjust: exact;
       }
 
-      /* Expand table wrappers that were set to overflow-x: auto on mobile */
-      .attr-table, .rel-table {
-        display: table;
+      /* Let wide tables print in full rather than clipping at the scroll edge */
+      .dict-table-wrap, .dict-examples-table-wrap {
         overflow: visible;
-        width: 100%;
       }
 
       /* Inline link URLs so printed copy is navigable without a browser.

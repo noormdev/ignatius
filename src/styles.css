@@ -319,7 +319,16 @@ html, body, #root {
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
+  overflow-x: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
+
+/* Wide tables (Attributes / Relationships / Examples) scroll within their own
+   container instead of forcing the whole modal to scroll horizontally. */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-close {
@@ -418,6 +427,15 @@ html, body, #root {
 }
 .doc-section tr:hover td, .doc-body tr:hover td {
   background: var(--color-surface);
+}
+/* Body tables come from rendered markdown with no wrapper element, so make the
+   table itself the scroll container — keeps wide sample-row tables inside the
+   modal rather than clipping under the modal's overflow-x: hidden. */
+.doc-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .fk-link {

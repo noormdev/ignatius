@@ -403,30 +403,32 @@ function ColumnsTable({ node, edges, onNavigate }: {
   return (
     <div className="doc-section">
       <h2>Attributes</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Attribute</th>
-            <th>Type</th>
-            <th>Key</th>
-            <th>Null</th>
-            <th>Default</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cols.map(([name, col]) => (
-            <tr key={name}>
-              <td><code>{name}</code></td>
-              <td>{col.type}</td>
-              <td>{renderRoles(name)}</td>
-              <td>{col.nullable ? 'Yes' : 'No'}</td>
-              <td>{col.default ?? ''}</td>
-              <td>{col.desc ?? ''}</td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Attribute</th>
+              <th>Type</th>
+              <th>Key</th>
+              <th>Null</th>
+              <th>Default</th>
+              <th>Description</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {cols.map(([name, col]) => (
+              <tr key={name}>
+                <td><code>{name}</code></td>
+                <td>{col.type}</td>
+                <td>{renderRoles(name)}</td>
+                <td>{col.nullable ? 'Yes' : 'No'}</td>
+                <td>{col.default ?? ''}</td>
+                <td>{col.desc ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -442,30 +444,32 @@ function ChildrenTable({ node, edges, onNavigate }: {
   return (
     <div className="doc-section">
       <h2>Relationships</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Child</th>
-            <th>Type</th>
-            <th>Predicate</th>
-            <th>Cardinality</th>
-          </tr>
-        </thead>
-        <tbody>
-          {children.map(edge => (
-            <tr key={edge.source}>
-              <td>
-                <a className="fk-link" onClick={() => onNavigate(edge.source)}>
-                  {edge.source}
-                </a>
-              </td>
-              <td>{edge.identifying ? 'Identifying' : 'Referential'}</td>
-              <td>{edge.predicate.fwd}{edge.predicate.rev !== edge.predicate.fwd && <span className="predicate-rev">{edge.predicate.rev}</span>}</td>
-              <td>{edge.cardinality.parent}:{edge.cardinality.child}</td>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Child</th>
+              <th>Type</th>
+              <th>Predicate</th>
+              <th>Cardinality</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {children.map(edge => (
+              <tr key={edge.source}>
+                <td>
+                  <a className="fk-link" onClick={() => onNavigate(edge.source)}>
+                    {edge.source}
+                  </a>
+                </td>
+                <td>{edge.identifying ? 'Identifying' : 'Referential'}</td>
+                <td>{edge.predicate.fwd}{edge.predicate.rev !== edge.predicate.fwd && <span className="predicate-rev">{edge.predicate.rev}</span>}</td>
+                <td>{edge.cardinality.parent}:{edge.cardinality.child}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -485,27 +489,29 @@ function ExamplesAccordion({ node }: { node: ModelNode }) {
   return (
     <details className="modal-examples doc-section" open={isOpen || undefined}>
       <summary>Examples ({examples.length})</summary>
-      <table>
-        <thead>
-          <tr>
-            {headers.map(h => <th key={h}>{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {examples.map((row, i) => (
-            <tr key={i}>
-              {headers.map(h => (
-                <td key={h}>
-                  {row[h] !== undefined && row[h] !== null && row[h] !== ''
-                    ? String(row[h])
-                    : <span className="example-empty">–</span>
-                  }
-                </td>
-              ))}
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              {headers.map(h => <th key={h}>{h}</th>)}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {examples.map((row, i) => (
+              <tr key={i}>
+                {headers.map(h => (
+                  <td key={h}>
+                    {row[h] !== undefined && row[h] !== null && row[h] !== ''
+                      ? String(row[h])
+                      : <span className="example-empty">–</span>
+                    }
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </details>
   );
 }
