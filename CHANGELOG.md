@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/noormdev/ignatius/compare/v0.4.0...v0.5.0) (2026-06-01)
+
+
+### Features
+
+* **graph:** persist node positions + reset layout ([457a47a](https://github.com/noormdev/ignatius/commit/457a47aaaa9761c1443123d09ba5d73e0b9db86c))
+
+
+### Bug Fixes
+
+* **ui:** contain wide tables within their own scroll area ([786cdfb](https://github.com/noormdev/ignatius/commit/786cdfbeab732962a9372080bcfa99d225b58866))
+
 ## [0.4.0](https://github.com/noormdev/ignatius/compare/v0.3.0...v0.4.0) (2026-06-01)
 
 
