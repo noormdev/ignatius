@@ -1136,7 +1136,8 @@ export function App() {
     );
     const charWidth = 6; // ~6px per char at font-size 10
     const markerPadding = 50; // room for markers on both ends
-    const layerSpacing = Math.max(80, longestPredicate * charWidth + markerPadding);
+    const layerPadding = 30; // extra breathing room between layers
+    const layerSpacing = Math.max(110, longestPredicate * charWidth + markerPadding + layerPadding);
 
     const elkLayoutOpts = {
       name: 'elk',
