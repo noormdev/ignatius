@@ -124,8 +124,8 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: The
 //  Crow's foot notation (reading from entity → line):
 //    "1"    = two perpendicular bars (||)
 //    "0..1" = perpendicular bar then hollow circle (|O)
-//    "many" = crow's foot prongs fanning toward entity, converging toward line,
-//             then a perpendicular bar (><|)
+//    "many" = crow's foot prongs fanning toward entity, converging toward line (><)
+//             — plain "many" (zero or more); no bar, so it does not imply "at least one"
 
 function drawEndMarker(
   svg: SVGSVGElement,
@@ -167,7 +167,6 @@ function drawEndMarker(
       ln(g, convX, 0, 0, 0, color, sw);
       ln(g, convX, 0, 0, -fan, color, sw);
       ln(g, convX, 0, 0, fan, color, sw);
-      bar(g, convX + 4, h, color, sw);
       break;
     }
   }

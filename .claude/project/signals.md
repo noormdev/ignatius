@@ -50,7 +50,7 @@ No linter or formatter configured in package.json.
 
 - CI provider: GitHub Actions (`.github/workflows/ci.yml`). Triggers on all branch pushes and PRs to master/main.
 - CI pipeline: install deps → cache Playwright → build bundle + stable-names → compile binary → run all `test/checks/*.ts` → typecheck (`continue-on-error: true`).
-- Release pipeline: `.github/workflows/release-please.yml` + `.github/workflows/release.yml` (release-please driven).
+- Release pipeline: `.github/workflows/release-please.yml` (release-please driven; a `build` job gated on `release_created` compiles the 5 platform binaries + checksums and attaches them to the release in the same push-to-main run). `install.sh` (repo root) is the curl-able CLI installer that pulls those binaries from `releases/latest/download`.
 - Binary is built locally or in CI via `bun run build:cli`; produces `dist/ignatius`.
 - package.json `name` is `ignatius`. The repo *directory* is still named `derek-db-generator/` — the one remaining derek reference, a known leftover.
 
@@ -60,11 +60,11 @@ No linter or formatter configured in package.json.
 
 | Domain | Repo paths | One-liner | Detail |
 |--------|------------|-----------|--------|
-| cli | src/cli.ts, src/discover.ts, src/resolve-model.ts | citty-based subcommand dispatch; model-root discovery + interactive picker; findings printed to stderr | (below) |
+| cli | src/cli.ts, src/discover.ts, src/resolve-model.ts, src/version.ts, src/update.ts | citty-based subcommand dispatch (serve/dict/graph/validate/version/update); model-root discovery + interactive picker; findings printed to stderr; self-update + version reporting | (below) |
 | server | src/server.ts | Bun.serve with /dict + /api/model + /events SSE + fs.watch live-reload; /api/model returns parse+validate payload | (below) |
 | parser | src/parse.ts | `ignatius.yml` config loading → ParseResult: {model, globalErrors}; nodes, edges, cardinality + classification derivation | (below) |
 | validate | src/validate.ts | Pure model validator: 13 rules across 3 domains (entity/edge/cluster), two severity tiers (A=warn, B=omit); coerces invalid pk/columns to safe defaults in cleanedModel | (below) |
-| frontend | src/App.tsx, src/hash-router.ts, src/main.tsx, src/index.html, src/styles.css, src/markers.ts | React 19 Cytoscape.js graph viewer; live/static mode flag; findings panel, global error banner, entity warning badges | (below) |
+| frontend | src/App.tsx, src/hash-router.ts, src/main.tsx, src/index.html, src/styles.css, src/markers.ts, src/wrap-label.ts | React 19 Cytoscape.js graph viewer; live/static mode flag; findings panel, global error banner, entity warning badges; label-sized nodes with PascalCase wrapping | (below) |
 | generators | src/generators/ | Static HTML output: dict (findings-aware), graph (embeds React bundle + mode flag), inline-asset inliner, theme CSS vars | (below) |
 | theme | src/theme-defaults.ts, src/branding-defaults.ts, src/generators/theme-css.ts | ThemeConfig + Branding types, default palettes, dark/light merging, CSS var generation | (below) |
 | skill | skills/noorm-modeling/ | Project-scoped Claude skill: Q&A-driven entity authoring + model bootstrap, convention-aware, writes files + verifies with `ignatius dict` | (below) |
@@ -75,7 +75,13 @@ No linter or formatter configured in package.json.
 
 ### cli
 
-`src/cli.ts` is the binary entry point. Four subcommands (`serve`, `dict`, `graph`, `validate`) built with `citty` `defineCommand`; dispatched via `runMain(main)`. Each subcommand accepts an optional positional `[path]` (search base, default: cwd) and a `--model <key>` flag. `--port` is a string flag on `serve`; validated with `isNaN` check, exits 1 on invalid.
+`src/cli.ts` is the binary entry point. Six subcommands (`serve`, `dict`, `graph`, `validate`, `version`, `update`) built with `citty` `defineCommand`; dispatched via `runMain(main)`. The four model subcommands accept an optional positional `[path]` (search base, default: cwd) and a `--model <key>` flag. `serve` is also registered under the `server` alias key. Its port flag is `--port`/`-p` (string, `isNaN`-validated, exits 1 on invalid); `-p` carries `alias: 'p'` so `serve -p 3030` is parsed as the port, not swallowed as the positional path. `main` meta sets `version: VERSION`, so citty's builtin `--version`/`-v` flag prints it.
+
+`serve` delegates binding to `serveWithPortFallback` in `src/serve-port.ts`. When the requested port is taken (`EADDRINUSE`), TTY runs prompt for a port via `@clack/prompts` `text` defaulting to the next free port (`findAvailablePort` probes upward); non-TTY runs auto-advance (`port+1`, retrying the real bind — no probe, no TOCTOU) and log `Port N is in use — trying N+1.`. `serve-port.ts` exports `isAddrInUse`, `findAvailablePort`, `serveWithPortFallback`; it is the third importer of `@clack/prompts` (after `resolve-model.ts` and `update.ts`). `serveCommand` (server.ts) is unchanged — still throws on bind failure; the fallback loop owns recovery.
+
+`src/version.ts` exports `VERSION` from a JSON import of `package.json` — Bun inlines it at `--compile` time, so the binary reports the release it was built from. `version` subcommand prints `VERSION`.
+
+`src/update.ts` powers `update` (flags `--check`, `--yes`/`-y`). Exports pure helpers (`parseVersion`, `compareVersions`, `parseTagFromLocation`, `assetForPlatform`, `parseChecksums`, `checkForUpdate`) + `runUpdateCommand`. Resolves the latest tag via the `releases/latest` redirect Location header (no GitHub API → no rate limit), compares semver, and on consent downloads the platform asset, verifies sha256 against `checksums.txt`, and atomically renames it over `process.execPath`. Guards: dev runtime (execPath basename `bun`/`node`) → no self-replace; win32 → manual-download message; non-TTY without `--yes` → report-only; EACCES/EPERM → sudo/install-script hint. `@clack/prompts` `confirm` for the TTY prompt (second importer of clack after `resolve-model.ts`).
 
 `dict` and `graph` subcommands: call `parseModels(dir)` → destructure `{ model, globalErrors: parseGlobalErrors }` → dynamic-import `{ validateModel, formatFindingsForStderr }` from `./validate` → merge `allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors]` → call `formatFindingsForStderr(allGlobalErrors, validation.entityErrors)` and write each line to `process.stderr` → write output HTML → `process.exit(allGlobalErrors.length > 0 ? 1 : 0)`. Exit code 1 when any global errors are present; 0 otherwise.
 
@@ -122,6 +128,8 @@ CP-1 (entity rules) is implemented; parse.* rules (CP-2) are defined in `RuleId`
 ### frontend
 
 `src/App.tsx` is the single React component. Cytoscape.js initialized with `cytoscape-elk` layout and `cytoscape-navigator` plugin for the minimap. `window.__MODEL__`, `window.__THEME_MODE__`, and `window.__IGNATIUS_MODE__` ('live' | 'static') are injection points read at startup. `src/index.html` sets `window.__IGNATIUS_MODE__ = 'live'` via an inline script in `<body>`. `window.__IGNATIUS_CY__` is set to the Cytoscape instance on init and cleared to `undefined` on teardown — debug/test seam only, not part of the public API.
+
+**Node sizing + label wrapping:** the `node` style sizes each box to its label (`width: 'label'`, `height: 'label'`, `padding`, `text-wrap: 'wrap'`, `text-max-width` safety net) rather than a fixed width, so text never overflows the border. Node labels are passed through `wrapEntityLabel` (`src/wrap-label.ts`, pure + framework-free, unit-tested in `test/checks/test-wrap-label.ts`): underscores → spaces, and names longer than ~13 chars break onto multiple lines at PascalCase/acronym/digit boundaries (greedy packing, no characters lost), keeping long entity names compact.
 
 **Mode dispatch in App.tsx:** `useEffect` reads `window.__IGNATIUS_MODE__`. Static mode (`'static'`): reads `window.__MODEL__`, calls `validateModel()` locally, sets findings from result. Live mode (default): fetches `/api/model`, reads `{ model, parseGlobalErrors, validation }` payload, merges `parseGlobalErrors + validation.globalErrors` as `allGlobal`, updates findings state; also subscribes to SSE `model-changed` events for live reload.
 

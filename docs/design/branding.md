@@ -75,7 +75,7 @@ poweredBy: true                     # default true; set false to omit the Noorm 
 ```yaml
 logo: <embedded Noorm SVG used for both dark and light>
 title: "Noorm Ignatius"
-subtitle: "Write SQL. Skip the ORM."
+subtitle: "Visualize your data model"
 copyright:
   holder: "Noorm Ignatius"
   year: <current>

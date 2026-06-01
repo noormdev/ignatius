@@ -11,6 +11,7 @@
 
 import { existsSync } from 'fs';
 import { join } from 'path';
+import pkg from '../../package.json';
 
 // Resolve paths relative to the project root (worktree root is one dir up from tmp/)
 const ROOT = join(import.meta.dir, '../..');
@@ -68,6 +69,22 @@ assert(existsSync(BINARY), `binary exists at dist/ignatius`);
   assert(stdout.includes('serve'), '--help: stdout contains "serve"');
   assert(stdout.includes('dict'), '--help: stdout contains "dict"');
   assert(stdout.includes('graph'), '--help: stdout contains "graph"');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// version (subcommand + --version flag) — must match package.json
+// ──────────────────────────────────────────────────────────────────────────────
+
+{
+  const { exitCode, stdout } = await run(['version']);
+  assert(exitCode === 0, 'version: exits 0');
+  assert(stdout.trim() === pkg.version, `version: prints package.json version (${pkg.version}, got "${stdout.trim()}")`);
+}
+
+{
+  const { exitCode, stdout } = await run(['--version']);
+  assert(exitCode === 0, '--version: exits 0');
+  assert(stdout.trim() === pkg.version, `--version: prints package.json version (${pkg.version}, got "${stdout.trim()}")`);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -139,6 +156,66 @@ assert(existsSync(BINARY), `binary exists at dist/ignatius`);
 
   assert(Array.isArray(payload.model?.nodes), 'serve: /api/model returns array of nodes');
   assert((payload.model?.nodes as unknown[])?.length === 24, `serve: /api/model returns 24 nodes (got ${(payload.model?.nodes as unknown[])?.length})`);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// `server` alias + `-p` short flag (regression: -p was eaten as the path arg)
+// ──────────────────────────────────────────────────────────────────────────────
+
+{
+  const PORT = 3501;
+  const proc = Bun.spawn([BINARY, 'server', MODELS, '-p', String(PORT)], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  await Bun.sleep(1500);
+
+  let responded = false;
+  try {
+    const res = await fetch(`http://localhost:${PORT}/api/model`);
+    responded = res.ok;
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+
+  assert(responded, 'server alias + -p: /api/model responds on the -p port');
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Port conflict → non-interactive serve auto-advances to the next free port
+// ──────────────────────────────────────────────────────────────────────────────
+
+{
+  const PORT = 3502;
+  const first = Bun.spawn([BINARY, 'serve', MODELS, '-p', String(PORT)], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  await Bun.sleep(1500);
+
+  // Second instance is told to use the busy port; with no TTY it should walk to
+  // the next free port and serve there rather than crash.
+  const second = Bun.spawn([BINARY, 'serve', MODELS, '-p', String(PORT)], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  await Bun.sleep(1800);
+
+  let advancedPort = -1;
+  for (let p = PORT + 1; p <= PORT + 5; p++) {
+    try {
+      const res = await fetch(`http://localhost:${p}/api/model`);
+      if (res.ok) { advancedPort = p; break; }
+    } catch { /* not this port */ }
+  }
+
+  first.kill();
+  await first.exited;
+  second.kill();
+  await second.exited;
+
+  assert(advancedPort > PORT, `port conflict: second instance auto-advanced to a free port above ${PORT} (got ${advancedPort})`);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

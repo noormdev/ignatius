@@ -143,6 +143,7 @@ Paths are relative to `docs/design/`, `docs/spec/`, `docs/guides/`, and `skills/
 | Bidirectional predicates | bidirectional-predicates | bidirectional-predicates | predicates | entity-flow E5 |
 | Schema lint + error UX (findings) | schema-lint-and-error-ux | schema-lint-and-error-ux | validation | verification (rule table + loop) |
 | CLI subcommands (serve/dict/graph/validate) + static/live outputs | cli-and-outputs | cli-and-outputs | commands, building-from-source, getting-started | verification (runs `ignatius validate`) |
+| CLI version + self-update (`version`/`--version`, `update`) | — | — | commands, getting-started | — |
 | Project config + model discovery (`ignatius.yml`) | ignatius-project-config | ignatius-project-config | getting-started, folder-format | entity-flow E0, model-flow M1–M8, templates |
 | Themes | cli-and-outputs | cli-and-outputs | themes-and-branding | model-flow M4 |
 | Branding | branding | branding | themes-and-branding | model-flow M5 |

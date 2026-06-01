@@ -8,6 +8,7 @@ import { semanticColors, type ThemeConfig, type ThemeMode } from './theme-defaul
 import { parseHash, serializeHash, type HashState } from './hash-router';
 import { validateModel, RULES } from './validate';
 import type { EntityError, GlobalError } from './validate';
+import { wrapEntityLabel } from './wrap-label';
 import type {
   Model,
   ModelNode,
@@ -153,8 +154,14 @@ function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mo
         'border-width': 2,
         'border-color': p.textMuted,
         'shape': 'round-rectangle',
-        'width': 110,
-        'height': 36,
+        // Size each box to its (wrapped) label so long names stay compact and
+        // the text never overflows the border. text-max-width is a safety net
+        // for the rare single long word with no break opportunity.
+        'width': 'label',
+        'height': 'label',
+        'text-wrap': 'wrap',
+        'text-max-width': 150 as unknown as string,
+        'padding': '9px' as unknown as number,
         'font-size': 11,
         'font-weight': 600,
         'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
@@ -183,6 +190,9 @@ function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mo
         'shape': 'diamond',
         'width': 20,
         'height': 20,
+        // Fixed-size discriminator marker — must not inherit the entity nodes'
+        // label padding, or the diamond balloons out.
+        'padding': 0,
         'background-color': p.background,
         'border-color': p.edgeIdentifying,
         'border-width': 2,
@@ -720,16 +730,15 @@ function LegendModal({ onClose }: { onClose: () => void }) {
           <div className="legend-row">
             <span className="legend-symbol">
               <svg width="64" height="24" viewBox="0 0 64 24">
-                <line x1="2" y1="12" x2="28" y2="12" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
-                <line x1="44" y1="12" x2="28" y2="2" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
-                <line x1="44" y1="12" x2="28" y2="12" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
-                <line x1="44" y1="12" x2="28" y2="22" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
-                <line x1="48" y1="2" x2="48" y2="22" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="2" y1="12" x2="34" y2="12" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="34" y1="12" x2="54" y2="2" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="34" y1="12" x2="54" y2="12" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="34" y1="12" x2="54" y2="22" stroke={identifying} strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </span>
             <span className="legend-text">
               <strong className="legend-term">Many</strong>
-              <span className="legend-desc">Crow's foot. One or more on this end.</span>
+              <span className="legend-desc">Crow's foot. Many on this end — zero or more.</span>
             </span>
           </div>
         </section>
@@ -1004,7 +1013,7 @@ export function App() {
       elements.push({
         data: {
           id: node.id,
-          label: node.id.replace(/_/g, ' '),
+          label: wrapEntityLabel(node.id),
           classification: node.classification,
           group: node.group ?? '',
         },

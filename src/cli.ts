@@ -1,10 +1,11 @@
 import { defineCommand, runMain } from 'citty';
 import { resolve } from 'path';
-import { serveCommand } from './server';
+import { serveWithPortFallback } from './serve-port';
 import { parseModels } from './parse';
 import { generateDict } from './generators/dict';
 import { generateGraph } from './generators/graph';
 import { pickModel } from './resolve-model';
+import { VERSION } from './version';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // serve
@@ -23,6 +24,7 @@ const serveCmd = defineCommand({
     },
     port: {
       type: 'string',
+      alias: 'p',
       description: 'Port to listen on (default: 3000)',
       default: '3000',
     },
@@ -40,7 +42,7 @@ const serveCmd = defineCommand({
     }
 
     const dir = await pickModel(base, args.model);
-    serveCommand(dir, { port });
+    await serveWithPortFallback(dir, port);
   },
 });
 
@@ -229,19 +231,66 @@ const validateCmd = defineCommand({
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// version
+// ──────────────────────────────────────────────────────────────────────────────
+
+const versionCmd = defineCommand({
+  meta: {
+    name: 'version',
+    description: 'Print the installed ignatius version',
+  },
+  run() {
+    console.log(VERSION);
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// update
+// ──────────────────────────────────────────────────────────────────────────────
+
+const updateCmd = defineCommand({
+  meta: {
+    name: 'update',
+    description: 'Check for a newer ignatius release and install it',
+  },
+  args: {
+    check: {
+      type: 'boolean',
+      description: 'Only check whether an update is available; do not install',
+      default: false,
+    },
+    yes: {
+      type: 'boolean',
+      alias: 'y',
+      description: 'Install without the confirmation prompt',
+      default: false,
+    },
+  },
+  async run({ args }) {
+    const { runUpdateCommand } = await import('./update');
+    const code = await runUpdateCommand({ check: args.check, yes: args.yes });
+    process.exit(code);
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // main
 // ──────────────────────────────────────────────────────────────────────────────
 
 const main = defineCommand({
   meta: {
     name: 'ignatius',
+    version: VERSION,
     description: 'DB model viewer — generate data dictionaries and graph diagrams from markdown ERDs',
   },
   subCommands: {
     serve: serveCmd,
+    server: serveCmd, // alias — `serve` is easy to mistype
     dict: dictCmd,
     graph: graphCmd,
     validate: validateCmd,
+    version: versionCmd,
+    update: updateCmd,
   },
 });
 

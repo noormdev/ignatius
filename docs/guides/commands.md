@@ -1,7 +1,7 @@
 # Commands
 
 
-ignatius has four subcommands. All read the same folder format, and the output commands respect the same theme.
+ignatius has six subcommands. The four model commands read the same folder format, and the output commands respect the same theme. Two utility commands report and update the installed binary.
 
 | Subcommand | What it does |
 |---|---|
@@ -9,12 +9,14 @@ ignatius has four subcommands. All read the same folder format, and the output c
 | `dict` | Writes a self-contained data dictionary as a single HTML file |
 | `graph` | Writes a self-contained interactive graph as a single HTML file |
 | `validate` | Checks the model and reports findings without writing any output |
+| `version` | Prints the installed version |
+| `update` | Checks for a newer release and installs it |
 
 
 ## Model discovery
 
 
-The `[path]` argument is optional for all three subcommands. When omitted, ignatius searches up and down from the current directory for a model root (a folder containing `ignatius.yml`).
+The `[path]` argument is optional for the four model commands (`version` and `update` take no path). When omitted, ignatius searches up and down from the current directory for a model root (a folder containing `ignatius.yml`).
 
 - When a path is itself a model root, ignatius uses that model directly.
 - When a path contains multiple model roots, ignatius picks one:
@@ -31,10 +33,10 @@ The search skips meta and build directories: any path segment starting with `_`,
 Starts a local server with live reload. Editing any `.md` or `.yaml` file in the folder pushes an update to the open browser tab over server-sent events.
 
 ```bash
-ignatius serve [path] [--port <port>] [--model <key>]
+ignatius serve [path] [-p|--port <port>] [--model <key>]
 ```
 
-The default port is 3000. The server also exposes `/dict` (the data dictionary, with `?theme=light|dark`) and `/api/model` (the parsed model plus validation findings as JSON).
+`server` is an accepted alias for `serve`. The port flag takes either `-p` or `--port`; the default is 3000. When the chosen port is already in use, ignatius finds the next free one by counting up (3000 → 3001 → 3002 …). In a terminal it asks which port to use, with that next free port as the default — press enter to accept it or type another. Run non-interactively (a pipe or CI), it advances automatically and prints the port it settled on. The server also exposes `/dict` (the data dictionary, with `?theme=light|dark`) and `/api/model` (the parsed model plus validation findings as JSON).
 
 While serving, a findings panel in the top-right corner lists any schema problems and updates on every save. See [Validation and findings](validation.md).
 
@@ -71,6 +73,40 @@ ignatius validate [path] [--model <key>]
 ```
 
 It prints each finding to stderr in the same format as the other commands and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. Use it as a lightweight quality gate while authoring or in CI.
+
+
+## version
+
+
+Prints the version baked into the binary at build time.
+
+```bash
+ignatius version
+# or
+ignatius --version
+```
+
+Both print the same value (for example `0.3.0`). Use whichever fits your script.
+
+
+## update
+
+
+Checks GitHub for the latest release and, if a newer one exists, offers to replace the running binary in place.
+
+```bash
+ignatius update            # check, then prompt before installing
+ignatius update --check    # report only; never install
+ignatius update --yes      # install without prompting (for scripts)
+```
+
+When you are already on the latest version it says so and exits `0`. When a newer version exists it prints the jump (for example `0.3.0 → 0.4.0`) and, unless `--check` is set, downloads the binary for your platform, verifies its checksum against the release `checksums.txt`, and swaps it over the current executable.
+
+Notes:
+
+- The replacement needs write access to the installed binary. If it lives in a system directory such as `/usr/local/bin`, run `sudo ignatius update --yes`, or reinstall with the [install script](getting-started.md#install-script-recommended).
+- Outside a terminal (CI) it will not prompt: it reports the available version and exits without installing unless you pass `--yes`.
+- Windows binaries cannot replace themselves while running; on Windows the command points you at the release download instead.
 
 
 ## Exit codes

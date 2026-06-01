@@ -6,6 +6,18 @@
 **Prerequisites:** Claude Code with skill support, and the `ignatius` binary on your `$PATH` or built locally (`bun run build:cli` produces `dist/ignatius`).
 
 
+## Install
+
+
+Install the skill into the current project with the [`skills`](https://www.npmjs.com/package/skills) CLI:
+
+```bash
+npx skills add https://github.com/noormdev/ignatius --skill noorm-modeling
+```
+
+This adds `noorm-modeling` to the project's `.claude/skills/`. Add `-g` to install it globally so it is available in every project on the machine. Reload skills in Claude Code and `/noorm-modeling` becomes available.
+
+
 ## Modes
 
 

@@ -7,10 +7,29 @@ Install ignatius, then point it at a folder of entity files and open the graph i
 ## Install
 
 
-### Download a release (recommended)
+### Install script (recommended)
 
 
-Pick the binary for your platform from the [latest GitHub release](https://github.com/noormdev/ignatius/releases/latest) and put it on your `$PATH`:
+The install script detects your operating system and architecture, downloads the matching binary from the [latest GitHub release](https://github.com/noormdev/ignatius/releases/latest), verifies its checksum, and puts it on your `$PATH`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/noormdev/ignatius/main/install.sh | sh
+```
+
+It installs to `/usr/local/bin` when that directory is writable, otherwise `$HOME/.local/bin` (add that to your `PATH` if it isn't already). Two environment overrides:
+
+- `IGNATIUS_INSTALL_DIR=/some/dir` — install somewhere else.
+- `IGNATIUS_VERSION=v0.2.0` — pin a specific release tag instead of the latest.
+
+Verify with `ignatius --help`. The binary is self-contained: it has no runtime dependency and works on machines without Bun installed.
+
+Once installed, `ignatius version` prints the current version and `ignatius update` checks for a newer release and installs it in place. See [Commands](commands.md#update).
+
+
+### Download a release manually
+
+
+Prefer to do it by hand, or on Windows? Pick the binary for your platform from the [latest GitHub release](https://github.com/noormdev/ignatius/releases/latest) and put it on your `$PATH`:
 
 ```bash
 # macOS arm64
@@ -24,9 +43,7 @@ chmod +x ignatius
 sudo mv ignatius /usr/local/bin/
 ```
 
-Verify with `ignatius --help`. The binary is self-contained: it has no runtime dependency and works on machines without Bun installed.
-
-Releases include `checksums.txt` if you want to verify the download with `shasum -a 256 -c`.
+Windows users download `ignatius-windows-x64.exe` from the same page. Releases include `checksums.txt` if you want to verify a download with `shasum -a 256 -c`.
 
 
 ### From source

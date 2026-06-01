@@ -27,7 +27,7 @@ const NOORM_DEFAULT_LOGO = `data:image/svg+xml;base64,${Buffer.from(noormSvgByte
 export const defaultBranding: Branding = {
   logo: { dark: NOORM_DEFAULT_LOGO, light: NOORM_DEFAULT_LOGO },
   title: 'Noorm Ignatius',
-  subtitle: 'Write SQL. Skip the ORM.',
+  subtitle: 'Visualize your data model',
   get copyright(): CopyrightConfig {
     return { holder: 'Noorm Ignatius', year: new Date().getFullYear() };
   },

@@ -12,16 +12,36 @@ You write the schema as text. ignatius works out the cardinality, the entity cla
 A diagram drawn by hand drifts from the schema it documents. ignatius removes the drawing step. You describe entities, primary keys, columns, and relationships in frontmatter, and the layout follows from the data. Change a foreign key and the cardinality marker updates on the next reload. Add an entity file and it appears in the graph. The text diffs cleanly in version control, so a schema change reads like any other code change.
 
 
+## Install
+
+
+Install the CLI with one command — it detects your platform and downloads the matching binary from the [latest release](https://github.com/noormdev/ignatius/releases/latest):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/noormdev/ignatius/main/install.sh | sh
+```
+
+It installs to `/usr/local/bin` when writable, otherwise `$HOME/.local/bin`. Override with `IGNATIUS_INSTALL_DIR`, or pin a version with `IGNATIUS_VERSION=v0.2.0`. Windows users download `ignatius-windows-x64.exe` from the releases page. Prefer to build from source? See [Getting started](docs/guides/getting-started.md).
+
+To author models from Claude Code with guided Q&A, install the `noorm-modeling` skill ([the modeling skill](docs/guides/modeling-skill.md)):
+
+```bash
+npx skills add https://github.com/noormdev/ignatius --skill noorm-modeling
+```
+
+Add `-g` to install it globally for every project instead of just the current one.
+
+
 ## Quick start
 
 
-Download the binary for your platform from the [latest release](https://github.com/noormdev/ignatius/releases/latest), put it on your `$PATH`, then point it at a folder of entity files:
+Point ignatius at a folder of entity files:
 
 ```bash
 ignatius serve path/to/your/models --port 3000
 ```
 
-Edit any file in the folder and the graph reloads in the browser without a refresh. Full install options, including building from source, are in [Getting started](docs/guides/getting-started.md).
+Edit any file in the folder and the graph reloads in the browser without a refresh.
 
 
 ## Documentation
