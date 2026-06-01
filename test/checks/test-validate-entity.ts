@@ -147,6 +147,49 @@ function hasError(result: ReturnType<typeof validateModel>, ruleId: string, enti
 }
 
 // ---------------------------------------------------------------------------
+// entity.ak_unknown_column
+// ---------------------------------------------------------------------------
+
+{
+  // Positive: an AK lists a column absent from pk and columns
+  const node = baseNode({
+    id: 'Product',
+    pk: ['product_id'],
+    columns: { product_id: { type: 'integer' }, sku: { type: 'text' } },
+    alternateKeys: [{ rule: 'unique product code', columns: ['skew'] }],
+  });
+  const result = validateModel(baseModel([node]));
+  console.assert(hasError(result, 'entity.ak_unknown_column', 'Product'), 'FAIL: entity.ak_unknown_column — unknown AK column not flagged');
+  console.log('PASS: entity.ak_unknown_column positive (unknown column)');
+}
+
+{
+  // Negative: AK references a declared regular column
+  const node = baseNode({
+    id: 'Product',
+    pk: ['product_id'],
+    columns: { product_id: { type: 'integer' }, sku: { type: 'text' } },
+    alternateKeys: [{ rule: 'unique product code', columns: ['sku'] }],
+  });
+  const result = validateModel(baseModel([node]));
+  console.assert(!hasError(result, 'entity.ak_unknown_column', 'Product'), 'FAIL: entity.ak_unknown_column — valid AK column wrongly flagged');
+  console.log('PASS: entity.ak_unknown_column negative (declared column)');
+}
+
+{
+  // Negative: a pk column is a legal AK member (both are "declared")
+  const node = baseNode({
+    id: 'Business',
+    pk: ['party_id'],
+    columns: { party_id: { type: 'integer' } },
+    alternateKeys: [{ rule: 'pk doubles as ak', columns: ['party_id'] }],
+  });
+  const result = validateModel(baseModel([node]));
+  console.assert(!hasError(result, 'entity.ak_unknown_column', 'Business'), 'FAIL: entity.ak_unknown_column — pk column in AK wrongly flagged');
+  console.log('PASS: entity.ak_unknown_column negative (pk column valid in AK)');
+}
+
+// ---------------------------------------------------------------------------
 // cleanedModel is structurally equal to input (CP-1: no stripping)
 // ---------------------------------------------------------------------------
 
@@ -169,6 +212,7 @@ function hasError(result: ReturnType<typeof validateModel>, ruleId: string, enti
     'entity.missing_columns',
     'entity.invalid_field_type',
     'entity.unknown_group',
+    'entity.ak_unknown_column',
   ] as const;
 
   for (const ruleId of entityRules) {

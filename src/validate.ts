@@ -27,6 +27,7 @@ export type RuleId =
   | 'entity.missing_columns'
   | 'entity.invalid_field_type'
   | 'entity.unknown_group'
+  | 'entity.ak_unknown_column'
   // entity (CP-2) — live-only advisory
   | 'entity.example_unknown_column'
   // body (CP-2)
@@ -108,6 +109,11 @@ export const RULES: Record<RuleId, RuleEntry> = {
   'entity.unknown_group': {
     title: 'Unknown group',
     explanation: 'The entity references a group that has no corresponding `_groups/<name>.md` file. The entity will render without a group color band. Create the group file or correct the group name.',
+    class: 'A',
+  },
+  'entity.ak_unknown_column': {
+    title: 'Alternate key references unknown column',
+    explanation: 'An `ak` entry lists a column that is not declared in the entity\'s `pk` or `columns`. The alternate key is silently ignored — and with it the uniqueness signal the cardinality derivation depends on, so a referential FK that should resolve to one-to-one renders as one-to-many. Add the column to `columns`, or correct the column name in the `ak` entry.',
     class: 'A',
   },
   'entity.example_unknown_column': {
@@ -258,6 +264,32 @@ function checkUnknownGroup(node: ModelNode, groups: Record<string, unknown>): En
   }];
 }
 
+function checkAlternateKeys(node: ModelNode): EntityError[] {
+  const aks = node.alternateKeys;
+  if (!Array.isArray(aks) || aks.length === 0) return [];
+
+  // An AK column must be declared — either a pk column or a regular column.
+  const validKeys = new Set<string>([
+    ...(Array.isArray(node.pk) ? node.pk : []),
+    ...Object.keys(node.columns ?? {}),
+  ]);
+
+  const errors: EntityError[] = [];
+  for (const ak of aks) {
+    if (!ak || !Array.isArray(ak.columns)) continue;
+    for (const col of ak.columns) {
+      if (validKeys.has(col)) continue;
+      errors.push({
+        ruleId: 'entity.ak_unknown_column',
+        entityId: node.id,
+        severity: 'warning',
+        message: `Entity '${node.id}' alternate key '${ak.rule}' references unknown column '${col}' (not in pk or columns).`,
+      });
+    }
+  }
+  return errors;
+}
+
 function checkExampleColumns(node: ModelNode): EntityError[] {
   if (!node.examples || node.examples.length === 0) return [];
 
@@ -382,6 +414,7 @@ export function validateModel(model: Model): ValidationResult {
       ...checkMissingPk(node),
       ...checkMissingColumns(node),
       ...checkUnknownGroup(node, model.groups),
+      ...checkAlternateKeys(node),
       ...checkExampleColumns(node),
       ...checkBodyLinks(node, nodeIds),
     );

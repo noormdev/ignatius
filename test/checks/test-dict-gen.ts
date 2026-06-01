@@ -61,6 +61,10 @@ const bgValues = [...darkHtml.matchAll(/--color-background:\s*([^;]+);/g)].map(m
 const distinctBgs = new Set(bgValues);
 assert(distinctBgs.size >= 2, `dark and light blocks use different --color-background (got ${[...distinctBgs].join(', ')})`);
 
+// 5b. Alternate-key marker in the attributes table. key-inherited's Product.sku
+//     is an AK column that is neither PK nor FK, so its key cell is exactly "AK".
+assert(darkHtml.includes('<td>AK</td>'), 'AK marker rendered in attributes key cell');
+
 // 6. Markdown body content rendered (bodyHtml inlined)
 // Party body bolds **Party** → renders to <strong>Party</strong>, proving markdown is inlined AND processed.
 assert(darkHtml.includes('<strong>Party</strong>'), 'markdown body content rendered in dark output');

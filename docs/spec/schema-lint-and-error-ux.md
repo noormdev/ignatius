@@ -88,6 +88,13 @@ CLI stderr printing is consolidated in `src/cli.ts` after `parseModels` + `valid
 <!-- empty during drafting; first entry on first post-approval amendment -->
 
 
+### 2026-06-01 — Added `entity.ak_unknown_column` rule + AK markers in the dict
+
+**What changed:** New Class A entity rule `entity.ak_unknown_column`: an `ak` entry whose `columns` list a name absent from the entity's `pk` or `columns`. Not live-only — surfaces on all findings surfaces (CLI stderr, dict, graph panel). Separately, the static dict's attribute key cell now renders an `AK` marker (joined with `PK`/FK by ` · `), matching the live graph viewer's modal which already showed it.
+
+**Why:** Alternate keys were authored (`ak:` frontmatter), drove cardinality (a unique referential FK → child `1` instead of `many` in `deriveCardinality`), and showed in the live viewer — but were invisible in the static dict and entirely unvalidated. An unknown AK column was silently dropped, which silently breaks cardinality derivation (`arraysEqual(ak.columns, fkChildCols)` never matches). The rule surfaces that; the dict marker closes the surface inconsistency.
+
+
 ### 2026-06-01 — Added `body.unknown_link` rule
 
 **What changed:** New Class A entity rule `body.unknown_link` for `[[Entity]]` wiki-links in entity bodies that name a non-existent entity. Not live-only — surfaces on all findings surfaces (CLI stderr, dict, graph panel). Full contract in `docs/spec/wiki-entity-links.md`.

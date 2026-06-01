@@ -42,25 +42,29 @@ function renderAttributesTable(node: ModelNode, edges: ModelEdge[], missingTarge
   const pkSet: Record<string, true> = {};
   for (const col of node.pk) pkSet[col] = true;
 
+  const akSet: Record<string, true> = {};
+  for (const ak of node.alternateKeys ?? []) {
+    if (!Array.isArray(ak?.columns)) continue;
+    for (const col of ak.columns) akSet[col] = true;
+  }
+
   const rows = Object.entries(node.columns).map(([colName, def]) => {
     const isPk = pkSet[colName];
     const isFk = fkMap[colName];
-    let keyCell = '';
-    if (isPk && isFk) {
-      if (missingTargets.has(isFk)) {
-        keyCell = `PK · <a class="dict-link-missing" href="#missing-${esc(isFk)}">${esc(isFk)}</a>`;
-      } else {
-        keyCell = `PK · <a href="#entity-${esc(isFk)}">${esc(isFk)}</a>`;
-      }
-    } else if (isPk) {
-      keyCell = 'PK';
-    } else if (isFk) {
-      if (missingTargets.has(isFk)) {
-        keyCell = `<a class="dict-link-missing" href="#missing-${esc(isFk)}">${esc(isFk)}</a>`;
-      } else {
-        keyCell = `<a href="#entity-${esc(isFk)}">${esc(isFk)}</a>`;
-      }
+    const isAk = akSet[colName];
+    // Role markers joined with ' · ', mirroring the live viewer's key cell:
+    // PK and AK are plain text; FK is a link to (or missing-stub for) the target.
+    const parts: string[] = [];
+    if (isPk) parts.push('PK');
+    if (isFk) {
+      parts.push(
+        missingTargets.has(isFk)
+          ? `<a class="dict-link-missing" href="#missing-${esc(isFk)}">${esc(isFk)}</a>`
+          : `<a href="#entity-${esc(isFk)}">${esc(isFk)}</a>`,
+      );
     }
+    if (isAk) parts.push('AK');
+    const keyCell = parts.join(' · ');
 
     const nullable = def.nullable ? 'Yes' : 'No';
     const defVal = def.default != null ? esc(String(def.default)) : '';
