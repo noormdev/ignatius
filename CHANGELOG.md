@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/noormdev/ignatius/compare/v0.2.0...v0.3.0) (2026-06-01)
+
+
+### Features
+
+* **graph:** highlight key-inheritance lineage up to root on hover ([95a97fd](https://github.com/noormdev/ignatius/commit/95a97fdf892cdcc1a19490c67341121b003c01cd))
+
 ## [0.2.0](https://github.com/noormdev/ignatius/compare/v0.1.0...v0.2.0) (2026-05-31)
 
 
