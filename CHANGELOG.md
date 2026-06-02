@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.0](https://github.com/noormdev/ignatius/compare/v0.5.0...v0.6.0) (2026-06-02)
+
+
+### Features
+
+* **graph:** organic default layout + minimap leak fix ([a4af63c](https://github.com/noormdev/ignatius/commit/a4af63c2e6ae6167c7deccf90a63c4522316e22e))
+* **graph:** organic layout mode, downward hover ([5040b6c](https://github.com/noormdev/ignatius/commit/5040b6c3f9012c207d992b88958fee3fb24f04da))
+* **validate:** flag unknown AK columns, show AK in dict ([6b89824](https://github.com/noormdev/ignatius/commit/6b898240814ce4b5d8396012dbb109eb2524d6c3))
+* **validate:** suppress missing_pk for singleton entities ([bf6cbb1](https://github.com/noormdev/ignatius/commit/bf6cbb14005dab2d59873242f8b804abce8d4727))
+
+
+### Bug Fixes
+
+* **graph:** eliminate node overlap, reduce edge crossings ([543ba7f](https://github.com/noormdev/ignatius/commit/543ba7f701294a3eccba3c91b6f024561e8bf182))
+
 ## [0.5.0](https://github.com/noormdev/ignatius/compare/v0.4.0...v0.5.0) (2026-06-01)
 
 
