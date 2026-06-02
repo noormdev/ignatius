@@ -241,13 +241,17 @@ function mountNavigator(cy: cytoscape.Core): NavigatorInstance {
   return nav;
 }
 
-function teardownNavigator(nav: NavigatorInstance, container: HTMLElement) {
+function teardownNavigator(nav: NavigatorInstance, container: HTMLElement | null) {
   // Cancel the throttled render handler's pending trailing setTimeout BEFORE
   // nav.destroy() — otherwise the tick can fire after cy.destroy() nulls
   // the renderer and throw "Cannot read properties of null (reading 'png')".
+  // nav.destroy() also unsubscribes the navigator's cy 'resize' listener, so it
+  // must run even when the container is already unmounted — otherwise a leaked
+  // navigator boundingBox-es a destroyed core on a trailing resize ('isHeadless'
+  // of null). Hence the container is optional and only used to clear children.
   nav._onRenderHandler?.cancel?.();
   nav.destroy();
-  while (container.firstChild) container.removeChild(container.firstChild);
+  if (container) while (container.firstChild) container.removeChild(container.firstChild);
 }
 
 declare global {
@@ -1047,11 +1051,15 @@ export function App() {
   // Set by the cy-init effect; lets the FAB "Reset layout" button clear the
   // saved arrangement and re-run ELK from outside the effect closure.
   const resetLayoutRef = useRef<(() => void) | null>(null);
-  // Layout algorithm mode. 'hierarchical' = ELK layered (default ranked rows);
-  // 'organic' = ELK stress (force-directed hub-and-spoke). Toggled from the FAB.
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('hierarchical');
+  // Layout algorithm mode. 'organic' = ELK stress (force-directed hub-and-spoke,
+  // the default); 'hierarchical' = ELK layered (ranked rows). Toggled from the FAB
+  // and persisted in localStorage so the last choice survives reloads.
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => {
+    const stored = localStorage.getItem('ignatius-layout-mode');
+    return stored === 'hierarchical' ? 'hierarchical' : 'organic';
+  });
   // Ref mirror so the init + reset paths read the live mode without a graph rebuild.
-  const layoutModeRef = useRef<LayoutMode>('hierarchical');
+  const layoutModeRef = useRef<LayoutMode>(layoutMode);
   layoutModeRef.current = layoutMode;
   // Set by the cy-init effect; re-runs the layout in a given mode from the FAB toggle.
   const applyLayoutModeRef = useRef<((mode: LayoutMode) => void) | null>(null);
@@ -1145,13 +1153,17 @@ export function App() {
   useEffect(() => {
     if (!cyReady) return; // cy effect handles mount-time; ignore the readiness-flip itself.
     const cy = cyRef.current;
-    const container = minimapRef.current;
-    if (!cy || !container) return;
+    if (!cy) return;
 
-    if (minimapOpen && !navRef.current) {
-      navRef.current = mountNavigator(cy);
-    } else if (!minimapOpen && navRef.current) {
-      teardownNavigator(navRef.current, container);
+    if (minimapOpen) {
+      // Mount once; the container is conditionally rendered, so guard on it.
+      if (!navRef.current && minimapRef.current) navRef.current = mountNavigator(cy);
+    } else if (navRef.current) {
+      // Close: React has already unmounted the container (minimapRef.current is
+      // null by now), so tear down on navRef alone. Bailing on a null container
+      // would leak the navigator — still subscribed to cy 'resize' — and a
+      // trailing resize after the next cy.destroy() throws on the null core.
+      teardownNavigator(navRef.current, minimapRef.current);
       navRef.current = null;
     }
   }, [minimapOpen, cyReady]);
@@ -1756,7 +1768,7 @@ export function App() {
     return () => {
       // Tear down nav FIRST so any pending throttled tick is cancelled
       // before cy.destroy() nulls _private.renderer.
-      if (navRef.current && minimapRef.current) {
+      if (navRef.current) {
         teardownNavigator(navRef.current, minimapRef.current);
         navRef.current = null;
       }
@@ -1899,6 +1911,7 @@ export function App() {
               setMenuOpen(false);
               const next = layoutMode === 'organic' ? 'hierarchical' : 'organic';
               setLayoutMode(next);
+              localStorage.setItem('ignatius-layout-mode', next);
               applyLayoutModeRef.current?.(next);
             }}
           >
