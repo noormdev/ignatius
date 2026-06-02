@@ -175,6 +175,8 @@ export const RULES: Record<RuleId, RuleEntry> = {
 // ---------------------------------------------------------------------------
 
 function checkMissingPk(node: ModelNode): EntityError[] {
+  // Singleton entities (one-row config/settings tables) have no meaningful PK.
+  if (node.singleton) return [];
   const pk = node.pk;
   // entity.invalid_field_type catches non-array pk first; here we only check empty array
   if (!Array.isArray(pk) || pk.length > 0) return [];

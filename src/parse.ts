@@ -42,6 +42,8 @@ type Frontmatter = {
   classification?: string;
   // reference: true marks a classifier/lookup table (preferred over legacy classification: Classifier)
   reference?: boolean;
+  // singleton: true marks a one-row entity (config/settings); suppresses the missing-pk warning.
+  singleton?: boolean;
   group?: string;
   pk?: string[];
   columns?: Record<string, ColumnDef>;
@@ -72,6 +74,8 @@ export type ModelNode = {
   /** Entity ids referenced via `[[…]]` wiki-links in the body, in source order. */
   bodyLinks?: string[];
   examples?: Record<string, unknown>[];
+  /** singleton: true marks a one-row entity (config/settings); suppresses entity.missing_pk. */
+  singleton?: boolean;
 };
 
 export type ModelEdge = {
@@ -278,6 +282,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       id: entityId,
       legacyClassification: frontmatter.classification,
       referenceFlag: frontmatter.reference === true,
+      singleton: frontmatter.singleton === true,
       group: frontmatter.group,
       // Default pk to [] and columns to {} when absent
       pk: frontmatter.pk ?? [],
@@ -385,6 +390,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       bodyHtml,
       bodyLinks: env.links,
       ...(rawNode.examples !== undefined ? { examples: rawNode.examples } : {}),
+      ...(rawNode.singleton ? { singleton: true } : {}),
     };
   });
 

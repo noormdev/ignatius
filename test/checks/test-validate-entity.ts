@@ -17,6 +17,7 @@ function baseNode(overrides: Partial<ModelNode> & { id: string }): ModelNode {
     columns: overrides.columns ?? { id: { type: 'uuid' } },
     alternateKeys: overrides.alternateKeys ?? [],
     bodyHtml: overrides.bodyHtml ?? '',
+    singleton: overrides.singleton,
   };
 }
 
@@ -55,6 +56,14 @@ function hasError(result: ReturnType<typeof validateModel>, ruleId: string, enti
   const result = validateModel(baseModel([node]));
   console.assert(!hasError(result, 'entity.missing_pk', 'Order'), 'FAIL: entity.missing_pk — valid pk wrongly flagged');
   console.log('PASS: entity.missing_pk negative (non-empty pk)');
+}
+
+{
+  // Negative: singleton entity with empty pk — one-row config tables suppress missing_pk
+  const node = baseNode({ id: 'AppSettings', pk: [], singleton: true });
+  const result = validateModel(baseModel([node]));
+  console.assert(!hasError(result, 'entity.missing_pk', 'AppSettings'), 'FAIL: entity.missing_pk — singleton with empty pk should be suppressed');
+  console.log('PASS: entity.missing_pk negative (singleton suppresses empty pk)');
 }
 
 // ---------------------------------------------------------------------------
