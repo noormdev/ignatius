@@ -10,6 +10,9 @@
  */
 
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from './parse';
+// Type-only import from flow-validate. Both directions are import type (erased at runtime)
+// so there is no runtime circular dependency — flow-validate.ts imports type RuleId from here.
+import type { FlowError } from './flow-validate';
 
 // ---------------------------------------------------------------------------
 // Rule IDs — exhaustive union covering all catalog rules (design doc §Rule catalog)
@@ -38,7 +41,19 @@ export type RuleId =
   // cluster (CP-2)
   | 'cluster.missing_basetype'
   | 'cluster.missing_member'
-  | 'cluster.no_discriminator';
+  | 'cluster.no_discriminator'
+  // flow (CP-2 validator)
+  | 'flow.unknown_store'
+  | 'flow.unknown_external'
+  | 'flow.unknown_process'
+  | 'flow.unknown_attribute'
+  | 'flow.ambiguous_endpoint'
+  | 'flow.process_no_input'
+  | 'flow.process_no_output'
+  | 'flow.illegal_connection'
+  | 'flow.process_to_process'
+  | 'flow.unbalanced_decomposition'
+  | 'flow.duplicate_number';
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -84,6 +99,13 @@ export type RuleEntry = {
    * omits them too (CP-3). Omitted or false = default behavior, all surfaces.
    */
   liveOnly?: boolean;
+  /**
+   * When true, the rule can be silenced via config (e.g. ignatius.yml
+   * `flow_rules: { process_to_process: false }`). The silenceable flag is
+   * informational for tooling; the config key is the enforcement mechanism.
+   * Only `flow.process_to_process` currently sets this.
+   */
+  silenceable?: boolean;
 };
 
 /**
@@ -165,6 +187,63 @@ export const RULES: Record<RuleId, RuleEntry> = {
   'cluster.no_discriminator': {
     title: 'Exclusive subtype cluster has no discriminator',
     explanation: 'An exclusive subtype cluster needs a column whose value identifies which subtype a basetype instance is. Convert the members from array form to object form (`MemberName: { col: value }`) to declare the discriminator. Inclusive clusters (`exclusive: false`) do not need a discriminator — multiple subtypes can coexist for the same basetype row.',
+    class: 'A',
+  },
+  // flow rules
+  'flow.unknown_store': {
+    title: 'Flow references unknown db: store',
+    explanation: 'A `db:` endpoint names an entity id that does not exist in the entity catalog. The flow edges touching this store are stripped from the cleaned model. Add the entity file or correct the store name.',
+    class: 'B',
+  },
+  'flow.unknown_external': {
+    title: 'Flow references unknown external',
+    explanation: 'A `ext:` endpoint names an external that has no `_externals/<name>.md` file in this DFD. The flow edges touching this external are stripped. Add the external file or correct the name.',
+    class: 'B',
+  },
+  'flow.unknown_process': {
+    title: 'Flow references unknown process',
+    explanation: 'A `proc:` endpoint names a process that does not exist in this DFD. The flow edges touching this process are stripped. Add the process file or correct the name.',
+    class: 'B',
+  },
+  'flow.unknown_attribute': {
+    title: 'Flow references unknown entity attribute',
+    explanation: 'A `db:` flow edge lists a column that is not declared on the entity (not in `pk` or `columns`). Add the column to the entity or correct the column name in the flow `data` field.',
+    class: 'A',
+  },
+  'flow.ambiguous_endpoint': {
+    title: 'Ambiguous bare endpoint name',
+    explanation: 'A bare (unqualified) endpoint name matches more than one namespace (e.g. both an external and a process share the same name). Qualify the endpoint with a `kind:` prefix (e.g. `ext:Name`, `proc:Name`) to disambiguate.',
+    class: 'A',
+  },
+  'flow.process_no_input': {
+    title: 'Process has no input flows',
+    explanation: 'A process has zero input edges after removing Class B violations. Every process should receive data from at least one source. Add an input flow or remove the process.',
+    class: 'A',
+  },
+  'flow.process_no_output': {
+    title: 'Process has no output flows',
+    explanation: 'A process has zero output edges after removing Class B violations. Every process should produce data to at least one destination. Add an output flow or remove the process.',
+    class: 'A',
+  },
+  'flow.illegal_connection': {
+    title: 'Illegal direct connection between non-process nodes',
+    explanation: 'A flow edge connects two nodes where neither is a process (e.g. store-to-store, external-to-store, external-to-external). Data flow diagrams require all data to move through processes. The edge is stripped from the cleaned model.',
+    class: 'B',
+  },
+  'flow.process_to_process': {
+    title: 'Direct process-to-process flow',
+    explanation: 'A flow edge connects two processes directly, with no intervening store or external. This is usually a sign of missing decomposition or a missing store. Silence this rule with `flow_rules: { process_to_process: false }` in `ignatius.yml` if intentional.',
+    class: 'A',
+    silenceable: true,
+  },
+  'flow.unbalanced_decomposition': {
+    title: 'Sub-DFD boundary columns do not match parent process',
+    explanation: 'The set of data columns crossing the boundary of a sub-DFD (edges to/from non-process endpoints outside the sub-DFD) does not match the columns on the parent process\'s own inputs/outputs for the same connections. Update the sub-DFD edges or the parent process edges so the column sets match.',
+    class: 'A',
+  },
+  'flow.duplicate_number': {
+    title: 'Duplicate sibling process number',
+    explanation: 'Two sibling processes in the same DFD declare the same local `number:` value. Local numbers must be unique among siblings. Correct the `number:` fields so each sibling has a distinct rank.',
     class: 'A',
   },
 };
@@ -508,6 +587,7 @@ export function validateModel(model: Model): ValidationResult {
 export function formatFindingsForStderr(
   globalErrors: GlobalError[],
   entityErrors: EntityError[],
+  flowErrors: FlowError[] = [],
 ): string[] {
   type Row = { severity: 'error' | 'warning'; ruleId: RuleId; location: string; message: string };
 
@@ -522,6 +602,12 @@ export function formatFindingsForStderr(
       severity: 'warning' as const,
       ruleId: e.ruleId,
       location: e.entityId,
+      message: e.message,
+    })),
+    ...flowErrors.map(e => ({
+      severity: e.severity,
+      ruleId: e.ruleId,
+      location: e.processId ? `${e.flowId}/${e.processId}` : e.flowId,
       message: e.message,
     })),
   ].filter(r => !RULES[r.ruleId]?.liveOnly);

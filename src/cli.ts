@@ -1,5 +1,6 @@
 import { defineCommand, runMain } from 'citty';
 import { resolve } from 'path';
+import { existsSync } from 'node:fs';
 import { serveWithPortFallback } from './serve-port';
 import { parseModels } from './parse';
 import { generateDict } from './generators/dict';
@@ -214,29 +215,144 @@ const validateCmd = defineCommand({
     const base = args.path ? resolve(args.path) : process.cwd();
     const dir = await pickModel(base, args.model);
     const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
-    const { validateModel, formatFindingsForStderr } = await import('./validate');
+    const { validateModel, formatFindingsForStderr, RULES } = await import('./validate');
     const validation = validateModel(model);
 
     const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
-    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors);
+
+    // Flow integration: run flow validation when a flows/ directory exists.
+    // Guard with existsSync so models without flows/ are unaffected (no latency).
+    let flowErrors: import('./flow-validate').FlowError[] = [];
+    let hasClassBFlowErrors = false;
+    const flowsDir = `${dir}/flows`;
+    if (existsSync(flowsDir)) {
+      const { parseFlows } = await import('./flow-parse');
+      const { validateFlows } = await import('./flow-validate');
+      const { flowModel, globalErrors: flowParseErrors } = await parseFlows(dir);
+      allGlobalErrors.push(...flowParseErrors);
+      const flowConfig = model._meta?.flowRules;
+      const flowValidation = validateFlows(flowModel, model, flowConfig);
+      flowErrors = flowValidation.flowErrors;
+      // Class B is the authoritative signal for a hard exit — derived from the rule
+      // registry, not from the severity field, so the two can't silently diverge.
+      hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
+    }
+
+    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors, flowErrors);
     for (const line of stderrLines) {
       process.stderr.write(line + '\n');
     }
 
     const entityCount = Object.keys(model.nodes).length;
     const noun = entityCount === 1 ? 'entity' : 'entities';
-    const errorCount = allGlobalErrors.length;
-    const warningCount = validation.entityErrors.length;
+    // Include flow findings in the summary counts so the stdout line reflects all findings.
+    const errorCount = allGlobalErrors.length + flowErrors.filter(e => RULES[e.ruleId].class === 'B').length;
+    const warningCount = validation.entityErrors.length + flowErrors.filter(e => RULES[e.ruleId].class === 'A').length;
 
-    if (errorCount > 0) {
+    if (errorCount > 0 || hasClassBFlowErrors) {
       console.log(`✗ ${dir}: ${errorCount} error(s), ${warningCount} warning(s) across ${entityCount} ${noun}.`);
-    } else if (warningCount > 0) {
+    } else if (warningCount > 0 || flowErrors.length > 0) {
       console.log(`✓ ${dir}: valid with ${warningCount} warning(s) across ${entityCount} ${noun}.`);
     } else {
       console.log(`✓ ${dir}: valid — ${entityCount} ${noun}, no findings.`);
     }
 
-    process.exit(errorCount > 0 ? 1 : 0);
+    process.exit(errorCount > 0 || hasClassBFlowErrors ? 1 : 0);
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// flow
+// ──────────────────────────────────────────────────────────────────────────────
+
+const flowCmd = defineCommand({
+  meta: {
+    name: 'flow',
+    description: 'Generate a self-contained flow diagram HTML file for a named DFD',
+  },
+  args: {
+    name: {
+      type: 'positional',
+      description: 'DFD folder name under flows/ to render',
+      required: true,
+    },
+    path: {
+      type: 'positional',
+      description: 'Path to search for a model root (default: cwd)',
+      required: false,
+    },
+    out: {
+      type: 'string',
+      description: 'Output file path (default: flow-<name>.html in cwd)',
+    },
+    model: {
+      type: 'string',
+      description: 'Model key to use when multiple models are found',
+    },
+  },
+  async run({ args }) {
+    const name = args.name;
+    const base = args.path ? resolve(args.path) : process.cwd();
+    const outputPath = args.out ?? `flow-${name}.html`;
+
+    const dir = await pickModel(base, args.model);
+    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
+    const { parseFlows } = await import('./flow-parse');
+    const { validateFlows } = await import('./flow-validate');
+    const { validateModel, formatFindingsForStderr, RULES } = await import('./validate');
+
+    // Entity-level validation (needed for flow.unknown_store cross-checks)
+    const validation = validateModel(model);
+
+    const { flowModel, globalErrors: flowParseErrors } = await parseFlows(dir);
+    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors, ...flowParseErrors];
+
+    // Find the requested diagram
+    const diagram = flowModel.diagrams.find(d => d.id === name);
+    if (!diagram) {
+      process.stderr.write(`Error: DFD '${name}' not found under ${dir}/flows/.\n`);
+      process.stderr.write(
+        flowModel.diagrams.length > 0
+          ? `Available: ${flowModel.diagrams.map(d => d.id).join(', ')}\n`
+          : `No DFDs found under ${dir}/flows/\n`,
+      );
+      process.exit(1);
+    }
+
+    const flowConfig = model._meta?.flowRules;
+    const flowValidation = validateFlows(flowModel, model, flowConfig);
+    const flowErrors = flowValidation.flowErrors;
+    // Class B is the authoritative signal for a hard exit — derived from the rule
+    // registry, not from the severity field, so the two can't silently diverge.
+    const hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
+
+    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors, flowErrors);
+    for (const line of stderrLines) {
+      process.stderr.write(line + '\n');
+    }
+
+    // Load the embedded React bundle — same pattern as graphCmd
+    let bundle;
+    try {
+      const { loadEmbeddedBundle } = await import('./generators/embedded-bundle');
+      bundle = await loadEmbeddedBundle();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        'Error: could not load the embedded React bundle.\n' +
+        'Run: bun run build:bundle  (or: bun run build:cli)\n' +
+        `\nUnderlying: ${msg}\n`,
+      );
+      process.exit(1);
+    }
+
+    const { generateFlowGraph } = await import('./generators/flow-graph');
+    const { layoutFlowFingerprint } = await import('./flow-fingerprint');
+    const flowLayoutKey = layoutFlowFingerprint(diagram);
+    const html = await generateFlowGraph(diagram, model, 'static', { flowLayoutKey }, bundle);
+    await Bun.write(outputPath, html);
+    console.log(`Wrote flow diagram to ${outputPath}`);
+    process.exit(allGlobalErrors.length > 0 || hasClassBFlowErrors ? 1 : 0);
   },
 });
 
@@ -299,6 +415,7 @@ const main = defineCommand({
     dict: dictCmd,
     graph: graphCmd,
     validate: validateCmd,
+    flow: flowCmd,
     version: versionCmd,
     update: updateCmd,
   },

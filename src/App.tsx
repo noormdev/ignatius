@@ -17,6 +17,7 @@ import type {
   SubtypeCluster,
   GroupConfig,
 } from './parse';
+import type { FlowDiagram } from './flow-parse';
 
 // @ts-expect-error — cytoscape uses `export =` which loses namespace members under bundler resolution
 cytoscape.use(elk);
@@ -260,6 +261,12 @@ declare global {
     __THEME_MODE__?: 'dark' | 'light';
     __IGNATIUS_MODE__?: 'live' | 'static';
     __LAYOUT_KEY__?: string;
+    // Surface discriminator: 'erd' (default) | 'flow'. Set by flow-graph.ts injection;
+    // src/index.html defaults to 'erd' so ERD mode has a defined value.
+    __IGNATIUS_SURFACE__?: 'erd' | 'flow';
+    // Flow-mode globals: injected by generateFlowGraph.
+    __FLOW_MODEL__?: FlowDiagram;
+    __FLOW_LAYOUT_KEY__?: string;
     // Debug/test seam: the live Cytoscape core, exposed for the visual harness
     // to locate nodes and drive hover. Not read by application code.
     __IGNATIUS_CY__?: cytoscape.Core;
@@ -335,6 +342,421 @@ function hexToRgba(hex: string, alpha: number): string {
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ---------------------------------------------------------------------------
+// Flow render — isolated path. NEVER appended to buildStyles.
+// ---------------------------------------------------------------------------
+
+/**
+ * buildFlowStyles — dedicated stylesheet builder for DFD flow mode.
+ *
+ * This function is completely separate from the ERD buildStyles above.
+ * Isolation is the whole point: editing flow styles cannot regress ERD
+ * rendering because they are different builders with no shared code.
+ *
+ * Node shapes per spec:
+ *   FlowProcess   → roundrectangle  (+ dottedNumber prefix in label)
+ *   FlowExternal  → rectangle
+ *   db: store     → barrel
+ *   non-db store  → cut-rectangle
+ */
+function buildFlowStyles(): cytoscape.Stylesheet[] {
+  return [
+    {
+      selector: 'node',
+      style: {
+        'label': 'data(label)',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'color': '#eeeeee',
+        'background-color': '#2a2a3a',
+        'border-width': 1.5,
+        'border-color': '#666688',
+        'shape': 'rectangle',
+        'width': 'label',
+        'height': 'label',
+        'text-wrap': 'wrap',
+        'text-max-width': 160 as unknown as string,
+        'padding': '10px' as unknown as number,
+        'font-size': 11,
+        'font-weight': 600,
+        'font-family': '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+      },
+    },
+    {
+      selector: 'node[nodeType = "process"]',
+      style: {
+        'shape': 'roundrectangle',
+        'background-color': '#1e3a5f',
+        'border-color': '#4a80c4',
+      },
+    },
+    {
+      selector: 'node[nodeType = "external"]',
+      style: {
+        'shape': 'rectangle',
+        'background-color': '#1e3a2a',
+        'border-color': '#4a9a6a',
+      },
+    },
+    {
+      selector: 'node[nodeType = "store-db"]',
+      style: {
+        'shape': 'barrel',
+        'background-color': '#3a2a1e',
+        'border-color': '#c47a4a',
+      },
+    },
+    {
+      selector: 'node[nodeType = "store-other"]',
+      style: {
+        'shape': 'cut-rectangle',
+        'background-color': '#2a1e3a',
+        'border-color': '#8a6acc',
+      },
+    },
+    {
+      selector: 'edge',
+      style: {
+        'width': 1.5,
+        'line-color': '#aaaacc',
+        'target-arrow-shape': 'triangle',
+        'target-arrow-color': '#aaaacc',
+        'curve-style': 'bezier',
+        'label': 'data(label)',
+        'font-size': 9,
+        'color': '#cccccc',
+        'text-rotation': 'autorotate',
+        'text-margin-y': -8,
+        'arrow-scale': 1.0,
+        'text-background-color': '#1a1a2a',
+        'text-background-opacity': 0.85,
+        'text-background-padding': '3px',
+        'text-background-shape': 'roundrectangle',
+      },
+    },
+    {
+      selector: 'node:selected',
+      style: {
+        'border-width': 3,
+        'overlay-opacity': 0.08,
+      },
+    },
+  ];
+}
+
+/**
+ * buildFlowElements — map a FlowDiagram to a Cytoscape element list.
+ *
+ * Process nodes with hasSubDfd get the '⤵' drill affordance appended to
+ * their label so users can see at a glance which processes are drillable.
+ */
+function buildFlowElements(diagram: FlowDiagram): cytoscape.ElementDefinition[] {
+  const elements: cytoscape.ElementDefinition[] = [];
+
+  // FlowProcess nodes — label includes the dottedNumber badge as a prefix
+  for (const proc of diagram.processes) {
+    const drillSuffix = proc.hasSubDfd ? ' ⤵' : '';
+    elements.push({
+      data: {
+        id: `proc:${proc.id}`,
+        label: `${proc.dottedNumber}  ${proc.label}${drillSuffix}`,
+        nodeType: 'process',
+        hasSubDfd: proc.hasSubDfd,
+        processId: proc.id,
+      },
+    });
+  }
+
+  // FlowExternal nodes
+  for (const ext of diagram.externals) {
+    elements.push({
+      data: {
+        id: `ext:${ext.id}`,
+        label: ext.label,
+        nodeType: 'external',
+      },
+    });
+  }
+
+  // Store ref nodes — db: stores get 'store-db', all others get 'store-other'
+  for (const store of diagram.storeRefs) {
+    elements.push({
+      data: {
+        id: `${store.kind}:${store.name}`,
+        label: store.name,
+        nodeType: store.kind === 'db' ? 'store-db' : 'store-other',
+        storeKind: store.kind,
+      },
+    });
+  }
+
+  // FlowEdge directed edges — label is the data string or joined column list
+  for (let i = 0; i < diagram.edges.length; i++) {
+    const edge = diagram.edges[i]!;
+    const fromId = `${edge.from.kind}:${edge.from.name}`;
+    const toId = `${edge.to.kind}:${edge.to.name}`;
+    const label = Array.isArray(edge.data) ? edge.data.join(', ') : (edge.data ?? '');
+    elements.push({
+      data: {
+        id: `flow-edge-${i}`,
+        source: fromId,
+        target: toId,
+        label,
+      },
+    });
+  }
+
+  return elements;
+}
+
+/** Shared ELK layout options for DFD rendering. Does NOT mutate the ERD's buildLayoutOpts. */
+const FLOW_LAYOUT_OPTS: cytoscape.LayoutOptions = {
+  name: 'elk',
+  elk: {
+    algorithm: 'layered',
+    'elk.direction': 'DOWN',
+    'elk.layered.spacing.nodeNodeBetweenLayers': '90',
+    'elk.spacing.nodeNode': '60',
+    'elk.edgeRouting': 'ORTHOGONAL',
+    'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+    'elk.layered.thoroughness': '10',
+  },
+} as cytoscape.LayoutOptions;
+
+/**
+ * initFlowGraph — flow Cytoscape setup, isolated from the ERD useEffect.
+ *
+ * Called only when window.__IGNATIUS_SURFACE__ === 'flow'. Reads
+ * window.__FLOW_MODEL__ (static mode); the full recursive FlowDiagram tree
+ * rides in __FLOW_MODEL__ so drill-down is client-side with no network calls.
+ *
+ * Drill-down: processes with hasSubDfd render a '⤵' affordance. Tapping such
+ * a node swaps the rendered diagram to its sub-DFD from the current diagram's
+ * subDfds array (matched by subDfd.id === process.id). A breadcrumb overlay
+ * above the Cytoscape container shows the path and provides a "Back" affordance.
+ *
+ * Returns a cleanup function (same contract as useEffect).
+ */
+// Distinct localStorage key for flow position persistence.
+// WHY a separate constant (not the ERD default): flow and ERD positions must
+// never share a bucket — opening a flow diagram must not evict ERD layouts and
+// vice versa. The key is defined here (next to its only consumer) rather than
+// re-exported from layout-store.ts to keep the coupling minimal.
+const FLOW_STORAGE_KEY = 'ignatius-flow-layout-positions';
+
+function initFlowGraph(container: HTMLDivElement): () => void {
+  const rootDiagram: FlowDiagram | undefined = window.__FLOW_MODEL__;
+  if (!rootDiagram) {
+    console.warn('[ignatius] initFlowGraph: window.__FLOW_MODEL__ is not set');
+    return () => {};
+  }
+
+  // Read the fingerprint key injected by generateFlowGraph into window.__FLOW_LAYOUT_KEY__.
+  // NOT imported from flow-fingerprint.ts — the frontend reads from the window global only.
+  const flowLayoutKey: string = window.__FLOW_LAYOUT_KEY__ ?? '';
+
+  // Flow position store — uses a DISTINCT key from the ERD's 'ignatius-layout-positions'.
+  // Same createLayoutStore machinery, different bucket. ERD positions are never touched.
+  const flowLayoutStore = createLayoutStore(undefined, undefined, FLOW_STORAGE_KEY);
+
+  // Debounce timer for drag-to-save. Defined here so the cleanup can cancel it.
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Breadcrumb stack: array of { diagram, label } from root to current.
+  // The current diagram is always the last entry.
+  const stack: Array<{ diagram: FlowDiagram; label: string }> = [
+    { diagram: rootDiagram, label: rootDiagram.id },
+  ];
+
+  // --- Breadcrumb overlay ---
+  // Positioned above the cytoscape container; managed entirely in JS
+  // to stay isolated from React's DOM.
+  const breadcrumbEl = document.createElement('div');
+  breadcrumbEl.setAttribute('data-ignatius', 'flow-breadcrumb');
+  Object.assign(breadcrumbEl.style, {
+    position: 'absolute',
+    top: '8px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: '100',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    background: 'rgba(20,20,36,0.88)',
+    border: '1px solid #44447a',
+    borderRadius: '6px',
+    padding: '4px 10px',
+    fontSize: '12px',
+    color: '#ccccee',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+    pointerEvents: 'none',
+  });
+
+  // The container must be position:relative for absolute children.
+  if (getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
+  container.appendChild(breadcrumbEl);
+
+  function renderBreadcrumb() {
+    const parts = stack.map((s, i) => {
+      const span = document.createElement('span');
+      span.textContent = s.label;
+      if (i < stack.length - 1) {
+        span.style.opacity = '0.6';
+        // Each ancestor is clickable to jump up the stack
+        span.style.cursor = 'pointer';
+        span.style.pointerEvents = 'auto';
+        const idx = i;
+        span.addEventListener('click', () => drillUp(idx));
+      }
+      return span;
+    });
+
+    breadcrumbEl.innerHTML = '';
+    if (stack.length > 1) {
+      const backBtn = document.createElement('button');
+      backBtn.textContent = '← Back';
+      Object.assign(backBtn.style, {
+        background: 'none',
+        border: '1px solid #555580',
+        borderRadius: '4px',
+        color: '#aaaacc',
+        cursor: 'pointer',
+        fontSize: '11px',
+        padding: '1px 6px',
+        pointerEvents: 'auto',
+        marginRight: '4px',
+      });
+      backBtn.addEventListener('click', () => drillUp(stack.length - 2));
+      breadcrumbEl.appendChild(backBtn);
+    }
+
+    parts.forEach((span, i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.textContent = ' / ';
+        sep.style.opacity = '0.4';
+        breadcrumbEl.appendChild(sep);
+      }
+      breadcrumbEl.appendChild(span);
+    });
+  }
+
+  // --- Cytoscape instance ---
+  let cy: cytoscape.Core | undefined;
+
+  function renderDiagram(diagram: FlowDiagram) {
+    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
+    if (cy) {
+      cy.destroy();
+      window.__IGNATIUS_CY__ = undefined;
+    }
+
+    const elements = buildFlowElements(diagram);
+
+    try {
+      cy = cytoscape({
+        container,
+        elements,
+        layout: FLOW_LAYOUT_OPTS,
+        style: buildFlowStyles(),
+        minZoom: 0.2,
+        maxZoom: 4,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[ignatius] Flow Cytoscape init failed:', msg);
+      return;
+    }
+
+    window.__IGNATIUS_CY__ = cy;
+
+    cy.one('layoutstop', () => {
+      // Restore saved positions for the TOP-LEVEL diagram only (v1 scope).
+      // Sub-DFDs always re-layout fresh — we don't persist their positions
+      // because each sub-DFD swap rebuilds the graph from scratch anyway.
+      // WHY stack.length === 1: the stack has exactly one entry when we're
+      // rendering the root diagram; drilling in pushes more entries.
+      const isTopLevel = stack.length === 1;
+      if (isTopLevel && flowLayoutKey) {
+        const saved = flowLayoutStore.load(flowLayoutKey);
+        if (saved) {
+          for (const [id, pos] of Object.entries(saved)) {
+            const node = cy.$id(id);
+            if (!node.empty()) node.position(pos);
+          }
+        }
+      }
+      cy.fit(undefined, 30);
+    });
+
+    // Drag-to-save: debounced 400ms, top-level only.
+    // WHY top-level only: sub-DFD positions are ephemeral — the user returns
+    // to the top diagram by clicking Back, which re-layouts from scratch anyway.
+    // Saving sub-diagram positions would waste a bucket entry on transient state.
+    cy.on('free', 'node', () => {
+      if (stack.length !== 1 || !flowLayoutKey) return;
+      if (saveTimer !== null) clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const positions: Record<string, { x: number; y: number }> = {};
+        cy.nodes().forEach((node) => {
+          const pos = node.position();
+          positions[node.id()] = { x: pos.x, y: pos.y };
+        });
+        flowLayoutStore.save(flowLayoutKey, positions);
+      }, 400);
+    });
+
+    // Drill-down: tap on a process node with hasSubDfd opens its sub-DFD.
+    cy.on('tap', 'node[nodeType = "process"][?hasSubDfd]', (evt) => {
+      const node = evt.target;
+      const processId: unknown = node.data('processId');
+      if (typeof processId !== 'string') return;
+
+      // Locate the sub-DFD in the current diagram's subDfds by id === processId
+      const currentDiagram = stack[stack.length - 1]!.diagram;
+      const subDfd = currentDiagram.subDfds.find(d => d.id === processId);
+      if (!subDfd) {
+        console.warn(`[ignatius] drill-down: no sub-DFD found for process '${processId}'`);
+        return;
+      }
+
+      // Find the process label for the breadcrumb
+      const proc = currentDiagram.processes.find(p => p.id === processId);
+      const label = proc ? `${proc.dottedNumber} ${proc.label}` : processId;
+
+      stack.push({ diagram: subDfd, label });
+      renderBreadcrumb();
+      renderDiagram(subDfd);
+    });
+
+    renderBreadcrumb();
+  }
+
+  function drillUp(targetIdx: number) {
+    // Truncate the stack to targetIdx + 1 (keeping entries 0..targetIdx)
+    stack.splice(targetIdx + 1);
+    const target = stack[stack.length - 1];
+    if (!target) return;
+    renderBreadcrumb();
+    renderDiagram(target.diagram);
+  }
+
+  renderDiagram(rootDiagram);
+
+  return () => {
+    if (saveTimer !== null) clearTimeout(saveTimer);
+    if (cy) {
+      cy.destroy();
+      window.__IGNATIUS_CY__ = undefined;
+    }
+    if (breadcrumbEl.parentNode) {
+      breadcrumbEl.parentNode.removeChild(breadcrumbEl);
+    }
+  };
 }
 
 function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mode: ThemeMode): cytoscape.Stylesheet[] {
@@ -1064,7 +1486,22 @@ export function App() {
   // Set by the cy-init effect; re-runs the layout in a given mode from the FAB toggle.
   const applyLayoutModeRef = useRef<((mode: LayoutMode) => void) | null>(null);
 
+  // Surface dispatch: flow mode initialises its own Cytoscape graph and returns.
+  // The rest of the ERD-path effects only run when surface !== 'flow'.
+  // WHY separate useEffect (not interleaved): isolation guarantees the ERD model
+  // fetch / SSE subscription never fires for a flow page — and vice versa.
   useEffect(() => {
+    if (window.__IGNATIUS_SURFACE__ !== 'flow') return;
+    const container = graphRef.current;
+    if (!container) return;
+    const cleanup = initFlowGraph(container);
+    return cleanup;
+  }, []);
+
+  useEffect(() => {
+    // Flow pages are handled by the surface-dispatch effect above; skip ERD init.
+    if (window.__IGNATIUS_SURFACE__ === 'flow') return;
+
     const mode = window.__IGNATIUS_MODE__;
 
     // Static mode: model baked in at generation time — run validateModel locally.
@@ -1128,8 +1565,15 @@ export function App() {
     themeModeRef.current = themeMode;
   }, [themeMode]);
 
-  // Re-apply Cytoscape styles when mode changes (without rebuilding the graph)
+  // Re-apply Cytoscape styles when mode changes (without rebuilding the graph).
+  // WHY the surface guard: the flow surface renders its own Cytoscape instance
+  // via a separate code path; buildStyles is ERD-only and must not be called
+  // against a flow graph. cyRef.current being null on flow pages would prevent
+  // the effect from firing today, but the guard makes the isolation explicit
+  // and future-proof — if a flow page ever acquires cyRef it should still be
+  // skipped here.
   useEffect(() => {
+    if (window.__IGNATIUS_SURFACE__ === 'flow') return;
     if (!cyRef.current || !model || !svgRef.current) return;
     cyRef.current.style(buildStyles(model.groups, model.theme, themeMode));
     updateMarkers(cyRef.current, svgRef.current, model.theme, themeMode);

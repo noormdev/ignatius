@@ -114,11 +114,13 @@ export async function generateGraph(
     () => inlinedScript,
   );
 
-  // Strip the body 'live' mode script that Bun bundles from src/index.html.
-  // WHY: dist/static/index.html retains `window.__IGNATIUS_MODE__ = 'live'` in the
-  // <body> from src/index.html. That body script runs AFTER the head injection, so it
-  // would overwrite 'static' back to 'live'. Remove it so the injection's 'static' wins.
-  html = html.replace(/<script>window\.__IGNATIUS_MODE__ = 'live';<\/script>/g, '');
+  // Strip the body live-mode script that Bun bundles from src/index.html.
+  // WHY: dist/static/index.html retains the body script from src/index.html.
+  // That script runs AFTER the head injection, so it would overwrite 'static'
+  // back to 'live'. Remove the entire script tag so the injection's 'static' wins.
+  // The pattern matches either the old form (mode only) or the new form (mode +
+  // surface) so this stays robust across rebuilds of the bundle.
+  html = html.replace(/<script>window\.__IGNATIUS_MODE__ = 'live';[\s\S]*?<\/script>/g, '');
 
 
   return html;
