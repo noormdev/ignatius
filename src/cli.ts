@@ -1,5 +1,5 @@
 import { defineCommand, runMain } from 'citty';
-import { resolve } from 'path';
+import { resolve, basename, dirname, extname, join as pathJoin } from 'path';
 import { existsSync } from 'node:fs';
 import { serveWithPortFallback } from './serve-port';
 import { parseModels } from './parse';
@@ -268,14 +268,9 @@ const validateCmd = defineCommand({
 const flowCmd = defineCommand({
   meta: {
     name: 'flow',
-    description: 'Generate a self-contained flow diagram HTML file for a named DFD',
+    description: 'Generate a self-contained flow viewer HTML file (all DFDs in the model)',
   },
   args: {
-    name: {
-      type: 'positional',
-      description: 'DFD folder name under flows/ to render',
-      required: true,
-    },
     path: {
       type: 'positional',
       description: 'Path to search for a model root (default: cwd)',
@@ -283,7 +278,13 @@ const flowCmd = defineCommand({
     },
     out: {
       type: 'string',
-      description: 'Output file path (default: flow-<name>.html in cwd)',
+      alias: 'o',
+      description: 'Output file path (required)',
+    },
+    theme: {
+      type: 'string',
+      description: 'Color theme: light or dark (default: dark)',
+      default: 'dark',
     },
     model: {
       type: 'string',
@@ -291,11 +292,23 @@ const flowCmd = defineCommand({
     },
   },
   async run({ args }) {
-    const name = args.name;
-    const base = args.path ? resolve(args.path) : process.cwd();
-    const outputPath = args.out ?? `flow-${name}.html`;
+    const outputPath = args.out;
+    if (!outputPath) {
+      process.stderr.write('Error: -o <output.html> is required for the flow subcommand.\n');
+      process.exit(1);
+    }
 
+    const base = args.path ? resolve(args.path) : process.cwd();
     const dir = await pickModel(base, args.model);
+    const mode = args.theme === 'light' ? 'light' : 'dark';
+
+    // No flows/ dir — friendly note, exit 0 (not an error; mirrors how dict handles empty models).
+    const flowsDir = `${dir}/flows`;
+    if (!existsSync(flowsDir)) {
+      process.stderr.write(`No flows in ${dir}.\n`);
+      process.exit(0);
+    }
+
     const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
     const { parseFlows } = await import('./flow-parse');
     const { validateFlows } = await import('./flow-validate');
@@ -306,18 +319,6 @@ const flowCmd = defineCommand({
 
     const { flowModel, globalErrors: flowParseErrors } = await parseFlows(dir);
     const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors, ...flowParseErrors];
-
-    // Find the requested diagram
-    const diagram = flowModel.diagrams.find(d => d.id === name);
-    if (!diagram) {
-      process.stderr.write(`Error: DFD '${name}' not found under ${dir}/flows/.\n`);
-      process.stderr.write(
-        flowModel.diagrams.length > 0
-          ? `Available: ${flowModel.diagrams.map(d => d.id).join(', ')}\n`
-          : `No DFDs found under ${dir}/flows/\n`,
-      );
-      process.exit(1);
-    }
 
     const flowConfig = model._meta?.flowRules;
     const flowValidation = validateFlows(flowModel, model, flowConfig);
@@ -346,12 +347,31 @@ const flowCmd = defineCommand({
       process.exit(1);
     }
 
-    const { generateFlowGraph } = await import('./generators/flow-graph');
-    const { layoutFlowFingerprint } = await import('./flow-fingerprint');
-    const flowLayoutKey = layoutFlowFingerprint(diagram);
-    const html = await generateFlowGraph(diagram, model, 'static', { flowLayoutKey }, bundle);
+    // Derive sibling dict path: <out-basename>.dict.html next to the viewer.
+    const outBase = basename(outputPath, extname(outputPath));
+    const outDir = dirname(outputPath);
+    const dictOutputPath = pathJoin(outDir, `${outBase}.dict.html`);
+    // Relative href for the viewer → dict link (same directory, so just the filename).
+    const dictHref = basename(dictOutputPath);
+
+    const { generateFlowGraph, buildFlowLayoutKeys } = await import('./generators/flow-graph');
+    const { generateFlowDict } = await import('./generators/flow-dict');
+
+    const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
+    const html = await generateFlowGraph(
+      flowModel, model, 'static',
+      { flowLayoutKeys, themeMode: mode, dictHref },
+      bundle,
+    );
     await Bun.write(outputPath, html);
-    console.log(`Wrote flow diagram to ${outputPath}`);
+    console.log(`Wrote flow viewer to ${outputPath}`);
+
+    // Write the sibling process dictionary.
+    const findings = { flowErrors, globalErrors: allGlobalErrors };
+    const dictHtml = generateFlowDict(flowModel, model, findings, 'static', { themeMode: mode });
+    await Bun.write(dictOutputPath, dictHtml);
+    console.log(`Wrote flow dictionary to ${dictOutputPath}`);
+
     process.exit(allGlobalErrors.length > 0 || hasClassBFlowErrors ? 1 : 0);
   },
 });

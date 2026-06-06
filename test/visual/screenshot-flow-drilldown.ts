@@ -15,7 +15,7 @@ import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { parseFlows } from '../../src/flow-parse';
 import { parseModels } from '../../src/parse';
-import { generateFlowGraph } from '../../src/generators/flow-graph';
+import { generateFlowGraph, buildFlowLayoutKeys } from '../../src/generators/flow-graph';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const FIXTURE = join(ROOT, 'test/fixtures/flows-leveling');
@@ -56,8 +56,9 @@ const { model: entityModel } = await parseModels(MODELS);
 // ── Generate static flow HTML ─────────────────────────────────────────────────
 
 note('Generating flow graph HTML…');
-const html = await generateFlowGraph(diagram, entityModel, 'static', {
-    flowLayoutKey: 'drilldown-vis',
+const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
+const html = await generateFlowGraph(flowModel, entityModel, 'static', {
+    flowLayoutKeys,
 });
 
 const htmlPath = join(TMP, 'flow-drilldown.html');

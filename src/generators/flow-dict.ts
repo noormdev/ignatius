@@ -11,7 +11,7 @@ import type { Model } from '../parse';
 import type { GlobalError } from '../validate';
 import { RULES } from '../validate';
 import { buildThemeCssVars } from './theme-css';
-import type { FlowDiagram, FlowProcess, FlowStoreRef, FlowEdge, FlowEndpoint } from '../flow-parse';
+import type { FlowModel, FlowDiagram, FlowProcess, FlowStoreRef, FlowEdge, FlowEndpoint } from '../flow-parse';
 import type { FlowError } from '../flow-validate';
 
 // ---------------------------------------------------------------------------
@@ -289,22 +289,30 @@ ${flowRows}
 }
 
 // ---------------------------------------------------------------------------
-// Side nav — process list
+// Side nav — process list, grouped by DFD when multiple diagrams
 // ---------------------------------------------------------------------------
 
-function renderSideNav(processes: FlowProcess[]): string {
-    if (processes.length === 0) return '';
+function renderSideNav(diagrams: FlowDiagram[]): string {
+    const allProcesses = diagrams.flatMap(d => d.processes);
+    if (allProcesses.length === 0) return '';
 
-    const links = processes.map(p =>
-        `      <a class="dict-nav-link" href="#process-${esc(p.id)}">${esc(p.dottedNumber)} ${esc(p.label)}</a>`,
-    ).join('\n');
+    const groups = diagrams.map(diagram => {
+        if (diagram.processes.length === 0) return '';
+        const links = diagram.processes.map(p =>
+            `      <a class="dict-nav-link" href="#process-${esc(p.id)}">${esc(p.dottedNumber)} ${esc(p.label)}</a>`,
+        ).join('\n');
+        const groupLabel = diagrams.length > 1
+            ? `<div class="dict-nav-group-label">${esc(diagram.id)}</div>`
+            : `<div class="dict-nav-group-label">Processes</div>`;
+        return `    <div class="dict-nav-group">
+      ${groupLabel}
+${links}
+    </div>`;
+    }).filter(g => g.length > 0).join('\n');
 
     return `<nav class="dict-nav-panel" id="dict-nav-panel" aria-hidden="true" aria-label="Process navigation">
   <div class="dict-nav-inner">
-    <div class="dict-nav-group">
-      <div class="dict-nav-group-label">Processes</div>
-${links}
-    </div>
+${groups}
   </div>
 </nav>`;
 }
@@ -330,7 +338,7 @@ ${graphItem}
 // ---------------------------------------------------------------------------
 
 export function generateFlowDict(
-    diagram: FlowDiagram,
+    flowModel: FlowModel,
     entityModel: Model,
     findings: FlowDictFindings,
     mode: 'static' | 'live',
@@ -343,16 +351,24 @@ export function generateFlowDict(
     const lightCssVars = buildThemeCssVars(entityModel.theme, 'light');
 
     const findingsPanelHtml = renderFindingsPanel(findings);
-    const sideNav = renderSideNav(diagram.processes);
-    const storeSectionsHtml = renderStoreSections(diagram.storeRefs);
+    const sideNav = renderSideNav(flowModel.diagrams);
+    // Aggregate store refs across all diagrams for the store sections
+    const allStoreRefs = flowModel.diagrams.flatMap(d => d.storeRefs);
+    const storeSectionsHtml = renderStoreSections(allStoreRefs);
     const fabHtml = renderFab(graphHref);
 
-    const processSections = diagram.processes
-        .map(proc => renderProcessSection(proc, diagram.processes, entityModel, findings.flowErrors, mode, graphHref))
-        .join('\n\n');
+    // Render a section per DFD, with each process inside it.
+    const diagramSections = flowModel.diagrams.map(diagram => {
+        const processSections = diagram.processes
+            .map(proc => renderProcessSection(proc, diagram.processes, entityModel, findings.flowErrors, mode, graphHref))
+            .join('\n\n');
+        const heading = flowModel.diagrams.length > 1
+            ? `  <h2 class="flow-dfd-heading" id="dfd-${esc(diagram.id)}">${esc(diagram.id)}</h2>`
+            : '';
+        return `${heading}\n${processSections}`;
+    }).join('\n\n');
 
-    const diagramId = esc(diagram.id);
-    const title = `Process Dictionary — ${esc(diagram.id)}`;
+    const title = 'Process Dictionary';
 
     return `<!doctype html>
 <html lang="en" data-theme="${themeMode}">
@@ -413,6 +429,16 @@ export function generateFlowDict(
       font-size: 2rem;
       font-weight: 700;
       color: var(--color-text);
+    }
+
+    /* DFD section heading (multi-DFD model only) */
+    .flow-dfd-heading {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--color-text);
+      margin: 2rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--color-border);
     }
 
     /* Process sections */
@@ -774,10 +800,10 @@ export function generateFlowDict(
 ${findingsPanelHtml}
   ${sideNav}
   <header class="page-header">
-    <h1 class="page-title">Process Dictionary — ${diagramId}</h1>
+    <h1 class="page-title">Process Dictionary</h1>
   </header>
   <main>
-${processSections}
+${diagramSections}
 ${storeSectionsHtml}
   </main>
   ${fabHtml}

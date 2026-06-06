@@ -265,8 +265,17 @@ declare global {
     // src/index.html defaults to 'erd' so ERD mode has a defined value.
     __IGNATIUS_SURFACE__?: 'erd' | 'flow';
     // Flow-mode globals: injected by generateFlowGraph.
-    __FLOW_MODEL__?: FlowDiagram;
-    __FLOW_LAYOUT_KEY__?: string;
+    // __FLOW_MODEL__ is the array of all top-level FlowDiagrams (each carries
+    // its subDfds recursively so drill-down works client-side with no fetches).
+    __FLOW_MODEL__?: FlowDiagram[];
+    // __FLOW_LAYOUT_KEYS__ maps diagram id → structural fingerprint for every
+    // diagram in the tree (top-level and sub-DFDs). The frontend looks up
+    // the key by id rather than importing the fingerprint module.
+    __FLOW_LAYOUT_KEYS__?: Record<string, string>;
+    // Href to the sibling process-dictionary HTML. Injected by generateFlowGraph when
+    // a dictHref is provided (live: '/flow-dict'; static: relative sibling file path).
+    // Read by initFlowGraph to wire the flow viewer's FAB "Process Dict" item.
+    __FLOW_DICT_HREF__?: string;
     // Debug/test seam: the live Cytoscape core, exposed for the visual harness
     // to locate nodes and drive hover. Not read by application code.
     __IGNATIUS_CY__?: cytoscape.Core;
@@ -529,8 +538,19 @@ const FLOW_LAYOUT_OPTS: cytoscape.LayoutOptions = {
  * initFlowGraph — flow Cytoscape setup, isolated from the ERD useEffect.
  *
  * Called only when window.__IGNATIUS_SURFACE__ === 'flow'. Reads
- * window.__FLOW_MODEL__ (static mode); the full recursive FlowDiagram tree
- * rides in __FLOW_MODEL__ so drill-down is client-side with no network calls.
+ * window.__FLOW_MODEL__ (the array of all top-level FlowDiagrams in static mode).
+ * The full recursive FlowDiagram tree rides in __FLOW_MODEL__ so drill-down is
+ * client-side with no network calls.
+ *
+ * Multi-DFD navigation: when the model has >1 top-level DFD a selector panel
+ * is rendered and one DFD is shown at a time. Selecting a DFD swaps the
+ * rendered diagram via the existing renderDiagram swap (same code used for
+ * drill-down). A single-DFD model renders directly with no selector chrome.
+ *
+ * Per-diagram persistence: each navigated diagram (top-level or sub-DFD)
+ * looks up its fingerprint key from window.__FLOW_LAYOUT_KEYS__[diagramId]
+ * and persists under that key in the flow-specific localStorage bucket.
+ * The frontend never imports flow-fingerprint.ts — keys come from the injected map.
  *
  * Drill-down: processes with hasSubDfd render a '⤵' affordance. Tapping such
  * a node swaps the rendered diagram to its sub-DFD from the current diagram's
@@ -546,17 +566,74 @@ const FLOW_LAYOUT_OPTS: cytoscape.LayoutOptions = {
 // re-exported from layout-store.ts to keep the coupling minimal.
 const FLOW_STORAGE_KEY = 'ignatius-flow-layout-positions';
 
-function initFlowGraph(container: HTMLDivElement): () => void {
-  const rootDiagram: FlowDiagram | undefined = window.__FLOW_MODEL__;
-  if (!rootDiagram) {
-    console.warn('[ignatius] initFlowGraph: window.__FLOW_MODEL__ is not set');
-    return () => {};
+// Live-mode flow initialiser: fetches /api/flow once, renders the flow graph,
+// then subscribes to SSE `model-changed` to re-fetch and re-render on hot-reload.
+// Mirrors the ERD live path in the main useEffect.
+// Returns a cleanup function that closes the EventSource.
+function initFlowLive(container: HTMLDivElement): () => void {
+  // Track the currently selected top-level DFD id so SSE re-renders stay on the same DFD.
+  let currentDiagramId: string | null = null;
+  let cleanupGraph: (() => void) | null = null;
+  let cancelled = false;
+
+  type FlowApiPayload = { diagrams: FlowDiagram[]; flowLayoutKeys: Record<string, string> };
+
+  function applyPayload(payload: FlowApiPayload) {
+    if (cancelled) return;
+    const { diagrams, flowLayoutKeys } = payload;
+    if (!diagrams || diagrams.length === 0) return;
+
+    // On SSE re-render: preserve the currently selected DFD id if it still exists.
+    const preserveId = currentDiagramId !== null && diagrams.some(d => d.id === currentDiagramId)
+      ? currentDiagramId
+      : diagrams[0]!.id;
+
+    // Inject into window globals so the sync initFlowGraphCore can read them.
+    window.__FLOW_MODEL__ = diagrams;
+    window.__FLOW_LAYOUT_KEYS__ = flowLayoutKeys;
+
+    // Tear down the previous graph instance (if any) before re-initialising.
+    if (cleanupGraph) { cleanupGraph(); cleanupGraph = null; }
+
+    cleanupGraph = initFlowGraphCore(container, diagrams, flowLayoutKeys, preserveId, (id) => {
+      currentDiagramId = id;
+    });
+    currentDiagramId = preserveId;
   }
 
-  // Read the fingerprint key injected by generateFlowGraph into window.__FLOW_LAYOUT_KEY__.
-  // NOT imported from flow-fingerprint.ts — the frontend reads from the window global only.
-  const flowLayoutKey: string = window.__FLOW_LAYOUT_KEY__ ?? '';
+  function doFetch() {
+    fetch('/api/flow')
+      .then(r => r.json())
+      .then((payload: Parameters<typeof applyPayload>[0]) => applyPayload(payload))
+      .catch(err => console.error('[ignatius] /api/flow fetch failed:', err));
+  }
 
+  // Initial fetch
+  doFetch();
+
+  // SSE subscription — reuse the model-changed event the server already emits.
+  const es = new EventSource('/events');
+  es.addEventListener('model-changed', doFetch);
+
+  return () => {
+    cancelled = true;
+    es.close();
+    if (cleanupGraph) { cleanupGraph(); cleanupGraph = null; }
+  };
+}
+
+// Core flow graph setup. Extracted so both static and live modes can call it.
+// allDiagrams and flowLayoutKeysMap are passed in rather than read from globals
+// so the live path can pass fresh data on each SSE-triggered re-render.
+// startDiagramId: which top-level DFD to render first (null → first in array).
+// onDiagramChange: called whenever the selected top-level DFD changes.
+function initFlowGraphCore(
+  container: HTMLDivElement,
+  allDiagrams: FlowDiagram[],
+  flowLayoutKeysMap: Record<string, string>,
+  startDiagramId: string | null,
+  onDiagramChange?: (id: string) => void,
+): () => void {
   // Flow position store — uses a DISTINCT key from the ERD's 'ignatius-layout-positions'.
   // Same createLayoutStore machinery, different bucket. ERD positions are never touched.
   const flowLayoutStore = createLayoutStore(undefined, undefined, FLOW_STORAGE_KEY);
@@ -564,15 +641,100 @@ function initFlowGraph(container: HTMLDivElement): () => void {
   // Debounce timer for drag-to-save. Defined here so the cleanup can cancel it.
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Breadcrumb stack: array of { diagram, label } from root to current.
+  // Breadcrumb stack: array of { diagram, label } from the selected top-level DFD down.
   // The current diagram is always the last entry.
-  const stack: Array<{ diagram: FlowDiagram; label: string }> = [
-    { diagram: rootDiagram, label: rootDiagram.id },
-  ];
+  const stack: Array<{ diagram: FlowDiagram; label: string }> = [];
 
-  // --- Breadcrumb overlay ---
-  // Positioned above the cytoscape container; managed entirely in JS
-  // to stay isolated from React's DOM.
+  // The container must be position:relative for absolute children.
+  if (getComputedStyle(container).position === 'static') {
+    container.style.position = 'relative';
+  }
+
+  // --- DFD selector panel (only rendered when >1 top-level DFD) ---
+  // Floats in the top-left corner of the container. Shows all top-level DFD ids
+  // as clickable items; the active one is highlighted.
+  let selectorEl: HTMLDivElement | null = null;
+  let activeSelectorId: string = startDiagramId ?? allDiagrams[0]!.id;
+
+  function buildSelectorPanel() {
+    if (allDiagrams.length <= 1) return;
+
+    selectorEl = document.createElement('div');
+    selectorEl.setAttribute('data-ignatius', 'flow-selector');
+    Object.assign(selectorEl.style, {
+      position: 'absolute',
+      top: '8px',
+      left: '8px',
+      zIndex: '110',
+      background: 'rgba(20,20,36,0.92)',
+      border: '1px solid #44447a',
+      borderRadius: '6px',
+      padding: '6px 0',
+      fontSize: '12px',
+      color: '#ccccee',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+      minWidth: '140px',
+    });
+
+    function refresh() {
+      if (!selectorEl) return;
+      selectorEl.innerHTML = '';
+      const header = document.createElement('div');
+      header.textContent = 'DFDs';
+      Object.assign(header.style, {
+        padding: '2px 10px 4px',
+        fontSize: '10px',
+        color: '#888899',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      });
+      selectorEl.appendChild(header);
+
+      for (const d of allDiagrams) {
+        const item = document.createElement('button');
+        item.textContent = d.id;
+        const isActive = d.id === activeSelectorId;
+        Object.assign(item.style, {
+          display: 'block',
+          width: '100%',
+          background: isActive ? 'rgba(74,128,196,0.28)' : 'none',
+          border: 'none',
+          borderLeft: isActive ? '2px solid #4a80c4' : '2px solid transparent',
+          color: isActive ? '#99bbee' : '#aaaacc',
+          cursor: 'pointer',
+          fontSize: '12px',
+          padding: '4px 10px',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+        });
+        const did = d.id;
+        item.addEventListener('click', () => {
+          activeSelectorId = did;
+          onDiagramChange?.(did);
+          // Reset drill stack to the newly selected top-level DFD
+          const topDiagram = allDiagrams.find(x => x.id === did);
+          if (!topDiagram) return;
+          stack.splice(0, stack.length, { diagram: topDiagram, label: topDiagram.id });
+          refresh();
+          renderBreadcrumb();
+          renderDiagram(topDiagram);
+        });
+        selectorEl.appendChild(item);
+      }
+    }
+
+    refresh();
+    container.appendChild(selectorEl);
+
+    // Return a function that re-renders the selector (called on DFD switch)
+    return refresh;
+  }
+
+  // refreshSelector is a no-op for single-DFD models.
+  const refreshSelector = buildSelectorPanel() ?? (() => {});
+
+  // --- Breadcrumb overlay (drill-down path) ---
+  // Positioned top-center (shifted right when selector is present).
   const breadcrumbEl = document.createElement('div');
   breadcrumbEl.setAttribute('data-ignatius', 'flow-breadcrumb');
   Object.assign(breadcrumbEl.style, {
@@ -593,12 +755,86 @@ function initFlowGraph(container: HTMLDivElement): () => void {
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
     pointerEvents: 'none',
   });
-
-  // The container must be position:relative for absolute children.
-  if (getComputedStyle(container).position === 'static') {
-    container.style.position = 'relative';
-  }
   container.appendChild(breadcrumbEl);
+
+  // --- Flow FAB (navigate to ERD and Process Dict from the flow viewer) ---
+  // Gated on live mode: static exports link to sibling files via __FLOW_DICT_HREF__
+  // which is already injected by generateFlowGraph's dictHref option.
+  // In live mode, we build the FAB here so the flow viewer cross-links to / and /flow-dict.
+  // In static mode, the dict link uses window.__FLOW_DICT_HREF__ if set.
+  const flowFabEl = document.createElement('div');
+  flowFabEl.setAttribute('data-ignatius', 'flow-fab');
+  Object.assign(flowFabEl.style, {
+    position: 'absolute',
+    bottom: '16px',
+    right: '16px',
+    zIndex: '200',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: '8px',
+  });
+
+  const isLive = window.__IGNATIUS_MODE__ === 'live';
+  const dictHref = isLive ? '/flow-dict' : (window.__FLOW_DICT_HREF__ ?? null);
+
+  if (isLive) {
+    // ERD link
+    const erdLink = document.createElement('a');
+    erdLink.href = '/';
+    erdLink.textContent = 'Data Graph';
+    Object.assign(erdLink.style, {
+      background: 'rgba(20,20,36,0.92)',
+      border: '1px solid #44447a',
+      borderRadius: '6px',
+      color: '#aaaacc',
+      cursor: 'pointer',
+      fontSize: '12px',
+      padding: '5px 12px',
+      textDecoration: 'none',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+    });
+    flowFabEl.appendChild(erdLink);
+
+    // Dict link
+    const dictLink = document.createElement('a');
+    dictLink.href = '/dict';
+    dictLink.textContent = 'Data Dict';
+    Object.assign(dictLink.style, {
+      background: 'rgba(20,20,36,0.92)',
+      border: '1px solid #44447a',
+      borderRadius: '6px',
+      color: '#aaaacc',
+      cursor: 'pointer',
+      fontSize: '12px',
+      padding: '5px 12px',
+      textDecoration: 'none',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+    });
+    flowFabEl.appendChild(dictLink);
+  }
+
+  if (dictHref) {
+    const processDictLink = document.createElement('a');
+    processDictLink.href = dictHref;
+    processDictLink.textContent = 'Process Dict';
+    Object.assign(processDictLink.style, {
+      background: 'rgba(20,20,36,0.92)',
+      border: '1px solid #44447a',
+      borderRadius: '6px',
+      color: '#aaaacc',
+      cursor: 'pointer',
+      fontSize: '12px',
+      padding: '5px 12px',
+      textDecoration: 'none',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+    });
+    flowFabEl.appendChild(processDictLink);
+  }
+
+  if (flowFabEl.childNodes.length > 0) {
+    container.appendChild(flowFabEl);
+  }
 
   function renderBreadcrumb() {
     const parts = stack.map((s, i) => {
@@ -616,6 +852,7 @@ function initFlowGraph(container: HTMLDivElement): () => void {
     });
 
     breadcrumbEl.innerHTML = '';
+    // Show Back button only when drilled below the top-level DFD (stack depth > 1)
     if (stack.length > 1) {
       const backBtn = document.createElement('button');
       backBtn.textContent = '← Back';
@@ -674,15 +911,14 @@ function initFlowGraph(container: HTMLDivElement): () => void {
 
     window.__IGNATIUS_CY__ = cy;
 
+    // Per-diagram key: look up this diagram's fingerprint from the injected map.
+    // WHY by id (not index): sub-DFDs have their own id; the map covers every
+    // diagram in the tree so both top-level and sub-DFD navigation persists.
+    const diagramKey = flowLayoutKeysMap[diagram.id] ?? '';
+
     cy.one('layoutstop', () => {
-      // Restore saved positions for the TOP-LEVEL diagram only (v1 scope).
-      // Sub-DFDs always re-layout fresh — we don't persist their positions
-      // because each sub-DFD swap rebuilds the graph from scratch anyway.
-      // WHY stack.length === 1: the stack has exactly one entry when we're
-      // rendering the root diagram; drilling in pushes more entries.
-      const isTopLevel = stack.length === 1;
-      if (isTopLevel && flowLayoutKey) {
-        const saved = flowLayoutStore.load(flowLayoutKey);
+      if (diagramKey) {
+        const saved = flowLayoutStore.load(diagramKey);
         if (saved) {
           for (const [id, pos] of Object.entries(saved)) {
             const node = cy.$id(id);
@@ -693,12 +929,9 @@ function initFlowGraph(container: HTMLDivElement): () => void {
       cy.fit(undefined, 30);
     });
 
-    // Drag-to-save: debounced 400ms, top-level only.
-    // WHY top-level only: sub-DFD positions are ephemeral — the user returns
-    // to the top diagram by clicking Back, which re-layouts from scratch anyway.
-    // Saving sub-diagram positions would waste a bucket entry on transient state.
+    // Drag-to-save: debounced 400ms. Each diagram persists under its own key.
     cy.on('free', 'node', () => {
-      if (stack.length !== 1 || !flowLayoutKey) return;
+      if (!diagramKey) return;
       if (saveTimer !== null) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         const positions: Record<string, { x: number; y: number }> = {};
@@ -706,7 +939,7 @@ function initFlowGraph(container: HTMLDivElement): () => void {
           const pos = node.position();
           positions[node.id()] = { x: pos.x, y: pos.y };
         });
-        flowLayoutStore.save(flowLayoutKey, positions);
+        flowLayoutStore.save(diagramKey, positions);
       }, 400);
     });
 
@@ -741,11 +974,16 @@ function initFlowGraph(container: HTMLDivElement): () => void {
     stack.splice(targetIdx + 1);
     const target = stack[stack.length - 1];
     if (!target) return;
+    refreshSelector();
     renderBreadcrumb();
     renderDiagram(target.diagram);
   }
 
-  renderDiagram(rootDiagram);
+  // Seed the stack with the starting DFD (preserving selection across SSE re-renders).
+  const startDiagram = allDiagrams.find(d => d.id === startDiagramId) ?? allDiagrams[0]!;
+  stack.push({ diagram: startDiagram, label: startDiagram.id });
+  onDiagramChange?.(startDiagram.id);
+  renderDiagram(startDiagram);
 
   return () => {
     if (saveTimer !== null) clearTimeout(saveTimer);
@@ -756,7 +994,30 @@ function initFlowGraph(container: HTMLDivElement): () => void {
     if (breadcrumbEl.parentNode) {
       breadcrumbEl.parentNode.removeChild(breadcrumbEl);
     }
+    if (selectorEl && selectorEl.parentNode) {
+      selectorEl.parentNode.removeChild(selectorEl);
+    }
+    if (flowFabEl.parentNode) {
+      flowFabEl.parentNode.removeChild(flowFabEl);
+    }
   };
+}
+
+// Public entry point: dispatches to live or static mode.
+// WHY the split: live mode needs async fetch + SSE subscription;
+// static mode reads from window globals synchronously.
+function initFlowGraph(container: HTMLDivElement): () => void {
+  if (window.__IGNATIUS_MODE__ === 'live') {
+    return initFlowLive(container);
+  }
+  // Static mode: read from window globals.
+  const rawDiagrams: FlowDiagram[] | undefined = window.__FLOW_MODEL__;
+  if (!rawDiagrams || rawDiagrams.length === 0) {
+    console.warn('[ignatius] initFlowGraph: window.__FLOW_MODEL__ is not set or empty');
+    return () => {};
+  }
+  const flowLayoutKeysMap: Record<string, string> = window.__FLOW_LAYOUT_KEYS__ ?? {};
+  return initFlowGraphCore(container, rawDiagrams, flowLayoutKeysMap, rawDiagrams[0]!.id);
 }
 
 function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mode: ThemeMode): cytoscape.Stylesheet[] {
@@ -2318,6 +2579,15 @@ export function App() {
           >
             Open Dict
           </a>
+          {window.__IGNATIUS_MODE__ === 'live' && (
+            <a
+              className="fab-menu-item"
+              href="/flow"
+              role="menuitem"
+            >
+              Flows
+            </a>
+          )}
           <button
             className="fab-menu-item"
             role="menuitem"

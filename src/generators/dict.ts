@@ -476,10 +476,11 @@ export async function generateDict(
   model: Model,
   findings: { globalErrors: GlobalError[]; entityErrors: EntityError[] },
   mode: 'dark' | 'light',
-  opts?: { modelsDir?: string; graphHref?: string; surface?: 'live' | 'static' },
+  opts?: { modelsDir?: string; graphHref?: string; flowsHref?: string; surface?: 'live' | 'static' },
 ): Promise<string> {
   const modelsDir = opts?.modelsDir ?? '.';
   const graphHref = opts?.graphHref;
+  const flowsHref = opts?.flowsHref;
   const surface = opts?.surface ?? 'static';
   const branding = model.branding;
 
@@ -1589,11 +1590,15 @@ ${missingSections}
     const graphItem = graphHref
       ? `      <a class="dict-fab-menu-item" href="${esc(graphHref)}" role="menuitem">Data Graph</a>`
       : '';
+    const flowsItem = flowsHref
+      ? `      <a class="dict-fab-menu-item" href="${esc(flowsHref)}" role="menuitem">Flows</a>`
+      : '';
     return `<button class="dict-fab" id="dict-fab" title="Actions" aria-expanded="false" aria-haspopup="true">${body}</button>
   <div class="dict-fab-menu" id="dict-fab-menu" role="menu">
       <button class="dict-fab-menu-item" data-action="toggle-sidebar" role="menuitem">Toggle sidebar</button>
       <button class="dict-fab-menu-item" data-action="copy-link" role="menuitem">Copy link</button>
 ${graphItem}
+${flowsItem}
   </div>`;
   })()}
   <script>

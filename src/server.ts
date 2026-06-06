@@ -3,8 +3,12 @@ import { parseModels } from './parse';
 import { validateModel } from './validate';
 import { generateDict } from './generators/dict';
 import { layoutFingerprint } from './layout-fingerprint';
-import { resolve, normalize, isAbsolute } from 'path';
-import { watch } from 'fs';
+import { parseFlows } from './flow-parse';
+import { validateFlows } from './flow-validate';
+import { generateFlowGraph, buildFlowLayoutKeys } from './generators/flow-graph';
+import { generateFlowDict } from './generators/flow-dict';
+import { resolve, normalize, isAbsolute, join } from 'path';
+import { watch, existsSync } from 'fs';
 
 const encoder = new TextEncoder();
 
@@ -72,7 +76,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         const validation = validateModel(model);
         const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
         const renderModel = { ...model, nodes: validation.cleanedModel.nodes };
-        const html = await generateDict(renderModel, { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors }, mode, { modelsDir, graphHref: '/', surface: 'live' });
+        const html = await generateDict(renderModel, { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors }, mode, { modelsDir, graphHref: '/', flowsHref: '/flow', surface: 'live' });
         return new Response(html, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
@@ -82,6 +86,74 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         const validation = validateModel(model);
         const layoutKey = layoutFingerprint(model);
         return Response.json({ model, parseGlobalErrors, validation, layoutKey });
+      },
+      '/flow': async (req) => {
+        const url = new URL(req.url);
+        const rawTheme = url.searchParams.get('theme');
+        const themeMode = rawTheme === 'light' ? 'light' : 'dark';
+
+        // Guard: if no flows/ directory, return a friendly empty-state page (200), not 500.
+        const flowsDir = join(modelsDir, 'flows');
+        const hasFlows = existsSync(flowsDir);
+        if (!hasFlows) {
+          const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Flows</title></head><body><p style="font-family:system-ui;padding:2rem;color:#999">No flows in this model. Create a <code>flows/</code> directory to get started.</p></body></html>`;
+          return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        }
+
+        const { model } = await parseModels(modelsDir);
+        const { flowModel } = await parseFlows(modelsDir);
+        const flowRulesConfig = model._meta?.flowRules ?? {};
+        const validation = validateFlows(flowModel, model, flowRulesConfig);
+        const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
+        const html = await generateFlowGraph(
+          validation.cleanedFlowModel,
+          model,
+          'live',
+          { flowLayoutKeys, themeMode, dictHref: '/flow-dict' },
+        );
+        return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      },
+      '/api/flow': async () => {
+        // Guard: if no flows/ directory, return an empty-state payload (200), not 500.
+        const flowsDir = join(modelsDir, 'flows');
+        const hasFlows = existsSync(flowsDir);
+        if (!hasFlows) {
+          return Response.json({ diagrams: [], validation: { flowErrors: [], globalErrors: [], cleanedFlowModel: { diagrams: [], modelDir: modelsDir } }, flowLayoutKeys: {} });
+        }
+
+        const { model } = await parseModels(modelsDir);
+        const { flowModel } = await parseFlows(modelsDir);
+        const flowRulesConfig = model._meta?.flowRules ?? {};
+        const validation = validateFlows(flowModel, model, flowRulesConfig);
+        const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
+        return Response.json({ diagrams: flowModel.diagrams, validation, flowLayoutKeys });
+      },
+      '/flow-dict': async (req) => {
+        const url = new URL(req.url);
+        const rawTheme = url.searchParams.get('theme');
+        const themeMode = rawTheme === 'light' ? 'light' : 'dark';
+
+        // Guard: if no flows/ directory, return a friendly empty-state page (200), not 500.
+        const flowsDir = join(modelsDir, 'flows');
+        const hasFlows = existsSync(flowsDir);
+        if (!hasFlows) {
+          const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Process Dictionary</title></head><body><p style="font-family:system-ui;padding:2rem;color:#999">No flows in this model.</p></body></html>`;
+          return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+        }
+
+        const { model } = await parseModels(modelsDir);
+        const { flowModel, globalErrors: parseFlowErrors } = await parseFlows(modelsDir);
+        const flowRulesConfig = model._meta?.flowRules ?? {};
+        const flowValidation = validateFlows(flowModel, model, flowRulesConfig);
+        const allFlowGlobalErrors = [...parseFlowErrors, ...flowValidation.globalErrors];
+        const html = generateFlowDict(
+          flowModel,
+          model,
+          { flowErrors: flowValidation.flowErrors, globalErrors: allFlowGlobalErrors },
+          'live',
+          { themeMode, graphHref: '/' },
+        );
+        return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
       },
       '/api/asset': async (req) => {
         const url = new URL(req.url);

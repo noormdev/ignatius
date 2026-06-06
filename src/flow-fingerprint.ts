@@ -31,9 +31,10 @@ function fnv1a32(input: string): string {
  * lets the function be called in any JS environment and makes it trivially
  * unit-testable against FlowDiagram literals (same rationale as layoutFingerprint).
  *
- * NOT imported by App.tsx — the frontend reads the key from
- * window.__FLOW_LAYOUT_KEY__ only. Imported by src/generators/flow-graph.ts
- * and src/cli.ts for injection.
+ * NOT imported by App.tsx — the frontend reads keys from the
+ * window.__FLOW_LAYOUT_KEYS__ map (static) or the /api/flow payload's
+ * flowLayoutKeys field (live). Imported by src/generators/flow-graph.ts
+ * and src/server.ts (via buildFlowLayoutKeys) to build the id→fingerprint map.
  */
 export function layoutFlowFingerprint(diagram: FlowDiagram): string {
   const processIds = diagram.processes.map(p => p.id).sort();

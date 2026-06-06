@@ -262,8 +262,8 @@ The `= []` default ensures all existing callers compile unchanged. Sort order: e
   - `-o` / `--out <file>` — output path, **required** (same as `dict`/`graph`: error to stderr + exit 1 when omitted).
   - `--model <key>` — model picker key.
   - `--theme light|dark`.
-  - Pipeline: `pickModel(base, modelKey)` → `parseModels(dir)` (entity catalog) → `parseFlows(dir)` → `validateFlows(flowModel, model, config)` → `formatFindingsForStderr(...)` to stderr → `generateFlowGraph(flowModel, …)` (the WHOLE model — all DFDs) → `Bun.write(outputPath, html)` → `process.exit(<class-B present> ? 1 : 0)`.
-  - Exit code 1 when any Class B flow finding is present across any DFD, else 0.
+  - Pipeline: `pickModel(base, modelKey)` → `parseModels(dir)` (entity catalog) → `parseFlows(dir)` → `validateFlows(flowModel, model, config)` → `formatFindingsForStderr(...)` to stderr → `generateFlowGraph(flowModel, …)` (the WHOLE model — all DFDs) → `Bun.write(outputPath, html)` → exit.
+  - Exit code 1 when **any global error is present OR any Class B flow finding is present** — consistent with `dict`/`graph`, which exit 1 on global errors. Global errors include parse-time errors and entity/flow validation global errors. Class A flow warnings do not affect the exit code. Else 0.
   - A model with **no `flows/`** dir: print a friendly stderr note (`no flows in <model>`) and exit 0 — not an error (mirrors how `dict` handles an empty model gracefully).
 - The output is ONE self-contained viewer carrying every DFD in the model; selecting a DFD is in-app navigation (see Render). No per-DFD output files; no DFD-name argument anywhere.
 - `validateCmd` already calls `parseFlows` + `validateFlows` when a `flows/` dir exists and merges flow findings into stderr + exit code — unchanged by this rework.

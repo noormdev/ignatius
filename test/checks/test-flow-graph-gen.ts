@@ -1,8 +1,11 @@
 /**
- * test-flow-graph-gen.ts — CP-4a: generateFlowGraph static HTML injection.
+ * test-flow-graph-gen.ts — R1 (updated): generateFlowGraph static HTML injection.
  *
- * Verifies the emitted HTML string carries the correct window.__ injections
- * and that the live-mode script is stripped.
+ * Verifies the emitted HTML string carries:
+ *   - window.__FLOW_MODEL__ as a JSON ARRAY of FlowDiagrams
+ *   - window.__FLOW_LAYOUT_KEYS__ as a JSON OBJECT (id→fingerprint map)
+ *   - the live-mode script is stripped
+ *   - </script> escape round-trip is preserved
  *
  * Runs against:
  *  - clean flow fixture: test/fixtures/flows (produces diagram.id = 'clean',
@@ -13,7 +16,8 @@
 import { parseFlows } from '../../src/flow-parse';
 import type { FlowDiagram } from '../../src/flow-parse';
 import { parseModels } from '../../src/parse';
-import { generateFlowGraph } from '../../src/generators/flow-graph';
+import { generateFlowGraph, buildFlowLayoutKeys } from '../../src/generators/flow-graph';
+import type { FlowModel } from '../../src/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {
@@ -23,22 +27,29 @@ function assert(cond: boolean, msg: string): asserts cond {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: extract the window.__FLOW_MODEL__ value from the emitted HTML,
-// parse it as JSON, and return the object. Throws if not found or not valid.
+// Helper: extract window.__FLOW_MODEL__ value from emitted HTML, parse as JSON,
+// and return the array of FlowDiagrams. Throws if not found or not valid.
 // ---------------------------------------------------------------------------
-function extractFlowModel(html: string): FlowDiagram {
-    // Match the assignment up to its terminating semicolon, being careful
-    // not to consume the closing </script> of the injection block.
-    // The value is everything between `= ` and `; window.__FLOW_LAYOUT_KEY__`
-    // (the next assignment in the same <script> block).
-    const match = html.match(/window\.__FLOW_MODEL__ = (.*?); window\.__FLOW_LAYOUT_KEY__/s);
+function extractFlowModelArray(html: string): FlowDiagram[] {
+    // Match the assignment up to its terminating semicolon, before the next
+    // assignment (window.__FLOW_LAYOUT_KEYS__) in the same <script> block.
+    const match = html.match(/window\.__FLOW_MODEL__ = (.*?); window\.__FLOW_LAYOUT_KEYS__/s);
     assert(match !== null, '__FLOW_MODEL__ assignment not found in emitted HTML');
     const raw = match[1]!;
     // Undo the <\/script> → </script> escape so JSON.parse sees the original value.
     const unescaped = raw.replace(/<\\\/script/gi, '</script');
-    // JSON.parse returns any; the declared return type + assertions below
-    // verify the actual shape without needing a cast.
-    return JSON.parse(unescaped);
+    return JSON.parse(unescaped) as FlowDiagram[];
+}
+
+// ---------------------------------------------------------------------------
+// Helper: extract window.__FLOW_LAYOUT_KEYS__ value from emitted HTML.
+// ---------------------------------------------------------------------------
+function extractFlowLayoutKeys(html: string): Record<string, string> {
+    const match = html.match(/window\.__FLOW_LAYOUT_KEYS__ = (.*?); window\.__THEME_MODE__/s);
+    assert(match !== null, '__FLOW_LAYOUT_KEYS__ assignment not found in emitted HTML');
+    const raw = match[1]!;
+    const unescaped = raw.replace(/<\\\/script/gi, '</script');
+    return JSON.parse(unescaped) as Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,10 +70,10 @@ assert(flowModel.diagrams.length === 1, `expected 1 diagram, got ${flowModel.dia
 const diagram = flowModel.diagrams[0]!;
 assert(diagram.id === 'clean', `diagram.id should be 'clean', got '${diagram.id}'`);
 
-const FLOW_LAYOUT_KEY = 'testkey123';
+const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
 
-const html = await generateFlowGraph(diagram, model, 'static', {
-    flowLayoutKey: FLOW_LAYOUT_KEY,
+const html = await generateFlowGraph(flowModel, model, 'static', {
+    flowLayoutKeys,
     themeMode: 'dark',
 });
 
@@ -84,45 +95,68 @@ assert(
 );
 console.log('PASS: window.__IGNATIUS_MODE__ = "static" present');
 
-// 3. __FLOW_MODEL__ — extract and parse the actual JSON, assert it contains the expected process
-const parsedModel = extractFlowModel(html);
+// 3. __FLOW_MODEL__ — must be a JSON ARRAY
+const parsedArray = extractFlowModelArray(html);
+assert(Array.isArray(parsedArray), '__FLOW_MODEL__ must parse to an array');
 assert(
-    typeof parsedModel === 'object' && parsedModel !== null,
-    '__FLOW_MODEL__ must parse to a non-null object',
+    parsedArray.length === flowModel.diagrams.length,
+    `__FLOW_MODEL__ array length must match model's diagram count (${flowModel.diagrams.length}), got ${parsedArray.length}`,
 );
+console.log(`PASS: window.__FLOW_MODEL__ is an array of length ${parsedArray.length}`);
+
+// 4. First diagram in the array has the expected id and process
+const parsedDiagram = parsedArray[0]!;
 assert(
-    parsedModel.id === 'clean',
-    `parsed __FLOW_MODEL__.id must be 'clean', got '${parsedModel.id}'`,
+    parsedDiagram.id === 'clean',
+    `parsed __FLOW_MODEL__[0].id must be 'clean', got '${parsedDiagram.id}'`,
 );
-const placeOrderProc = parsedModel.processes.find(p => p.id === 'Place-Order');
+const placeOrderProc = parsedDiagram.processes.find(p => p.id === 'Place-Order');
 assert(
     placeOrderProc !== undefined,
-    '__FLOW_MODEL__ parsed diagram must contain process id "Place-Order"',
+    '__FLOW_MODEL__[0] must contain process id "Place-Order"',
 );
 assert(
     placeOrderProc.label === 'Place Order',
     `process label must be 'Place Order', got '${placeOrderProc.label}'`,
 );
-console.log('PASS: window.__FLOW_MODEL__ well-formed JSON with process id=Place-Order label="Place Order"');
+console.log('PASS: window.__FLOW_MODEL__[0] well-formed with process id=Place-Order label="Place Order"');
 
-// 4. __FLOW_LAYOUT_KEY__ — extract and parse the actual injected value
-const layoutKeyMatch = html.match(/window\.__FLOW_LAYOUT_KEY__ = (.*?); window\.__THEME_MODE__/s);
-assert(layoutKeyMatch !== null, '__FLOW_LAYOUT_KEY__ assignment not found in emitted HTML');
-const parsedLayoutKey: string = JSON.parse(layoutKeyMatch[1]!);
+// 5. __FLOW_LAYOUT_KEYS__ — must be a JSON OBJECT (not a scalar) with entry per diagram id
+const parsedKeys = extractFlowLayoutKeys(html);
 assert(
-    parsedLayoutKey === FLOW_LAYOUT_KEY,
-    `parsed __FLOW_LAYOUT_KEY__ must equal "${FLOW_LAYOUT_KEY}", got "${parsedLayoutKey}"`,
+    typeof parsedKeys === 'object' && parsedKeys !== null && !Array.isArray(parsedKeys),
+    '__FLOW_LAYOUT_KEYS__ must parse to a non-null, non-array object',
 );
-console.log('PASS: window.__FLOW_LAYOUT_KEY__ parses to "testkey123"');
+// Every top-level diagram id must be present in the map.
+for (const d of flowModel.diagrams) {
+    assert(
+        d.id in parsedKeys,
+        `__FLOW_LAYOUT_KEYS__ must contain an entry for diagram id "${d.id}"`,
+    );
+    assert(
+        typeof parsedKeys[d.id] === 'string' && parsedKeys[d.id]!.length > 0,
+        `__FLOW_LAYOUT_KEYS__["${d.id}"] must be a non-empty string`,
+    );
+}
+console.log(`PASS: window.__FLOW_LAYOUT_KEYS__ is an object with ${Object.keys(parsedKeys).length} entr${Object.keys(parsedKeys).length === 1 ? 'y' : 'ies'}`);
 
-// 5. Live-mode script is stripped
+// 6. buildFlowLayoutKeys agrees with the injected map
+for (const [id, key] of Object.entries(flowLayoutKeys)) {
+    assert(
+        parsedKeys[id] === key,
+        `__FLOW_LAYOUT_KEYS__["${id}"] in HTML (${parsedKeys[id]}) must match buildFlowLayoutKeys result (${key})`,
+    );
+}
+console.log('PASS: __FLOW_LAYOUT_KEYS__ values match buildFlowLayoutKeys output');
+
+// 7. Live-mode script is stripped
 assert(
     !html.includes("window.__IGNATIUS_MODE__ = 'live'"),
     "live-mode script (window.__IGNATIUS_MODE__ = 'live') must be stripped from output",
 );
 console.log("PASS: live-mode window.__IGNATIUS_MODE__ = 'live' script stripped");
 
-// 6. Bundle is embedded — check for doctype and a bundled script block
+// 8. Bundle is embedded — check for doctype and a bundled script block
 assert(
     html.toLowerCase().includes('<!doctype html>'),
     'output must contain <!doctype html>',
@@ -133,7 +167,7 @@ assert(
 );
 console.log('PASS: <!doctype html> and inlined module script present');
 
-// 7. __THEME_MODE__ is set
+// 9. __THEME_MODE__ is set
 assert(
     html.includes('window.__THEME_MODE__ = "dark"'),
     '__THEME_MODE__ must be set to "dark"',
@@ -144,9 +178,7 @@ console.log('PASS: window.__THEME_MODE__ = "dark" present');
 // Escape test — </script> in a field value must not appear raw in the HTML
 // ---------------------------------------------------------------------------
 
-// Build a minimal FlowDiagram literal whose process bodyHtml contains </script>.
-// This is realistic: a process body can contain a markdown code fence with that
-// string, which the markdown renderer will emit verbatim.
+// Build a minimal FlowModel whose process bodyHtml contains </script>.
 const SCRIPT_CLOSE = '</script>';
 const escapeDiagram: FlowDiagram = {
     id: 'escape-test',
@@ -169,44 +201,118 @@ const escapeDiagram: FlowDiagram = {
     subDfds: [],
 };
 
-const escapeHtml = await generateFlowGraph(escapeDiagram, model, 'static', {
-    flowLayoutKey: 'escape-key',
+const escapeFlowModel: FlowModel = {
+    diagrams: [escapeDiagram],
+    modelDir: 'test',
+};
+
+const escapeKeys = buildFlowLayoutKeys(escapeFlowModel);
+const escapeHtml = await generateFlowGraph(escapeFlowModel, model, 'static', {
+    flowLayoutKeys: escapeKeys,
     themeMode: 'dark',
 });
 
 // (a) The raw </script> from bodyHtml must NOT appear unescaped inside the
-//     injection <script> block. Verify by checking the region between the
-//     opening injection <script> and the first </script> that closes it.
-//     Strategy: find the injection block start, take a slice ending at the
-//     first </script> after it, and confirm it does not contain the body's
-//     literal `</script>` tag — only the escaped form `<\/script`.
+//     injection <script> block.
 const injectionStart = escapeHtml.indexOf('window.__IGNATIUS_MODE__ = "static"');
 assert(injectionStart !== -1, 'escape test: injection block not found in HTML');
 const injectionEnd = escapeHtml.indexOf('</script>', injectionStart);
 assert(injectionEnd !== -1, 'escape test: closing </script> of injection block not found');
 const injectionSlice = escapeHtml.slice(injectionStart, injectionEnd);
 
-// The raw (unescaped) </script> must not appear inside the injection values.
-// It is safe to check the slice up to the </script> closer — if the raw
-// sequence were present it would have truncated the block there already.
 assert(
     !injectionSlice.includes(SCRIPT_CLOSE),
     'escape test: raw </script> must NOT appear inside injection block (not escaped)',
 );
 console.log('PASS: escape test — raw </script> not present in injection block');
 
-// (b) The JSON round-trips: extracting and parsing the model gives back the
-//     original bodyHtml with the unescaped </script> intact.
-const parsedEscape = extractFlowModel(escapeHtml);
-const escapedProc = parsedEscape.processes.find(p => p.id === 'Proc-1');
+// (b) The JSON round-trips: the parsed array gives back the original bodyHtml.
+const parsedEscapeArray = extractFlowModelArray(escapeHtml);
+assert(Array.isArray(parsedEscapeArray) && parsedEscapeArray.length === 1, 'escape test: __FLOW_MODEL__ must be array of length 1');
+const escapedProc = parsedEscapeArray[0]!.processes.find(p => p.id === 'Proc-1');
 assert(
     escapedProc !== undefined,
-    'escape test: Proc-1 not found in parsed __FLOW_MODEL__',
+    'escape test: Proc-1 not found in parsed __FLOW_MODEL__[0]',
 );
 assert(
     escapedProc.bodyHtml.includes(SCRIPT_CLOSE),
     `escape test: bodyHtml must round-trip to contain "${SCRIPT_CLOSE}" after parse`,
 );
 console.log('PASS: escape test — bodyHtml round-trips correctly through JSON parse');
+
+// ---------------------------------------------------------------------------
+// Multi-DFD test — models/key-inherited (order-to-cash + refund)
+// ---------------------------------------------------------------------------
+// key-inherited now has TWO top-level DFDs. This section confirms that
+// generateFlowGraph serialises both diagrams and that buildFlowLayoutKeys
+// contains entries for every diagram id (plus any sub-DFD ids within them).
+
+const KI_MODEL_DIR = 'models/key-inherited';
+const [{ flowModel: kiFlowModel, globalErrors: kiFlowErrors }, { model: kiModel }] = await Promise.all([
+    parseFlows(KI_MODEL_DIR),
+    parseModels(KI_MODEL_DIR),
+]);
+
+assert(kiFlowErrors.length === 0, `parseFlows key-inherited produced errors: ${JSON.stringify(kiFlowErrors)}`);
+assert(
+    kiFlowModel.diagrams.length === 2,
+    `key-inherited must have 2 top-level DFDs after adding refund, got ${kiFlowModel.diagrams.length}: ${kiFlowModel.diagrams.map(d => d.id).join(', ')}`,
+);
+console.log(`PASS: key-inherited has ${kiFlowModel.diagrams.length} top-level DFDs: ${kiFlowModel.diagrams.map(d => d.id).join(', ')}`);
+
+const kiIds = new Set(kiFlowModel.diagrams.map(d => d.id));
+assert(kiIds.has('order-to-cash'), 'key-inherited diagrams must include order-to-cash');
+assert(kiIds.has('refund'), 'key-inherited diagrams must include refund');
+console.log('PASS: both order-to-cash and refund present in key-inherited diagrams');
+
+const kiLayoutKeys = buildFlowLayoutKeys(kiFlowModel);
+
+const kiHtml = await generateFlowGraph(kiFlowModel, kiModel, 'static', {
+    flowLayoutKeys: kiLayoutKeys,
+    themeMode: 'light',
+});
+
+const kiParsedArray = extractFlowModelArray(kiHtml);
+assert(Array.isArray(kiParsedArray), 'key-inherited __FLOW_MODEL__ must be an array');
+assert(
+    kiParsedArray.length === 2,
+    `key-inherited __FLOW_MODEL__ array must have length 2, got ${kiParsedArray.length}`,
+);
+console.log(`PASS: key-inherited __FLOW_MODEL__ is an array of length ${kiParsedArray.length}`);
+
+const kiParsedKeys = extractFlowLayoutKeys(kiHtml);
+assert(
+    'order-to-cash' in kiParsedKeys,
+    '__FLOW_LAYOUT_KEYS__ must contain entry for order-to-cash',
+);
+assert(
+    typeof kiParsedKeys['order-to-cash'] === 'string' && kiParsedKeys['order-to-cash']!.length > 0,
+    '__FLOW_LAYOUT_KEYS__["order-to-cash"] must be a non-empty string',
+);
+assert(
+    'refund' in kiParsedKeys,
+    '__FLOW_LAYOUT_KEYS__ must contain entry for refund',
+);
+assert(
+    typeof kiParsedKeys['refund'] === 'string' && kiParsedKeys['refund']!.length > 0,
+    '__FLOW_LAYOUT_KEYS__["refund"] must be a non-empty string',
+);
+console.log('PASS: __FLOW_LAYOUT_KEYS__ contains entries for both order-to-cash and refund');
+
+// The two diagrams must have distinct fingerprints (different topology).
+assert(
+    kiParsedKeys['order-to-cash'] !== kiParsedKeys['refund'],
+    'order-to-cash and refund must have distinct layout keys (different topology)',
+);
+console.log('PASS: order-to-cash and refund have distinct layout fingerprints');
+
+// buildFlowLayoutKeys agrees with the injected map for all entries.
+for (const [id, key] of Object.entries(kiLayoutKeys)) {
+    assert(
+        kiParsedKeys[id] === key,
+        `key-inherited __FLOW_LAYOUT_KEYS__["${id}"] in HTML (${kiParsedKeys[id]}) must match buildFlowLayoutKeys result (${key})`,
+    );
+}
+console.log('PASS: key-inherited __FLOW_LAYOUT_KEYS__ values match buildFlowLayoutKeys output');
 
 console.log('\nAll test-flow-graph-gen assertions PASS');

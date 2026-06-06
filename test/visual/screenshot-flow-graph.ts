@@ -1,10 +1,14 @@
 /**
  * Visual verification: flow graph renders with the four canonical DFD node shapes.
  *
- * Self-contained: parses the clean fixture, generates static flow HTML,
- * writes it to tmp/, opens it with Playwright, waits for Cytoscape to
- * initialise (window.__IGNATIUS_CY__ is set by initFlowGraph), takes a
- * screenshot, and saves it to tmp/flow-graph.png.
+ * Uses models/key-inherited (which has the order-to-cash DFD with a sub-DFD)
+ * to exercise a real multi-level model. Passes the whole FlowModel to
+ * generateFlowGraph so the viewer carries all DFDs and the DFD selector renders.
+ *
+ * Self-contained: parses the model, generates static flow HTML, writes it to
+ * tmp/, opens it with Playwright, waits for Cytoscape to initialise
+ * (window.__IGNATIUS_CY__ is set by initFlowGraph), takes a screenshot, and
+ * saves it to tmp/flow-graph.png.
  *
  * NOT run by `bun run test` — manual visual check only, matching the
  * convention of other test/visual/ scripts.
@@ -15,10 +19,9 @@ import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { parseFlows } from '../../src/flow-parse';
 import { parseModels } from '../../src/parse';
-import { generateFlowGraph } from '../../src/generators/flow-graph';
+import { generateFlowGraph, buildFlowLayoutKeys } from '../../src/generators/flow-graph';
 
 const ROOT = resolve(import.meta.dir, '../..');
-const FIXTURE = join(ROOT, 'test/fixtures/flows');
 const MODELS = join(ROOT, 'models/key-inherited');
 const TMP = join(ROOT, 'tmp');
 mkdirSync(TMP, { recursive: true });
@@ -26,10 +29,10 @@ mkdirSync(TMP, { recursive: true });
 const note = (m: string) => console.log(m);
 const fail = (m: string) => { console.error('FAIL:', m); process.exit(1); };
 
-// ── Parse fixture + entity model ─────────────────────────────────────────────
+// ── Parse model + flows ───────────────────────────────────────────────────────
 
-note('Parsing flow fixture…');
-const { flowModel, globalErrors } = await parseFlows(FIXTURE);
+note('Parsing flow model (models/key-inherited)…');
+const { flowModel, globalErrors } = await parseFlows(MODELS);
 if (globalErrors.length > 0) {
     fail(`parseFlows returned globalErrors: ${JSON.stringify(globalErrors)}`);
 }
@@ -37,17 +40,22 @@ if (flowModel.diagrams.length === 0) {
     fail('parseFlows returned no diagrams');
 }
 
-const diagram = flowModel.diagrams[0]!;
-note(`Diagram: ${diagram.id} — ${diagram.processes.length} processes, ${diagram.externals.length} externals, ${diagram.storeRefs.length} stores, ${diagram.edges.length} edges`);
+note(`Diagrams (${flowModel.diagrams.length}): ${flowModel.diagrams.map(d => d.id).join(', ')}`);
+for (const d of flowModel.diagrams) {
+    note(`  ${d.id} — ${d.processes.length} processes, ${d.externals.length} externals, ${d.storeRefs.length} stores, ${d.edges.length} edges, ${d.subDfds.length} sub-DFDs`);
+}
 
 note('Parsing entity model…');
 const { model: entityModel } = await parseModels(MODELS);
 
-// ── Generate static flow HTML ─────────────────────────────────────────────────
+// ── Generate static flow HTML (whole FlowModel) ───────────────────────────────
 
-note('Generating flow graph HTML…');
-const html = await generateFlowGraph(diagram, entityModel, 'static', {
-    flowLayoutKey: 'vis',
+note('Generating flow graph HTML (full FlowModel)…');
+const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
+note(`Layout keys: ${Object.keys(flowLayoutKeys).join(', ')}`);
+
+const html = await generateFlowGraph(flowModel, entityModel, 'static', {
+    flowLayoutKeys,
 });
 
 const htmlPath = join(TMP, 'flow-graph.html');
@@ -100,6 +108,46 @@ try {
         note(`__IGNATIUS_SURFACE__ = "flow" confirmed`);
     }
 
+    // Verify __FLOW_MODEL__ is an array in the page context
+    const flowModelType = await page.evaluate(() => {
+        const m = (window as unknown as { __FLOW_MODEL__?: unknown }).__FLOW_MODEL__;
+        if (!m) return 'undefined';
+        return Array.isArray(m) ? `array(${(m as unknown[]).length})` : typeof m;
+    });
+    if (!flowModelType.startsWith('array')) {
+        console.error(`FAIL: __FLOW_MODEL__ is "${flowModelType}", expected array`);
+        ok = false;
+    } else {
+        note(`__FLOW_MODEL__ is ${flowModelType}`);
+    }
+
+    // Verify __FLOW_LAYOUT_KEYS__ is an object in the page context
+    const keysType = await page.evaluate(() => {
+        const k = (window as unknown as { __FLOW_LAYOUT_KEYS__?: unknown }).__FLOW_LAYOUT_KEYS__;
+        if (!k) return 'undefined';
+        if (Array.isArray(k)) return 'array';
+        return typeof k;
+    });
+    if (keysType !== 'object') {
+        console.error(`FAIL: __FLOW_LAYOUT_KEYS__ is "${keysType}", expected object`);
+        ok = false;
+    } else {
+        note(`__FLOW_LAYOUT_KEYS__ is an object`);
+    }
+
+    // Verify DFD selector is present when there are multiple top-level DFDs
+    if (flowModel.diagrams.length > 1) {
+        const selectorEl = await page.locator('[data-ignatius="flow-selector"]').count();
+        if (selectorEl === 0) {
+            console.error('FAIL: DFD selector element not found (expected for multi-DFD model)');
+            ok = false;
+        } else {
+            note(`DFD selector element present`);
+        }
+    } else {
+        note(`Single-DFD model — no selector expected`);
+    }
+
     // Verify process nodes are present in Cytoscape
     const nodeCount = await page.evaluate(() => {
         const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
@@ -125,6 +173,66 @@ try {
         ok = false;
     } else {
         note(`Screenshot size: ${size} bytes (non-trivial)`);
+    }
+
+    // --- DFD swap test (only when selector is live, i.e. >1 top-level DFD) ---
+    // Click the "refund" selector button, wait for the diagram to re-render,
+    // confirm the node set changes, and take a screenshot of the swapped state.
+    if (flowModel.diagrams.length > 1) {
+        note('Testing DFD swap: clicking "refund" in selector…');
+
+        // The selector renders buttons with textContent = diagram id.
+        const refundBtn = page.locator('[data-ignatius="flow-selector"] button', { hasText: 'refund' });
+        const refundBtnCount = await refundBtn.count();
+        if (refundBtnCount === 0) {
+            console.error('FAIL: "refund" button not found in DFD selector');
+            ok = false;
+        } else {
+            // Record node count before swap (order-to-cash is the initial diagram).
+            const nodeCountBefore = await page.evaluate(() => {
+                const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
+                if (!cy) return -1;
+                return cy.nodes().length;
+            });
+
+            await refundBtn.click();
+            // Allow the ELK layout to settle after the swap.
+            await page.waitForTimeout(2000);
+
+            const nodeCountAfter = await page.evaluate(() => {
+                const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
+                if (!cy) return -1;
+                return cy.nodes().length;
+            });
+
+            note(`Node count before swap: ${nodeCountBefore}, after swap to refund: ${nodeCountAfter}`);
+
+            if (nodeCountAfter < 1) {
+                console.error(`FAIL: after swapping to refund, expected ≥1 Cytoscape node, got ${nodeCountAfter}`);
+                ok = false;
+            } else {
+                note('PASS: swap rendered nodes after selecting refund DFD');
+            }
+
+            if (nodeCountAfter === nodeCountBefore) {
+                note(`NOTE: node counts are equal (${nodeCountAfter}) — order-to-cash and refund may coincidentally have the same node count`);
+            } else {
+                note(`PASS: node count changed (${nodeCountBefore} → ${nodeCountAfter}), confirming different diagram rendered`);
+            }
+
+            const swapScreenshotPath = join(TMP, 'flow-graph-swap.png');
+            await page.screenshot({ path: swapScreenshotPath, fullPage: false });
+            note(`Swap screenshot saved to ${swapScreenshotPath}`);
+
+            const swapStat = Bun.file(swapScreenshotPath);
+            const swapSize = swapStat.size;
+            if (swapSize < 1000) {
+                console.error(`FAIL: swap screenshot is suspiciously small (${swapSize} bytes)`);
+                ok = false;
+            } else {
+                note(`Swap screenshot size: ${swapSize} bytes (non-trivial)`);
+            }
+        }
     }
 
 } catch (err) {
