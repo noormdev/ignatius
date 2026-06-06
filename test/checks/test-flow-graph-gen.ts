@@ -174,6 +174,13 @@ assert(
 );
 console.log('PASS: window.__THEME_MODE__ = "dark" present');
 
+// 10. __MODEL__ is injected (branding model) — must be a non-trivial JSON object
+assert(
+    html.includes('window.__MODEL__ ='),
+    '__MODEL__ (branding model) must be injected into static flow HTML',
+);
+console.log('PASS: window.__MODEL__ injection present');
+
 // ---------------------------------------------------------------------------
 // Escape test — </script> in a field value must not appear raw in the HTML
 // ---------------------------------------------------------------------------

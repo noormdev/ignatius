@@ -73,7 +73,7 @@ export function buildFlowLayoutKeys(flowModel: FlowModel): Record<string, string
  */
 export async function generateFlowGraph(
     flowModel: FlowModel,
-    _entityModel: Model,
+    entityModel: Model,
     _mode: 'static' | 'live',
     opts: FlowGraphOpts,
     sourceOrDir: string | BundleContent = 'dist/static',
@@ -133,6 +133,7 @@ export async function generateFlowGraph(
           `</script>`
         : `<script>` +
           `window.__IGNATIUS_MODE__ = "static"; ` +
+          `window.__MODEL__ = ${escapeScriptClose(JSON.stringify(entityModel))}; ` +
           `window.__FLOW_MODEL__ = ${escapeScriptClose(JSON.stringify(flowModel.diagrams))}; ` +
           `window.__FLOW_LAYOUT_KEYS__ = ${escapeScriptClose(JSON.stringify(opts.flowLayoutKeys))}; ` +
           `window.__THEME_MODE__ = ${escapeScriptClose(JSON.stringify(themeMode))}; ` +

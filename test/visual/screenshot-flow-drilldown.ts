@@ -77,26 +77,23 @@ try {
     await page.goto(`file://${htmlPath}`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Wait for Cytoscape to initialise at top level
-    const cyReady = await page.waitForFunction(
-        () => (window as unknown as { __IGNATIUS_CY__?: unknown }).__IGNATIUS_CY__ !== undefined,
+    // Wait for the SVG renderer to signal readiness
+    const svgReady = await page.waitForFunction(
+        () => (window as unknown as { __IGNATIUS_FLOW_READY__?: boolean }).__IGNATIUS_FLOW_READY__ === true,
         { timeout: 15_000 },
     ).then(() => true).catch(() => false);
 
-    if (!cyReady) {
-        fail('Timed out waiting for window.__IGNATIUS_CY__');
+    if (!svgReady) {
+        fail('Timed out waiting for window.__IGNATIUS_FLOW_READY__');
     }
 
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(500);
 
-    // Verify Authenticate process node is present
-    const nodeCount = await page.evaluate(() => {
-        const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
-        return cy ? cy.nodes().length : -1;
-    });
-    note(`Top level Cytoscape nodes: ${nodeCount}`);
+    // Verify process nodes are present as SVG elements
+    const nodeCount = await page.locator('[data-node-type="process"]').count();
+    note(`Top level SVG process nodes: ${nodeCount}`);
     if (nodeCount < 1) {
-        console.error(`FAIL: expected at least 1 node, got ${nodeCount}`);
+        console.error(`FAIL: expected at least 1 process node, got ${nodeCount}`);
         ok = false;
     }
 
@@ -112,38 +109,38 @@ try {
         note(`Top screenshot size: ${topSize} bytes (non-trivial)`);
     }
 
-    // ── Simulate drill-down by directly calling the sub-DFD swap in the page ──
-    // Since the tap event on Cytoscape nodes is tricky to trigger from Playwright,
-    // we directly inject a renderDiagram call by triggering a tap event on the
-    // Authenticate node via Cytoscape's API.
-    const drillSuccess = await page.evaluate(() => {
-        const cy = (window as unknown as { __IGNATIUS_CY__?: {
-            nodes: (selector: string) => { length: number; emit: (event: string) => void };
-        } }).__IGNATIUS_CY__;
-        if (!cy) return false;
-        const procNodes = cy.nodes('[nodeType = "process"][?hasSubDfd]');
-        if (procNodes.length === 0) return false;
-        // Emit a tap on the first drillable node to trigger the drill-down handler
-        procNodes.emit('tap');
-        return true;
-    });
+    // ── Simulate drill-down by clicking a drillable process node in the SVG ──
+    // FlowDiagramSvg marks drillable process nodes with data-has-sub-dfd="true".
+    // Using this attribute is more robust than style*="pointer" which can match
+    // other cursor-bearing elements or break if the style format changes.
+    const drillableNodes = page.locator('[data-node-type="process"][data-has-sub-dfd="true"]');
+    const drillableCount = await drillableNodes.count();
+    const drillSuccess = drillableCount > 0;
 
     if (!drillSuccess) {
-        console.error('FAIL: could not find drillable process node or emit tap');
+        console.error('FAIL: no drillable process node found (data-has-sub-dfd="true" not present)');
         ok = false;
     } else {
-        note('Emitted tap on drillable process node');
+        note(`Found ${drillableCount} drillable process node(s); clicking first…`);
+
+        // Two-phase wait: reset the flag first so we don't race on a stale `true`.
+        await page.evaluate(() => {
+            (window as unknown as { __IGNATIUS_FLOW_READY__?: boolean }).__IGNATIUS_FLOW_READY__ = false;
+        });
+
+        await drillableNodes.first().click();
     }
 
-    // Wait for the sub-DFD to render (Cytoscape re-initialises)
-    await page.waitForTimeout(3000);
+    // Wait for the sub-DFD SVG to signal readiness (flag reset before click, so no stale read).
+    await page.waitForFunction(
+        () => (window as unknown as { __IGNATIUS_FLOW_READY__?: boolean }).__IGNATIUS_FLOW_READY__ === true,
+        { timeout: 10_000 },
+    );
+    await page.waitForTimeout(500);
 
-    // Verify the sub-DFD is now rendered (different set of nodes)
-    const subNodeCount = await page.evaluate(() => {
-        const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
-        return cy ? cy.nodes().length : -1;
-    });
-    note(`Sub-DFD Cytoscape nodes: ${subNodeCount}`);
+    // Verify the sub-DFD is now rendered (count SVG nodes)
+    const subNodeCount = await page.locator('[data-node-type]').count();
+    note(`Sub-DFD SVG nodes: ${subNodeCount}`);
 
     // Screenshot the sub-DFD level
     const drillScreenshotPath = join(TMP, 'flow-drilldown.png');

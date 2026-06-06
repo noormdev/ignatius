@@ -74,27 +74,27 @@ try {
     await page.goto(`file://${htmlPath}`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Wait for Cytoscape to initialise — initFlowGraph sets window.__IGNATIUS_CY__
-    // on success, so polling for it confirms the flow render path ran.
-    const cyReady = await page.waitForFunction(
-        () => (window as unknown as { __IGNATIUS_CY__?: unknown }).__IGNATIUS_CY__ !== undefined,
+    // Wait for the SVG renderer to signal readiness — initFlowGraph sets
+    // window.__IGNATIUS_FLOW_READY__ = true once FlowDiagramSvg has mounted.
+    const svgReady = await page.waitForFunction(
+        () => (window as unknown as { __IGNATIUS_FLOW_READY__?: boolean }).__IGNATIUS_FLOW_READY__ === true,
         { timeout: 15_000 },
     ).then(() => true).catch(() => false);
 
-    if (!cyReady) {
-        fail('Timed out waiting for window.__IGNATIUS_CY__ — initFlowGraph may not have run');
+    if (!svgReady) {
+        fail('Timed out waiting for window.__IGNATIUS_FLOW_READY__ — SVG renderer may not have mounted');
     }
 
-    // Allow layout to settle
-    await page.waitForTimeout(2000);
+    // Allow React render to settle
+    await page.waitForTimeout(1000);
 
-    // Verify we can find the canvas (Cytoscape renders into a canvas element)
-    const canvasCount = await page.locator('canvas').count();
-    if (canvasCount === 0) {
-        console.error('FAIL: no canvas element found — Cytoscape may not have initialised');
+    // Verify the SVG element is present (FlowDiagramSvg renders <svg data-ignatius="flow-svg">)
+    const svgCount = await page.locator('[data-ignatius="flow-svg"]').count();
+    if (svgCount === 0) {
+        console.error('FAIL: no flow SVG element found — SVG renderer may not have mounted');
         ok = false;
     } else {
-        note(`Canvas elements found: ${canvasCount}`);
+        note(`Flow SVG elements found: ${svgCount}`);
     }
 
     // Verify __IGNATIUS_SURFACE__ was 'flow' (confirms surface dispatch ran correctly)
@@ -148,17 +148,13 @@ try {
         note(`Single-DFD model — no selector expected`);
     }
 
-    // Verify process nodes are present in Cytoscape
-    const nodeCount = await page.evaluate(() => {
-        const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
-        if (!cy) return -1;
-        return cy.nodes().length;
-    });
-    if (nodeCount < 1) {
-        console.error(`FAIL: expected at least 1 Cytoscape node, got ${nodeCount}`);
+    // Verify process nodes are present as SVG groups
+    const procNodeCount = await page.locator('[data-node-type="process"]').count();
+    if (procNodeCount < 1) {
+        console.error(`FAIL: expected at least 1 process SVG node, got ${procNodeCount}`);
         ok = false;
     } else {
-        note(`Cytoscape nodes: ${nodeCount}`);
+        note(`SVG process nodes: ${procNodeCount}`);
     }
 
     const screenshotPath = join(TMP, 'flow-graph.png');
@@ -188,27 +184,23 @@ try {
             console.error('FAIL: "refund" button not found in DFD selector');
             ok = false;
         } else {
-            // Record node count before swap (order-to-cash is the initial diagram).
-            const nodeCountBefore = await page.evaluate(() => {
-                const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
-                if (!cy) return -1;
-                return cy.nodes().length;
-            });
+            // Record SVG node count before swap (order-to-cash is the initial diagram).
+            const nodeCountBefore = await page.locator('[data-ignatius="flow-svg"] [data-node-type]').count();
 
             await refundBtn.click();
-            // Allow the ELK layout to settle after the swap.
-            await page.waitForTimeout(2000);
+            // Wait for the SVG to re-render (ready flag briefly becomes false then true).
+            await page.waitForFunction(
+                () => (window as unknown as { __IGNATIUS_FLOW_READY__?: boolean }).__IGNATIUS_FLOW_READY__ === true,
+                { timeout: 10_000 },
+            ).catch(() => {});
+            await page.waitForTimeout(500);
 
-            const nodeCountAfter = await page.evaluate(() => {
-                const cy = (window as unknown as { __IGNATIUS_CY__?: { nodes: () => { length: number } } }).__IGNATIUS_CY__;
-                if (!cy) return -1;
-                return cy.nodes().length;
-            });
+            const nodeCountAfter = await page.locator('[data-ignatius="flow-svg"] [data-node-type]').count();
 
             note(`Node count before swap: ${nodeCountBefore}, after swap to refund: ${nodeCountAfter}`);
 
             if (nodeCountAfter < 1) {
-                console.error(`FAIL: after swapping to refund, expected ≥1 Cytoscape node, got ${nodeCountAfter}`);
+                console.error(`FAIL: after swapping to refund, expected ≥1 SVG node, got ${nodeCountAfter}`);
                 ok = false;
             } else {
                 note('PASS: swap rendered nodes after selecting refund DFD');

@@ -55,6 +55,10 @@ html, body, #root {
   font-weight: 700;
   color: var(--color-text);
   line-height: 1.2;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .branding-subtitle {
   font-size: 11px;
