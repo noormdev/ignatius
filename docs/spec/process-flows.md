@@ -7,7 +7,7 @@ Derived from `docs/design/process-flows.md`.
 ## Goal
 
 
-Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, shared `db:` store resolution against the entity catalog, well-formedness validation riding the existing `flow.*` rule registry, and Cytoscape rendering via a separate flow render path in the existing bundle.
+Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, shared `db:` store resolution against the entity catalog, well-formedness validation riding the existing `flow.*` rule registry, and Cytoscape rendering via a separate flow render path in the existing bundle. **Flows are a first-class surface, consistent with `graph`/`dict`/`validate`:** `flow [path]` is path-first (a DFD is in-app navigation, not a CLI argument — a model has many DFDs the way the ERD has many entities), and `serve` exposes flows as a live, hot-reloading surface alongside the ERD and dict.
 
 
 ## Non-goals
@@ -40,8 +40,10 @@ Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, s
 ## Success criteria
 
 
-- `ignatius flow checkout models/shop` writes `flow-checkout.html` and exits 0 (exits 1 when any Class B flow finding is present); the DFD renders with the four canonical node shapes (external, process, db store, generic store) and at least the edges declared in the flow markdown.
+- `ignatius flow <model-path> -o flow.html` (path-first, no DFD name — identical arg shape to `dict`/`graph`) writes one viewer carrying ALL the model's DFDs and exits 0 (exits 1 when any Class B flow finding is present, across any DFD); `-o` is required (error + exit 1 when omitted, like `dict`/`graph`); a model with no `flows/` prints a friendly note and exits 0. The viewer renders the four canonical node shapes (process = roundrectangle with number badge, external = rectangle, `db:` store = barrel, non-`db:` store = cut-rectangle) and, when the model has more than one DFD, a DFD selector that swaps diagrams client-side.
+- `ignatius serve <model-path>` serves the flow viewer at `/flow`, the flow dictionary at `/flow-dict`, and `/api/flow`; the graph/dict/flow FABs cross-link all three live surfaces; editing a flow `.md` hot-reloads the flow viewer via the existing SSE `model-changed` event.
 - `ignatius validate models/shop` reports `flow.*` findings on stderr and exits non-zero when any Class B flow rule fires.
+- `bun src/cli.ts flow models/key-inherited` reads naturally as path-first (no "DFD 'models/key-inherited' not found" error); the `order-to-cash` demo DFD in `models/key-inherited` renders, navigable, with 0 findings.
 - A `db:` flow naming a column the entity lacks emits exactly one `flow.unknown_attribute` (Class A) finding for that process, visible in CLI stderr, the dict findings panel, and the graph findings panel. This fires whether the column was authored as a string (single column) or inside an array (multiple columns) — a string on a `db:` endpoint is a column, not a label.
 - `parseFlows(dir)` excludes `flows/**` from entity discovery — `bun test/checks/test-parse-flows.ts` confirms no flow process file appears as a `ModelNode`.
 - `validateFlows` emits `flow.unknown_store` (Class B) when a `db:` endpoint names an entity id absent from the entity catalog; the corresponding flow edge is absent from `cleanedFlowModel`.
@@ -62,17 +64,31 @@ Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, s
 ## Checkpoints
 
 
+**CP-1 through CP-8 are SHIPPED** (squashed onto `main` — the parse/validate/render/fingerprint/persistence/drill-down engine). They are retained below as the historical build record. The **active build plan is the Rework checkpoints (CP-R1–R3)** below this table — the consistency + serve-integration work.
+
+### Shipped checkpoints (historical — do not re-build)
+
 | # | Checkpoint | Files / areas | Agent | Est. files | Verifies |
 |---|------------|---------------|-------|-----------|----------|
 | 1 | `FlowModel` types + `parseFlows` + recursive folder discovery + `_externals/` + optional `_stores/` + local→dotted numbering + entity-file exclusion | `src/flow-parse.ts` (new), `src/parse.ts` (path exclusion), `test/checks/test-parse-flows.ts` (new), `test/fixtures/flows/` (new) | atomic-builder | 4 | `parseFlows` returns `FlowModel` with processes, externals, flow edges, store refs; same-named folders nest recursively to leaves; optional `_stores/<name>.md` body attaches to its `FlowStoreRef`; `dottedNumber` composes from local `number:` along the folder path; no flow process file appears in `parseModels` entity nodes; typecheck clean |
 | 2 | `validateFlows` + all 11 `flow.*` rules in `RULES` registry | `src/validate.ts` (extend), `src/flow-validate.ts` (new), `test/checks/test-validate-flows.ts` (new), `test/fixtures/broken-flow/` (new) | atomic-builder | 5 | All 11 `flow.*` rules fire on the broken fixture; all are absent on a clean fixture; `RULES` compiles (Record completeness enforced by TypeScript); Class B rules strip edges from `cleanedFlowModel`; `flow.unknown_attribute` fires on both string and array `data` on a `db:` endpoint |
 | 3 | Endpoint resolution + ambiguity | `src/flow-parse.ts` (resolution logic), `test/checks/test-flow-endpoints.ts` (new) | atomic-builder | 2 | Bare name resolves when unique across three namespaces; collision emits `flow.ambiguous_endpoint`; qualified names (`ext:`, `db:`, `proc:`, `cache:`, …) always resolve without ambiguity check; unknown qualified `db:` endpoint emits `flow.unknown_store`; unknown qualified `ext:` emits `flow.unknown_external` |
-| 4a | `generateFlowGraph` static HTML injection | `src/generators/flow-graph.ts` (new) | atomic-builder | 1 | Static `flow-<name>.html` is written with correct `window.__IGNATIUS_SURFACE__`, `window.__FLOW_MODEL__`, `window.__FLOW_LAYOUT_KEY__`, `window.__IGNATIUS_MODE__ = "static"`; no App.tsx change; verifiable by parsing the emitted script tags |
+| 4a | `generateFlowGraph` static HTML injection *(injection partly superseded by R1: single `__FLOW_LAYOUT_KEY__` → `__FLOW_LAYOUT_KEYS__` map; single diagram → `FlowModel`)* | `src/generators/flow-graph.ts` (new) | atomic-builder | 1 | Static `flow-<name>.html` is written with correct `window.__IGNATIUS_SURFACE__`, `window.__FLOW_MODEL__`, `window.__FLOW_LAYOUT_KEY__`, `window.__IGNATIUS_MODE__ = "static"`; no App.tsx change; verifiable by parsing the emitted script tags |
 | 4b | App.tsx flow render path — `initFlowGraph` + separate flow stylesheet + DFD shapes | `src/App.tsx` (flow render path via `initFlowGraph` + own stylesheet builder), `test/visual/screenshot-flow-graph.ts` (new) | atomic-builder | 2 | Static `flow.html` renders: external = rectangle, process = rounded rectangle with composed-number badge, db-store = barrel shape, generic store = cut-rectangle; flow shapes come from a dedicated flow stylesheet builder, NOT appended to the ERD `buildStyles`; ERD selectors untouched; Playwright screenshot taken and inspected |
-| 5 | `ignatius flow` CLI subcommand + `validate` integration | `src/cli.ts` (new `flowCmd`, register in `main`), `src/flow-validate.ts` (consumed by validate cmd), `test/checks/test-flow-cli.ts` (new) | atomic-builder | 3 | `ignatius flow <name> [path]` writes `flow-<name>.html` and exits 0 (exits 1 on Class B findings); `ignatius validate` includes flow findings in stderr and exit code; a missing/unknown DFD name exits 1 with a message |
+| 5 | `ignatius flow` CLI subcommand + `validate` integration *(CLI shape superseded by R2: `flow <name>` → path-first `flow [path] -o`; the `validate` integration here still stands)* | `src/cli.ts` (new `flowCmd`, register in `main`), `src/flow-validate.ts` (consumed by validate cmd), `test/checks/test-flow-cli.ts` (new) | atomic-builder | 3 | `ignatius flow <name> [path]` writes `flow-<name>.html` and exits 0 (exits 1 on Class B findings); `ignatius validate` includes flow findings in stderr and exit code; a missing/unknown DFD name exits 1 with a message |
 | 6 | `generateFlowDict` process dictionary | `src/generators/flow-dict.ts` (new), `test/checks/test-flow-dict.ts` (new) | atomic-builder | 3 | Static `flow-dict-<name>.html` lists each process with its inputs/outputs table, attribute list for `db:` flows, optional `_stores/` description for generic stores, body narrative, and findings panel; layout mirrors `generateDict` structure |
 | 7 | Leveling: recursive client-side drill-down + data-level `flow.unbalanced_decomposition` | `src/flow-validate.ts` (recursive decomposition rule + harden the boundary picker), `src/App.tsx` (`initFlowGraph` client-side sub-DFD swap + back affordance), `test/checks/test-flow-leveling.ts` (new) | atomic-builder | 4 | `flow.unbalanced_decomposition` fires when the boundary *column* sets differ at ANY seam down the tree and is silent when they match (sibling-internal flows excluded); a process with `hasSubDfd` renders a drill affordance that swaps the rendered diagram to its sub-DFD client-side, with a back affordance |
-| 8 | Flow layout fingerprint + drag-save reuse with separate storage key | `src/flow-fingerprint.ts` (new), `src/generators/flow-graph.ts` (inject `__FLOW_LAYOUT_KEY__`), `src/App.tsx` (flow-mode store integration under a distinct key), `test/checks/test-flow-fingerprint.ts` (new) | atomic-builder | 4 | `layoutFlowFingerprint` is topology-only (node ids + edge source>target pairs); changes on structural edits, stable on label/body/column-list/local-number edits; static HTML carries `window.__FLOW_LAYOUT_KEY__`; saved positions restore on reload; flow positions persist under a `localStorage` key distinct from the ERD's |
+| 8 | Flow layout fingerprint + drag-save reuse with separate storage key *(injection superseded by R1: single `__FLOW_LAYOUT_KEY__` → `__FLOW_LAYOUT_KEYS__` map; the fingerprint fn + separate-key persistence still stand)* | `src/flow-fingerprint.ts` (new), `src/generators/flow-graph.ts` (inject `__FLOW_LAYOUT_KEY__`), `src/App.tsx` (flow-mode store integration under a distinct key), `test/checks/test-flow-fingerprint.ts` (new) | atomic-builder | 4 | `layoutFlowFingerprint` is topology-only (node ids + edge source>target pairs); changes on structural edits, stable on label/body/column-list/local-number edits; static HTML carries `window.__FLOW_LAYOUT_KEY__`; saved positions restore on reload; flow positions persist under a `localStorage` key distinct from the ERD's |
+
+
+### Rework checkpoints (consistency + serve) — ACTIVE
+
+
+| # | Checkpoint | Files / areas | Agent | Est. files | Verifies |
+|---|------------|---------------|-------|-----------|----------|
+| R1 | Render-all + in-app DFD navigation | `src/generators/flow-graph.ts` (take `FlowModel`, inject all diagrams + `__FLOW_LAYOUT_KEYS__` map), `src/App.tsx` (`initFlowGraph` reads the diagram array, renders a DFD selector when >1, swaps via the existing `renderDiagram`; per-diagram persistence from the key map), `test/checks/test-flow-graph-gen.ts` (update), `test/visual/screenshot-flow-graph.ts` (update) | atomic-builder | 4 | `generateFlowGraph(flowModel,…)` injects `__FLOW_MODEL__` as the diagram array + `__FLOW_LAYOUT_KEYS__`; a multi-DFD model renders a selector and swaps between top-level DFDs client-side; a single-DFD model renders directly; positions persist per navigated diagram; ERD untouched |
+| R2 | `flow` CLI → path-first, render-all, `-o` required; flow-dict reachable | `src/cli.ts` (`flowCmd` drops the `<name>` positional, mirrors `dictCmd`/`graphCmd` exactly; emits the flow viewer + a reachable process dictionary), `test/checks/test-flow-cli.ts` (rewrite) | atomic-builder | 2 | `flow [path] -o f.html` exits 0 on a clean model and writes one viewer with all DFDs; `-o` omitted → stderr error + exit 1; Class B finding → exit 1; no-`flows/` model → friendly note + exit 0; `flow models/key-inherited` is parsed path-first (no DFD-name error); the process dictionary is reachable from the export |
+| R3 | `serve` live flow surface + FAB nav + hot-reload | `src/server.ts` (`/flow`, `/api/flow`, `/flow-dict` routes), `src/App.tsx` (`initFlowGraph` live branch: fetch `/api/flow`, re-fetch on SSE `model-changed`), `src/generators/dict.ts` + graph FAB (add a **Flows** nav item cross-linking `/`, `/dict`, `/flow`), `test/checks/test-flow-serve.ts` (new) | atomic-builder | 4 | `GET /flow` returns the live viewer (`__IGNATIUS_SURFACE__='flow'`); `GET /api/flow` returns `{diagrams, validation, flowLayoutKeys}`; `GET /flow-dict` returns the dictionary; editing a flow `.md` triggers SSE `model-changed` and the live viewer re-fetches; FABs on all three surfaces cross-link; no-`flows/` model → empty-state, not 500 |
 
 
 ## Module: `src/flow-parse.ts`
@@ -239,45 +255,50 @@ The `= []` default ensures all existing callers compile unchanged. Sort order: e
 ## CLI: `src/cli.ts`
 
 
-Extension points: `src/cli.ts:290–307` (main subcommand registration).
+**`flow` is path-first and identical in shape to `dict`/`graph`/`validate`. A DFD is NOT a CLI argument — it is in-app navigation (a model has many DFDs the way the ERD has many entities; you don't pass `--entity` to `graph`).**
 
-- New `flowCmd = defineCommand(...)` following the `dictCmd` pattern at `src/cli.ts:63–119`.
-  - Positional: `<name>` — the DFD folder name to render (required). A missing or unknown DFD name exits 1 with a descriptive message.
-  - Optional positional: `[path]` — model search base (default: cwd), consistent with other subcommands.
-  - Flag `--model <key>` — model picker key, consistent with other subcommands.
-  - Flag `--out <file>` — output path (default: `flow-<name>.html` in cwd).
-  - Pipeline: `pickModel(base, modelKey)` → `parseModels(dir)` (entity catalog) → `parseFlows(dir)` → `validateFlows(flowModel, model, config)` → `formatFindingsForStderr(...)` → `generateFlowGraph(...)` → write DFD HTML output file → `process.exit(globalErrors.length > 0 ? 1 : 0)`.
-  - Exit code: 1 when any Class B flow finding is present, else 0.
-- `validateCmd` at `src/cli.ts:197–241` extended to additionally call `parseFlows` + `validateFlows` when a `flows/` directory exists; merges flow findings into the stderr output and exit-code calculation.
-- `flowCmd` registered in `main` at `src/cli.ts:290–307`.
-- `config` for `FlowRulesConfig` is read from `Model._meta.flowRules` (loaded by `parseModels` from `ignatius.yml`'s `flow_rules:` block).
+- `flowCmd = defineCommand(...)` mirrors `dictCmd`/`graphCmd` *exactly*:
+  - Optional positional `[path]` — model search base (default cwd). This is the ONLY positional. There is no `<name>` positional.
+  - `-o` / `--out <file>` — output path, **required** (same as `dict`/`graph`: error to stderr + exit 1 when omitted).
+  - `--model <key>` — model picker key.
+  - `--theme light|dark`.
+  - Pipeline: `pickModel(base, modelKey)` → `parseModels(dir)` (entity catalog) → `parseFlows(dir)` → `validateFlows(flowModel, model, config)` → `formatFindingsForStderr(...)` to stderr → `generateFlowGraph(flowModel, …)` (the WHOLE model — all DFDs) → `Bun.write(outputPath, html)` → `process.exit(<class-B present> ? 1 : 0)`.
+  - Exit code 1 when any Class B flow finding is present across any DFD, else 0.
+  - A model with **no `flows/`** dir: print a friendly stderr note (`no flows in <model>`) and exit 0 — not an error (mirrors how `dict` handles an empty model gracefully).
+- The output is ONE self-contained viewer carrying every DFD in the model; selecting a DFD is in-app navigation (see Render). No per-DFD output files; no DFD-name argument anywhere.
+- `validateCmd` already calls `parseFlows` + `validateFlows` when a `flows/` dir exists and merges flow findings into stderr + exit code — unchanged by this rework.
+- `config` for `FlowRulesConfig` is read from `Model._meta.flowRules`.
+
+**Superseded:** the previous `flow <name> [path]` (required DFD-name positional, `--out` defaulting to `flow-<name>.html`, exit 1 on unknown name) is removed. The name-first shape broke the path-first convention every other verb follows; `flow models/x` now reads the same as `graph models/x`.
 
 
 ## Render: `src/generators/flow-graph.ts` + `src/App.tsx`
 
 
-**`src/generators/flow-graph.ts` — new module:**
+**`src/generators/flow-graph.ts`:**
 
-Signature: `generateFlowGraph(flowDiagram, entityModel, mode, opts, sourceOrDir?): Promise<string>` — async (the bundle source is loaded via the same async path as `generateGraph`), returning the HTML string. `sourceOrDir` mirrors `generateGraph`'s dependency-injected bundle source (a model-dir string or preloaded bundle content); it defaults to the embedded bundle so CLI callers can omit it. Parameters: `flowDiagram: FlowDiagram`, `entityModel: Model`, `mode: 'static' | 'live'`, `opts: FlowGraphOpts`.
+Signature: `generateFlowGraph(flowModel, entityModel, mode, opts, sourceOrDir?): Promise<string>` — async, returning the HTML string. **It serializes the WHOLE `FlowModel` (every top-level DFD), not a single diagram**, so one viewer carries all of a model's flows. `sourceOrDir` mirrors `generateGraph`'s DI bundle source (defaults to the embedded bundle). Parameters: `flowModel: FlowModel`, `entityModel: Model`, `mode: 'static' | 'live'`, `opts: FlowGraphOpts`.
 
-Where `FlowGraphOpts = { flowLayoutKey: string; themeMode?: 'dark' | 'light' }`.
+Where `FlowGraphOpts = { flowLayoutKeys: Record<string, string>; themeMode?: 'dark' | 'light' }` — `flowLayoutKeys` maps each diagram id (top-level and, where persisted, sub-DFD) to its `layoutFlowFingerprint`, so the frontend can persist positions per navigated diagram without importing the fingerprint module.
 
-- Injects `window.__IGNATIUS_MODE__ = "static"`, `window.__FLOW_MODEL__` (the serialized `FlowDiagram`), `window.__FLOW_LAYOUT_KEY__`, `window.__THEME_MODE__`, and `window.__IGNATIUS_SURFACE__ = "flow"` — parallel to `generateGraph` at `src/generators/graph.ts:71–125`.
-- Strips the live-mode `window.__IGNATIUS_MODE__ = 'live'` inline body script (same technique as `generateGraph`).
-- Escapes `</script>` sequences in the serialized `__FLOW_MODEL__` JSON so a process body containing a markdown code fence cannot break out of the injection `<script>` context.
-- Reuses the existing embedded React bundle (`loadEmbeddedBundle`) — no second bundle.
-- Verifiable independently (CP-4a): the emitted HTML script tags carry the correct injections without any App.tsx change.
+- Injects `window.__IGNATIUS_MODE__`, `window.__FLOW_MODEL__` (the serialized `FlowModel.diagrams` array), `window.__FLOW_LAYOUT_KEYS__` (the id→fingerprint map), `window.__THEME_MODE__`, and `window.__IGNATIUS_SURFACE__ = "flow"`.
+- Strips the live-mode `window.__IGNATIUS_MODE__ = 'live'` inline body script.
+- Escapes `</script>` in the serialized JSON.
+- Reuses the existing embedded React bundle — no second bundle.
+
+**Superseded:** `generateFlowGraph(flowDiagram, …)` taking a single `FlowDiagram` + `window.__FLOW_LAYOUT_KEY__` (one key). Now takes the `FlowModel` + a key map so the viewer holds all DFDs.
 
 **`src/App.tsx` — flow render path (`initFlowGraph` + dedicated flow stylesheet):**
 
 Extension points: mode dispatch at `src/App.tsx:1067–1119`, elements construction at `src/App.tsx:1257–1345`, styles at `src/App.tsx:340–483`.
 
-- On startup, read `window.__IGNATIUS_SURFACE__`. When `=== 'flow'`, call `initFlowGraph`; otherwise call the existing ERD path unchanged. `src/index.html` carries `window.__IGNATIUS_SURFACE__ = 'erd'` as a default alongside the existing `window.__IGNATIUS_MODE__ = 'live'` so the live ERD reads a defined surface. The live `/flow/<name>` route sets `__IGNATIUS_SURFACE__ = 'flow'` in the HTML it returns so the surface is defined before the bundle executes and the `/api/flow/<name>` fetch has the correct surface context.
-- `initFlowGraph` — flow Cytoscape setup is isolated in this extracted function, not interleaved with the existing ERD `useEffect`. It reads `window.__FLOW_MODEL__` (static) or fetches `/api/flow/<name>` (live — endpoint added in server.ts).
+- On startup, read `window.__IGNATIUS_SURFACE__`. When `=== 'flow'`, call `initFlowGraph`; otherwise call the existing ERD path unchanged. `src/index.html` carries `window.__IGNATIUS_SURFACE__ = 'erd'` as a default alongside the existing `window.__IGNATIUS_MODE__ = 'live'` so the live ERD reads a defined surface. The live `/flow` route (path-free — no DFD name) sets `__IGNATIUS_SURFACE__ = 'flow'` in the HTML it returns so the surface is defined before the bundle executes and the `/api/flow` fetch has the correct surface context.
+- `initFlowGraph` — flow Cytoscape setup is isolated in this extracted function, not interleaved with the existing ERD `useEffect`. **Static mode:** reads `window.__FLOW_MODEL__` (the array of all top-level DFDs). **Live mode:** fetches `/api/flow` once, then re-fetches on every SSE `model-changed` event and re-renders the current DFD in place (the watcher already covers `flows/**`). The surface dispatch reads `window.__IGNATIUS_SURFACE__ === 'flow'` as before.
+- **Top-level DFD navigation (the consistency rework).** A model has many DFDs. When more than one top-level diagram is present, `initFlowGraph` renders a DFD selector (a list/index affordance — e.g. the breadcrumb root or a FAB menu) and renders one diagram at a time; choosing another swaps the rendered diagram, **reusing the same client-side `renderDiagram` swap the drill-down already uses**. A single-DFD model renders that one directly with no picker. Selecting a DFD is navigation, exactly as selecting an entity is in the ERD — there is no DFD argument upstream of the viewer.
 - Flow elements construction (inside `initFlowGraph`): map `FlowProcess` → Cytoscape nodes (label carries the composed `dottedNumber` badge); `FlowExternal` → Cytoscape nodes; `db:` store refs → Cytoscape nodes; non-db store refs → Cytoscape nodes; `FlowEdge` → directed Cytoscape edges with the flow label or column list as edge label.
 - **Flow styles live in a dedicated flow stylesheet builder, separate from the ERD `buildStyles` — not appended to it.** The flow path builds its own Cytoscape stylesheet (process → `shape: 'roundrectangle'` + number badge; external → `shape: 'rectangle'`; `db:` store → `shape: 'barrel'`; non-db store → `shape: 'cut-rectangle'`). The existing ERD `buildStyles` at `src/App.tsx:340–483` is untouched; flow and ERD never share a stylesheet function. This is the isolation guarantee — editing flow styles cannot regress ERD rendering because they are different builders.
 - Flow layout reuses the existing ELK layered engine (top-to-bottom direction suits a DFD) via its own option object; it does not mutate the ERD's `buildLayoutOpts`.
-- Position restore + drag-save reuse the `createLayoutStore` machinery but under a **distinct `localStorage` key** from the ERD's `ignatius-layout-positions`, keyed by `window.__FLOW_LAYOUT_KEY__`. ERD and flow position pools never share storage, so opening flows cannot evict ERD layouts.
+- Position restore + drag-save reuse the `createLayoutStore` machinery under a **distinct `localStorage` key** from the ERD's `ignatius-layout-positions`. Each *rendered* diagram persists under its own fingerprint, looked up from `window.__FLOW_LAYOUT_KEYS__[diagramId]` (the injected id→fingerprint map) — so navigating between DFDs (and into sub-DFDs) keeps each one's saved layout independently. ERD and flow pools never share storage; opening flows cannot evict ERD layouts.
 - DFD drill-down (client-side, single HTML): a process node with `data.hasSubDfd === true` renders a small "⤵"/"+" affordance at every level of the tree. Because `window.__FLOW_MODEL__` carries the **full recursive `FlowDiagram` tree** (each process's `subDfds`), clicking the affordance swaps the rendered diagram to that process's sub-DFD entirely client-side — re-running the flow layout on the sub-diagram's elements — with a breadcrumb/back affordance to ascend. No per-sub-DFD HTML files are emitted and no navigation occurs; one `flow-<name>.html` is self-contained and works offline. (Supersedes the earlier "href to `flow-<subname>.html`" approach, which would have required the CLI to emit a file per sub-DFD and produced dangling links when a sub-file was not generated.)
 - `db:` store node click: navigates to the entity in the ERD viewer (static: link to `graph.html#entity-<id>`; live: `ignatius serve`'s `/` with hash). Mirrors the wiki-link click delegation at `src/App.tsx` modal `onClick`.
 
@@ -295,8 +316,8 @@ New module, parallel to `src/layout-fingerprint.ts`.
 - Invariant to: process labels, body text, column names in `data`, local/composed numbers, theme changes.
 - Sensitive to: adding/removing a process, external, store ref, or flow edge.
 - Each `FlowDiagram` has its own fingerprint — position persistence is per-diagram, not per-`FlowModel`.
-- Imported by `src/generators/flow-graph.ts` for `__FLOW_LAYOUT_KEY__` injection.
-- NOT imported by `src/App.tsx` — the frontend reads the key from `window.__FLOW_LAYOUT_KEY__` only.
+- Imported by `src/generators/flow-graph.ts` (to build the `__FLOW_LAYOUT_KEYS__` id→fingerprint map — one entry per diagram) and by `src/server.ts` (to build the same map for the `/api/flow` payload).
+- NOT imported by `src/App.tsx` — the frontend reads keys from the `window.__FLOW_LAYOUT_KEYS__` map (static) or the `/api/flow` payload's `flowLayoutKeys` field (live), looking up by diagram id.
 
 
 ## Module: `src/generators/flow-dict.ts`
@@ -304,7 +325,9 @@ New module, parallel to `src/layout-fingerprint.ts`.
 
 New module, parallel to `src/generators/dict.ts`.
 
-Signature: `generateFlowDict(diagram: FlowDiagram, entityModel: Model, findings: FlowDictFindings, mode: 'static' | 'live', opts?: FlowDictOpts): string`
+Signature: `generateFlowDict(flowModel: FlowModel, entityModel: Model, findings: FlowDictFindings, mode: 'static' | 'live', opts?: FlowDictOpts): string` — takes the WHOLE `FlowModel` (every DFD), mirroring how `generateDict` renders all entities of a model. The dictionary groups process sections by DFD (a section/heading per top-level diagram, sub-DFD processes nested or listed under their parent), so one `/flow-dict` page covers the model's flows.
+
+**Superseded:** the single-`FlowDiagram` signature — `generateFlowDict` now takes `FlowModel` so serve (`/flow-dict`) and the CLI export render the model's whole process dictionary in one page.
 
 Where:
 - `FlowDictFindings = { flowErrors: FlowError[]; globalErrors: GlobalError[] }`
@@ -312,7 +335,7 @@ Where:
 
 Structure of generated HTML:
 
-- Per-process sections with anchor `#process-<id>`, headed by the composed `dottedNumber`.
+- A section per DFD; within it, per-process sections with anchor `#process-<id>`, headed by the composed `dottedNumber`.
 - Inputs/outputs table: endpoint | kind marker | data (column list for `db:`, label otherwise) | direction.
 - `db:` attribute rows link to the entity's dict section via `href` (static: `dict.html#entity-<entityId>`; live: `graphHref` equivalent).
 - Generic (non-`db:`) store sections render the optional `_stores/<name>.md` body when present.
@@ -321,17 +344,24 @@ Structure of generated HTML:
 - Global findings panel (same structure as `generateDict`'s findings panel).
 - Theme toggle and FAB (same structure as `generateDict`).
 
+**Exposure (the deferred-earlier wiring).** `generateFlowDict` was built + tested but never reachable. Now:
+- **serve** exposes it live at `GET /flow-dict` (FAB-linked from the flow viewer).
+- **CLI:** the static `flow [path] -o flow.html` ALSO writes a sibling dictionary file next to it, and the flow viewer's FAB carries a link to that sibling. **Verifiable contract** (assert in `test-flow-cli.ts`): after `flow … -o <out>.html`, a sibling dictionary HTML exists on disk AND the viewer HTML contains an `href` to it. The exact sibling filename is the implementer's call (e.g. `<out>.dict.html`); the *checks* are the existence of the file and the presence of the link.
+
 
 ## Server: `src/server.ts`
 
 
-Extension (not rewrite) for live-mode flow support:
+**`serve` makes flows a first-class live surface alongside the ERD (`/`) and dict (`/dict`) — path-first, no DFD in the URL, just like the rest.** New routes added to the existing Bun `routes:` object (mirroring `/dict` + `/api/model`):
 
-- `GET /flow/<name>` → calls `parseFlows`, `validateFlows`, `generateFlowGraph`; returns flow HTML with `window.__IGNATIUS_SURFACE__ = "flow"` injected.
-- `GET /api/flow/<name>` → returns `{ diagram: FlowDiagram; validation: FlowValidationResult; flowLayoutKey: string }`.
-- `GET /flow-dict/<name>` → calls `generateFlowDict`; returns process dictionary HTML.
-- SSE `model-changed` event already covers all `.md` files under `modelsDir` via the existing recursive `fs.watch(modelsDir)` + `.md` filter. Because `flows/` lives under `modelsDir`, flow `.md` files are automatically covered — no watcher change is needed.
-- `FlowRulesConfig` is read from `Model._meta.flowRules` (populated by `parseModels` from `ignatius.yml`); it is not re-read separately.
+- `GET /flow` → `parseFlows` + `validateFlows` + `generateFlowGraph(flowModel, …, 'live', …)`; returns the flow viewer HTML with `window.__IGNATIUS_SURFACE__ = "flow"` injected (so the surface is defined before the bundle runs). No DFD name in the path — the viewer holds all DFDs and navigates in-app.
+- `GET /api/flow` → `{ diagrams: FlowDiagram[]; validation: FlowValidationResult; flowLayoutKeys: Record<string,string> }` — the payload `initFlowGraph`'s live branch fetches and re-fetches on SSE.
+- `GET /flow-dict` → `generateFlowDict(...)` for the model's flows (the deferred-earlier dict wiring, now live).
+- **FAB navigation** (the consistency rework): the FAB that already hops graph↔dict gains a **Flows** item. `generateDict`/the graph viewer FAB link to `/flow`; the flow viewer's FAB links back to `/` (ERD) and `/dict`. All three live surfaces are mutually reachable, exactly as graph and dict already are.
+- **Hot-reload:** the SSE `model-changed` event already fires for any `.md` under `modelsDir`, and `flows/` lives there — so editing flow markdown already emits the event. The flow viewer's live branch subscribes and re-fetches `/api/flow`. No watcher change.
+- `FlowRulesConfig` is read from `Model._meta.flowRules`.
+
+When the model has no `flows/`, `/flow` returns a friendly empty-state page (and the FAB Flows item may be omitted), never a 500.
 
 
 ## Tests
@@ -346,8 +376,9 @@ All new scripts go under `test/checks/` (raw assertion scripts, run by `bun run 
 | `test/checks/test-validate-flows.ts` | Each of the 11 `flow.*` rules fires on the `test/fixtures/broken-flow/` fixture; each is absent on the clean fixture; Class B stripping removes the correct edges from `cleanedFlowModel`; `flow.unknown_attribute` fires on both a string and an array `data` on a `db:` endpoint; `flow.process_to_process` is skipped when `config.process_to_process === false`; `flow.duplicate_number` fires on a sibling local-number collision |
 | `test/checks/test-flow-fingerprint.ts` | `layoutFlowFingerprint` changes on node/edge add or remove; stable on label, body, column-list, local-number edits; two endpoint spellings that resolve to the same `kind:name` pair yield the same key |
 | `test/checks/test-flow-leveling.ts` | Recursive sub-DFD detection from nested same-named folders; `flow.unbalanced_decomposition` fires on a boundary *column-set* mismatch at a deep seam; absent on a matched set; sibling-internal flows excluded from the boundary set |
-| `test/checks/test-flow-cli.ts` | `ignatius flow checkout models/shop` exits 0 and writes `flow-checkout.html`; exits 1 on Class B findings; `ignatius validate models/shop` includes flow findings when `flows/` exists; missing/unknown DFD name exits 1 with a message |
+| `test/checks/test-flow-cli.ts` | `flow [path] -o f.html` (path-first, no DFD name) exits 0 and writes one viewer for a clean model; `-o` omitted → exit 1; Class B finding → exit 1; no-`flows/` model → exit 0 with a note; `ignatius validate` includes flow findings when `flows/` exists |
 | `test/checks/test-flow-dict.ts` | `generateFlowDict` returns an HTML string containing a process section for each `FlowProcess`; `db:` attribute rows present; optional `_stores/` description rendered when present; findings panel present when findings > 0; absent when findings = 0 |
+| `test/checks/test-flow-serve.ts` | `serve` answers `GET /flow` (live viewer, `__IGNATIUS_SURFACE__='flow'`), `GET /api/flow` (`{diagrams, validation, flowLayoutKeys}`), `GET /flow-dict`; a no-`flows/` model returns an empty-state, not a 500 |
 
 **Fixture layout:**
 
@@ -391,6 +422,19 @@ The fixtures use entity ids from `models/key-inherited/` as their `db:` store re
 
 
 ## Change log
+
+
+### 2026-06-06 — First-class surface rework (CLI + serve consistency)
+
+
+**What changed:** Reworked the entry points so flows behave exactly like `graph`/`dict`/`validate` — no special API. CLI `flow` is now **path-first** (`flow [path] -o`), the required DFD-name positional is removed, and a DFD is chosen by in-app navigation (a model's many DFDs are like the ERD's many entities). `generateFlowGraph` now serializes the whole `FlowModel` (all DFDs) and injects a `__FLOW_LAYOUT_KEYS__` id→fingerprint map; `initFlowGraph` renders a DFD selector and swaps between top-level DFDs via the existing drill-down swap, persisting each diagram independently. `serve` gains live `/flow`, `/api/flow`, `/flow-dict` routes, FAB cross-nav (graph↔dict↔flow), and SSE hot-reload. `generateFlowDict` (built earlier, never exposed) is now reachable from both CLI export and serve. Active build plan = Rework checkpoints CP-R1–R3; CP-1–8 retained as shipped history.
+
+**Why:** the name-first `flow <name>` broke the path-first convention every other verb follows (`flow models/x` searched for a DFD literally named `models/x`), and live-serving flows was deferred during the autopilot build. The user reported both as friction; flows should be first-class in the running tool.
+
+**Superseded:**
+- CLI `flow <name> [path]` (name-first positional, `flow-<name>.html` default) → `flow [path] -o` (path-first, `-o` required), render-all.
+- `generateFlowGraph(flowDiagram, …)` + `window.__FLOW_LAYOUT_KEY__` (one diagram, one key) → `generateFlowGraph(flowModel, …)` + `window.__FLOW_LAYOUT_KEYS__` (all diagrams, key map).
+- Server flow routes "deferred (CP-5b)" → built (`/flow`, `/api/flow`, `/flow-dict`) with FAB nav + hot-reload.
 
 
 ### 2026-06-05 — Implementation amendments
