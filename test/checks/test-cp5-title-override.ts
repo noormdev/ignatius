@@ -9,9 +9,12 @@
  *      label, must be the map key so `[[Buyer]]` and `ext:Buyer` still resolve even when
  *      the external's label is overridden.
  *
- * Uses: tmp/title-override-fixture (throwaway, NOT the committed demo).
+ * Generates its fixture at runtime under tmp/ (self-contained — no committed
+ * demo and no dependency on pre-existing state, so it runs on a fresh CI
+ * checkout where tmp/ is gitignored and empty).
  */
 
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { parseFlows } from '../../src/flow-parse';
 import type { FlowExternal, FlowProcess, FlowStoreRef } from '../../src/flow-parse';
 
@@ -23,6 +26,46 @@ function assert(cond: boolean, msg: string): asserts cond {
 }
 
 const FIXTURE = 'tmp/title-override-fixture';
+const DFD_DIR = `${FIXTURE}/flows/sample-dfd`;
+
+// Build the fixture fresh: an external, process, and cache store that each
+// carry a `title:` override distinct from their slug.
+rmSync(FIXTURE, { recursive: true, force: true });
+mkdirSync(`${DFD_DIR}/_externals`, { recursive: true });
+mkdirSync(`${DFD_DIR}/_stores`, { recursive: true });
+
+writeFileSync(`${DFD_DIR}/_externals/Buyer.md`, `---
+external: Buyer
+title: End Buyer
+---
+
+The customer who places orders in the system.
+`);
+
+writeFileSync(`${DFD_DIR}/_stores/hot-cache.md`, `---
+kind: cache
+title: Hot Cache
+---
+
+In-memory cache for frequently accessed data.
+`);
+
+writeFileSync(`${DFD_DIR}/Handle-Request.md`, `---
+process: Handle Request
+title: Process The Request
+number: 1
+inputs:
+  - from: ext:Buyer
+    data: request data
+  - from: cache:hot-cache
+    data: cached item
+outputs:
+  - to: ext:Buyer
+    data: response
+---
+
+Handles incoming requests from buyers.
+`);
 
 const { flowModel, globalErrors } = await parseFlows(FIXTURE);
 
