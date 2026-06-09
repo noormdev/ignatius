@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.0](https://github.com/noormdev/ignatius/compare/v0.6.0...v0.7.0) (2026-06-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* the dict, graph, and flow CLI subcommands are removed. Use `ignatius export -o model.html` for static output and `ignatius serve` for the live app.
+
+### Features
+
+* unified SPA, first-class process flows, and skill flow/discover modes ([83d95f6](https://github.com/noormdev/ignatius/commit/83d95f6ed12e76cbb6a79358ec32f5e604c04392))
+
 ## [0.6.0](https://github.com/noormdev/ignatius/compare/v0.5.0...v0.6.0) (2026-06-02)
 
 
