@@ -50,3 +50,4 @@ tmp/
 
 test/test-fixtures/
 test/checks/test-fixtures/
+.claude/.atomic-index/

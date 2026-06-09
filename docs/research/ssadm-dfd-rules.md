@@ -99,6 +99,7 @@ The SSADM-specific lifecycle of a DFD (what distinguishes it from a one-off Your
 | Black hole / miracle | adopted | `flow.process_no_input` / `flow.process_no_output` (Class A) |
 | Store / external / process existence | adopted + extended | `flow.unknown_store` (db only) / `flow.unknown_external` / `flow.unknown_process` (Class B) |
 | Attribute-level flows vs the data model | ignatius-specific keystone | `flow.unknown_attribute` (Class A): a `db:` flow's column list checked against the entity — the DFD as a demand list on the ERD |
+| Flow line style (solid arrow; direction = read/write; dashed only for ext↔ext context) | adopted | all flows render as one uniform solid arrow, direction conveys read vs write; the ext↔ext dashed context flow never occurs (ext↔ext is illegal — see above). An earlier dashed-read/solid-write invention was removed (2026-06-06). |
 | Leveling / decomposition | adopted (structural) | process file + same-named folder = sub-DFD, drill-down |
 | Balancing | adopted as a soft warning | `flow.unbalanced_decomposition` (Class A) — set-diff, not hard enforcement |
 | Current-physical → logical → required progression | deferred | out of scope for v1 |

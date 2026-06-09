@@ -1,25 +1,26 @@
 /**
- * test-flow-cli.ts — R2: path-first `ignatius flow` CLI assertions.
+ * test-flow-cli.ts — CP7: `ignatius export` assertions for flow-containing models.
  *
- * Invokes the CLI via `bun src/cli.ts` (no prior binary build required).
+ * Invokes the CLI via `bun src/cli.ts` (no prior binary build required, except
+ * where the bundle is needed — those tests are guarded with a bundleExists check).
  *
  * Verifies:
- * - `flow <model-path> -o <out>.html` (path-first, NO DFD name) exits 0 and
- *   writes the viewer for a clean model
- * - The sibling dictionary file exists on disk after the run
- * - The viewer HTML contains an href to the sibling dictionary
+ * - `export <model-path> -o <out>.html` writes ONE file (no sibling .dict.html etc.)
+ * - The exported HTML contains __FLOW_MODEL__ injection (flow data baked in)
+ * - The exported HTML boots to graph view (no __IGNATIUS_SURFACE__; hash #view= default)
  * - `-o` omitted → stderr error + exit 1
- * - A Class B finding (broken-flows-model) → exit 1
- * - A model with no flows/ → friendly note + exit 0
- * - `flow models/key-inherited -o ...` is parsed path-first (no "DFD not found" error)
+ * - A Class B flow finding (broken-flows-model) → exit 1
+ * - A model with no flows/ → exit 0 (export still works; flow view is empty-state)
+ * - `export models/key-inherited -o ...` writes one file with flows injected
  * - `validate <flows-model>` still works (validate integration unchanged)
  * - `validate models/key-inherited` → exit 0 (no-flows model unaffected)
+ * - `dict`/`graph`/`flow` stubs print "use export" error and exit 1
  *
  * All generated HTML files are written to tmp/ per repo convention.
  */
 
-import { join, resolve, basename, extname, dirname } from 'path';
-import { existsSync, unlinkSync } from 'fs';
+import { join, resolve } from 'path';
+import { existsSync, unlinkSync, readdirSync } from 'fs';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const FLOWS_MODEL = join(ROOT, 'test/fixtures/flows-model');
@@ -64,129 +65,151 @@ function cleanup(...paths: string[]): void {
     }
 }
 
+/** Assert that outFile is the ONLY file created — no siblings. */
+function assertNoSiblings(outFile: string, label: string): void {
+    const dir = join(outFile, '..');
+    const base = outFile.split('/').at(-1) ?? '';
+    let siblings: string[] = [];
+    try {
+        siblings = readdirSync(dir).filter(f => f !== base && f.startsWith(base.replace('.html', '')));
+    } catch {
+        // ignore — dir may not exist
+    }
+    assert(siblings.length === 0, `${label}: no sibling files created`, `siblings found: ${siblings.join(', ')}`);
+}
+
 // ---------------------------------------------------------------------------
-// Test 1: path-first `flow <model-path> -o <out>.html` exits 0, writes viewer
+// Test 1: path-first `export <model-path> -o <out>.html` exits 0, ONE file
 // ---------------------------------------------------------------------------
 {
-    const outFile = join(TMP, 'test-flow-r2-clean.html');
-    const dictFile = join(TMP, 'test-flow-r2-clean.dict.html');
-    cleanup(outFile, dictFile);
+    const bundleExists = await Bun.file(join(ROOT, 'dist/static/index.js')).exists();
+    if (!bundleExists) {
+        console.log('  SKIP  export tests (tests 1-6): dist/static/index.js not built');
+    } else {
+        const outFile = join(TMP, 'test-export-r2-clean.html');
+        cleanup(outFile);
 
-    const { exitCode, stdout, stderr } = await run(['flow', FLOWS_MODEL, '-o', outFile]);
+        const { exitCode, stdout, stderr } = await run(['export', FLOWS_MODEL, '-o', outFile]);
 
-    assert(exitCode === 0, 'flow path-first clean: exit 0', `got ${exitCode}\nstderr:\n${stderr.slice(0, 500)}`);
-    assert(existsSync(outFile), 'flow path-first clean: viewer file written', `path: ${outFile}`);
+        assert(exitCode === 0, 'export path-first clean: exit 0', `got ${exitCode}\nstderr:\n${stderr.slice(0, 500)}`);
+        assert(existsSync(outFile), 'export path-first clean: output file written', `path: ${outFile}`);
+        assertNoSiblings(outFile, 'export path-first clean');
 
-    if (existsSync(outFile)) {
-        const html = await Bun.file(outFile).text();
-        assert(html.includes('__FLOW_MODEL__'), 'viewer HTML contains __FLOW_MODEL__ injection', `html length: ${html.length}`);
-        assert(html.includes('__IGNATIUS_SURFACE__'), 'viewer HTML contains __IGNATIUS_SURFACE__ injection');
+        if (existsSync(outFile)) {
+            const html = await Bun.file(outFile).text();
+            // Extract pre-module HTML (injection is before <script type="module">).
+            // The bundle also contains these global names — checking only the injection portion.
+            const moduleIdx = html.indexOf('<script type="module">');
+            const preModule = moduleIdx > 0 ? html.slice(0, moduleIdx) : html;
+            assert(preModule.includes('window.__FLOW_MODEL__'), 'export injection has __FLOW_MODEL__');
+            assert(preModule.includes('window.__LAYOUT_KEY__'), 'export injection has __LAYOUT_KEY__');
+            assert(preModule.includes('window.__FLOW_LAYOUT_KEYS__'), 'export injection has __FLOW_LAYOUT_KEYS__');
+            // CP8b: __IGNATIUS_SURFACE__ removed; view seeds from hash (#view=) defaulting to graph.
+            assert(!preModule.includes('window.__IGNATIUS_SURFACE__'), 'export injection does NOT include __IGNATIUS_SURFACE__ (removed CP8b)');
+        }
+
+        cleanup(outFile);
     }
-
-    cleanup(outFile, dictFile);
 }
 
 // ---------------------------------------------------------------------------
 // Test 2: -o omitted → stderr error + exit 1
 // ---------------------------------------------------------------------------
 {
-    const { exitCode, stderr } = await run(['flow', FLOWS_MODEL]);
+    const { exitCode, stderr } = await run(['export', FLOWS_MODEL]);
 
-    assert(exitCode === 1, 'flow -o omitted: exit 1', `got ${exitCode}`);
+    assert(exitCode === 1, 'export -o omitted: exit 1', `got ${exitCode}`);
     assert(
         stderr.includes('-o') || stderr.includes('required') || stderr.includes('output'),
-        'flow -o omitted: stderr mentions -o or required',
+        'export -o omitted: stderr mentions -o or required',
         `stderr:\n${stderr.slice(0, 300)}`,
     );
 }
 
 // ---------------------------------------------------------------------------
-// Test 3: Class B finding → exit 1
+// Test 3: Class B flow finding → exit 1
 // ---------------------------------------------------------------------------
 {
-    const outFile = join(TMP, 'test-flow-r2-broken.html');
-    const dictFile = join(TMP, 'test-flow-r2-broken.dict.html');
-    cleanup(outFile, dictFile);
+    const bundleExists = await Bun.file(join(ROOT, 'dist/static/index.js')).exists();
+    if (bundleExists) {
+        const outFile = join(TMP, 'test-export-r2-broken.html');
+        cleanup(outFile);
 
-    const { exitCode, stderr } = await run(['flow', BROKEN_FLOWS_MODEL, '-o', outFile]);
+        const { exitCode, stderr } = await run(['export', BROKEN_FLOWS_MODEL, '-o', outFile]);
 
-    assert(exitCode === 1, 'flow Class B finding: exit 1', `got ${exitCode}`);
-    assert(
-        stderr.includes('flow.unknown_store') || stderr.includes('error'),
-        'flow Class B: stderr mentions flow.unknown_store or error',
-        `stderr:\n${stderr.slice(0, 500)}`,
-    );
-
-    cleanup(outFile, dictFile);
-}
-
-// ---------------------------------------------------------------------------
-// Test 4: no flows/ directory → friendly note + exit 0
-// ---------------------------------------------------------------------------
-{
-    const outFile = join(TMP, 'test-flow-r2-noflows.html');
-    cleanup(outFile);
-
-    const { exitCode, stderr } = await run(['flow', NO_FLOWS_MODEL, '-o', outFile]);
-
-    assert(exitCode === 0, 'flow no flows/: exit 0', `got ${exitCode}\nstderr:\n${stderr.slice(0, 300)}`);
-    assert(
-        stderr.length > 0 && (stderr.toLowerCase().includes('no flows') || stderr.includes(NO_FLOWS_MODEL)),
-        'flow no flows/: friendly note on stderr',
-        `stderr:\n${stderr.slice(0, 300)}`,
-    );
-    // No viewer file written (we exited early)
-    cleanup(outFile);
-}
-
-// ---------------------------------------------------------------------------
-// Test 5: `flow models/key-inherited -o ...` is parsed path-first
-//   - old name-first `flow <name>` would treat "models/key-inherited" as a DFD
-//     name and error with "DFD 'models/key-inherited' not found"
-//   - now it must be treated as the model path and exit 0
-// ---------------------------------------------------------------------------
-{
-    const outFile = join(TMP, 'test-flow-r2-ki.html');
-    const dictFile = join(TMP, 'test-flow-r2-ki.dict.html');
-    cleanup(outFile, dictFile);
-
-    const { exitCode, stdout, stderr } = await run(['flow', KEY_INHERITED, '-o', outFile]);
-
-    assert(exitCode === 0, 'flow key-inherited path-first: exit 0', `got ${exitCode}\nstderr:\n${stderr.slice(0, 500)}`);
-    assert(
-        !stderr.includes('not found') && !stderr.includes('Unknown DFD'),
-        'flow key-inherited path-first: no DFD-not-found error on stderr',
-        `stderr:\n${stderr.slice(0, 300)}`,
-    );
-    assert(existsSync(outFile), 'flow key-inherited path-first: viewer written', `path: ${outFile}`);
-
-    cleanup(outFile, dictFile);
-}
-
-// ---------------------------------------------------------------------------
-// Test 6: sibling dict file exists AND viewer HTML contains href to it
-// ---------------------------------------------------------------------------
-{
-    const outFile = join(TMP, 'test-flow-r2-sibling.html');
-    const dictFile = join(TMP, 'test-flow-r2-sibling.dict.html');
-    cleanup(outFile, dictFile);
-
-    const { exitCode } = await run(['flow', FLOWS_MODEL, '-o', outFile]);
-
-    assert(exitCode === 0, 'flow sibling: exit 0', `got ${exitCode}`);
-    assert(existsSync(dictFile), 'flow sibling: dict file exists on disk', `expected: ${dictFile}`);
-
-    if (existsSync(outFile)) {
-        const html = await Bun.file(outFile).text();
-        const expectedHref = basename(dictFile);
+        assert(exitCode === 1, 'export Class B finding: exit 1', `got ${exitCode}`);
         assert(
-            html.includes(expectedHref),
-            `flow sibling: viewer HTML contains href to dict (${expectedHref})`,
-            `searched for: ${expectedHref}\nhtml length: ${html.length}`,
+            stderr.includes('flow.unknown_store') || stderr.includes('error'),
+            'export Class B: stderr mentions flow.unknown_store or error',
+            `stderr:\n${stderr.slice(0, 500)}`,
         );
-    }
 
-    cleanup(outFile, dictFile);
+        cleanup(outFile);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 4: model with no flows/ → exit 0, ONE file (flow view shows empty state)
+// ---------------------------------------------------------------------------
+{
+    const bundleExists = await Bun.file(join(ROOT, 'dist/static/index.js')).exists();
+    if (bundleExists) {
+        const outFile = join(TMP, 'test-export-r2-noflows.html');
+        cleanup(outFile);
+
+        const { exitCode, stderr } = await run(['export', NO_FLOWS_MODEL, '-o', outFile]);
+
+        // export exits 0 for a clean model with no flows (flow view is empty state)
+        assert(exitCode === 0, 'export no flows/: exit 0', `got ${exitCode}\nstderr:\n${stderr.slice(0, 300)}`);
+        assert(existsSync(outFile), 'export no flows/: output file written', `path: ${outFile}`);
+        assertNoSiblings(outFile, 'export no flows/');
+
+        if (existsSync(outFile)) {
+            const html = await Bun.file(outFile).text();
+            // Check the pre-module injection (bundle also references these global names).
+            const moduleIdx = html.indexOf('<script type="module">');
+            const preModule = moduleIdx > 0 ? html.slice(0, moduleIdx) : html;
+            assert(preModule.includes('window.__MODEL__'), 'export no flows/: injection has __MODEL__');
+            assert(preModule.includes('window.__LAYOUT_KEY__'), 'export no flows/: injection has __LAYOUT_KEY__');
+        }
+
+        cleanup(outFile);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 5: `export models/key-inherited -o ...` (model WITH flows/) — one file
+// ---------------------------------------------------------------------------
+{
+    const bundleExists = await Bun.file(join(ROOT, 'dist/static/index.js')).exists();
+    if (bundleExists) {
+        const outFile = join(TMP, 'test-export-r2-ki.html');
+        cleanup(outFile);
+
+        const { exitCode, stdout, stderr } = await run(['export', KEY_INHERITED, '-o', outFile]);
+
+        assert(exitCode === 0, 'export key-inherited: exit 0', `got ${exitCode}\nstderr:\n${stderr.slice(0, 500)}`);
+        assert(existsSync(outFile), 'export key-inherited: output file written', `path: ${outFile}`);
+        assertNoSiblings(outFile, 'export key-inherited');
+
+        cleanup(outFile);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: exit 1 on global error OR Class B flow finding (regression guard)
+// ---------------------------------------------------------------------------
+{
+    const bundleExists = await Bun.file(join(ROOT, 'dist/static/index.js')).exists();
+    if (bundleExists) {
+        const outFile = join(TMP, 'test-export-r2-exitcode.html');
+        cleanup(outFile);
+
+        const { exitCode } = await run(['export', BROKEN_FLOWS_MODEL, '-o', outFile]);
+        assert(exitCode === 1, 'export exit-code: Class B finding → exit 1', `got ${exitCode}`);
+
+        cleanup(outFile);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -226,38 +249,24 @@ function cleanup(...paths: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// Test 10: `flow` exits 1 on global error OR Class B flow finding
-//
-// broken-demo has no flows/ dir, so it exits 0 with "No flows" — it cannot
-// exercise the "global error + flows present" path. broken-flows-model
-// triggers the Class B `flow.unknown_store` rule, which already drives exit 1
-// (covered in Test 3).
-//
-// A pure "entity global error + flows/" fixture does not exist. Test 3 is the
-// authoritative proof that "Class B flow finding → exit 1". The exit condition
-// `allGlobalErrors.length > 0 || hasClassBFlowErrors ? 1 : 0` covers both
-// arms; the entity-global-error arm would only fire if the fixture had both
-// parse/entity errors AND a flows/ directory. Adding such a fixture is
-// deferred — the Class B path here is sufficient to catch regressions on the
-// exit logic.
+// Test 10: removed stubs — dict/graph/flow print "use export" and exit 1
 // ---------------------------------------------------------------------------
 {
-    // Re-run the Class B fixture and confirm the new combined exit expression
-    // still exits 1 (regression guard for Fix 1).
-    const outFile = join(TMP, 'test-flow-r2-exitcode.html');
-    const dictFile = join(TMP, 'test-flow-r2-exitcode.dict.html');
-    cleanup(outFile, dictFile);
-
-    const { exitCode } = await run(['flow', BROKEN_FLOWS_MODEL, '-o', outFile]);
-    assert(exitCode === 1, 'flow exit-code: Class B finding → exit 1 (Fix 1 regression guard)', `got ${exitCode}`);
-
-    cleanup(outFile, dictFile);
+    for (const verb of ['dict', 'graph', 'flow'] as const) {
+        const { exitCode, stderr } = await run([verb, KEY_INHERITED, '-o', join(TMP, `test-stub-${verb}.html`)]);
+        assert(exitCode === 1, `${verb} stub: exit 1`, `got ${exitCode}`);
+        assert(
+            stderr.includes('export'),
+            `${verb} stub: stderr mentions 'export'`,
+            `stderr:\n${stderr.slice(0, 200)}`,
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
 // Done
 // ---------------------------------------------------------------------------
 console.log('\n' + (failures === 0
-    ? 'All flow-cli tests passed.'
-    : `${failures} flow-cli test(s) FAILED.`));
+    ? 'All export-cli tests passed.'
+    : `${failures} export-cli test(s) FAILED.`));
 if (failures > 0) process.exit(1);

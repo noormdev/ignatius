@@ -34,12 +34,35 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { buildFlowData } from './flow-layout';
 import type { FlowDiagram } from '../flow-parse';
-import type { NodePos } from './flow-layout';
+import type { NodePos, FlowElementData } from './flow-layout';
 import type { PositionMap } from '../layout-store';
+import type { FlowKindEntry, FlowKindKey } from '../theme-defaults';
 
-// ── Visual constants — match mock-e ──────────────────────────────────────────
+// ── Visual palettes — theme-aware ─────────────────────────────────────────────
 
-const C = {
+/** All color roles used by the flow SVG renderer. */
+export type FlowPalette = {
+  canvas: string;
+  border: string;
+  text: string;
+  muted: string;
+  accent: string;
+  procFill: string;
+  procBorder: string;
+  procText: string;
+  /** Fill for the stacked-card elevation shadow drawn under drillable processes. */
+  procElevation: string;
+  extFill: string;
+  extBorder: string;
+  extText: string;
+  storeFill: string;
+  storeBorder: string;
+  storeText: string;
+  edge: string;
+  chipBg: string;
+};
+
+export const DARK_PALETTE: FlowPalette = {
   canvas: '#0e1116',
   border: '#30363d',
   text: '#e6edf3',
@@ -49,6 +72,7 @@ const C = {
   procFill: '#0d419d',
   procBorder: '#58a6ff',
   procText: '#cfe2ff',
+  procElevation: '#0a2d6b',
 
   extFill: '#1a3a1a',
   extBorder: '#3fb950',
@@ -58,10 +82,39 @@ const C = {
   storeBorder: '#d29922',
   storeText: '#f2d49b',
 
-  edgeWrite: '#8b949e',
-  edgeRead: '#d29922',
+  edge: '#8b949e',
   chipBg: '#161b22',
 };
+
+export const LIGHT_PALETTE: FlowPalette = {
+  canvas: '#f6f8fa',
+  border: '#d0d7de',
+  text: '#1f2328',
+  muted: '#57606a',
+  accent: '#0969da',
+
+  procFill: '#dbeafe',
+  procBorder: '#2563eb',
+  procText: '#1e3a8a',
+  procElevation: '#93c5fd',
+
+  extFill: '#dcfce7',
+  extBorder: '#16a34a',
+  extText: '#14532d',
+
+  storeFill: '#fef9c3',
+  storeBorder: '#ca8a04',
+  storeText: '#713f12',
+
+  edge: '#57606a',
+  chipBg: '#eaeef2',
+};
+
+// Bright highlight for the line being dragged. Themeable: override the CSS
+// custom property `--flow-edge-highlight` to recolour it.
+const EDGE_HIGHLIGHT = 'var(--flow-edge-highlight, #f0883e)';
+// Opacity applied to everything outside the hovered element's connected set.
+const DIM_OPACITY = 0.3;
 
 // Node geometry constants
 const PROC_W = 120;
@@ -76,17 +129,22 @@ const EXT_RX = 5;
 const STORE_H = 34;
 const STORE_CAP_W = 34;
 const STORE_BODY_W = 136; // minimum body width; expands for long names
+const STORE_INFO_PAD = 22; // right-side slot reserved for the ⓘ doc badge
 
-const EDGE_SW_WRITE = 1.6;
-const EDGE_SW_READ = 1.8;
+const EDGE_SW = 1.6;
 // How far short of the node boundary to stop the path, so the arrowhead
 // (markerUnits=userSpaceOnUse, refX=7.5) sits flush against the node edge.
 const ARROW_MARGIN = 8;
+// Distance outside the target boundary where the horizontal channel sits, so the
+// edge's final segment is always a vertical stub into the node (arrow points in).
+// Must exceed ARROW_MARGIN so that stub has length and direction.
+const EDGE_APPROACH = 26;
 
-const CHIP_H = 18;
 const CHIP_RX = 4;
 const CHIP_FONT = 10.5;
-const CHIP_MAX_CHARS = 22; // truncate long labels to keep chips within store spacing
+const CHIP_LINE_H = 13;  // vertical pitch per data line in a multi-line chip
+const CHIP_PAD_Y = 4;    // top/bottom padding inside a chip
+const CHIP_MAX_CHARS = 22; // truncate a single long data line to keep chips compact
 
 const PADDING = 80; // canvas padding around content
 
@@ -120,7 +178,8 @@ function truncateLabel(label: string, maxChars: number): string {
 }
 
 function storeWidth(name: string): number {
-  const bodyW = Math.max(STORE_BODY_W, measureText(name, 11.5));
+  // Reserve a right-side slot for the ⓘ badge so it never overlaps the name.
+  const bodyW = Math.max(STORE_BODY_W, measureText(name, 11.5) + STORE_INFO_PAD);
   return STORE_CAP_W + bodyW;
 }
 
@@ -152,75 +211,282 @@ function nodeBounds(pos: NodePos, nodeType: string, storeName?: string): {
   return { x: pos.x - sw / 2, y: pos.y - STORE_H / 2, w: sw, h: STORE_H, cx: pos.x, cy: pos.y };
 }
 
+type FlowNode = Extract<FlowElementData, { kind: 'node' }>;
+type FlowEdge = Extract<FlowElementData, { kind: 'edge' }>;
+
+/** Per-edge horizontal attachment points after fan-out (world x). */
+type EdgeAnchors = { fromX: number; toX: number };
+
+/** Spacing (world px) between adjacent fan-out anchors on one node side. */
+const FANOUT_GAP = 5;
+
 /**
- * Compute an orthogonal edge path between two nodes.
- * Returns an SVG path `d` attribute string.
+ * Which side (top/bottom) of a node an edge endpoint attaches to.
+ *
+ * Processes follow the read/output rule: an edge *into* a process (the process
+ * is the edge target, `role === 'to'`) is a read and docks at the TOP; an edge
+ * *out of* a process (`role === 'from'`) is an output and docks at the BOTTOM —
+ * regardless of where the other node sits. Stores and externals have no such
+ * rule, so they attach on whichever side faces the other endpoint.
+ */
+function endpointSide(
+  nodeType: string, role: 'from' | 'to', selfY: number, otherY: number,
+): 'top' | 'bottom' {
+  if (nodeType === 'process') {
+    return role === 'to' ? 'top' : 'bottom';
+  }
+  return selfY <= otherY ? 'bottom' : 'top';
+}
+
+/**
+ * Fan-out edge anchors. By default every edge would attach to its node's
+ * center-x (top or bottom), so all edges touching one node stack on a single
+ * point and become impossible to trace. Instead, for each node *side* (top or
+ * bottom) we spread the attachment x-positions of its edges evenly across that
+ * side. Within a side the edges are ordered by the x of their opposite endpoint
+ * so the fan-out doesn't cross itself. A side with one edge keeps the center.
+ *
+ * Recomputed each render against live `positions`, so anchors re-balance as
+ * nodes are dragged.
+ */
+function computeEdgeAnchors(
+  edges: FlowEdge[],
+  nodeById: Map<string, FlowNode>,
+  positions: Map<string, NodePos>,
+): Map<string, EdgeAnchors> {
+  type Slot = { edgeId: string; role: 'from' | 'to'; otherX: number };
+  const groups = new Map<string, Slot[]>();
+  const pushSlot = (key: string, slot: Slot) => {
+    const list = groups.get(key);
+    if (list) list.push(slot);
+    else groups.set(key, [slot]);
+  };
+
+  // Group edges by the node side they attach to (same side rule as the router),
+  // so a process's reads fan out across its top edge and its outputs across the
+  // bottom edge.
+  for (const edge of edges) {
+    const fromPos = positions.get(edge.source);
+    const toPos = positions.get(edge.target);
+    const fromNode = nodeById.get(edge.source);
+    const toNode = nodeById.get(edge.target);
+    if (!fromPos || !toPos || !fromNode || !toNode) continue;
+    const fromSide = endpointSide(fromNode.nodeType, 'from', fromPos.y, toPos.y);
+    const toSide = endpointSide(toNode.nodeType, 'to', toPos.y, fromPos.y);
+    pushSlot(`${edge.source}|${fromSide}`, { edgeId: edge.id, role: 'from', otherX: toPos.x });
+    pushSlot(`${edge.target}|${toSide}`, { edgeId: edge.id, role: 'to', otherX: fromPos.x });
+  }
+
+  const slotX = new Map<string, number>(); // `${edgeId}|${role}` → world x
+  for (const [key, slots] of groups) {
+    const nodeId = key.slice(0, key.lastIndexOf('|'));
+    const node = nodeById.get(nodeId);
+    const pos = positions.get(nodeId);
+    if (!node || !pos) continue;
+    const storeName = node.nodeType === 'store' ? (node.label ?? node.storeName ?? '') : undefined;
+    const { cx } = nodeBounds(pos, node.nodeType, storeName);
+    slots.sort((a, b) => a.otherX - b.otherX);
+    const k = slots.length;
+    const span = FANOUT_GAP * (k - 1);
+    slots.forEach((slot, i) => {
+      const offset = k === 1 ? 0 : -span / 2 + FANOUT_GAP * i;
+      slotX.set(`${slot.edgeId}|${slot.role}`, cx + offset);
+    });
+  }
+
+  const result = new Map<string, EdgeAnchors>();
+  for (const edge of edges) {
+    const fromPos = positions.get(edge.source);
+    const toPos = positions.get(edge.target);
+    if (!fromPos || !toPos) continue;
+    result.set(edge.id, {
+      fromX: slotX.get(`${edge.id}|from`) ?? fromPos.x,
+      toX: slotX.get(`${edge.id}|to`) ?? toPos.x,
+    });
+  }
+  return result;
+}
+
+type Box = { x: number; y: number; w: number; h: number };
+type Pt = [number, number];
+
+function boxesOverlap(a: Box, b: Box): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function pointsToD(pts: Pt[]): string {
+  return `M${pts[0]![0]},${pts[0]![1]} ` + pts.slice(1).map(p => `L${p[0]},${p[1]}`).join(' ');
+}
+
+/** Closest point to (px,py) on a polyline, used to slide a dragged label along its edge. */
+function projectOntoPolyline(pts: Pt[], px: number, py: number): NodePos {
+  let best: NodePos = { x: pts[0]![0], y: pts[0]![1] };
+  let bestD = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1]!;
+    const [bx, by] = pts[i]!;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+    const x = ax + t * dx, y = ay + t * dy;
+    const d = (px - x) ** 2 + (py - y) ** 2;
+    if (d < bestD) { bestD = d; best = { x, y }; }
+  }
+  return best;
+}
+
+/**
+ * Nudge chips vertically so they don't sit on top of node boxes or each other.
+ * A chip rides a (near-)vertical part of its edge, so moving it up or down keeps
+ * it on its line while clearing obstacles. For each chip we scan outward from its
+ * natural y in growing steps and take the nearest slot that's fully clear — this
+ * finds the closest gap without the oscillation a greedy "nearer side" pass hits
+ * when a chip is sandwiched between two obstacles. Mutates `chip` in place.
+ */
+function deoverlapChips(
+  renders: Array<{ chip: NodePos; lines: string[] }>,
+  nodeBoxes: Box[],
+): void {
+  const STEP = 8;
+  const MAX_STEPS = 24; // ±192px of search before giving up
+  const placed: Box[] = [];
+  for (const r of renders) {
+    if (r.lines.length === 0) continue;
+    const { w, h } = chipDims(r.lines);
+    const baseY = r.chip.y;
+    const isClear = (cy: number): boolean => {
+      const rect = { x: r.chip.x - w / 2, y: cy - h / 2, w, h };
+      return !nodeBoxes.some(o => boxesOverlap(rect, o)) && !placed.some(o => boxesOverlap(rect, o));
+    };
+    let bestY = baseY;
+    outer: for (let k = 0; k <= MAX_STEPS; k++) {
+      for (const cy of k === 0 ? [baseY] : [baseY + k * STEP, baseY - k * STEP]) {
+        if (isClear(cy)) { bestY = cy; break outer; }
+      }
+    }
+    r.chip = { x: r.chip.x, y: bestY };
+    placed.push({ x: r.chip.x - w / 2, y: bestY - h / 2, w, h });
+  }
+}
+
+/**
+ * Y of the edge's horizontal channel. For a normal down-jog (source above the
+ * target) it sits at the midpoint, so the run — and the label that rides it —
+ * lands halfway between the two nodes, well clear of the arrowheads. Only when a
+ * read has to route up and over (source below the target) does the channel sit
+ * just outside the target instead, so the path still ends in a clean stub.
+ */
+function edgeChannelY(fy: number, toSide: 'top' | 'bottom', toBoundary: number): number {
+  const goingDown = fy <= toBoundary;
+  if (goingDown) return (fy + toBoundary) / 2;
+  return toSide === 'top' ? toBoundary - EDGE_APPROACH : toBoundary + EDGE_APPROACH;
+}
+
+/**
+ * Compute an orthogonal edge path between two nodes. `fromX`/`toX` are the
+ * fan-out attachment points; the attach *sides* follow the read/output rule
+ * (see endpointSide). Plain orthogonal trunk — it passes behind any node in the
+ * way, which reads fine because lines render under the nodes. Returns an SVG
+ * path `d` string.
  */
 function orthogonalPath(
   fromPos: NodePos, fromType: string, fromStoreName: string | undefined,
   toPos: NodePos, toType: string, toStoreName: string | undefined,
-): string {
+  fromX: number, toX: number,
+): Pt[] {
   const fb = nodeBounds(fromPos, fromType, fromStoreName);
   const tb = nodeBounds(toPos, toType, toStoreName);
 
-  const goingDown = fromPos.y <= toPos.y;
+  const fromSide = endpointSide(fromType, 'from', fromPos.y, toPos.y);
+  const toSide = endpointSide(toType, 'to', toPos.y, fromPos.y);
 
-  const fx = fromPos.x;
-  const fy = goingDown ? fb.y + fb.h : fb.y;
-  const tx = toPos.x;
-  const ty = goingDown ? tb.y - ARROW_MARGIN : tb.y + tb.h + ARROW_MARGIN;
+  const fy = fromSide === 'bottom' ? fb.y + fb.h : fb.y;
+  const toBoundary = toSide === 'top' ? tb.y : tb.y + tb.h;
+  const ty = toSide === 'top' ? toBoundary - ARROW_MARGIN : toBoundary + ARROW_MARGIN;
+  const channelY = edgeChannelY(fy, toSide, toBoundary);
 
-  const destBoundary = goingDown ? tb.y : tb.y + tb.h;
-  const midY = (fy + destBoundary) / 2;
-
-  if (Math.abs(fx - tx) < 2) {
-    return `M${fx},${fy} V${ty}`;
+  if (Math.abs(fromX - toX) < 2) {
+    return [[fromX, fy], [fromX, ty]];
   }
-
-  return `M${fx},${fy} V${midY} H${tx} V${ty}`;
+  return [[fromX, fy], [fromX, channelY], [toX, channelY], [toX, ty]];
 }
 
 /**
- * Pick a point along an orthogonal path for the data-label chip.
+ * Pick a point along an orthogonal path for the data-label chip. The chip sits
+ * on the horizontal channel (mid-line, off the arrows), biased to the
+ * store/external end's x — those nodes are spread out, so chips don't pile up
+ * the way they would at a process that carries many edges.
  */
 function chipAnchor(
   fromPos: NodePos, fromType: string, fromStoreName: string | undefined,
   toPos: NodePos, toType: string, toStoreName: string | undefined,
+  fromX: number, toX: number,
 ): NodePos {
   const fb = nodeBounds(fromPos, fromType, fromStoreName);
   const tb = nodeBounds(toPos, toType, toStoreName);
-  const goingDown = fromPos.y <= toPos.y;
-
-  const fy = goingDown ? fb.y + fb.h : fb.y;
-  const destBoundary = goingDown ? tb.y : tb.y + tb.h;
-  const midY = (fy + destBoundary) / 2;
+  const fromSide = endpointSide(fromType, 'from', fromPos.y, toPos.y);
+  const toSide = endpointSide(toType, 'to', toPos.y, fromPos.y);
+  const fy = fromSide === 'bottom' ? fb.y + fb.h : fb.y;
+  const toBoundary = toSide === 'top' ? tb.y : tb.y + tb.h;
+  const channelY = edgeChannelY(fy, toSide, toBoundary);
 
   let chipX: number;
-  if (fromType === 'process' && toType === 'store') {
-    chipX = toPos.x;
-  } else if (fromType === 'store' && toType === 'process') {
-    chipX = fromPos.x;
+  if (Math.abs(fromX - toX) < 2) {
+    chipX = fromX;
+  } else if (fromType !== 'process') {
+    chipX = fromX; // store/external source (a read) — bias to the source end
+  } else if (toType !== 'process') {
+    chipX = toX; // store/external target (a write) — bias to the target end
   } else {
-    chipX = Math.abs(fromPos.x - toPos.x) < 2
-      ? fromPos.x
-      : (fromPos.x + toPos.x) / 2;
+    chipX = (fromX + toX) / 2; // process → process
   }
 
-  const isLongDownwardPath = goingDown && fromType === 'process' && toType === 'external';
-  const chipY = isLongDownwardPath
-    ? fy + (destBoundary - fy) * 0.72
-    : midY;
-
-  return { x: chipX, y: chipY };
+  return { x: chipX, y: channelY };
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
+// Radius of the ⓘ "open docs" badge drawn on every node.
+const INFO_R = 7;
+
+/**
+ * A small ⓘ badge that opens the node's documentation dialog. Its pointerdown
+ * stops propagation so it never starts a node drag or a sub-DFD drill — the
+ * badge is a dedicated affordance, separate from the node body's click.
+ *
+ * Drawn as the Unicode ⓘ glyph (U+24D8), matching the app's icon convention
+ * (the FAB / theme / nav chrome are all single glyphs — no icon library). A
+ * dark backing disc keeps the glyph legible on the saturated process / external
+ * fills, the same way the process number badge backs its text.
+ */
+function InfoBadge({ cx, cy, color, c, onOpen }: {
+  cx: number; cy: number; color: string; c: FlowPalette; onOpen?: () => void;
+}) {
+  if (!onOpen) return null;
+  return (
+    <g
+      data-ignatius="flow-info"
+      style={{ cursor: 'pointer' }}
+      onPointerDown={e => { e.stopPropagation(); e.preventDefault(); onOpen(); }}
+    >
+      {/* Generous transparent hit target around the glyph. */}
+      <circle cx={cx} cy={cy} r={INFO_R + 4} fill="transparent" />
+      {/* Backing disc for contrast against any node fill. */}
+      <circle cx={cx} cy={cy} r={INFO_R - 0.5} fill={c.canvas} />
+      <text
+        x={cx} y={cy + 5.6} fill={color}
+        fontSize={16.5} textAnchor="middle"
+        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      >{'ⓘ'}</text>
+    </g>
+  );
+}
+
 function ProcessNode({
-  id, label, pos, num, hasSubDfd,
+  id, label, pos, num, hasSubDfd, c, onOpenDoc,
 }: {
   id: string; label: string; pos: NodePos; num: string;
-  hasSubDfd: boolean;
+  hasSubDfd: boolean; c: FlowPalette; onOpenDoc?: () => void;
 }) {
   const x = pos.x - PROC_W / 2;
   const y = pos.y - PROC_H / 2;
@@ -244,16 +510,34 @@ function ProcessNode({
       data-has-sub-dfd={hasSubDfd ? 'true' : undefined}
       style={{ cursor: hasSubDfd ? 'pointer' : 'move' }}
     >
+      {/* Stacked-card elevation: two offset rects behind the main shape signal
+          drill-down. Rendered before the main rect so they sit under it. The
+          offsets are purely decorative — nodeBounds() still uses the unshifted
+          PROC_W/PROC_H, so edge anchoring is unaffected (CP6 invariant). */}
+      {hasSubDfd && (
+        <>
+          <rect
+            x={x + 8} y={y + 8} width={PROC_W} height={PROC_H} rx={PROC_RX}
+            fill={c.procElevation} stroke={c.procBorder} strokeWidth={1}
+            opacity={0.6}
+          />
+          <rect
+            x={x + 4} y={y + 4} width={PROC_W} height={PROC_H} rx={PROC_RX}
+            fill={c.procElevation} stroke={c.procBorder} strokeWidth={1.2}
+            opacity={0.8}
+          />
+        </>
+      )}
       <rect
         x={x} y={y} width={PROC_W} height={PROC_H} rx={PROC_RX}
-        fill={C.procFill} stroke={C.procBorder} strokeWidth={1.6}
+        fill={c.procFill} stroke={c.procBorder} strokeWidth={1.6}
       />
-      <circle cx={badgeCx} cy={badgeCy} r={BADGE_R} fill={C.canvas} stroke={C.procBorder} strokeWidth={1.3} />
-      <text x={badgeCx} y={badgeCy + 4} fill={C.procText} fontSize={11} fontWeight={700} textAnchor="middle">{num}</text>
+      <circle cx={badgeCx} cy={badgeCy} r={BADGE_R} fill={c.canvas} stroke={c.procBorder} strokeWidth={1.3} />
+      <text x={badgeCx} y={badgeCy + 4} fill={c.procText} fontSize={11} fontWeight={700} textAnchor="middle">{num}</text>
       <text
         x={textCenterX}
         y={textStartY}
-        fill={C.procText}
+        fill={c.procText}
         fontSize={11.5}
         fontWeight={600}
         textAnchor="middle"
@@ -264,7 +548,7 @@ function ProcessNode({
         <text
           x={textCenterX}
           y={textStartY + lineH}
-          fill={C.procText}
+          fill={c.procText}
           fontSize={11.5}
           fontWeight={600}
           textAnchor="middle"
@@ -273,31 +557,44 @@ function ProcessNode({
         </text>
       )}
       {hasSubDfd && (
-        <text x={x + PROC_W - 10} y={y + PROC_H - 6} fill="#9ecbff" fontSize={12} textAnchor="middle">⤵</text>
+        <text x={x + PROC_W - 10} y={y + PROC_H - 6} fill={c.procBorder} fontSize={12} textAnchor="middle">⤵</text>
       )}
+      <InfoBadge cx={x + PROC_W - INFO_R - 5} cy={y + INFO_R + 5} color={c.procBorder} c={c} onOpen={onOpenDoc} />
     </g>
   );
 }
 
-function ExternalNode({ label, pos }: { label: string; pos: NodePos }) {
+function ExternalNode({ label, pos, c, kindColors, onOpenDoc }: {
+  label: string; pos: NodePos; c: FlowPalette;
+  /** When the external carries a `kind:`, override its fill/border/text. Absent → conventional green. */
+  kindColors?: FlowKindEntry;
+  onOpenDoc?: () => void;
+}) {
   const x = pos.x - EXT_W / 2;
   const y = pos.y - EXT_H / 2;
+  const fill = kindColors ? kindColors.bg : c.extFill;
+  const stroke = kindColors ? kindColors.border : c.extBorder;
+  const textFill = kindColors ? kindColors.fg : c.extText;
 
   return (
     <g data-node-type="external" style={{ cursor: 'move' }}>
       <rect x={x} y={y} width={EXT_W} height={EXT_H} rx={EXT_RX}
-        fill={C.extFill} stroke={C.extBorder} strokeWidth={1.4} />
-      <text x={pos.x} y={pos.y + 4} fill={C.extText} fontSize={12.5} fontWeight={600} textAnchor="middle">
+        fill={fill} stroke={stroke} strokeWidth={1.4} />
+      <text x={pos.x} y={pos.y + 4} fill={textFill} fontSize={12.5} fontWeight={600} textAnchor="middle">
         {label}
       </text>
+      <InfoBadge cx={x + EXT_W - INFO_R - 5} cy={y + INFO_R + 5} color={stroke} c={c} onOpen={onOpenDoc} />
     </g>
   );
 }
 
 function StoreNode({
-  storeNum, storeName, pos, isShared,
+  storeNum, storeName, pos, duplicated, c, kindColors, onOpenDoc,
 }: {
-  storeNum: number; storeName: string; pos: NodePos; isShared: boolean;
+  storeNum: number; storeName: string; pos: NodePos; duplicated: boolean; c: FlowPalette;
+  /** When set, overrides the store's fill/border/text with kind-specific colors. */
+  kindColors?: FlowKindEntry;
+  onOpenDoc?: () => void;
 }) {
   const sw = storeWidth(storeName);
   const x = pos.x - sw / 2;
@@ -305,91 +602,135 @@ function StoreNode({
   const bodyX = x + STORE_CAP_W;
   const bodyW = sw - STORE_CAP_W;
   const dLabel = `D${storeNum}`;
-  const strokeW = isShared ? 1.6 : 1.4;
+  const strokeW = 1.4;
   const rightX = x + sw;
+  const fill = kindColors ? kindColors.bg : c.storeFill;
+  const stroke = kindColors ? kindColors.border : c.storeBorder;
+  const textFill = kindColors ? kindColors.fg : c.storeText;
 
   return (
     <g data-node-type="store" style={{ cursor: 'move' }}>
-      {isShared && (
-        <rect
-          x={x - 6} y={y - 6} width={sw + 12} height={STORE_H + 12} rx={6}
-          fill="none" stroke={C.accent} strokeWidth={1.2} opacity={0.65}
-        />
-      )}
-      <rect x={bodyX} y={y} width={bodyW} height={STORE_H} fill={C.storeFill} />
+      <rect x={bodyX} y={y} width={bodyW} height={STORE_H} fill={fill} />
       <rect x={x} y={y} width={STORE_CAP_W} height={STORE_H}
-        fill={C.storeFill} stroke={C.storeBorder} strokeWidth={strokeW} />
+        fill={fill} stroke={stroke} strokeWidth={strokeW} />
       <path
         d={`M${x},${y} H${rightX} M${x},${y} V${y + STORE_H} H${rightX}`}
-        fill="none" stroke={C.storeBorder} strokeWidth={strokeW}
+        fill="none" stroke={stroke} strokeWidth={strokeW}
       />
-      <line x1={bodyX} y1={y} x2={bodyX} y2={y + STORE_H} stroke={C.storeBorder} strokeWidth={strokeW} />
+      {/* Duplicate-store marker: a thicker left border (canonical DFD notation
+          for a store drawn more than once) painted in the border colour, so it
+          reads as a doubled edge rather than carving a sub-cell — the D# cap
+          keeps the same fixed width as a single store's. Inset to the border's
+          *outer* edge (strokeW/2 beyond the box) so it bleeds like the border. */}
+      {duplicated && (
+        <rect
+          x={x - strokeW / 2} y={y - strokeW / 2}
+          width={3 + strokeW / 2} height={STORE_H + strokeW}
+          fill={stroke}
+        />
+      )}
+      <line x1={bodyX} y1={y} x2={bodyX} y2={y + STORE_H} stroke={stroke} strokeWidth={strokeW} />
       <text
         x={x + STORE_CAP_W / 2} y={y + STORE_H / 2 + 4}
-        fill={C.storeText} fontSize={11} fontWeight={700} textAnchor="middle"
+        fill={textFill} fontSize={11} fontWeight={700} textAnchor="middle"
       >
         {dLabel}
       </text>
       <text
         x={bodyX + 6} y={y + STORE_H / 2 + 4}
-        fill={C.storeText} fontSize={11.5} textAnchor="start"
+        fill={textFill} fontSize={11.5} textAnchor="start"
       >
         {storeName}
       </text>
+      {/* Badge sits inside the body at the right edge (a slot reserved by
+          STORE_INFO_PAD), vertically centred — on the store's own fill so the
+          click always lands, and visibly part of the container. */}
+      <InfoBadge cx={rightX - INFO_R - 4} cy={pos.y} color={stroke} c={c} onOpen={onOpenDoc} />
     </g>
   );
 }
 
-function EdgeLine({
-  fromPos, fromType, fromStoreName,
-  toPos, toType, toStoreName,
-  label, isRead,
+// All data flows render identically (solid arrow). Read vs write is conveyed by
+// arrow direction — store→process is a read, process→store a write — per
+// canonical SSADM/Gane-Sarson notation, not by line style or colour. Paths and
+// chips render as two separate layers (all paths under the nodes, all chips
+// above everything) so a line never draws over another edge's label.
+
+function EdgePath({
+  d, label, opacity, highlighted, c, onHoverChange,
 }: {
-  fromPos: NodePos; fromType: string; fromStoreName?: string;
-  toPos: NodePos; toType: string; toStoreName?: string;
-  label: string; isRead: boolean;
+  d: string;
+  label: string;
+  opacity: number;
+  highlighted: boolean;
+  c: FlowPalette;
+  onHoverChange: (hovering: boolean) => void;
 }) {
-  const stroke = isRead ? C.edgeRead : C.edgeWrite;
-  const sw = isRead ? EDGE_SW_READ : EDGE_SW_WRITE;
-  const dashArray = isRead ? '6 5' : undefined;
-  const markerId = isRead ? 'arrowRead' : 'arrowWrite';
-  const chipStroke = isRead ? C.edgeRead : C.border;
-  const chipTextFill = isRead ? C.storeText : C.text;
-
-  const d = orthogonalPath(fromPos, fromType, fromStoreName, toPos, toType, toStoreName);
-  const anchor = chipAnchor(fromPos, fromType, fromStoreName, toPos, toType, toStoreName);
-
-  const displayLabel = truncateLabel(label, CHIP_MAX_CHARS);
-  const chipW = Math.max(measureText(displayLabel, CHIP_FONT), 40);
-
   return (
-    <g>
+    <g
+      opacity={opacity}
+      style={{ transition: 'opacity 0.12s' }}
+      onPointerEnter={() => onHoverChange(true)}
+      onPointerLeave={() => onHoverChange(false)}
+    >
       {label && <title>{label}</title>}
       <path
-        d={d}
-        fill="none"
-        stroke={stroke}
-        strokeWidth={sw}
-        strokeDasharray={dashArray}
-        markerEnd={`url(#${markerId})`}
+        d={d} fill="none"
+        stroke={highlighted ? EDGE_HIGHLIGHT : c.edge}
+        strokeWidth={highlighted ? EDGE_SW + 1 : EDGE_SW}
+        markerEnd={highlighted ? 'url(#arrowHi)' : 'url(#arrow)'}
       />
-      {label && (
-        <g>
-          <rect
-            x={anchor.x - chipW / 2} y={anchor.y - CHIP_H / 2}
-            width={chipW} height={CHIP_H} rx={CHIP_RX}
-            fill={C.chipBg} stroke={chipStroke}
-          />
-          <text
-            x={anchor.x} y={anchor.y + CHIP_FONT / 2 - 1}
-            fill={chipTextFill}
-            fontSize={CHIP_FONT}
-            textAnchor="middle"
-          >
-            {displayLabel}
-          </text>
-        </g>
-      )}
+      {/* Transparent wide stroke so the thin line is easy to hover. */}
+      <path d={d} fill="none" stroke="transparent" strokeWidth={12} style={{ pointerEvents: 'stroke' }} />
+    </g>
+  );
+}
+
+/** Box dimensions of a multi-line chip. */
+function chipDims(lines: string[]): { w: number; h: number } {
+  return {
+    w: Math.max(...lines.map(l => measureText(l, CHIP_FONT)), 40),
+    h: lines.length * CHIP_LINE_H + CHIP_PAD_Y * 2,
+  };
+}
+
+/** A data-flow label, one column per line, centred on `pos`. Draggable: it
+ *  slides along its edge path via `onPointerDown`. Hovering it focuses its edge. */
+function EdgeChip({
+  pos, lines, opacity, c, onPointerDown, onHoverChange,
+}: {
+  pos: NodePos;
+  lines: string[];
+  opacity: number;
+  c: FlowPalette;
+  onPointerDown: (e: React.PointerEvent<SVGGElement>) => void;
+  onHoverChange: (hovering: boolean) => void;
+}) {
+  const { w: chipW, h: chipH } = chipDims(lines);
+  const topY = pos.y - chipH / 2;
+  return (
+    <g
+      data-ignatius="flow-chip"
+      opacity={opacity}
+      style={{ cursor: 'grab', userSelect: 'none', WebkitUserSelect: 'none', transition: 'opacity 0.12s' }}
+      onPointerDown={onPointerDown}
+      onPointerEnter={() => onHoverChange(true)}
+      onPointerLeave={() => onHoverChange(false)}
+    >
+      <rect
+        x={pos.x - chipW / 2} y={topY}
+        width={chipW} height={chipH} rx={CHIP_RX}
+        fill={c.chipBg} stroke={c.border}
+      />
+      {lines.map((line, i) => (
+        <text
+          key={i}
+          x={pos.x} y={topY + CHIP_PAD_Y + CHIP_LINE_H * i + CHIP_LINE_H / 2 + CHIP_FONT * 0.34}
+          fill={c.text} fontSize={CHIP_FONT} textAnchor="middle"
+        >
+          {line}
+        </text>
+      ))}
     </g>
   );
 }
@@ -398,7 +739,15 @@ function EdgeLine({
 
 export type FlowDiagramSvgProps = {
   diagram: FlowDiagram;
+  /** Current app theme. Selects the flow palette — 'dark' (default) or 'light'. */
+  themeMode?: 'dark' | 'light';
+  /** Resolved per-kind color palette for the current mode. When provided, stores
+   *  and externals are colored by their `kind` rather than the uniform palette fill. */
+  kindPalette?: Record<FlowKindKey, FlowKindEntry>;
   onDrill?: (processId: string) => void;
+  /** Called with a node's canonical doc token (`proc:id` / `ext:Name` / `kind:name`)
+   *  when the user clicks its ⓘ badge — opens the documentation dialog. */
+  onOpenDoc?: (docToken: string) => void;
   onReady?: () => void;
   /** Pre-loaded positions from persistence; overrides computed banded layout */
   savedPositions?: PositionMap;
@@ -414,29 +763,55 @@ export type FlowDiagramSvgProps = {
    * Called with null on unmount to clear the registration.
    */
   onRegisterPanTo?: (fn: ((worldX: number, worldY: number) => void) | null) => void;
+  /**
+   * Called whenever the scale changes (wheel, zoom-control buttons, reset).
+   * Used by the app-level ZoomControl readout to stay in sync.
+   * The value is the raw SVG scale factor (1 = fit baseline).
+   */
+  onZoomChange?: (scale: number) => void;
+  /**
+   * Called once on mount with zoom-control imperative operations, and with null
+   * on unmount. Allows app-level ZoomControl handlers to drive the SVG zoom
+   * without coupling the component to the control.
+   */
+  onRegisterZoomControl?: (ctrl: {
+    zoomTo(scale: number): void;
+    resetFit(): void;
+  } | null) => void;
 };
 
 export function FlowDiagramSvg({
   diagram,
+  themeMode = 'dark',
+  kindPalette,
   onDrill,
+  onOpenDoc,
   onReady,
   savedPositions,
   onPositionsChange,
   onViewChange,
   onRegisterPanTo,
+  onZoomChange,
+  onRegisterZoomControl,
 }: FlowDiagramSvgProps) {
+  // Select palette based on current theme.
+  const c = themeMode === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
+
   const { nodes, edges, positions: bandedPositions, storeNums } = buildFlowData(diagram);
 
   // Build a quick lookup: nodeId → node metadata. Memoized so it only
   // rebuilds when the diagram (and thus `nodes`) changes, not every render.
   const nodeById = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
 
-  // Merge banded positions with any saved overrides.
-  // savedPositions keys use node ids; banded positions use the same ids.
+  // Merge banded positions with any saved overrides. savedPositions holds node
+  // positions keyed by node id, and dragged-label positions keyed `chip:<edgeId>`.
   const initialPositions: Map<string, NodePos> = new Map(bandedPositions);
+  const initialChipOverrides = new Map<string, NodePos>();
   if (savedPositions) {
     for (const [id, saved] of Object.entries(savedPositions)) {
-      if (initialPositions.has(id)) {
+      if (id.startsWith('chip:')) {
+        initialChipOverrides.set(id.slice('chip:'.length), { x: saved.x, y: saved.y });
+      } else if (initialPositions.has(id)) {
         initialPositions.set(id, { x: saved.x, y: saved.y });
       }
     }
@@ -446,6 +821,17 @@ export function FlowDiagramSvg({
 
   // Node positions (world space). Mutable during drag; triggers re-render on change.
   const [positions, setPositions] = useState<Map<string, NodePos>>(initialPositions);
+  // User-dragged label positions, keyed by edge id (slid along the edge path).
+  const [chipOverrides, setChipOverrides] = useState<Map<string, NodePos>>(initialChipOverrides);
+  // Mirror of chipOverrides for the debounced save (avoids a stale closure).
+  const chipOverridesRef = useRef(chipOverrides);
+  useEffect(() => { chipOverridesRef.current = chipOverrides; }, [chipOverrides]);
+
+  // Hover focus: dim everything except the hovered node/edge and what it connects
+  // to. `kind` distinguishes a node id from an edge id.
+  const [hover, setHover] = useState<{ kind: 'node' | 'edge'; id: string } | null>(null);
+  // Edge whose label is being dragged — its line shows the bright highlight.
+  const [draggingEdge, setDraggingEdge] = useState<string | null>(null);
 
   // Pan: world-space translate applied as CSS transform on the inner <g>.
   const [tx, setTx] = useState(0);
@@ -462,7 +848,7 @@ export function FlowDiagramSvg({
   for (const [id, pos] of positions) {
     const node = nodeById.get(id);
     if (!node) continue;
-    const storeName = node.nodeType === 'store' ? (node.storeName ?? '') : undefined;
+    const storeName = node.nodeType === 'store' ? (node.label ?? node.storeName ?? '') : undefined;
     const bounds = nodeBounds(pos, node.nodeType, storeName);
     minX = Math.min(minX, bounds.x);
     minY = Math.min(minY, bounds.y);
@@ -490,7 +876,7 @@ export function FlowDiagramSvg({
     for (const [id, pos] of positions) {
       const node = nodeById.get(id);
       if (!node) continue;
-      const storeName = node.nodeType === 'store' ? (node.storeName ?? '') : undefined;
+      const storeName = node.nodeType === 'store' ? (node.label ?? node.storeName ?? '') : undefined;
       const b = nodeBounds(pos, node.nodeType, storeName);
       nodeBoxes.push({ x: b.x, y: b.y, w: b.w, h: b.h, type: node.nodeType });
     }
@@ -518,9 +904,13 @@ export function FlowDiagramSvg({
   // on that point by adjusting tx/ty in vb space:
   //   tx = (vbX + vbW/2) - worldX * scale
   //   ty = (vbY + vbH/2) - worldY * scale
-  // We capture scale via a ref so the closure always has the latest value.
+  // We capture scale/tx/ty via refs so closures always have the latest values.
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
+  const txRef = useRef(tx);
+  txRef.current = tx;
+  const tyRef = useRef(ty);
+  tyRef.current = ty;
 
   useEffect(() => {
     if (!onRegisterPanTo) return;
@@ -533,6 +923,42 @@ export function FlowDiagramSvg({
     return () => { onRegisterPanTo(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onRegisterPanTo, vbX, vbY, vbW, vbH]);
+
+  // ── Zoom control registration ─────────────────────────────────────────────
+
+  // Notify the app-level ZoomControl readout whenever scale changes.
+  // This fires on wheel, pinch, button-driven zoom, and reset.
+  useEffect(() => {
+    onZoomChange?.(scale);
+  }, [scale, onZoomChange]);
+
+  // Expose imperative zoom operations so the app-level ZoomControl buttons can
+  // drive the SVG zoom without the control knowing about SVG internals.
+  // `zoomTo` zooms about the viewport center: adjust tx/ty so the center world
+  // point stays fixed — same math as onWheel but targetted at vb center.
+  useEffect(() => {
+    if (!onRegisterZoomControl) return;
+    function zoomTo(targetScale: number) {
+      const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, targetScale));
+      // Zoom about the vb center: keep the world point at the vb midpoint fixed.
+      const centerVbX = vbX + vbW / 2;
+      const centerVbY = vbY + vbH / 2;
+      const s = scaleRef.current;
+      const worldCenterX = (centerVbX - txRef.current) / s;
+      const worldCenterY = (centerVbY - tyRef.current) / s;
+      setTx(centerVbX - worldCenterX * clamped);
+      setTy(centerVbY - worldCenterY * clamped);
+      setScale(clamped);
+    }
+    function resetFit() {
+      setTx(0);
+      setTy(0);
+      setScale(1);
+    }
+    onRegisterZoomControl({ zoomTo, resetFit });
+    return () => { onRegisterZoomControl(null); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRegisterZoomControl, vbX, vbY, vbW, vbH]);
 
   // ── Interaction state (kept in refs, not state, to avoid re-renders) ──────
 
@@ -550,6 +976,10 @@ export function FlowDiagramSvg({
   const dragNodeProcessId = useRef<string | null>(null);
   const dragStart = useRef({ clientX: 0, clientY: 0, worldX: 0, worldY: 0 });
   const dragMoved = useRef(false);
+
+  // Label (chip) drag tracking — slides along the edge's path.
+  const dragChipId = useRef<string | null>(null);
+  const dragChipPoints = useRef<Pt[]>([]);
 
   // Save debounce timer
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -569,7 +999,28 @@ export function FlowDiagramSvg({
     e.preventDefault();
   }
 
+  // Convert a client (screen) point to world coords, inverting the viewBox
+  // mapping and the pan/zoom transform on the inner group.
+  function clientToWorld(clientX: number, clientY: number): NodePos {
+    const rect = svgRef.current!.getBoundingClientRect();
+    const vbPx = vbX + ((clientX - rect.left) / rect.width) * vbW;
+    const vbPy = vbY + ((clientY - rect.top) / rect.height) * vbH;
+    return { x: (vbPx - tx) / scale, y: (vbPy - ty) / scale };
+  }
+
   function onSvgPointerMove(e: React.PointerEvent<SVGSVGElement>) {
+    if (dragChipId.current) {
+      if (!svgRef.current) return;
+      const w = clientToWorld(e.clientX, e.clientY);
+      const snapped = projectOntoPolyline(dragChipPoints.current, w.x, w.y);
+      setChipOverrides(prev => {
+        const next = new Map(prev);
+        next.set(dragChipId.current!, snapped);
+        return next;
+      });
+      return;
+    }
+
     if (dragActive.current && dragNodeId.current) {
       // Node drag: compute delta in vb space
       if (!svgRef.current) return;
@@ -605,7 +1056,32 @@ export function FlowDiagramSvg({
     setTy(panStart.current.ty + vbDy);
   }
 
+  // Build the persisted map: node positions by id + dragged labels as `chip:<id>`.
+  function buildPosMap(curPositions: Map<string, NodePos>): PositionMap {
+    const map: PositionMap = {};
+    for (const [id, pos] of curPositions) map[id] = { x: pos.x, y: pos.y };
+    for (const [eid, p] of chipOverridesRef.current) map[`chip:${eid}`] = { x: p.x, y: p.y };
+    return map;
+  }
+
+  function scheduleSave() {
+    if (!onPositionsChange) return;
+    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      setPositions(current => { onPositionsChange(buildPosMap(current)); return current; });
+    }, 400);
+  }
+
   function onSvgPointerUp(e: React.PointerEvent<SVGSVGElement>) {
+    if (dragChipId.current) {
+      dragChipId.current = null;
+      dragChipPoints.current = [];
+      setDraggingEdge(null);
+      scheduleSave();
+      return;
+    }
+
     if (dragActive.current) {
       const movedEnough = dragMoved.current;
       const nodeId = dragNodeId.current;
@@ -625,19 +1101,8 @@ export function FlowDiagramSvg({
         return;
       }
 
-      if (movedEnough && nodeId && onPositionsChange) {
-        // Debounce-save: cancel previous timer, schedule new one.
-        if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = setTimeout(() => {
-          saveTimerRef.current = null;
-          // Snapshot current positions and report them.
-          setPositions(current => {
-            const posMap: PositionMap = {};
-            for (const [id, pos] of current) posMap[id] = { x: pos.x, y: pos.y };
-            onPositionsChange(posMap);
-            return current;
-          });
-        }, 400);
+      if (movedEnough && nodeId) {
+        scheduleSave();
       }
       return;
     }
@@ -653,6 +1118,9 @@ export function FlowDiagramSvg({
     dragNodeIsSubDfd.current = false;
     dragNodeProcessId.current = null;
     dragMoved.current = false;
+    dragChipId.current = null;
+    dragChipPoints.current = [];
+    setDraggingEdge(null);
     panActive.current = false;
     // Release pointer capture if still held (no-op if already released).
     try { svgRef.current?.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
@@ -669,7 +1137,9 @@ export function FlowDiagramSvg({
     const cursorVbX = vbX + ((e.clientX - rect.left) / rect.width) * vbW;
     const cursorVbY = vbY + ((e.clientY - rect.top) / rect.height) * vbH;
 
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    // Tamed wheel sensitivity: smaller step per notch so single-notch scrolls
+    // are controllable (0.9/1.1 was too aggressive; 0.95/1.05 matches the graph).
+    const delta = e.deltaY > 0 ? 0.95 : 1.05;
     const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * delta));
 
     // Keep the cursor point fixed: adjust tx/ty so the world point under the
@@ -717,6 +1187,15 @@ export function FlowDiagramSvg({
     svgRef.current?.setPointerCapture(e.pointerId);
   }
 
+  function onChipPointerDown(e: React.PointerEvent<SVGGElement>, edgeId: string, points: Pt[]) {
+    e.stopPropagation(); // don't start a pan
+    if (e.button !== 0) return;
+    dragChipId.current = edgeId;
+    dragChipPoints.current = points;
+    setDraggingEdge(edgeId); // highlight the line while dragging its label
+    svgRef.current?.setPointerCapture(e.pointerId);
+  }
+
   // ── Cleanup on unmount ───────────────────────────────────────────────────
 
   useEffect(() => {
@@ -727,13 +1206,81 @@ export function FlowDiagramSvg({
 
   // ── Render ───────────────────────────────────────────────────────────────
 
+  // Fan-out attachment points, recomputed against live positions so edges
+  // re-balance their anchors as nodes are dragged.
+  const edgeAnchors = computeEdgeAnchors(edges, nodeById, positions);
+
+  // Node boxes, once — used as chip-collision targets (labels stay off nodes;
+  // lines are allowed to pass behind them).
+  const nodeBoxes: Box[] = [];
+  for (const n of nodes) {
+    const p = positions.get(n.id);
+    if (!p) continue;
+    const sn = n.nodeType === 'store' ? (n.label ?? n.storeName ?? '') : undefined;
+    const b = nodeBounds(p, n.nodeType, sn);
+    nodeBoxes.push({ x: b.x, y: b.y, w: b.w, h: b.h });
+  }
+
+  // Pre-resolve each edge's path and chip once, so they can be drawn in two
+  // separate layers (paths under the nodes, chips above everything).
+  type EdgeRender = { id: string; d: string; points: Pt[]; label: string; chip: NodePos; lines: string[] };
+  const edgeRenders: EdgeRender[] = edges.flatMap(edge => {
+    const fromNode = nodeById.get(edge.source);
+    const toNode = nodeById.get(edge.target);
+    const fromPos = positions.get(edge.source);
+    const toPos = positions.get(edge.target);
+    if (!fromNode || !toNode || !fromPos || !toPos) return [];
+    const fromStoreName = fromNode.nodeType === 'store' ? (fromNode.label ?? fromNode.storeName) : undefined;
+    const toStoreName = toNode.nodeType === 'store' ? (toNode.label ?? toNode.storeName) : undefined;
+    const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
+    const points = orthogonalPath(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+    // A dragged label slides along the path: snap its saved point onto the
+    // (possibly re-routed) polyline. Otherwise use the auto-placed anchor.
+    const override = chipOverrides.get(edge.id);
+    const chip = override
+      ? projectOntoPolyline(points, override.x, override.y)
+      : chipAnchor(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+    const lines = edge.label ? edge.label.split(', ').map(l => truncateLabel(l, CHIP_MAX_CHARS)) : [];
+    return [{ id: edge.id, d: pointsToD(points), points, label: edge.label, chip, lines }];
+  });
+
+  // Keep auto-placed labels off the node boxes and off each other; user-placed
+  // (overridden) labels stay where they were dropped.
+  const autoChips = edgeRenders.filter(e => !chipOverrides.has(e.id));
+  deoverlapChips(autoChips, nodeBoxes);
+
+  // Hover focus set: the hovered element plus everything it connects to. Null
+  // means no hover → nothing dimmed.
+  let focus: { nodes: Set<string>; edges: Set<string> } | null = null;
+  if (hover) {
+    const fNodes = new Set<string>();
+    const fEdges = new Set<string>();
+    if (hover.kind === 'node') {
+      fNodes.add(hover.id);
+      for (const e of edges) {
+        if (e.source === hover.id || e.target === hover.id) {
+          fEdges.add(e.id);
+          fNodes.add(e.source);
+          fNodes.add(e.target);
+        }
+      }
+    } else {
+      fEdges.add(hover.id);
+      const e = edges.find(x => x.id === hover.id);
+      if (e) { fNodes.add(e.source); fNodes.add(e.target); }
+    }
+    focus = { nodes: fNodes, edges: fEdges };
+  }
+  const nodeOpacity = (id: string) => (!focus || focus.nodes.has(id) ? 1 : DIM_OPACITY);
+  const edgeOpacity = (id: string) => (!focus || focus.edges.has(id) ? 1 : DIM_OPACITY);
+
   return (
     <svg
       ref={svgRef}
       width="100%"
       height="100%"
       viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
-      style={{ display: 'block', background: C.canvas, touchAction: 'none' }}
+      style={{ display: 'block', background: c.canvas, touchAction: 'none' }}
       data-ignatius="flow-svg"
       onPointerDown={onSvgPointerDown}
       onPointerMove={onSvgPointerMove}
@@ -742,13 +1289,13 @@ export function FlowDiagramSvg({
       onWheel={onWheel}
     >
       <defs>
-        <marker id="arrowWrite" markerWidth={10} markerHeight={10} refX={7.5} refY={3.5}
+        <marker id="arrow" markerWidth={10} markerHeight={10} refX={7.5} refY={3.5}
           orient="auto" markerUnits="userSpaceOnUse">
-          <path d="M0,0 L8,3.5 L0,7 Z" fill={C.edgeWrite} />
+          <path d="M0,0 L8,3.5 L0,7 Z" fill={c.edge} />
         </marker>
-        <marker id="arrowRead" markerWidth={10} markerHeight={10} refX={7.5} refY={3.5}
+        <marker id="arrowHi" markerWidth={10} markerHeight={10} refX={7.5} refY={3.5}
           orient="auto" markerUnits="userSpaceOnUse">
-          <path d="M0,0 L8,3.5 L0,7 Z" fill={C.edgeRead} />
+          <path d="M0,0 L8,3.5 L0,7 Z" fill={EDGE_HIGHLIGHT} />
         </marker>
       </defs>
 
@@ -758,42 +1305,40 @@ export function FlowDiagramSvg({
         The SVG viewBox stays fixed; only this group moves.
       */}
       <g transform={`translate(${tx},${ty}) scale(${scale})`}>
-        {/* Edges first (under nodes) */}
-        {edges.map(edge => {
-          const fromNode = nodeById.get(edge.source);
-          const toNode = nodeById.get(edge.target);
-          if (!fromNode || !toNode) return null;
-          const fromPos = positions.get(edge.source);
-          const toPos = positions.get(edge.target);
-          if (!fromPos || !toPos) return null;
-          const fromStoreName = fromNode.nodeType === 'store' ? fromNode.storeName : undefined;
-          const toStoreName = toNode.nodeType === 'store' ? toNode.storeName : undefined;
-          return (
-            <EdgeLine
-              key={edge.id}
-              fromPos={fromPos}
-              fromType={fromNode.nodeType}
-              fromStoreName={fromStoreName}
-              toPos={toPos}
-              toType={toNode.nodeType}
-              toStoreName={toStoreName}
-              label={edge.label}
-              isRead={edge.isRead}
-            />
-          );
-        })}
+        {/* Layer 1: edge paths (under the nodes) */}
+        {edgeRenders.map(e => (
+          <EdgePath
+            key={e.id}
+            d={e.d}
+            label={e.label}
+            opacity={edgeOpacity(e.id)}
+            highlighted={draggingEdge === e.id}
+            c={c}
+            onHoverChange={h => setHover(h ? { kind: 'edge', id: e.id } : null)}
+          />
+        ))}
 
-        {/* Nodes */}
+        {/* Layer 2: nodes */}
         {nodes.map(node => {
           const pos = positions.get(node.id);
           if (!pos) return null;
 
+          const hoverProps = {
+            opacity: nodeOpacity(node.id),
+            style: { transition: 'opacity 0.12s' },
+            onPointerEnter: () => setHover({ kind: 'node' as const, id: node.id }),
+            onPointerLeave: () => setHover(null),
+          };
+
           if (node.nodeType === 'process') {
             const processId = node.processId ?? node.id;
             const hasSubDfd = node.hasSubDfd ?? false;
+            const procToken = `proc:${processId}`;
             return (
               <g
                 key={node.id}
+                data-token={procToken}
+                {...hoverProps}
                 onPointerDown={e => onNodePointerDown(e, node.id, hasSubDfd, processId)}
               >
                 <ProcessNode
@@ -802,35 +1347,53 @@ export function FlowDiagramSvg({
                   pos={pos}
                   num={diagram.processes.find(p => p.id === node.processId)?.dottedNumber ?? '?'}
                   hasSubDfd={hasSubDfd}
+                  c={c}
+                  onOpenDoc={onOpenDoc ? () => onOpenDoc(procToken) : undefined}
                 />
               </g>
             );
           }
 
           if (node.nodeType === 'external') {
+            const extToken = node.extId ?? `ext:${node.label}`;
+            // When the external carries a kind, look it up in the kind palette.
+            const extKindColors = node.extKind && kindPalette
+              ? kindPalette[node.extKind]
+              : undefined;
             return (
-              <g
-                key={node.id}
-                onPointerDown={e => onNodePointerDown(e, node.id, false, '')}
-              >
-                <ExternalNode label={node.label} pos={pos} />
+              <g key={node.id} data-token={extToken} {...hoverProps} onPointerDown={e => onNodePointerDown(e, node.id, false, '')}>
+                <ExternalNode
+                  label={node.label}
+                  pos={pos}
+                  c={c}
+                  kindColors={extKindColors}
+                  onOpenDoc={onOpenDoc ? () => onOpenDoc(extToken) : undefined}
+                />
               </g>
             );
           }
 
           if (node.nodeType === 'store') {
-            const storeId = node.id;
-            const num = storeNums.get(storeId) ?? 0;
+            const num = storeNums.get(node.id) ?? 0;
+            // Use the raw slug (storeName) to build the token; use the display
+            // label (node.label = displayName) as the visible text in the SVG.
+            const slugName = node.storeName ?? node.label;
+            const displayLabel = node.label ?? slugName;
+            const storeKind = node.storeKind;
+            const storeToken = `${storeKind ?? 'db'}:${slugName}`;
+            const storeKindColors = storeKind && kindPalette
+              ? kindPalette[storeKind]
+              : undefined;
             return (
-              <g
-                key={node.id}
-                onPointerDown={e => onNodePointerDown(e, node.id, false, '')}
-              >
+              <g key={node.id} data-token={storeToken} {...hoverProps} onPointerDown={e => onNodePointerDown(e, node.id, false, '')}>
                 <StoreNode
                   storeNum={num}
-                  storeName={node.storeName ?? node.label}
+                  storeName={displayLabel}
                   pos={pos}
-                  isShared={node.shared ?? false}
+                  duplicated={node.duplicated ?? false}
+                  c={c}
+                  kindColors={storeKindColors}
+                  onOpenDoc={onOpenDoc ? () => onOpenDoc(storeToken) : undefined}
                 />
               </g>
             );
@@ -838,6 +1401,21 @@ export function FlowDiagramSvg({
 
           return null;
         })}
+
+        {/* Layer 3: edge chips (above everything, so a line never covers a label) */}
+        {edgeRenders.map(e => (
+          e.lines.length > 0
+            ? <EdgeChip
+                key={e.id}
+                pos={e.chip}
+                lines={e.lines}
+                opacity={edgeOpacity(e.id)}
+                c={c}
+                onPointerDown={ev => onChipPointerDown(ev, e.id, e.points)}
+                onHoverChange={h => setHover(h ? { kind: 'edge', id: e.id } : null)}
+              />
+            : null
+        ))}
       </g>
     </svg>
   );

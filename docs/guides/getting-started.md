@@ -88,5 +88,5 @@ If the path contains multiple model folders, ignatius lists them and prompts you
 
 - [The folder format](folder-format.md) — how to structure entity files, groups, and `ignatius.yml`.
 - [What gets derived](derivation.md) — cardinality, classification, and subtype clusters come from the structure, not from labels you set.
-- [Commands](commands.md) — `serve`, `dict`, and `graph` in full.
+- [Commands](commands.md) — `serve`, `export`, and `validate` in full.
 - [Authoring with the modeling skill](modeling-skill.md) — let `/noorm-modeling` write entity files for you.

@@ -1,12 +1,10 @@
 import index from './index.html';
 import { parseModels } from './parse';
 import { validateModel } from './validate';
-import { generateDict } from './generators/dict';
 import { layoutFingerprint } from './layout-fingerprint';
 import { parseFlows } from './flow-parse';
 import { validateFlows } from './flow-validate';
-import { generateFlowGraph, buildFlowLayoutKeys } from './generators/flow-graph';
-import { generateFlowDict } from './generators/flow-dict';
+import { buildFlowLayoutKeys } from './flow-fingerprint';
 import { resolve, normalize, isAbsolute, join } from 'path';
 import { watch, existsSync } from 'fs';
 
@@ -68,51 +66,14 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
     port,
     routes: {
       '/': index,
-      '/dict': async (req) => {
-        const url = new URL(req.url);
-        const rawTheme = url.searchParams.get('theme');
-        const mode = rawTheme === 'light' ? 'light' : 'dark';
-        const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
-        const validation = validateModel(model);
-        const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
-        const renderModel = { ...model, nodes: validation.cleanedModel.nodes };
-        const html = await generateDict(renderModel, { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors }, mode, { modelsDir, graphHref: '/', flowsHref: '/flow', surface: 'live' });
-        return new Response(html, {
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        });
-      },
+      '/dict': () => Response.redirect('/#view=dict', 302),
       '/api/model': async () => {
         const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
         const validation = validateModel(model);
         const layoutKey = layoutFingerprint(model);
         return Response.json({ model, parseGlobalErrors, validation, layoutKey });
       },
-      '/flow': async (req) => {
-        const url = new URL(req.url);
-        const rawTheme = url.searchParams.get('theme');
-        const themeMode = rawTheme === 'light' ? 'light' : 'dark';
-
-        // Guard: if no flows/ directory, return a friendly empty-state page (200), not 500.
-        const flowsDir = join(modelsDir, 'flows');
-        const hasFlows = existsSync(flowsDir);
-        if (!hasFlows) {
-          const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Flows</title></head><body><p style="font-family:system-ui;padding:2rem;color:#999">No flows in this model. Create a <code>flows/</code> directory to get started.</p></body></html>`;
-          return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-        }
-
-        const { model } = await parseModels(modelsDir);
-        const { flowModel } = await parseFlows(modelsDir);
-        const flowRulesConfig = model._meta?.flowRules ?? {};
-        const validation = validateFlows(flowModel, model, flowRulesConfig);
-        const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
-        const html = await generateFlowGraph(
-          validation.cleanedFlowModel,
-          model,
-          'live',
-          { flowLayoutKeys, themeMode, dictHref: '/flow-dict' },
-        );
-        return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-      },
+      '/flow': () => Response.redirect('/#view=flow', 302),
       '/api/flow': async () => {
         // Guard: if no flows/ directory, return an empty-state payload (200), not 500.
         const flowsDir = join(modelsDir, 'flows');
@@ -126,34 +87,18 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         const flowRulesConfig = model._meta?.flowRules ?? {};
         const validation = validateFlows(flowModel, model, flowRulesConfig);
         const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
-        return Response.json({ diagrams: flowModel.diagrams, validation, flowLayoutKeys });
+        // entityModel travels with the payload so the flow viewer's doc dialog can
+        // resolve `db:` store docs to their ERD entity narrative (and hot-reload
+        // them on edit). Static mode injects window.__MODEL__ instead.
+        return Response.json({ diagrams: flowModel.diagrams, entityModel: model, validation, flowLayoutKeys });
       },
-      '/flow-dict': async (req) => {
-        const url = new URL(req.url);
-        const rawTheme = url.searchParams.get('theme');
-        const themeMode = rawTheme === 'light' ? 'light' : 'dark';
-
-        // Guard: if no flows/ directory, return a friendly empty-state page (200), not 500.
-        const flowsDir = join(modelsDir, 'flows');
-        const hasFlows = existsSync(flowsDir);
-        if (!hasFlows) {
-          const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Process Dictionary</title></head><body><p style="font-family:system-ui;padding:2rem;color:#999">No flows in this model.</p></body></html>`;
-          return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
-        }
-
-        const { model } = await parseModels(modelsDir);
-        const { flowModel, globalErrors: parseFlowErrors } = await parseFlows(modelsDir);
-        const flowRulesConfig = model._meta?.flowRules ?? {};
-        const flowValidation = validateFlows(flowModel, model, flowRulesConfig);
-        const allFlowGlobalErrors = [...parseFlowErrors, ...flowValidation.globalErrors];
-        const html = generateFlowDict(
-          flowModel,
-          model,
-          { flowErrors: flowValidation.flowErrors, globalErrors: allFlowGlobalErrors },
-          'live',
-          { themeMode, graphHref: '/' },
-        );
-        return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      '/flow-dict': () => {
+        // CP5: the process dictionary is now fused into the SPA Dictionary view.
+        // Redirect to the unified app at /#view=dict.
+        return new Response(null, {
+          status: 302,
+          headers: { Location: '/#view=dict' },
+        });
       },
       '/api/asset': async (req) => {
         const url = new URL(req.url);

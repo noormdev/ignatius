@@ -13,15 +13,22 @@
 import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import type { GlobalError } from './validate';
+import { wikiLinkPlugin } from './wikilink';
+import { titlelize } from './titlelize';
 
 const md = new MarkdownIt();
+// `[[Target]]` links in flow markdown (process / external / store bodies) render
+// as `a.entity-link[data-entity]` anchors, same as ERD entity bodies. Rendered
+// optimistically (no knownIds) — every target becomes a navigable anchor and the
+// flow viewer resolves it at click time across flow nodes + ERD entities.
+md.use(wikiLinkPlugin);
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export type FlowEndpoint = {
-    kind: 'ext' | 'db' | 'cache' | 'queue' | 'file' | 'doc' | 'manual' | 'proc';
+    kind: 'ext' | 'db' | 'cache' | 'queue' | 'file' | 'doc' | 'manual' | 'other' | 'proc';
     name: string;
     raw: string;
 };
@@ -35,6 +42,21 @@ export type FlowEdge = {
     flowId: string;
 };
 
+/** One row in a process example table. Values are plain scalars. */
+export type FlowExampleRow = Record<string, string | number | boolean>;
+
+/** One annotated data flow in a process `examples:` block (in or out direction). */
+export type FlowExample = {
+    /** Source token for in-flows (e.g. `ext:Customer`). */
+    from?: string;
+    /** Destination token for out-flows (e.g. `db:Payment`). */
+    to?: string;
+    /** Human label for the flow (mirrors the process `inputs/outputs` `data` label). */
+    label?: string;
+    /** Sample rows to display as a table. */
+    rows: FlowExampleRow[];
+};
+
 export type FlowProcess = {
     id: string;
     label: string;
@@ -46,19 +68,27 @@ export type FlowProcess = {
     bodyHtml: string;
     hasSubDfd: boolean;
     flowId: string;
+    /** Optional in/out data examples for rendering as tables in the process dialog. */
+    examples?: { in: FlowExample[]; out: FlowExample[] };
 };
 
 export type FlowExternal = {
     id: string;
     label: string;
+    /** Optional kind from `kind:` frontmatter. Absent → conventional green external color. */
+    kind?: FlowStoreRef['kind'];
     body: string;
     bodyHtml: string;
     flowId: string;
 };
 
 export type FlowStoreRef = {
-    kind: 'db' | 'cache' | 'queue' | 'file' | 'doc' | 'manual';
+    kind: 'db' | 'cache' | 'queue' | 'file' | 'doc' | 'manual' | 'other';
+    /** Slug / identifier — used as the identity key (e.g. from `cache:orders-cache`). */
     name: string;
+    /** Human-readable display label. Resolved as: title: frontmatter → titlelize(name).
+     *  Falls back to `name` when no _stores/*.md description is present. */
+    displayName: string;
     body?: string;
     bodyHtml?: string;
     flowId: string;
@@ -66,6 +96,9 @@ export type FlowStoreRef = {
 
 export type FlowDiagram = {
     id: string;
+    /** Human-readable display title. Derived from titlelize(id) at parse time.
+     *  Always use this for display; keep `id` for routing/lookup. */
+    title: string;
     processes: FlowProcess[];
     externals: FlowExternal[];
     storeRefs: FlowStoreRef[];
@@ -94,11 +127,19 @@ type EndpointContext = {
 // Endpoint string parsing
 // ---------------------------------------------------------------------------
 
-const VALID_KINDS_LIST: readonly string[] = ['ext', 'db', 'cache', 'queue', 'file', 'doc', 'manual', 'proc'];
+const VALID_KINDS_LIST: readonly string[] = ['ext', 'db', 'cache', 'queue', 'file', 'doc', 'manual', 'other', 'proc'];
 const VALID_KINDS = new Set<string>(VALID_KINDS_LIST);
 
 function isFlowKind(s: string): s is FlowEndpoint['kind'] {
     return VALID_KINDS.has(s);
+}
+
+// Known kinds that may appear in _stores/*.md frontmatter (excludes 'db' and 'proc').
+type KnownStoreKind = Exclude<FlowStoreRef['kind'], 'db'>;
+const KNOWN_STORE_KIND_SET = new Set<string>(['cache', 'queue', 'file', 'doc', 'manual', 'other']);
+
+function isKnownStoreKind(v: unknown): v is KnownStoreKind {
+    return typeof v === 'string' && KNOWN_STORE_KIND_SET.has(v);
 }
 
 function parseKind(raw: string): FlowEndpoint['kind'] | null {
@@ -207,6 +248,53 @@ function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/**
+ * Parse a process `examples:` frontmatter value into a typed structure.
+ * Defensive: missing/malformed entries produce empty arrays rather than errors.
+ * Returns undefined when the value is absent (no `examples` field in frontmatter).
+ */
+export function parseProcessExamples(
+    raw: unknown,
+): { in: FlowExample[]; out: FlowExample[] } | undefined {
+    if (raw === undefined || raw === null) return undefined;
+    if (!isRecord(raw)) return undefined;
+
+    function parseExampleList(list: unknown): FlowExample[] {
+        if (!Array.isArray(list)) return [];
+        const result: FlowExample[] = [];
+        for (const item of list) {
+            if (!isRecord(item)) continue;
+            const from = typeof item['from'] === 'string' ? item['from'] : undefined;
+            const to = typeof item['to'] === 'string' ? item['to'] : undefined;
+            const label = typeof item['label'] === 'string' ? item['label'] : undefined;
+            const rows = parseExampleRows(item['rows']);
+            result.push({ ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}), ...(label !== undefined ? { label } : {}), rows });
+        }
+        return result;
+    }
+
+    function parseExampleRows(rowsRaw: unknown): FlowExampleRow[] {
+        if (!Array.isArray(rowsRaw)) return [];
+        const result: FlowExampleRow[] = [];
+        for (const row of rowsRaw) {
+            if (!isRecord(row)) continue;
+            const typed: FlowExampleRow = {};
+            for (const [k, v] of Object.entries(row)) {
+                if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+                    typed[k] = v;
+                }
+            }
+            result.push(typed);
+        }
+        return result;
+    }
+
+    return {
+        in: parseExampleList(raw['in']),
+        out: parseExampleList(raw['out']),
+    };
+}
+
 function parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
     const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
     if (!match) throw new Error('No YAML frontmatter found');
@@ -252,7 +340,7 @@ function buildEdgeFromOutput(
 function collectStoreRefsFromEdges(
     edges: FlowEdge[],
     flowId: string,
-    storeBodyByKindName: Map<string, { body: string; bodyHtml: string }>,
+    storeBodyByKindName: Map<string, { displayName: string; body: string; bodyHtml: string }>,
 ): FlowStoreRef[] {
     const seen = new Map<string, FlowStoreRef>();
     for (const edge of edges) {
@@ -264,6 +352,8 @@ function collectStoreRefsFromEdges(
             const ref: FlowStoreRef = {
                 kind: ep.kind,
                 name: ep.name,
+                // Display name: from _stores/ description (with title: override) or titlelize(slug)
+                displayName: stored?.displayName ?? titlelize(ep.name),
                 flowId,
                 ...(stored !== undefined ? { body: stored.body, bodyHtml: stored.bodyHtml } : {}),
             };
@@ -271,6 +361,67 @@ function collectStoreRefsFromEdges(
         }
     }
     return Array.from(seen.values());
+}
+
+// ---------------------------------------------------------------------------
+// External description loading
+// ---------------------------------------------------------------------------
+
+type ExternalDef = { label: string; kind?: FlowStoreRef['kind']; body: string; bodyHtml: string };
+
+/**
+ * Read an `_externals/*.md` folder into a map of `extId → {label, body, html}`.
+ * Used for both a DFD's own `_externals/` and the shared `flows/_externals/`
+ * (so a recurring external like Customer is documented once and reused anywhere,
+ * however deeply nested). Missing folder → empty map.
+ */
+async function readExternalsDir(
+    dir: string,
+    globalErrors: GlobalError[],
+): Promise<Map<string, ExternalDef>> {
+    const map = new Map<string, ExternalDef>();
+    const glob = new Bun.Glob('*.md');
+    try {
+        for await (const extPath of glob.scan(dir)) {
+            const extFilePath = `${dir}/${extPath}`;
+            try {
+                const content = await Bun.file(extFilePath).text();
+                const { frontmatter, body } = parseFrontmatter(content);
+                const externalField = frontmatter['external'];
+                if (typeof externalField !== 'string') {
+                    globalErrors.push({
+                        ruleId: 'parse.missing_id',
+                        severity: 'error',
+                        omitted: { kind: 'file', id: extFilePath },
+                        reason: `External file "${extFilePath}" has no "external" field in frontmatter.`,
+                    });
+                    continue;
+                }
+                // Resolve display label: title: (explicit) → external: value → titlelize(id)
+                const extId = extPath.replace(/\.md$/, '');
+                const extTitleOverride = frontmatter['title'];
+                const resolvedExtLabel =
+                    typeof extTitleOverride === 'string' && extTitleOverride.trim()
+                        ? extTitleOverride.trim()
+                        : externalField || titlelize(extId);
+                // Optional kind: coloring hint; absent → conventional green external color.
+                const extRawKind = frontmatter['kind'];
+                const extKind: FlowStoreRef['kind'] | undefined =
+                    isKnownStoreKind(extRawKind) ? extRawKind : undefined;
+                map.set(extId, { label: resolvedExtLabel, kind: extKind, body, bodyHtml: md.render(body) });
+            } catch (err) {
+                globalErrors.push({
+                    ruleId: 'parse.invalid_yaml',
+                    severity: 'error',
+                    omitted: { kind: 'file', id: extFilePath },
+                    reason: `Cannot parse "${extFilePath}": ${err instanceof Error ? err.message : String(err)}`,
+                });
+            }
+        }
+    } catch {
+        // directory does not exist — skip
+    }
+    return map;
 }
 
 // ---------------------------------------------------------------------------
@@ -282,6 +433,7 @@ async function parseDiagramFolder(
     folderPath: string,
     parentDottedNumbers: number[],
     visitedPaths: Set<string>,
+    rootExternals: Map<string, ExternalDef>,
     globalErrors: GlobalError[],
 ): Promise<FlowDiagram> {
     // Cycle guard: refuse to re-enter an ancestor folder
@@ -290,6 +442,7 @@ async function parseDiagramFolder(
         // Silently return empty diagram rather than looping
         return {
             id: diagramId,
+            title: titlelize(diagramId),
             processes: [],
             externals: [],
             storeRefs: [],
@@ -303,7 +456,7 @@ async function parseDiagramFolder(
     const flowId = diagramId;
 
     // --- Read optional _stores/*.md description files ---
-    const storeBodyByKindName = new Map<string, { body: string; bodyHtml: string }>();
+    const storeBodyByKindName = new Map<string, { displayName: string; body: string; bodyHtml: string }>();
     const storesDir = `${folderPath}/_stores`;
     const storeGlob = new Bun.Glob('*.md');
     try {
@@ -312,11 +465,18 @@ async function parseDiagramFolder(
             try {
                 const content = await Bun.file(storeFilePath).text();
                 const { frontmatter, body } = parseFrontmatter(content);
-                const kind = frontmatter['kind'];
-                if (typeof kind !== 'string' || !['cache', 'queue', 'file', 'doc', 'manual'].includes(kind)) continue;
+                const rawKind = frontmatter['kind'];
+                // Accept recognised kinds; anything else (absent / unrecognised) → 'other'.
+                const kind: FlowStoreRef['kind'] = isKnownStoreKind(rawKind) ? rawKind : 'other';
                 const storeName = storePath.replace(/\.md$/, '');
                 const key = `${kind}:${storeName}`;
-                storeBodyByKindName.set(key, { body, bodyHtml: md.render(body) });
+                // Resolve display name: title: (explicit) → titlelize(slug)
+                const storeTitleOverride = frontmatter['title'];
+                const resolvedDisplayName =
+                    typeof storeTitleOverride === 'string' && storeTitleOverride.trim()
+                        ? storeTitleOverride.trim()
+                        : titlelize(storeName);
+                storeBodyByKindName.set(key, { displayName: resolvedDisplayName, body, bodyHtml: md.render(body) });
             } catch (err) {
                 globalErrors.push({
                     ruleId: 'parse.invalid_yaml',
@@ -330,46 +490,9 @@ async function parseDiagramFolder(
         // _stores/ directory does not exist — skip
     }
 
-    // --- Read _externals/*.md ---
-    const externals: FlowExternal[] = [];
-    const externalsDir = `${folderPath}/_externals`;
-    const externalGlob = new Bun.Glob('*.md');
-    try {
-        for await (const extPath of externalGlob.scan(externalsDir)) {
-            const extFilePath = `${externalsDir}/${extPath}`;
-            try {
-                const content = await Bun.file(extFilePath).text();
-                const { frontmatter, body } = parseFrontmatter(content);
-                const label = frontmatter['external'];
-                if (typeof label !== 'string') {
-                    globalErrors.push({
-                        ruleId: 'parse.missing_id',
-                        severity: 'error',
-                        omitted: { kind: 'file', id: extFilePath },
-                        reason: `External file "${extFilePath}" has no "external" field in frontmatter.`,
-                    });
-                    continue;
-                }
-                const extId = extPath.replace(/\.md$/, '');
-                externals.push({
-                    id: extId,
-                    label,
-                    body,
-                    bodyHtml: md.render(body),
-                    flowId,
-                });
-            } catch (err) {
-                globalErrors.push({
-                    ruleId: 'parse.invalid_yaml',
-                    severity: 'error',
-                    omitted: { kind: 'file', id: extFilePath },
-                    reason: `Cannot parse "${extFilePath}": ${err instanceof Error ? err.message : String(err)}`,
-                });
-            }
-        }
-    } catch {
-        // _externals/ directory does not exist — skip
-    }
+    // --- Read this DFD's own _externals/*.md (descriptions). Root-level shared
+    //     externals are merged in after edges are known (see below). ---
+    const localExtMap = await readExternalsDir(`${folderPath}/_externals`, globalErrors);
 
     // --- Discover process .md files and sub-DFD folders at this level ---
     // List all direct children (non-underscore files and directories)
@@ -418,6 +541,13 @@ async function parseDiagramFolder(
             // (could be a README.md or other doc)
             continue;
         }
+
+        // Resolve display label: title: (explicit) → process: value → titlelize(id)
+        const titleOverride = frontmatter['title'];
+        const resolvedProcessLabel =
+            typeof titleOverride === 'string' && titleOverride.trim()
+                ? titleOverride.trim()
+                : processLabel || titlelize(processId);
 
         // Local number: authored number: field, else folder-order (1-indexed)
         const rawNumber = frontmatter['number'];
@@ -488,9 +618,12 @@ async function parseDiagramFolder(
             hasSubDfd = false;
         }
 
+        // Parse optional examples: { in: [...], out: [...] } block
+        const parsedExamples = parseProcessExamples(frontmatter['examples']);
+
         processes.push({
             id: processId,
-            label: processLabel,
+            label: resolvedProcessLabel,
             ...(localNumber !== undefined ? { number: localNumber } : {}),
             dottedNumber,
             inputs: inputEdges,
@@ -499,6 +632,7 @@ async function parseDiagramFolder(
             bodyHtml: md.render(body),
             hasSubDfd,
             flowId,
+            ...(parsedExamples ? { examples: parsedExamples } : {}),
         });
 
         // Recurse into sub-DFD if it exists
@@ -508,10 +642,32 @@ async function parseDiagramFolder(
                 subFolderPath,
                 dottedParts,
                 nextVisited,
+                rootExternals,
                 globalErrors,
             );
             subDfds.push(subDiagram);
         }
+    }
+
+    // Externals = this DFD's own definitions + any root-level shared external it
+    // actually references. A local definition wins over the root one (override).
+    const referencedExt = new Set<string>();
+    for (const e of allEdges) {
+        if (e.from.kind === 'ext') referencedExt.add(e.from.name);
+        if (e.to.kind === 'ext') referencedExt.add(e.to.name);
+    }
+    const externals: FlowExternal[] = [];
+    const includedExt = new Set<string>();
+    for (const [extId, def] of localExtMap) {
+        externals.push({ id: extId, label: def.label, kind: def.kind, body: def.body, bodyHtml: def.bodyHtml, flowId });
+        includedExt.add(extId);
+    }
+    for (const name of referencedExt) {
+        if (includedExt.has(name)) continue;
+        const def = rootExternals.get(name);
+        if (!def) continue; // not local, not root → flow.unknown_external flags it
+        externals.push({ id: name, label: def.label, kind: def.kind, body: def.body, bodyHtml: def.bodyHtml, flowId });
+        includedExt.add(name);
     }
 
     // Build deduplicated store refs from all collected edges
@@ -519,6 +675,7 @@ async function parseDiagramFolder(
 
     return {
         id: diagramId,
+        title: titlelize(diagramId),
         processes,
         externals,
         storeRefs,
@@ -543,7 +700,10 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
 
     try {
         for await (const entry of topLevelGlob.scan({ cwd: flowsRoot, onlyFiles: false })) {
-            // Collect all entries; the isDirectory probe below filters to real folders
+            // Collect all entries; the isDirectory probe below filters to real
+            // folders. Skip underscore-prefixed dirs (_externals, _stores) — they
+            // are shared-resource folders, not DFDs.
+            if (entry.startsWith('_') || entry.startsWith('.')) continue;
             diagramFolders.push(entry);
         }
     } catch {
@@ -555,6 +715,10 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
     }
 
     diagramFolders.sort();
+
+    // Shared externals declared once at flows/_externals/ — usable by any DFD at
+    // any depth (passed down the recursion).
+    const rootExternals = await readExternalsDir(`${flowsRoot}/_externals`, globalErrors);
 
     for (const diagramName of diagramFolders) {
         const diagramPath = `${flowsRoot}/${diagramName}`;
@@ -578,6 +742,7 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
             diagramPath,
             [],
             new Set<string>([flowsRoot]),
+            rootExternals,
             globalErrors,
         );
         diagrams.push(diagram);

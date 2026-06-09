@@ -1,13 +1,19 @@
 /**
- * Verifies that generateGraph injects window.__LAYOUT_KEY__ into the static HTML output.
+ * Verifies that generateApp injects window.__LAYOUT_KEY__ into the static HTML output.
  *
  * Uses a minimal fake BundleContent so no built bundle is needed on disk.
  * The fake template mimics what loadBundleFromDir returns: an index.html with
  * a <link> pointing to index-abc123.css and a <script type="module"> pointing
- * to index-abc123.js — matching the regexes in generateGraph exactly.
+ * to index-abc123.js — matching the regexes in generateApp exactly.
+ *
+ * CP8b: generateGraph is deleted; migrated to generateApp (which calls the same
+ * injection helpers and produces the same __LAYOUT_KEY__ injection).
  */
-import { generateGraph, type BundleContent } from '../../src/generators/graph';
+import { generateApp } from '../../src/generators/app';
+import type { BundleContent } from '../../src/generators/embedded-bundle';
 import { layoutFingerprint } from '../../src/layout-fingerprint';
+import { mergeTheme } from '../../src/theme-defaults';
+import { mergeBranding } from '../../src/branding-defaults';
 import type { Model } from '../../src/parse';
 
 let failures = 0;
@@ -27,26 +33,20 @@ const model: Model = {
     nodes: [
         {
             id: 'Customer',
-            label: 'Customer',
             group: 'core',
             classification: 'independent',
-            pk: [{ name: 'customer_id', type: 'uuid' }],
-            columns: {},
-            ak: [],
-            relationships: [],
-            body: '',
+            pk: ['customer_id'],
+            columns: { customer_id: { type: 'uuid' } },
+            alternateKeys: [],
             bodyHtml: '',
         },
         {
             id: 'Order',
-            label: 'Order',
             group: 'core',
             classification: 'dependent',
-            pk: [{ name: 'order_id', type: 'uuid' }],
-            columns: {},
-            ak: [],
-            relationships: [],
-            body: '',
+            pk: ['order_id'],
+            columns: { order_id: { type: 'uuid' } },
+            alternateKeys: [],
             bodyHtml: '',
         },
     ],
@@ -54,46 +54,18 @@ const model: Model = {
         {
             source: 'Customer',
             target: 'Order',
-            label: 'places',
-            cardinality: 'one-to-many',
-            identifying: 'false',
-            fkColumn: '',
-            nullable: false,
+            cardinality: { parent: '1', child: 'many' },
+            identifying: false,
+            on: { customer_id: 'customer_id' },
             predicate: { fwd: 'places', rev: 'placed by' },
         },
     ],
     subtypeClusters: [],
-    theme: {
-        dark: {
-            background: '#1a1a1a',
-            surface: '#2a2a2a',
-            border: '#3a3a3a',
-            text: '#ffffff',
-            textMuted: '#aaaaaa',
-            link: '#4488ff',
-            groups: {},
-        },
-        light: {
-            background: '#ffffff',
-            surface: '#f0f0f0',
-            border: '#cccccc',
-            text: '#000000',
-            textMuted: '#666666',
-            link: '#0044cc',
-            groups: {},
-        },
-        spacing: { nodePadding: 12, edgeLength: 120 },
-    },
-    branding: {
-        title: 'Test',
-        subtitle: '',
-        poweredBy: false,
-        logo: { dark: '', light: '' },
-        copyright: { text: '', url: '' },
-    },
+    theme: mergeTheme({}),
+    branding: mergeBranding({ poweredBy: false }),
 };
 
-// Fake bundle that satisfies generateGraph's regex patterns.
+// Fake bundle that satisfies generateApp's regex patterns.
 // The <link> and <script> tags must match the regexes:
 //   /<link rel="stylesheet"[^>]*href="[^"]*index-[^"]+\.css"[^>]*>/
 //   /<script type="module"[^>]*src="[^"]*index-[^"]+\.js"[^>]*><\/script>/
@@ -103,7 +75,7 @@ const fakeBundle: BundleContent = {
     jsContent: 'console.log("app");',
 };
 
-const html = await generateGraph(model, 'dark', fakeBundle);
+const html = await generateApp(model, null, fakeBundle, { themeMode: 'dark' });
 
 // 1. __LAYOUT_KEY__ is present in the output
 assert(html.includes('window.__LAYOUT_KEY__'), 'output contains window.__LAYOUT_KEY__');

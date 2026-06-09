@@ -45,18 +45,15 @@ function assert(condition: boolean, label: string, detail?: string): void {
 
 console.log('\n── GET /flow (has flows) ──');
 {
-  const res = await fetch(`${baseA}/flow`);
-  assert(res.status === 200, '/flow: status 200', `got ${res.status}`);
-
-  const body = await res.text();
+  // CP8a: /flow now redirects to the SPA at /#view=flow — mirrors /dict + /flow-dict.
+  // Use redirect: 'manual' to inspect the 302 without following it.
+  const res = await fetch(`${baseA}/flow`, { redirect: 'manual' });
+  assert(res.status === 302, '/flow: status 302 (redirect to /#view=flow)', `got ${res.status}`);
+  const location = res.headers.get('location') ?? '';
   assert(
-    body.includes('__IGNATIUS_SURFACE__') && body.includes('"flow"'),
-    '/flow: body sets __IGNATIUS_SURFACE__ = "flow"',
-    `snippet: ${body.slice(0, 500)}`,
-  );
-  assert(
-    body.includes('__IGNATIUS_MODE__') && body.includes('"live"'),
-    '/flow: body sets __IGNATIUS_MODE__ = "live"',
+    location.includes('#view=flow'),
+    '/flow: Location header points to /#view=flow',
+    `Location: ${location}`,
   );
 }
 
@@ -73,6 +70,14 @@ console.log('\n── GET /api/flow (has flows) ──');
   assert('validation' in payload, '/api/flow: payload has "validation" key');
   assert(typeof payload.flowLayoutKeys === 'object' && payload.flowLayoutKeys !== null,
     '/api/flow: payload.flowLayoutKeys is an object');
+
+  // entityModel must ride along so the live flow viewer's doc dialog can resolve
+  // `db:` store docs to their ERD entity narrative. Dropping it re-breaks live
+  // store-badge clicks (process/external still work; db stores go silent).
+  const entityModel = payload.entityModel as Record<string, unknown> | undefined;
+  assert(entityModel !== undefined && Array.isArray(entityModel.nodes) && (entityModel.nodes as unknown[]).length > 0,
+    '/api/flow: payload.entityModel.nodes is a non-empty array (db-store docs depend on it)',
+    `entityModel keys: ${entityModel ? Object.keys(entityModel).join(', ') : 'undefined'}`);
 
   // key-inherited has order-to-cash + refund → 2 top-level diagrams
   const diagrams = payload.diagrams as unknown[];
@@ -113,21 +118,15 @@ console.log('\n── GET /api/flow (has flows) ──');
 
 console.log('\n── GET /flow-dict (has flows) ──');
 {
-  const res = await fetch(`${baseA}/flow-dict`);
-  assert(res.status === 200, '/flow-dict: status 200', `got ${res.status}`);
-
-  const body = await res.text();
-  // generateFlowDict emits per-process sections with class "flow-process-section" or similar.
-  // The spec says it lists each process with its inputs/outputs table.
-  // Check for the presence of a process section anchor format #process-<id>.
+  // CP5: /flow-dict now redirects to /#view=dict (process model fused into SPA Dictionary).
+  // Use redirect: 'manual' to assert the 302 without following it.
+  const res = await fetch(`${baseA}/flow-dict`, { redirect: 'manual' });
+  assert(res.status === 302, '/flow-dict: status 302 (redirect to /#view=dict)', `got ${res.status}`);
+  const location = res.headers.get('location') ?? '';
   assert(
-    body.includes('process') && body.length > 500,
-    '/flow-dict: body contains process content and is non-trivial',
-    `length=${body.length}`,
-  );
-  assert(
-    body.includes('<!doctype html') || body.includes('<!DOCTYPE html'),
-    '/flow-dict: body is valid HTML',
+    location.includes('#view=dict'),
+    '/flow-dict: Location header points to /#view=dict',
+    `Location: ${location}`,
   );
 }
 
@@ -135,10 +134,11 @@ console.log('\n── GET /flow-dict (has flows) ──');
 
 console.log('\n── No-flows model: /flow, /api/flow, /flow-dict ──');
 {
-  const resFlow = await fetch(`${baseB}/flow`);
+  // CP8a: /flow redirects regardless of whether flows exist.
+  const resFlow = await fetch(`${baseB}/flow`, { redirect: 'manual' });
   assert(
-    resFlow.status === 200,
-    '/flow (no flows): returns 200, not 500',
+    resFlow.status === 302,
+    '/flow (no flows): returns 302 redirect to /#view=flow',
     `got ${resFlow.status}`,
   );
 
@@ -156,10 +156,11 @@ console.log('\n── No-flows model: /flow, /api/flow, /flow-dict ──');
     `diagrams: ${JSON.stringify(payload.diagrams)}`,
   );
 
-  const resFlowDict = await fetch(`${baseB}/flow-dict`);
+  // CP5: /flow-dict redirects regardless of whether flows exist.
+  const resFlowDict = await fetch(`${baseB}/flow-dict`, { redirect: 'manual' });
   assert(
-    resFlowDict.status === 200,
-    '/flow-dict (no flows): returns 200, not 500',
+    resFlowDict.status === 302,
+    '/flow-dict (no flows): returns 302 redirect to /#view=dict',
     `got ${resFlowDict.status}`,
   );
 }

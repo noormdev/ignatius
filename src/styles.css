@@ -143,7 +143,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  z-index: 60;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   transition: border-color 0.15s;
 }
@@ -179,7 +179,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   min-width: 140px;
-  z-index: 60;
+  z-index: 70;
   overflow: hidden;
 }
 .fab-menu-item {
@@ -219,7 +219,7 @@ html, body, #root {
   font-size: 13px;
   color: var(--color-text);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  z-index: 60;
+  z-index: 70;
   pointer-events: none;
 }
 
@@ -520,6 +520,138 @@ code {
 
 @media (max-width: 768px) {
   .minimap {
+    display: none;
+  }
+}
+
+/* =========================================================================
+   Flow surface — minimap wrapper (CP19)
+   Visual parity with the DG .minimap: same corner/offset, border, radius,
+   background, opacity+hover, size, and z-index.
+   Position (left) is driven inline from FlowChrome so the wrapper steps right
+   when the DFD-nav breadcrumb card is visible — that is the ONE intentional
+   structural divergence from the DG minimap (which has no nav card). All other
+   chrome is shared with .minimap.
+   ========================================================================= */
+
+.flow-minimap-wrapper {
+  position: absolute;
+  bottom: 16px;
+  /* left is set inline per showNav state (see FlowChrome.tsx):
+     - nav hidden → 16px  (matches DG .minimap left:16px)
+     - nav visible → 228px (clears the breadcrumb nav card — intentional divergence) */
+  z-index: 50;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.flow-minimap-wrapper:hover {
+  opacity: 1;
+}
+
+.flow-minimap-canvas {
+  position: relative;
+  width: 200px;
+  height: 130px;
+}
+
+@media (max-width: 768px) {
+  .flow-minimap-wrapper {
+    display: none;
+  }
+}
+
+/* =========================================================================
+   Zoom control (CP22) — shared, view-agnostic; Graph view only for now
+   (CP23 will wire it to the Flows view too).
+   Placed bottom-right, above the FAB (bottom:24px + 48px height + 12px gap = 84px).
+   z-index 55: above canvas (1), below FAB (60) and modals (100+).
+   ========================================================================= */
+
+.zoom-control {
+  position: fixed;
+  bottom: 84px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 2px 4px;
+  z-index: 55;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+
+.zoom-control:hover {
+  opacity: 1;
+}
+
+.zoom-control-btn,
+.zoom-control-reset {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  height: 24px;
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.zoom-control-btn:hover,
+.zoom-control-reset:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.zoom-control-readout {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text);
+  cursor: text;
+  font-size: 12px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: center;
+  padding: 2px 4px;
+  transition: background 0.1s;
+}
+
+.zoom-control-readout:hover {
+  background: var(--color-surface-alt);
+}
+
+.zoom-control-input {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-link);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: 12px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: center;
+  padding: 1px 4px;
+  outline: none;
+}
+
+@media (max-width: 768px) {
+  .zoom-control {
     display: none;
   }
 }
@@ -838,6 +970,748 @@ code {
   opacity: 0.5;
 }
 
+/* ── DictionaryView — in-app inline data dictionary ──────────────────────── */
+
+/* Outer container: full-viewport scrollable panel, sits above graph-panel */
+.dict-view {
+  position: fixed;
+  inset: 0;
+  background: var(--color-background);
+  z-index: 10;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Padding: top clears branding-block; right clears theme-toggle + FAB; bottom/left give breathing room */
+  padding: 72px 2rem 5rem 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  /* Keep full-width centering while the fixed positioning applies */
+  left: 0;
+  right: 0;
+}
+
+/* Search box — top of dictionary, full-width */
+.dict-search {
+  margin-bottom: 1.5rem;
+}
+
+.dict-search-input {
+  width: 100%;
+  max-width: 520px;
+  padding: 0.45rem 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.dict-search-input:focus {
+  border-color: var(--color-link);
+}
+
+.dict-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* CP9: DD search highlight — CSS Custom Highlight API pseudo-element.
+   The --dd-search-highlight var is set per-mode by applyThemeCssVars at runtime
+   (authoritative). These fallbacks cover surfaces that don't call it (e.g. static
+   export) and provide a mode-appropriate default via prefers-color-scheme. */
+:root {
+  --dd-search-highlight: rgba(255, 215, 0, 0.40); /* dark default */
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --dd-search-highlight: rgba(255, 195, 0, 0.50); /* light default */
+  }
+}
+
+::highlight(dd-search-highlight) {
+  background-color: var(--dd-search-highlight);
+  color: inherit;
+}
+
+/* Page header */
+.dict-page-header {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Reader legend — "How to read this" structured guide */
+.dict-reader-legend {
+  margin-bottom: 2rem;
+  padding: 1rem 1.25rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.dict-reader-legend summary {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.dict-reader-legend summary::-webkit-details-marker {
+  display: none;
+}
+
+.dict-reader-legend summary::before {
+  content: '▾ ';
+  display: inline-block;
+  margin-right: 4px;
+  transition: transform 150ms;
+}
+
+.dict-reader-legend:not([open]) summary::before {
+  transform: rotate(-90deg);
+}
+
+.dict-reader-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem 1.5rem;
+  margin-top: 1rem;
+}
+
+.dict-reader-legend-cell h3 {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5rem;
+}
+
+.dict-reader-legend-badges,
+.dict-reader-legend-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.dict-reader-legend-note {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin-top: 0.35rem;
+}
+
+.dict-reader-legend-note em {
+  font-style: italic;
+  color: var(--color-text);
+}
+
+/* Classification badges */
+.dict-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15em 0.55em;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Legend group swatches */
+.dict-legend-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.dict-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dict-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.dict-legend-label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* PK label */
+.dict-pk-label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-left: auto;
+}
+
+/* Group sections */
+.dict-group-section {
+  margin-bottom: 3rem;
+}
+
+.dict-group-header {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--color-surface);
+  border-radius: 6px;
+}
+
+.dict-group-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.dict-group-desc {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.dict-group-desc p {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+/* Entity sections */
+.dict-entity-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.dict-entity-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.dict-entity-header h2,
+.dict-entity-header h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Subtype list (below entity header on basetype entities) */
+.dict-subtype-list {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.dict-subtype-list a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* Tables */
+.dict-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 2rem;
+}
+
+.dict-attr-table,
+.dict-rel-table,
+.dict-io-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.dict-attr-table th,
+.dict-rel-table th,
+.dict-io-table th {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dict-attr-table td,
+.dict-rel-table td,
+.dict-io-table td {
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  vertical-align: top;
+}
+
+.dict-attr-table tr:last-child td,
+.dict-rel-table tr:last-child td,
+.dict-io-table tr:last-child td {
+  border-bottom: none;
+}
+
+.dict-attr-table tr:hover td,
+.dict-rel-table tr:hover td,
+.dict-io-table tr:hover td {
+  background: var(--color-surface-alt);
+}
+
+/* Predicate pills in relationship table */
+.dict-predicate-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.dict-predicate-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.dict-predicate-pill--primary {
+  background: color-mix(in srgb, var(--color-link) 12%, var(--color-surface-alt));
+  border-color: color-mix(in srgb, var(--color-link) 25%, var(--color-border));
+}
+
+.dict-predicate-pill--inverse {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+}
+
+.dict-predicate-pill--shared {
+  color: var(--color-text-muted);
+}
+
+.dict-predicate-arrow {
+  color: var(--color-text-muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.85em;
+}
+
+/* Relationships heading */
+.dict-rel-heading {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+  margin-top: 2rem;
+}
+
+/* Per-entity warning disclosure */
+.dict-entity-warning {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.82rem;
+}
+
+.dict-entity-warning > summary {
+  cursor: pointer;
+  color: #f59e0b;
+  font-weight: 600;
+  user-select: none;
+  list-style: none;
+  padding: 0.2rem 0;
+}
+
+.dict-entity-warning > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dict-entity-warning[open] > summary {
+  margin-bottom: 0.35rem;
+}
+
+.dict-entity-warning-detail {
+  margin: 0;
+  padding: 0 0 0 1.25rem;
+  color: var(--color-text-muted);
+  list-style: disc;
+}
+
+.dict-entity-warning-detail li {
+  padding: 0.15rem 0;
+}
+
+.dict-entity-warning-detail li strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Entity body (markdown) */
+.dict-entity-body {
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.dict-entity-body h1,
+.dict-entity-body h2,
+.dict-entity-body h3,
+.dict-entity-body h4 {
+  color: var(--color-text);
+  font-size: 0.95rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.dict-entity-body p {
+  margin-bottom: 0.5rem;
+}
+
+.dict-entity-body ul,
+.dict-entity-body ol {
+  padding-left: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+/* entity-link / entity-link--missing already defined in modal styles (shared class names
+   in bodyHtml output from wikilink.ts); no re-definition needed */
+
+.dict-entity-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.dict-entity-body th,
+.dict-entity-body td {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-border);
+}
+
+.dict-entity-body th {
+  background: var(--color-surface-alt);
+}
+
+/* Examples accordion (dict variant) */
+.dict-examples {
+  margin-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+}
+
+.dict-examples > summary {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: 0.2rem 0;
+}
+
+.dict-examples > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dict-examples[open] > summary {
+  margin-bottom: 0.5rem;
+}
+
+.dict-examples-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dict-examples-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.dict-examples-table th {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dict-examples-table td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  vertical-align: top;
+}
+
+.dict-examples-table tr:last-child td {
+  border-bottom: none;
+}
+
+.dict-examples-table tr:hover td {
+  background: var(--color-surface-alt);
+}
+
+.dict-example-empty {
+  color: var(--color-text-muted);
+  font-size: 0.85em;
+}
+
+/* ── CP7: Entity ↔ Process cross-reference ── */
+
+/* DD processes table (appears after examples in DictEntitySection) */
+.dict-processes-table-wrap {
+  margin-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+}
+
+.dict-section-heading {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.5rem 0;
+}
+
+.dict-processes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.dict-processes-table th {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dict-processes-table td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  vertical-align: top;
+}
+
+.dict-processes-table tr:last-child td {
+  border-bottom: none;
+}
+
+.dict-processes-table tr:hover td {
+  background: var(--color-surface-alt);
+}
+
+.dict-processes-table a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.dict-processes-table a:hover {
+  text-decoration: underline;
+}
+
+/* Direction badge — shared by DD table and graph modal */
+.dict-process-direction {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dict-process-direction--read {
+  background: var(--color-badge-read-bg, rgba(5, 80, 174, 0.10));
+  color: var(--color-badge-read-fg, #0550ae);
+}
+
+.dict-process-direction--write {
+  background: var(--color-badge-write-bg, rgba(26, 127, 55, 0.10));
+  color: var(--color-badge-write-fg, #1a7f37);
+}
+
+.dict-process-direction--readwrite {
+  background: var(--color-badge-rw-bg, rgba(130, 80, 223, 0.10));
+  color: var(--color-badge-rw-fg, #6639ba);
+}
+
+/* Graph modal processes section */
+.modal-processes {
+  margin-top: 1rem;
+  border-top: 1px solid var(--color-surface-alt);
+  padding-top: 0.75rem;
+}
+
+.modal-processes h4 {
+  font-size: 12px;
+  margin: 0 0 8px 0;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+/* Missing FK links */
+a.dict-link-missing {
+  color: #f59e0b;
+  text-decoration: underline dotted;
+}
+
+a.dict-link-missing:hover {
+  color: #d97706;
+}
+
+/* Missing entity placeholder sections */
+.dict-missing-section {
+  background: var(--color-surface);
+  border: 1px dashed #f59e0b;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  color: var(--color-text-muted);
+}
+
+.dict-missing-section h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #f59e0b;
+  margin-bottom: 0.5rem;
+}
+
+/* Side nav panel */
+.dict-nav-panel {
+  position: fixed;
+  top: 72px;
+  right: 0;
+  width: 280px;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+  z-index: 40;
+  transform: translateX(100%);
+  transition: transform 200ms ease;
+}
+
+.dict-nav-panel.dict-nav-open {
+  transform: translateX(0);
+}
+
+.dict-nav-inner {
+  padding: 0.75rem 0;
+}
+
+.dict-nav-group {
+  padding: 0.5rem 0;
+}
+
+.dict-nav-group + .dict-nav-group {
+  border-top: 1px solid var(--color-border);
+}
+
+.dict-nav-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 1rem 0.35rem;
+}
+
+.dict-nav-link {
+  display: block;
+  padding: 0.25rem 1rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dict-nav-link:hover {
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+}
+
+.dict-nav-link.is-current {
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+  border-left: 3px solid var(--color-link);
+  padding-left: calc(1rem - 3px);
+  font-weight: 600;
+}
+
+.dict-nav-subtype {
+  margin-left: 1rem;
+  font-size: 0.78rem;
+}
+
+/* No-results message */
+.dict-no-results {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .dict-view {
+    padding: 52px 0.75rem 4rem 0.75rem;
+  }
+
+  .dict-group-header {
+    padding: 0.75rem;
+  }
+
+  .dict-group-title {
+    font-size: 1.15rem;
+  }
+
+  .dict-entity-section {
+    padding: 0.85rem;
+  }
+
+  .dict-entity-header {
+    flex-wrap: wrap;
+  }
+
+  .dict-nav-panel {
+    display: none;
+  }
+}
+
 /* Error fallback — shown instead of blank canvas when cy init throws */
 .graph-error-fallback {
   position: fixed;
@@ -879,4 +1753,222 @@ code {
   word-break: break-word;
   color: #fecaca;
   margin-top: 10px;
+}
+
+/* ── Process-model dictionary sections (CP5) ─────────────────────────────── */
+
+/* DFD section heading (multi-DFD model only) */
+.flow-dfd-heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 2rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.flow-dotted-number {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.flow-process-label {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Inputs/outputs table */
+.flow-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 1rem;
+}
+
+.flow-kind-marker {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  letter-spacing: 0.04em;
+}
+.flow-kind-marker--db {
+  background: color-mix(in srgb, var(--color-link) 10%, var(--color-surface-alt));
+  border-color: color-mix(in srgb, var(--color-link) 20%, var(--color-border));
+}
+.flow-kind-ext { color: var(--color-text-muted); font-size: 0.75rem; }
+.flow-col-unknown { color: #f59e0b; }
+.flow-no-flows { color: var(--color-text-muted); font-size: 0.85rem; padding: 0.5rem 0; }
+
+/* Shared body for all flow node types (process, external, store) */
+.flow-node-body {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+.flow-node-body p { margin-bottom: 0.25rem; }
+
+/* Process-specific: adds a visual separator above the body */
+.flow-node-body--process {
+  border-top: 1px solid var(--color-border);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+.flow-node-body--process p { margin-bottom: 0.5rem; }
+.flow-node-body--process ul,
+.flow-node-body--process ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
+
+/* Store sections */
+.flow-stores { margin-bottom: 2rem; }
+.flow-store-kind {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1em 0.5em;
+  border-radius: 3px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+.flow-store-name { font-size: 1rem; font-weight: 600; color: var(--color-text); }
+
+/* External sections */
+.flow-external-kind {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1em 0.5em;
+  border-radius: 3px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+.flow-external-name { font-size: 1rem; font-weight: 600; color: var(--color-text); }
+
+/* Process-model area heading */
+.flow-dict-section-heading {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 3rem 0 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--color-border);
+}
+
+/* Nav groups for processes (shares dict-nav-group base styles) */
+.dict-nav-process-group {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--color-border);
+  margin-top: 0.25rem;
+}
+
+/* Facts block in FlowNodeModal — separates structured node data from the body */
+.flow-node-dialog-facts {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-surface-alt);
+}
+/* DictStoreSection / DictExternalSection inside the modal have their own section
+   chrome — suppress the duplicate border/header margin so it reads as inline. */
+.flow-node-dialog-facts .dict-entity-section {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+/* ── DFD node non-selectability ───────────────────────────────────────────── */
+/* Prevent text-selection on drag across process/external/store SVG node groups.
+   Scoped under [data-ignatius="flow-svg"] so it cannot bleed onto the ERD or
+   Dictionary surfaces. Does NOT affect pointer-events — drag and ⓘ badge
+   clicks still fire normally. */
+[data-ignatius="flow-svg"] g[data-node-type="process"],
+[data-ignatius="flow-svg"] g[data-node-type="external"],
+[data-ignatius="flow-svg"] g[data-node-type="store"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── Print styles — Dictionary printable ──────────────────────────────────── */
+/*
+ * The dict-view is a fixed+scrollable overlay on screen. In print we need it
+ * to flow naturally across pages like a document, not clip to one viewport.
+ * All chrome overlays (FAB, findings, search, side nav, theme toggle, minimap,
+ * copy-toast, global banner, graph panel) are hidden so only content prints.
+ * Break-inside avoidance prevents entity/process cards splitting mid-page.
+ */
+@media print {
+  /* Show the dict surface only — hide graph, flow, and modal chrome */
+  .graph-panel,
+  .flow-chrome,
+  .graph-global-banner,
+  .dict-search,
+  .dict-nav-panel,
+  .findings-panel,
+  .theme-toggle,
+  .fab,
+  .fab-menu,
+  .copy-toast,
+  .navigator-wrapper,
+  [data-ignatius="minimap"],
+  .dict-findings-panel,
+  .dict-fab,
+  .dict-theme-toggle,
+  .zoom-control {
+    display: none !important;
+  }
+
+  /* Reset the fixed/scrollable dict container to a normal document flow */
+  .dict-view {
+    position: static !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+    color: black !important;
+    z-index: auto !important;
+  }
+
+  /* Page-break avoidance: keep each entity/process/store card on one page */
+  .dict-entity-section,
+  .dict-group-section,
+  .dict-store-section,
+  .dict-external-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Keep group headers with the first entity they introduce */
+  .dict-group-header {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Legible print colors — override CSS vars that may be dark-theme.
+   * Scoped to .dict-view only; bare `body` would blanket graph/flow chrome. */
+  .dict-view,
+  .dict-view * {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Keep colored group/badge text meaningful but on white bg */
+  .dict-group-title {
+    background: transparent !important;
+  }
+
+  /* Links: show destination only when it's an external URL; suppress fragment hrefs */
+  a[href^="#"]::after {
+    content: none !important;
+  }
+
+  /* Suppress the reader legend to save paper — it's a screen affordance */
+  .dict-reader-legend {
+    display: none !important;
+  }
 }

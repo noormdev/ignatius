@@ -21,9 +21,8 @@ Class B omits the broken *reference*, not the whole entity. A typo in one of thr
 
 
 - **Live viewer (`serve`)** — a collapsible findings panel in the top-right corner lists every current finding and updates on each save. Click an entity-scoped row to pan, zoom, and select the affected entity. The panel hides entirely when there are no findings.
-- **Static dictionary (`dict`)** — a red banner at the top lists global errors. Each affected entity gets an expandable warning disclosure, and foreign keys to missing targets render as amber "missing" links with a placeholder stub at the page bottom.
-- **Static graph (`graph`)** — a dismissible banner overlays the canvas for global errors, and affected nodes get a corner ⚠ badge. The embedded bundle re-runs validation on load, so a stale `graph.html` still shows current findings against its embedded model.
-- **CLI stderr** — `dict` and `graph` print findings as `<severity>  <rule-id>  <location>  <message>`, errors first. The command exits `1` when any errors are present, `0` otherwise.
+- **Static export (`export`)** — a dismissible banner lists global errors in all three views (Graph, Dictionary, Flows). The Dictionary's affected entities get inline warning disclosures; Graph nodes get corner ⚠ badges; foreign keys to missing targets render as amber "missing" links.
+- **CLI stderr** — `export` and `validate` print findings as `<severity>  <rule-id>  <location>  <message>`, errors first. The command exits `1` when any errors are present, `0` otherwise.
 
 
 ## Rule catalog
@@ -76,9 +75,10 @@ All Class A: the entity renders, flagged with a warning.
 ## Trying it out
 
 
-The reference model `models/broken-demo/` is deliberately broken to exercise every surface. Serve it and watch the findings panel, or run `ignatius dict models/broken-demo` and read the stderr output:
+The reference model `models/broken-demo/` is deliberately broken to exercise every surface. Serve it and watch the findings panel, or run `ignatius validate` to read the stderr output without generating any file:
 
 ```bash
 ignatius serve models/broken-demo
-ignatius dict models/broken-demo -o /tmp/broken.html
+ignatius validate models/broken-demo
+ignatius export models/broken-demo -o /tmp/broken.html
 ```

@@ -12,12 +12,22 @@
 import type { Model } from './parse';
 import type { GlobalError, RuleId } from './validate';
 import type {
+    FlowEndpoint,
     FlowModel,
     FlowDiagram,
     FlowEdge,
     FlowProcess,
     FlowStoreRef,
 } from './flow-parse';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Narrows a FlowEndpoint kind to the subset that can appear in a FlowStoreRef. */
+function isStoreKind(k: FlowEndpoint['kind']): k is FlowStoreRef['kind'] {
+    return k !== 'proc' && k !== 'ext';
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -532,12 +542,12 @@ function buildCleanedDiagram(
     const seenStores = new Map<string, FlowStoreRef>();
     for (const edge of activeEdges) {
         for (const ep of [edge.from, edge.to]) {
-            if (ep.kind === 'proc' || ep.kind === 'ext') continue;
+            if (!isStoreKind(ep.kind)) continue;
             const key = `${ep.kind}:${ep.name}`;
             if (seenStores.has(key)) continue;
-            // Carry over body from original storeRefs if present
+            // Carry over body + displayName from original storeRefs if present
             const original = diagram.storeRefs.find(s => s.kind === ep.kind && s.name === ep.name);
-            seenStores.set(key, original ?? { kind: ep.kind, name: ep.name, flowId: diagram.id });
+            seenStores.set(key, original ?? { kind: ep.kind, name: ep.name, displayName: ep.name, flowId: diagram.id });
         }
     }
 

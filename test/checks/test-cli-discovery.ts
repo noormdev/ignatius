@@ -9,6 +9,10 @@
  *
  * Must be run AFTER `bun run build:cli` has produced ./dist/ignatius.
  *
+ * CP7: `dict` subcommand replaced by `export`. All discovery assertions now use
+ * `export` (same pickModel path, same --model flag, same non-TTY behavior).
+ * `dict --help` updated to `export --help`.
+ *
  * Run with: bun test/checks/test-cli-discovery.ts
  */
 
@@ -61,24 +65,24 @@ async function run(
 assert(existsSync(BINARY), 'binary exists at dist/ignatius');
 
 // ──────────────────────────────────────────────────────────────────────────────
-// --help: exits 0 and documents --model
+// --help: exits 0 and documents --model  (CP7: export --help)
 // ──────────────────────────────────────────────────────────────────────────────
 
 {
-  const { exitCode, stdout } = await run(['dict', '--help']);
-  assert(exitCode === 0, 'dict --help: exits 0');
-  assert(stdout.includes('--model'), 'dict --help: documents --model');
+  const { exitCode, stdout } = await run(['export', '--help']);
+  assert(exitCode === 0, 'export --help: exits 0');
+  assert(stdout.includes('--model'), 'export --help: documents --model');
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// dict container + --model orm-pure → no prompt, exit 0, file written
+// export container + --model orm-pure → no prompt, exit 0, file written
 // ──────────────────────────────────────────────────────────────────────────────
 
 {
-  const { exitCode, stderr } = await run(['dict', MODELS, '--model', 'orm-pure', '-o', OUT]);
+  const { exitCode, stderr } = await run(['export', MODELS, '--model', 'orm-pure', '-o', OUT]);
   if (exitCode !== 0) console.error('  stderr:', stderr);
-  assert(exitCode === 0, 'dict <container> --model orm-pure: exits 0');
-  assert(existsSync(OUT), 'dict <container> --model orm-pure: output file written');
+  assert(exitCode === 0, 'export <container> --model orm-pure: exits 0');
+  assert(existsSync(OUT), 'export <container> --model orm-pure: output file written');
   // clean up
   if (existsSync(OUT)) {
     try { await Bun.file(OUT).delete?.(); } catch { /* ignore */ }
@@ -86,27 +90,27 @@ assert(existsSync(BINARY), 'binary exists at dist/ignatius');
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// dict container without --model, non-TTY → exit ≠ 0, stderr lists keys
+// export container without --model, non-TTY → exit ≠ 0, stderr lists keys
 // ──────────────────────────────────────────────────────────────────────────────
 
 {
-  const { exitCode, stderr } = await run(['dict', MODELS, '-o', OUT], { timeoutMs: 5_000 });
-  assert(exitCode !== 0, 'dict <container> no --model non-TTY: exits non-zero');
+  const { exitCode, stderr } = await run(['export', MODELS, '-o', OUT], { timeoutMs: 5_000 });
+  assert(exitCode !== 0, 'export <container> no --model non-TTY: exits non-zero');
   assert(
     stderr.includes('key-inherited') && stderr.includes('orm-hybrid') && stderr.includes('orm-pure'),
-    'dict <container> no --model non-TTY: stderr lists all three keys',
+    'export <container> no --model non-TTY: stderr lists all three keys',
   );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// dict single-root path → exit 0, file written
+// export single-root path → exit 0, file written
 // ──────────────────────────────────────────────────────────────────────────────
 
 {
-  const { exitCode, stderr } = await run(['dict', SINGLE, '-o', OUT]);
+  const { exitCode, stderr } = await run(['export', SINGLE, '-o', OUT]);
   if (exitCode !== 0) console.error('  stderr:', stderr);
-  assert(exitCode === 0, 'dict <single-root>: exits 0');
-  assert(existsSync(OUT), 'dict <single-root>: output file written');
+  assert(exitCode === 0, 'export <single-root>: exits 0');
+  assert(existsSync(OUT), 'export <single-root>: output file written');
   // clean up
   if (existsSync(OUT)) {
     try { await Bun.file(OUT).delete?.(); } catch { /* ignore */ }

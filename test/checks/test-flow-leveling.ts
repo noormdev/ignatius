@@ -88,7 +88,7 @@ function makeDiagram(
     edges: FlowEdge[],
     subDfds: FlowDiagram[] = [],
 ): FlowDiagram {
-    return { id, processes, externals, storeRefs, edges, subDfds };
+    return { id, title: id, processes, externals, storeRefs, edges, subDfds };
 }
 
 function makeModel(diagrams: FlowDiagram[]): FlowModel {
@@ -264,7 +264,7 @@ const partyEntityModel = baseEntityModel([
         'Parent',           // id matches the parent process id
         [procA, procB],
         [{ id: 'User', label: 'User', body: '', bodyHtml: '', flowId: 'sub' }],
-        [{ kind: 'db', name: 'Party', flowId: 'sub' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'sub' }],
         [extInputEdge, siblingEdge, dbOutputEdge],
     );
 
@@ -285,7 +285,7 @@ const partyEntityModel = baseEntityModel([
         'root',
         [parentProcess],
         [{ id: 'User', label: 'User', body: '', bodyHtml: '', flowId: 'root' }],
-        [{ kind: 'db', name: 'Party', flowId: 'root' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'root' }],
         [makeEdge('db', 'Party', 'proc', 'Parent', ['party_id'], 'root')],
         [subDiagram],
     );
@@ -324,7 +324,7 @@ const partyEntityModel = baseEntityModel([
         'Login',
         [l3Proc],
         [],
-        [{ kind: 'db', name: 'Party', flowId: 'login' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'login' }],
         [l3Edge, l3OutEdge],
     );
 
@@ -341,7 +341,7 @@ const partyEntityModel = baseEntityModel([
         'Authenticate',
         [l2Proc],
         [],
-        [{ kind: 'db', name: 'Party', flowId: 'auth' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'auth' }],
         [l2ParentInputEdge, l2ParentOutEdge],
         [loginSubDfd],
     );
@@ -358,7 +358,7 @@ const partyEntityModel = baseEntityModel([
         'auth',
         [l1Proc],
         [],
-        [{ kind: 'db', name: 'Party', flowId: 'root' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'root' }],
         [l1InputEdge, l1OutEdge],
         [authSubDfd],
     );
@@ -408,7 +408,7 @@ const partyEntityModel = baseEntityModel([
         'Login',
         [verifyProc, createProc],
         [],
-        [{ kind: 'db', name: 'Party', flowId: 'l3' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'l3' }],
         [sibInEdge, sibSibEdge, sibOutEdge],
     );
 
@@ -423,7 +423,7 @@ const partyEntityModel = baseEntityModel([
         'Authenticate',
         [loginProc],
         [],
-        [{ kind: 'db', name: 'Party', flowId: 'l2' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'l2' }],
         [l2InEdge, l2OutEdge],
         [loginSubDfd],
     );
@@ -439,7 +439,7 @@ const partyEntityModel = baseEntityModel([
         'auth',
         [authProc],
         [],
-        [{ kind: 'db', name: 'Party', flowId: 'l1' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'l1' }],
         [l1InEdge, l1OutEdge],
         [authSubDfd],
     );

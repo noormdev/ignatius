@@ -1,4 +1,4 @@
-import type { FlowDiagram } from './flow-parse';
+import type { FlowDiagram, FlowModel } from './flow-parse';
 
 // FNV-1a 32-bit constants — identical to layout-fingerprint.ts.
 const FNV_PRIME = 0x01000193;
@@ -33,9 +33,42 @@ function fnv1a32(input: string): string {
  *
  * NOT imported by App.tsx — the frontend reads keys from the
  * window.__FLOW_LAYOUT_KEYS__ map (static) or the /api/flow payload's
- * flowLayoutKeys field (live). Imported by src/generators/flow-graph.ts
- * and src/server.ts (via buildFlowLayoutKeys) to build the id→fingerprint map.
+ * flowLayoutKeys field (live). Imported by src/generators/app.ts and
+ * src/server.ts (via buildFlowLayoutKeys) to build the id→fingerprint map.
  */
+/**
+ * Recursively collect layout fingerprints for a diagram and all its sub-DFDs.
+ * Returns a flat id→fingerprint map covering every diagram in the tree.
+ */
+function collectFlowLayoutKeys(diagram: FlowDiagram): Record<string, string> {
+  const keys: Record<string, string> = {};
+  keys[diagram.id] = layoutFlowFingerprint(diagram);
+  for (const sub of diagram.subDfds) {
+    const subKeys = collectFlowLayoutKeys(sub);
+    for (const [id, key] of Object.entries(subKeys)) {
+      keys[id] = key;
+    }
+  }
+  return keys;
+}
+
+/**
+ * Build the complete id→fingerprint map for every diagram in a FlowModel
+ * (top-level DFDs and all sub-DFDs recursively).
+ *
+ * Used by src/server.ts (/api/flow route) and src/generators/app.ts (export).
+ */
+export function buildFlowLayoutKeys(flowModel: FlowModel): Record<string, string> {
+  const keys: Record<string, string> = {};
+  for (const diagram of flowModel.diagrams) {
+    const subKeys = collectFlowLayoutKeys(diagram);
+    for (const [id, key] of Object.entries(subKeys)) {
+      keys[id] = key;
+    }
+  }
+  return keys;
+}
+
 export function layoutFlowFingerprint(diagram: FlowDiagram): string {
   const processIds = diagram.processes.map(p => p.id).sort();
   const externalIds = diagram.externals.map(e => e.id).sort();

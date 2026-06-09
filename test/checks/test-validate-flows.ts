@@ -101,7 +101,7 @@ function makeDiagram(
     edges: FlowEdge[],
     subDfds: FlowDiagram[] = [],
 ): FlowDiagram {
-    return { id, processes, externals, storeRefs, edges, subDfds };
+    return { id, title: id, processes, externals, storeRefs, edges, subDfds };
 }
 
 function makeFlowModel(diagrams: FlowDiagram[]): FlowModel {
@@ -123,7 +123,7 @@ function hasRule(errors: FlowError[], ruleId: string): boolean {
         'test',
         [proc],
         [],
-        [{ kind: 'db', name: 'Party', flowId: 'test' }, { kind: 'cache', name: 'Sessions', flowId: 'test' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'test' }, { kind: 'cache', name: 'Sessions', displayName: 'Sessions', flowId: 'test' }],
         [edge],
     );
     const model = makeFlowModel([diagram]);
@@ -389,7 +389,7 @@ for (const ruleId of parseableRules) {
         'clean',
         [procNode],
         [{ id: 'Customer', label: 'Customer', body: '', bodyHtml: '', flowId: 'clean' }],
-        [{ kind: 'db', name: 'Party', flowId: 'clean' }],
+        [{ kind: 'db', name: 'Party', displayName: 'Party', flowId: 'clean' }],
         [
             makeEdge('ext', 'Customer', 'proc', 'DoIt', 'order', 'clean'),
             makeEdge('proc', 'DoIt', 'db', 'Party', ['party_id'], 'clean'),

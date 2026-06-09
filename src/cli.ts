@@ -1,10 +1,8 @@
 import { defineCommand, runMain } from 'citty';
-import { resolve, basename, dirname, extname, join as pathJoin } from 'path';
+import { resolve } from 'path';
 import { existsSync } from 'node:fs';
 import { serveWithPortFallback } from './serve-port';
 import { parseModels } from './parse';
-import { generateDict } from './generators/dict';
-import { generateGraph } from './generators/graph';
 import { pickModel } from './resolve-model';
 import { VERSION } from './version';
 
@@ -58,136 +56,32 @@ const serveCmd = defineCommand({
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// dict
+// dict  (removed — stub prints a helpful pointer)
 // ──────────────────────────────────────────────────────────────────────────────
 
 const dictCmd = defineCommand({
   meta: {
     name: 'dict',
-    description: 'Generate a static data dictionary HTML file',
+    description: 'Removed — use: ignatius export -o model.html',
   },
-  args: {
-    path: {
-      type: 'positional',
-      description: 'Path to search for a model root (default: cwd)',
-      required: false,
-    },
-    out: {
-      type: 'string',
-      alias: 'o',
-      description: 'Output file path (required)',
-    },
-    theme: {
-      type: 'string',
-      description: 'Color theme: light or dark (default: dark)',
-      default: 'dark',
-    },
-    model: {
-      type: 'string',
-      description: 'Model key to use when multiple models are found',
-    },
-  },
-  async run({ args }) {
-    const outputPath = args.out;
-    if (!outputPath) {
-      process.stderr.write('Error: -o <output.html> is required for the dict subcommand.\n');
-      process.exit(1);
-    }
-
-    const base = args.path ? resolve(args.path) : process.cwd();
-    const dir = await pickModel(base, args.model);
-    const mode = args.theme === 'light' ? 'light' : 'dark';
-    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
-    const { validateModel, formatFindingsForStderr } = await import('./validate');
-    const validation = validateModel(model);
-
-    // Print all findings to stderr before writing output.
-    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
-    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors);
-    for (const line of stderrLines) {
-      process.stderr.write(line + '\n');
-    }
-
-    const findings = { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors };
-    // Use cleanedModel.nodes (safe pk/columns shapes) but keep raw edges so the
-    // dict can still render dict-link-missing affordances for dangling FKs.
-    const renderModel = { ...model, nodes: validation.cleanedModel.nodes };
-    const html = await generateDict(renderModel, findings, mode, { modelsDir: dir });
-    await Bun.write(outputPath, html);
-    console.log(`Wrote dict to ${outputPath}`);
-    process.exit(allGlobalErrors.length > 0 ? 1 : 0);
+  run() {
+    process.stderr.write('dict was removed — use: ignatius export -o model.html\n');
+    process.exit(1);
   },
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// graph
+// graph  (removed — stub prints a helpful pointer)
 // ──────────────────────────────────────────────────────────────────────────────
 
 const graphCmd = defineCommand({
   meta: {
     name: 'graph',
-    description: 'Generate a self-contained interactive graph HTML file',
+    description: 'Removed — use: ignatius export -o model.html',
   },
-  args: {
-    path: {
-      type: 'positional',
-      description: 'Path to search for a model root (default: cwd)',
-      required: false,
-    },
-    out: {
-      type: 'string',
-      alias: 'o',
-      description: 'Output file path (required)',
-    },
-    theme: {
-      type: 'string',
-      description: 'Color theme: light or dark (default: dark)',
-      default: 'dark',
-    },
-    model: {
-      type: 'string',
-      description: 'Model key to use when multiple models are found',
-    },
-  },
-  async run({ args }) {
-    const outputPath = args.out;
-    if (!outputPath) {
-      process.stderr.write('Error: -o <output.html> is required for the graph subcommand.\n');
-      process.exit(1);
-    }
-
-    const base = args.path ? resolve(args.path) : process.cwd();
-    const dir = await pickModel(base, args.model);
-    const mode = args.theme === 'light' ? 'light' : 'dark';
-    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
-    const { validateModel, formatFindingsForStderr } = await import('./validate');
-    const validation = validateModel(model);
-
-    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
-    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors);
-    for (const line of stderrLines) {
-      process.stderr.write(line + '\n');
-    }
-
-    // Dynamic import so `dict`/`serve` work without a prior bundle build.
-    let bundle;
-    try {
-      const { loadEmbeddedBundle } = await import('./generators/embedded-bundle');
-      bundle = await loadEmbeddedBundle();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(
-        'Error: could not load the embedded React bundle.\n' +
-        'Run: bun run build:bundle  (or: bun run build:cli)\n' +
-        `\nUnderlying: ${msg}\n`,
-      );
-      process.exit(1);
-    }
-
-    const html = await generateGraph(model, mode, bundle);
-    await Bun.write(outputPath, html);
-    console.log(`Wrote graph to ${outputPath}`);
-    process.exit(allGlobalErrors.length > 0 ? 1 : 0);
+  run() {
+    process.stderr.write('graph was removed — use: ignatius export -o model.html\n');
+    process.exit(1);
   },
 });
 
@@ -262,13 +156,28 @@ const validateCmd = defineCommand({
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// flow
+// flow  (removed — stub prints a helpful pointer)
 // ──────────────────────────────────────────────────────────────────────────────
 
 const flowCmd = defineCommand({
   meta: {
     name: 'flow',
-    description: 'Generate a self-contained flow viewer HTML file (all DFDs in the model)',
+    description: 'Removed — use: ignatius export -o model.html',
+  },
+  run() {
+    process.stderr.write('flow was removed — use: ignatius export -o model.html\n');
+    process.exit(1);
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// export  — unified single-file export (graph + dict + flows in one HTML)
+// ──────────────────────────────────────────────────────────────────────────────
+
+const exportCmd = defineCommand({
+  meta: {
+    name: 'export',
+    description: 'Export a self-contained HTML file with all three views (Graph, Dictionary, Flows)',
   },
   args: {
     path: {
@@ -294,7 +203,7 @@ const flowCmd = defineCommand({
   async run({ args }) {
     const outputPath = args.out;
     if (!outputPath) {
-      process.stderr.write('Error: -o <output.html> is required for the flow subcommand.\n');
+      process.stderr.write('Error: -o <output.html> is required for the export subcommand.\n');
       process.exit(1);
     }
 
@@ -302,38 +211,39 @@ const flowCmd = defineCommand({
     const dir = await pickModel(base, args.model);
     const mode = args.theme === 'light' ? 'light' : 'dark';
 
-    // No flows/ dir — friendly note, exit 0 (not an error; mirrors how dict handles empty models).
+    // Parse entity model.
+    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
+    const { validateModel, formatFindingsForStderr, RULES } = await import('./validate');
+    const validation = validateModel(model);
+    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
+
+    // Parse and validate flows when a flows/ directory exists.
+    let flowModel: import('./flow-parse').FlowModel | null = null;
+    let flowErrors: import('./flow-validate').FlowError[] = [];
+    let hasClassBFlowErrors = false;
     const flowsDir = `${dir}/flows`;
-    if (!existsSync(flowsDir)) {
-      process.stderr.write(`No flows in ${dir}.\n`);
-      process.exit(0);
+    if (existsSync(flowsDir)) {
+      const { parseFlows } = await import('./flow-parse');
+      const { validateFlows } = await import('./flow-validate');
+      const parsed = await parseFlows(dir);
+      allGlobalErrors.push(...parsed.globalErrors);
+      flowModel = parsed.flowModel;
+      const flowConfig = model._meta?.flowRules;
+      const flowValidation = validateFlows(flowModel, model, flowConfig);
+      flowErrors = flowValidation.flowErrors;
+      // Class B is the authoritative exit signal — derived from the rule registry,
+      // not from the severity field, so the two cannot silently diverge.
+      hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
     }
 
-    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
-    const { parseFlows } = await import('./flow-parse');
-    const { validateFlows } = await import('./flow-validate');
-    const { validateModel, formatFindingsForStderr, RULES } = await import('./validate');
-
-    // Entity-level validation (needed for flow.unknown_store cross-checks)
-    const validation = validateModel(model);
-
-    const { flowModel, globalErrors: flowParseErrors } = await parseFlows(dir);
-    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors, ...flowParseErrors];
-
-    const flowConfig = model._meta?.flowRules;
-    const flowValidation = validateFlows(flowModel, model, flowConfig);
-    const flowErrors = flowValidation.flowErrors;
-    // Class B is the authoritative signal for a hard exit — derived from the rule
-    // registry, not from the severity field, so the two can't silently diverge.
-    const hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
-
+    // Print all findings to stderr before writing output.
     const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors, flowErrors);
     for (const line of stderrLines) {
       process.stderr.write(line + '\n');
     }
 
-    // Load the embedded React bundle — same pattern as graphCmd
-    let bundle;
+    // Load the embedded React bundle.
+    let bundle: import('./generators/embedded-bundle').BundleContent;
     try {
       const { loadEmbeddedBundle } = await import('./generators/embedded-bundle');
       bundle = await loadEmbeddedBundle();
@@ -347,31 +257,12 @@ const flowCmd = defineCommand({
       process.exit(1);
     }
 
-    // Derive sibling dict path: <out-basename>.dict.html next to the viewer.
-    const outBase = basename(outputPath, extname(outputPath));
-    const outDir = dirname(outputPath);
-    const dictOutputPath = pathJoin(outDir, `${outBase}.dict.html`);
-    // Relative href for the viewer → dict link (same directory, so just the filename).
-    const dictHref = basename(dictOutputPath);
-
-    const { generateFlowGraph, buildFlowLayoutKeys } = await import('./generators/flow-graph');
-    const { generateFlowDict } = await import('./generators/flow-dict');
-
-    const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
-    const html = await generateFlowGraph(
-      flowModel, model, 'static',
-      { flowLayoutKeys, themeMode: mode, dictHref },
-      bundle,
-    );
+    const { generateApp } = await import('./generators/app');
+    const html = await generateApp(model, flowModel, bundle, { themeMode: mode });
     await Bun.write(outputPath, html);
-    console.log(`Wrote flow viewer to ${outputPath}`);
+    console.log(`Wrote export to ${outputPath}`);
 
-    // Write the sibling process dictionary.
-    const findings = { flowErrors, globalErrors: allGlobalErrors };
-    const dictHtml = generateFlowDict(flowModel, model, findings, 'static', { themeMode: mode });
-    await Bun.write(dictOutputPath, dictHtml);
-    console.log(`Wrote flow dictionary to ${dictOutputPath}`);
-
+    // Exit 1 when any entity global/Class-B OR flow Class-B errors are present.
     process.exit(allGlobalErrors.length > 0 || hasClassBFlowErrors ? 1 : 0);
   },
 });
@@ -436,6 +327,7 @@ const main = defineCommand({
     graph: graphCmd,
     validate: validateCmd,
     flow: flowCmd,
+    export: exportCmd,
     version: versionCmd,
     update: updateCmd,
   },

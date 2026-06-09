@@ -12,11 +12,78 @@
  * build:bundle script, which copies the hashed outputs to fixed names.
  */
 
+import { Glob } from 'bun';
+import { join } from 'node:path';
+
 import bundleHtmlPath from '../../dist/static/index.html' with { type: 'file' };
 import bundleJsPath from '../../dist/static/index.js' with { type: 'file' };
 import bundleCssPath from '../../dist/static/index.css' with { type: 'file' };
 
-import type { BundleContent } from './graph';
+/**
+ * The raw content of the three compiled bundle assets.
+ *
+ * WHY here (not graph.ts): this is the canonical producer of BundleContent —
+ * the embedded binary reads it via loadEmbeddedBundle; the disk-read path
+ * (loadBundleFromDir in app.ts) is only used during development. Keeping the
+ * type here avoids a circular dependency now that graph.ts is deleted.
+ */
+export type BundleContent = {
+  /** Raw HTML template (the index.html with <link> and <script> tags). */
+  htmlTemplate: string;
+  /** Raw CSS content (already extracted from the bundle). */
+  cssContent: string;
+  /** Raw JS content (the full bundled module, unescaped). */
+  jsContent: string;
+};
+
+/**
+ * Load bundle content from a directory on disk.
+ *
+ * WHY: When running in development mode (bun src/cli.ts) the bundle lives in
+ * dist/static/ and we read it from disk. When running as a compiled binary the
+ * caller passes the content directly via loadEmbeddedBundle().
+ */
+export async function loadBundleFromDir(bundleDir: string): Promise<BundleContent> {
+  const htmlFile = Bun.file(join(bundleDir, 'index.html'));
+  const htmlTemplate = await htmlFile.text();
+
+  // Find the bundled JS and CSS filenames from the HTML (e.g. index-<hash>.js).
+  // The prefix may be './', '/', or absent depending on the bundler configuration.
+  const jsMatch = htmlTemplate.match(/src=["'](?:\.\/|\/)?([^"']*index-[^"']+\.js)["']/);
+  const cssMatch = htmlTemplate.match(/href=["'](?:\.\/|\/)?([^"']*index-[^"']+\.css)["']/);
+
+  let jsFilename = jsMatch?.[1];
+  let cssFilename = cssMatch?.[1];
+
+  // Fallback: glob scan the bundle dir for index-*.js / index-*.css
+  if (!jsFilename || !cssFilename) {
+    const dirEntries: string[] = [];
+    for await (const entry of new Glob('index-*.{js,css}').scan(bundleDir)) {
+      dirEntries.push(entry);
+    }
+    if (!jsFilename) jsFilename = dirEntries.find(e => e.endsWith('.js'));
+    if (!cssFilename) cssFilename = dirEntries.find(e => e.endsWith('.css'));
+  }
+
+  if (!jsFilename || !cssFilename) {
+    const glob = new Glob('*');
+    const dirContents: string[] = [];
+    for await (const entry of glob.scan(bundleDir)) {
+      dirContents.push(entry);
+    }
+    throw new Error(
+      `Could not find bundled JS/CSS in ${bundleDir}/index.html. ` +
+      `Expected src="[./]index-*.js" and href="[./]index-*.css". ` +
+      `Run: bun build src/index.html --outdir=dist/static --minify --target=browser\n` +
+      `Bundle dir contents: ${dirContents.join(', ')}`,
+    );
+  }
+
+  const jsContent = await Bun.file(join(bundleDir, jsFilename)).text();
+  const cssContent = await Bun.file(join(bundleDir, cssFilename)).text();
+
+  return { htmlTemplate, cssContent, jsContent };
+}
 
 /**
  * Read the embedded bundle assets at runtime.

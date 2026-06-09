@@ -48,10 +48,70 @@ export const semanticColors = {
   },
 } satisfies Record<ThemeMode, SemanticPalette>;
 
+// ── Flow kind colors ─────────────────────────────────────────────────────────
+
+/** One color triple per DFD store/external kind, per mode. */
+export type FlowKindEntry = {
+  bg: string;
+  fg: string;
+  border: string;
+};
+
+/**
+ * All DFD store kinds plus `external` (EE default).
+ * `db` mirrors today's store fill; `external` mirrors today's ext green.
+ * Other kinds get distinct, mode-appropriate colors.
+ */
+export const FLOW_KIND_KEYS = ['db', 'cache', 'queue', 'file', 'doc', 'manual', 'other', 'external'] as const;
+export type FlowKindKey = (typeof FLOW_KIND_KEYS)[number];
+
+type FlowKindsPalette = Record<FlowKindKey, FlowKindEntry>;
+
+export const defaultFlowKinds: Record<ThemeMode, FlowKindsPalette> = {
+  dark: {
+    // db — unchanged from today's store fill (#3d2e00 / #d29922 / #f2d49b)
+    db:       { bg: '#3d2e00', fg: '#f2d49b', border: '#d29922' },
+    // cache — amber
+    cache:    { bg: '#451a03', fg: '#fcd34d', border: '#d97706' },
+    // queue — violet
+    queue:    { bg: '#2e1065', fg: '#c4b5fd', border: '#7c3aed' },
+    // file — lime
+    file:     { bg: '#1a2e05', fg: '#bef264', border: '#65a30d' },
+    // doc — sky
+    doc:      { bg: '#082f49', fg: '#7dd3fc', border: '#0284c7' },
+    // manual — rose
+    manual:   { bg: '#4c0519', fg: '#fda4af', border: '#e11d48' },
+    // other — slate
+    other:    { bg: '#1e293b', fg: '#94a3b8', border: '#475569' },
+    // external — unchanged from today's ext green (#1a3a1a / #b7f0c4 / #3fb950)
+    external: { bg: '#1a3a1a', fg: '#b7f0c4', border: '#3fb950' },
+  },
+  light: {
+    // db — unchanged from today's store fill (#fef9c3 / #713f12 / #ca8a04)
+    db:       { bg: '#fef9c3', fg: '#713f12', border: '#ca8a04' },
+    // cache — light amber
+    cache:    { bg: '#fef3c7', fg: '#92400e', border: '#d97706' },
+    // queue — light violet
+    queue:    { bg: '#ede9fe', fg: '#4c1d95', border: '#7c3aed' },
+    // file — light lime
+    file:     { bg: '#f7fee7', fg: '#365314', border: '#65a30d' },
+    // doc — light sky
+    doc:      { bg: '#e0f2fe', fg: '#0c4a6e', border: '#0284c7' },
+    // manual — light rose
+    manual:   { bg: '#fff1f2', fg: '#881337', border: '#e11d48' },
+    // other — light slate
+    other:    { bg: '#f1f5f9', fg: '#334155', border: '#64748b' },
+    // external — unchanged from today's ext green (#dcfce7 / #14532d / #16a34a)
+    external: { bg: '#dcfce7', fg: '#14532d', border: '#16a34a' },
+  },
+};
+
 export type ThemeConfig = {
   dark: ThemePalette;
   light: ThemePalette;
   spacing: ThemeSpacing;
+  /** Per-kind DFD store/external colors. Partial overrides are deep-merged over defaults. */
+  flowKinds?: Partial<Record<FlowKindKey, Partial<{ dark: Partial<FlowKindEntry>; light: Partial<FlowKindEntry> }>>>;
 };
 
 export const defaultTheme: ThemeConfig = {
@@ -86,10 +146,38 @@ export function mergeTheme(partial: Partial<{
   dark: Partial<ThemePalette>;
   light: Partial<ThemePalette>;
   spacing: Partial<ThemeSpacing>;
+  flowKinds: Partial<Record<FlowKindKey, Partial<{ dark: Partial<FlowKindEntry>; light: Partial<FlowKindEntry> }>>>;
 }>): ThemeConfig {
+  const mergedFlowKinds: ThemeConfig['flowKinds'] = partial.flowKinds
+    ? { ...partial.flowKinds }
+    : undefined;
   return {
     dark: { ...defaultTheme.dark, ...(partial.dark ?? {}) },
     light: { ...defaultTheme.light, ...(partial.light ?? {}) },
     spacing: { ...defaultTheme.spacing, ...(partial.spacing ?? {}) },
+    ...(mergedFlowKinds !== undefined ? { flowKinds: mergedFlowKinds } : {}),
   };
+}
+
+/**
+ * Resolve the fully-merged kind palette for a given mode.
+ * User overrides (from theme.flowKinds) are merged over the defaults at the
+ * FlowKindEntry level, so a partial `{ bg: '#...' }` wins without wiping fg/border.
+ */
+export function resolveFlowKindPalette(
+  mode: ThemeMode,
+  flowKinds?: ThemeConfig['flowKinds'],
+): Record<FlowKindKey, FlowKindEntry> {
+  const defaults = defaultFlowKinds[mode];
+  if (!flowKinds) return defaults;
+
+  const result = { ...defaults };
+  for (const key of FLOW_KIND_KEYS) {
+    const override = flowKinds[key];
+    if (!override) continue;
+    const modeOverride = override[mode];
+    if (!modeOverride) continue;
+    result[key] = { ...defaults[key], ...modeOverride };
+  }
+  return result;
 }

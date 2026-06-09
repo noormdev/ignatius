@@ -16,7 +16,7 @@ That runs three stages in order:
 2. **Rename** the hashed output files to stable names so they can be embedded (`build:stable-names`).
 3. **Compile** `src/cli.ts` into `dist/ignatius`.
 
-The `serve` and `dict` subcommands work without a prior bundle build. `graph` needs the embedded bundle, so build it first if you only ran `build:bundle`.
+The `serve` and `validate` subcommands work without a prior bundle build. `export` needs the embedded bundle, so build it first if you only ran `build:bundle`.
 
 
 ## Project layout
@@ -29,8 +29,8 @@ The `serve` and `dict` subcommands work without a prior bundle build. `graph` ne
 | `src/server.ts` | The `serve` server with live reload over SSE |
 | `src/parse.ts` | Reads the folder, parses frontmatter, derives the model |
 | `src/validate.ts` | Pure linter: rules, severities, and the cleaned model |
-| `src/App.tsx` | The React viewer: Cytoscape graph, findings panel, theme toggle |
-| `src/generators/` | Static output for `dict` and `graph` |
+| `src/App.tsx` | The React SPA: Graph, Dictionary, and Flows views; findings panel; theme toggle |
+| `src/generators/` | Static output for `export` |
 | `models/` | Reference schemas used as the default folder |
 | `docs/design/` | Design documents for the format and the CLI |
 | `docs/spec/` | Implementation contracts derived from the designs |

@@ -27,6 +27,32 @@ theme:
 The interactive viewer has a light/dark toggle that persists across reloads. The static `dict` and `graph` commands default to the dark palette; pass `--theme light` for the light one.
 
 
+### DFD store and external colors
+
+
+In a data flow diagram, each non-entity store is colored by its `kind:` (and an external may opt in with its own `kind:`). The default palette gives every kind a distinct, mode-appropriate color — `cache` amber, `queue` violet, `file` lime, `doc` sky, `manual` rose, `other` slate; `db` keeps the entity-store fill and `external` keeps the conventional green.
+
+
+Override any kind under `theme.flowKinds`. Each kind takes `dark` and `light` entries of `{ bg, fg, border }`, deep-merged over the defaults — set only what you want to change and the rest of the palette is untouched.
+
+
+```yaml
+theme:
+  flowKinds:
+    cache:
+      dark:
+        bg: "#3a2a00"
+      light:
+        bg: "#fff3c4"
+    file:
+      dark:
+        bg: "#16270a"
+```
+
+
+The store kinds are `db`, `cache`, `queue`, `file`, `doc`, `manual`, `other`, plus `external` for external entities. See the [glossary](../glossary.md) for what each term means.
+
+
 ## Branding
 
 

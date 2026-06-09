@@ -75,12 +75,13 @@ function makeExternal(id: string, flowId = 'checkout'): FlowExternal {
 }
 
 function makeStoreRef(kind: FlowStoreRef['kind'], name: string, flowId = 'checkout'): FlowStoreRef {
-  return { kind, name, flowId };
+  return { kind, name, displayName: name, flowId };
 }
 
 function makeDiagram(overrides: Partial<FlowDiagram> = {}): FlowDiagram {
   return {
     id: 'checkout',
+    title: 'Checkout',
     processes: [makeProcess('PlaceOrder'), makeProcess('ValidateCart')],
     externals: [makeExternal('Shopper')],
     storeRefs: [makeStoreRef('db', 'Order')],

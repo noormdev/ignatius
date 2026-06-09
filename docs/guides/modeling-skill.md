@@ -1,7 +1,7 @@
 # The modeling skill
 
 
-`/noorm-modeling` is a Claude Code skill that guides you through authoring a new entity file or bootstrapping a complete model skeleton via Q&A, then verifies the result with `ignatius dict`.
+`/noorm-modeling` is a Claude Code skill that guides you through authoring a new entity file or bootstrapping a complete model skeleton via Q&A, then verifies the result with `ignatius validate`.
 
 **Prerequisites:** Claude Code with skill support, and the `ignatius` binary on your `$PATH` or built locally (`bun run build:cli` produces `dist/ignatius`).
 
@@ -52,4 +52,4 @@ You never set `classification` or `identifying` manually. The parser derives bot
 ## Verification loop
 
 
-After writing each file the skill runs `ignatius dict <model-root>` and parses the lint findings from stderr. Findings are reported with fix hints, and you can ask the skill to revise and re-run (up to five attempts). A clean run with no findings confirms the file is valid. See [Validation and findings](validation.md) for the rules it checks against.
+After writing each file the skill runs `ignatius validate <model-root>` and parses the lint findings from stderr. Findings are reported with fix hints, and you can ask the skill to revise and re-run (up to five attempts). A clean run with no findings confirms the file is valid. See [Validation and findings](validation.md) for the rules it checks against.

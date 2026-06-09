@@ -1,14 +1,17 @@
 /**
- * CP-5 branding verification for the graph generator.
+ * CP-5 branding verification for the export generator (generateApp).
  *
- * The graph is a self-contained React app with window.__MODEL__ baked in.
- * Since CP-3 wired branding into App.tsx, the static graph output renders
+ * The export is a self-contained React app with window.__MODEL__ baked in.
+ * Since CP-3 wired branding into App.tsx, the static export output renders
  * branding automatically — IF model.branding is included in JSON.stringify(model).
  * This test asserts that it is.
+ *
+ * CP8b: generateGraph is deleted; migrated to generateApp + fake BundleContent.
  */
 import { parseModels } from '../../src/parse';
-import { generateGraph } from '../../src/generators/graph';
+import { generateApp } from '../../src/generators/app';
 import { mergeBranding } from '../../src/branding-defaults';
+import type { BundleContent } from '../../src/generators/embedded-bundle';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';
 
@@ -23,19 +26,27 @@ function assert(cond: boolean, msg: string) {
     }
 }
 
+// Fake bundle — satisfies generateApp's CSS/JS regex patterns.
+// Mirrors the same trick used in test-layout-key-injection.ts.
+const fakeBundle: BundleContent = {
+    htmlTemplate: `<!doctype html><html><head><link rel="stylesheet" href="index-abc123.css"></head><body><script>window.__IGNATIUS_MODE__ = 'live';</script><script type="module" src="index-abc123.js"></script></body></html>`,
+    cssContent: 'body { margin: 0; }',
+    jsContent: 'console.log("app");',
+};
+
 const { model } = await parseModels('models/key-inherited');
 
-// ── Test 1: Generated graph HTML contains embedded data URI logo ──────────────
-const darkHtml = await generateGraph(model, 'dark');
+// ── Test 1: Generated export HTML contains embedded data URI logo ──────────────
+const darkHtml = await generateApp(model, null, fakeBundle, { themeMode: 'dark' });
 assert(
     darkHtml.includes('data:image/svg+xml;base64,'),
-    'Default dark graph: output contains embedded data URI logo',
+    'Default dark export: output contains embedded data URI logo',
 );
 
-const lightHtml = await generateGraph(model, 'light');
+const lightHtml = await generateApp(model, null, fakeBundle, { themeMode: 'light' });
 assert(
     lightHtml.includes('data:image/svg+xml;base64,'),
-    'Default light graph: output contains embedded data URI logo',
+    'Default light export: output contains embedded data URI logo',
 );
 
 // ── Test 2: window.__MODEL__ JSON contains a branding object ─────────────────
@@ -43,7 +54,7 @@ assert(
 // so the extraction is not fragile against multi-line or nested structures.
 const modelMarker = 'window.__MODEL__ = ';
 const markerIdx = darkHtml.indexOf(modelMarker);
-assert(markerIdx !== -1, 'dark graph: window.__MODEL__ assignment found');
+assert(markerIdx !== -1, 'dark export: window.__MODEL__ assignment found');
 
 let parsedModel: unknown;
 
@@ -58,9 +69,9 @@ if (markerIdx !== -1) {
     const jsonStr = darkHtml.slice(startIdx, endIdx + 1);
     try {
         parsedModel = JSON.parse(jsonStr);
-        assert(true, 'dark graph: window.__MODEL__ JSON is valid and parseable');
+        assert(true, 'dark export: window.__MODEL__ JSON is valid and parseable');
     } catch {
-        assert(false, 'dark graph: window.__MODEL__ JSON is valid and parseable');
+        assert(false, 'dark export: window.__MODEL__ JSON is valid and parseable');
     }
 }
 
@@ -104,48 +115,60 @@ const customModel = {
     ...model,
     branding: mergeBranding({ title: 'Acme Schema', poweredBy: false }),
 };
-const customHtml = await generateGraph(customModel, 'dark');
+const customHtml = await generateApp(customModel, null, fakeBundle, { themeMode: 'dark' });
 assert(
     customHtml.includes('"Acme Schema"'),
-    'Custom title "Acme Schema" present in graph window.__MODEL__',
+    'Custom title "Acme Schema" present in export window.__MODEL__',
 );
 
 // ── Screenshots ───────────────────────────────────────────────────────────────
+// Write custom-branding export for visual inspection (no Playwright screenshot needed
+// for the string assertions above — screenshots are the visual test harness's job).
+await Bun.write('tmp/cp5-default-graph.html', darkHtml);
 
-// Write custom-branding graph for light mode screenshot
 const customLightModel = {
     ...model,
     branding: mergeBranding({ title: 'Acme Schema', subtitle: 'Your data, beautifully mapped', poweredBy: false }),
 };
-
-await Bun.write('tmp/cp5-default-graph.html', darkHtml);
-const customLightHtml = await generateGraph(customLightModel, 'light');
+const customLightHtml = await generateApp(customLightModel, null, fakeBundle, { themeMode: 'light' });
 await Bun.write('tmp/cp5-custom-graph-light.html', customLightHtml);
 
-console.log('\n--- Launching Playwright for screenshot verification ---\n');
+// Only run Playwright if the bundle is actually on disk (the fake bundle won't render React).
+// The string assertions above are the real coverage; the screenshot section is informational.
+const ROOT = resolve(import.meta.dir, '../..');
+const bundleBuilt = await Bun.file(ROOT + '/dist/static/index.js').exists();
+if (bundleBuilt) {
+    console.log('\n--- Launching Playwright for screenshot verification ---\n');
+    const { loadBundleFromDir } = await import('../../src/generators/embedded-bundle');
+    const realBundle = await loadBundleFromDir(ROOT + '/dist/static');
+    const realDarkHtml = await generateApp(model, null, realBundle, { themeMode: 'dark' });
+    const realCustomLightHtml = await generateApp(customLightModel, null, realBundle, { themeMode: 'light' });
+    await Bun.write('tmp/cp5-default-graph.html', realDarkHtml);
+    await Bun.write('tmp/cp5-custom-graph-light.html', realCustomLightHtml);
 
-const browser = await chromium.launch();
+    const browser = await chromium.launch();
 
-async function screenshotPage(htmlPath: string, outputPath: string, label: string) {
-    const absPath = resolve(htmlPath);
-    const page = await browser.newPage();
-    await page.goto(`file://${absPath}`);
-    try {
-        await page.waitForSelector('.graph-panel canvas', { timeout: 30000 });
-        console.log(`PASS: ${label}: .graph-panel canvas found`);
-    } catch {
-        const hasPanel = await page.$('.graph-panel');
-        assert(hasPanel !== null, `${label}: .graph-panel present in DOM`);
+    async function screenshotPage(htmlPath: string, outputPath: string, label: string) {
+        const absPath = resolve(htmlPath);
+        const page = await browser.newPage();
+        await page.goto(`file://${absPath}`);
+        try {
+            await page.waitForSelector('.graph-panel canvas', { timeout: 30000 });
+            console.log(`PASS: ${label}: .graph-panel canvas found`);
+        } catch {
+            const hasPanel = await page.$('.graph-panel');
+            assert(hasPanel !== null, `${label}: .graph-panel present in DOM`);
+        }
+        await page.screenshot({ path: outputPath, fullPage: true });
+        console.log(`PASS: ${label}: screenshot saved to ${outputPath}`);
+        await page.close();
     }
-    await page.screenshot({ path: outputPath, fullPage: true });
-    console.log(`PASS: ${label}: screenshot saved to ${outputPath}`);
-    await page.close();
+
+    await screenshotPage('tmp/cp5-default-graph.html', 'tmp/screenshot-graph-branding-dark.png', 'dark default branding');
+    await screenshotPage('tmp/cp5-custom-graph-light.html', 'tmp/screenshot-graph-branding-light.png', 'light custom branding');
+
+    await browser.close();
 }
-
-await screenshotPage('tmp/cp5-default-graph.html', 'tmp/screenshot-graph-branding-dark.png', 'dark default branding');
-await screenshotPage('tmp/cp5-custom-graph-light.html', 'tmp/screenshot-graph-branding-light.png', 'light custom branding');
-
-await browser.close();
 
 console.log(`\n${failures === 0 ? 'ALL TESTS PASSED' : `${failures} TEST(S) FAILED`}`);
 if (failures > 0) process.exit(1);
