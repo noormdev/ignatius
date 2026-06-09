@@ -1,8 +1,8 @@
 /**
- * CP-5 check: graph bundle mode dispatch.
+ * CP-5 check: export bundle mode dispatch. (CP7: repointed from `graph` to `export`.)
  *
  * Verifies that:
- * - Static graph HTML contains the validation findings DOM structure injected
+ * - Static export HTML contains the validation findings DOM structure injected
  *   by the bundle's bootstrap (global banner if globalErrors, issues section if entityErrors).
  * - Live mode: /api/model payload reaches the bundle; the server provides validation;
  *   the bundle renders without re-running validateModel.
@@ -11,7 +11,7 @@
  * actually executes — static HTML inspection is insufficient because the banner
  * and issues section are rendered client-side by React.
  *
- * WHY Playwright for static: the static graph.html is a self-contained React
+ * WHY Playwright for static: the static export.html is a self-contained React
  * app that runs validateModel on boot. Only a real browser can tell us whether
  * the bundle executed correctly. Server-side HTML inspection misses JS-driven content.
  *
@@ -55,8 +55,8 @@ const bundleExists = await Bun.file(join(ROOT, 'dist/static/index.js')).exists()
 if (!bundleExists) {
   console.log('  SKIP  static-mode tests: dist/static/index.js not built (run bun run build:bundle)');
 } else {
-  const OUT = join(TMP, 'graph-cp5-check.html');
-  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), 'graph', MODELS, '-o', OUT], {
+  const OUT = join(TMP, 'export-cp5-check.html');
+  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), 'export', MODELS, '-o', OUT], {
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -65,14 +65,14 @@ if (!bundleExists) {
   clearTimeout(timer);
 
   const exists = await Bun.file(OUT).exists();
-  assert(exists, 'static graph.html generated', OUT);
+  assert(exists, 'static export.html generated', OUT);
 
   if (exists) {
     // Check that the injection script with 'static' comes before the module script
     const html = await Bun.file(OUT).text();
     assert(
       html.includes('window.__IGNATIUS_MODE__ = "static"'),
-      'static graph.html has __IGNATIUS_MODE__ = "static" injection',
+      'static export.html has __IGNATIUS_MODE__ = "static" injection',
     );
 
     // Serve the static HTML via HTTP so ELK's WASM assets load correctly.
@@ -117,8 +117,8 @@ if (!bundleExists) {
       });
       assert(badgeCount > 0, `static mode: warning badges rendered (got ${badgeCount})`, `Expected >0 circles with fill="#e05252"`);
 
-      await page.screenshot({ path: join(TMP, 'cp5-graph-static.png') });
-      console.log('  INFO  screenshot saved: tmp/cp5-graph-static.png');
+      await page.screenshot({ path: join(TMP, 'cp5-export-static.png') });
+      console.log('  INFO  screenshot saved: tmp/cp5-export-static.png');
     } finally {
       await browser.close();
       staticServer.stop(true);
@@ -164,8 +164,8 @@ if (!bundleExists) {
     });
     assert(badgeCount > 0, `live mode: warning badges rendered (got ${badgeCount})`);
 
-    await page.screenshot({ path: join(TMP, 'cp5-graph-live.png') });
-    console.log('  INFO  screenshot saved: tmp/cp5-graph-live.png');
+    await page.screenshot({ path: join(TMP, 'cp5-export-live.png') });
+    console.log('  INFO  screenshot saved: tmp/cp5-export-live.png');
 
     // Click an entity node to open the detail modal, then check Issues section.
     // We pick the first clickable node by tapping on the Cytoscape canvas.
@@ -192,8 +192,8 @@ if (!bundleExists) {
         // Can't guarantee which entity was clicked, so just log
         console.log(`  INFO  modal opened; Issues section visible: ${issuesVisible}`);
 
-        await page.screenshot({ path: join(TMP, 'cp5-graph-modal.png') });
-        console.log('  INFO  screenshot saved: tmp/cp5-graph-modal.png');
+        await page.screenshot({ path: join(TMP, 'cp5-export-modal.png') });
+        console.log('  INFO  screenshot saved: tmp/cp5-export-modal.png');
 
         // Close the modal
         await page.locator('.modal-close').click();
@@ -209,5 +209,5 @@ if (!bundleExists) {
   }
 }
 
-console.log('\n' + (failures === 0 ? 'All graph-bundle-mode tests passed.' : `${failures} graph-bundle-mode test(s) FAILED.`));
+console.log('\n' + (failures === 0 ? 'All export-bundle-mode tests passed.' : `${failures} export-bundle-mode test(s) FAILED.`));
 if (failures > 0) process.exit(1);

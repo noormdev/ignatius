@@ -1,9 +1,9 @@
 # ignatius
 
 
-ignatius turns a folder of markdown files into an interactive IDEF1X entity-relationship diagram. Each entity lives in its own `.md` file with YAML frontmatter for structure and a prose body for documentation. The tool reads that folder, derives the relationships, and renders a graph you can pan, zoom, and click through. Markdown is the source of truth. The diagram is generated, never hand-drawn.
+ignatius turns a folder of markdown files into an interactive data model: an IDEF1X entity-relationship diagram, a searchable data dictionary, and SSADM data flow diagrams, all in one app. Each entity lives in its own `.md` file with YAML frontmatter for structure and a prose body for documentation. The tool reads that folder, derives the relationships, and renders the views — pan, zoom, click through, search. Markdown is the source of truth. The diagrams are generated, never hand-drawn.
 
-You write the schema as text. ignatius works out the cardinality, the entity classification, and the subtype clusters from the structure you describe, then draws the crow's-foot notation for you.
+You write the schema as text. ignatius works out the cardinality, the entity classification, and the subtype clusters from the structure you describe, then draws the crow's-foot notation for you. Add a `flows/` folder and the same entities appear as data stores in process flow diagrams that show how the business actually moves the data.
 
 
 ## Why markdown
@@ -50,14 +50,17 @@ Edit any file in the folder and the graph reloads in the browser without a refre
 | Guide | What it covers |
 |---|---|
 | [Getting started](docs/guides/getting-started.md) | Install, build from source, and serve your first model |
-| [Commands](docs/guides/commands.md) | `serve`, `dict`, `graph`, and model discovery |
+| [Commands](docs/guides/commands.md) | `serve`, `export`, `validate`, and model discovery |
 | [The folder format](docs/guides/folder-format.md) | `ignatius.yml`, entity files, columns, relationships, groups |
 | [What gets derived](docs/guides/derivation.md) | Cardinality, classification, and subtype clusters |
 | [Bidirectional predicates](docs/guides/predicates.md) | Forward and reverse edge labels with hover-swap |
+| [Process flows](docs/guides/flows.md) | Data flow diagrams: processes, externals, stores, sub-DFDs |
 | [Validation and findings](docs/guides/validation.md) | The linter, severity tiers, and where findings surface |
 | [Themes and branding](docs/guides/themes-and-branding.md) | Color palettes, the light/dark toggle, logo and copyright |
 | [The modeling skill](docs/guides/modeling-skill.md) | `/noorm-modeling` Q&A authoring in Claude Code |
 | [Building from source](docs/guides/building-from-source.md) | Build stages, project layout, and tests |
+
+The [glossary](docs/glossary.md) defines the shared vocabulary — DG, DD, DFD, data entity, data store, external entity — used across the app, the docs, and the code.
 
 
 ## Design and contract docs

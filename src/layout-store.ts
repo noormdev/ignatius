@@ -8,7 +8,7 @@
  * without a real browser localStorage.
  */
 
-const STORAGE_KEY = 'ignatius-layout-positions';
+const DEFAULT_STORAGE_KEY = 'ignatius-layout-positions';
 const MAX_ENTRIES = 10;
 
 export interface StorageLike {
@@ -32,8 +32,8 @@ export interface LayoutStoreHandle {
   clear(layoutKey: string): void;
 }
 
-function readStore(storage: StorageLike): LayoutStore {
-  const raw = storage.getItem(STORAGE_KEY);
+function readStore(storage: StorageLike, storageKey: string): LayoutStore {
+  const raw = storage.getItem(storageKey);
   if (!raw) return {};
   // Only this JSON.parse is guarded — it reads untrusted stored data.
   try {
@@ -47,8 +47,8 @@ function readStore(storage: StorageLike): LayoutStore {
   }
 }
 
-function writeStore(storage: StorageLike, store: LayoutStore): void {
-  storage.setItem(STORAGE_KEY, JSON.stringify(store));
+function writeStore(storage: StorageLike, store: LayoutStore, storageKey: string): void {
+  storage.setItem(storageKey, JSON.stringify(store));
 }
 
 function pruneToNewest(store: LayoutStore): LayoutStore {
@@ -63,14 +63,29 @@ function pruneToNewest(store: LayoutStore): LayoutStore {
   return pruned;
 }
 
+/**
+ * Creates a layout store handle that reads/writes a JSON map under `storageKey`
+ * in `storage`.
+ *
+ * storageKey defaults to 'ignatius-layout-positions' (the ERD bucket) so all
+ * existing ERD callers — which omit the third argument — are byte-for-byte
+ * unchanged. The flow path passes a distinct key ('ignatius-flow-layout-positions')
+ * so the two surfaces never share a bucket.
+ *
+ * WHY a third parameter (not a new function): the DI shape is identical; the
+ * only variable is the key. Defaulting preserves backward compatibility without
+ * duplicating the implementation.
+ */
 export function createLayoutStore(
   storage: StorageLike = globalThis.localStorage,
-  now: () => number = () => Date.now(),
+  now: (() => number) | undefined = undefined,
+  storageKey: string = DEFAULT_STORAGE_KEY,
 ): LayoutStoreHandle {
+  const clock = now ?? (() => Date.now());
   return {
     load(layoutKey: string): PositionMap | null {
       if (!layoutKey) return null;
-      const store = readStore(storage);
+      const store = readStore(storage, storageKey);
       const entry = store[layoutKey];
       if (!entry) return null;
       return entry.positions;
@@ -78,16 +93,16 @@ export function createLayoutStore(
 
     save(layoutKey: string, positions: PositionMap): void {
       if (!layoutKey) return;
-      const store = readStore(storage);
-      store[layoutKey] = { positions, savedAt: now() };
-      writeStore(storage, pruneToNewest(store));
+      const store = readStore(storage, storageKey);
+      store[layoutKey] = { positions, savedAt: clock() };
+      writeStore(storage, pruneToNewest(store), storageKey);
     },
 
     clear(layoutKey: string): void {
       if (!layoutKey) return;
-      const store = readStore(storage);
+      const store = readStore(storage, storageKey);
       delete store[layoutKey];
-      writeStore(storage, store);
+      writeStore(storage, store, storageKey);
     },
   };
 }

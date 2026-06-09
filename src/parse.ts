@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import { defaultTheme, mergeTheme, type ThemeConfig, type ThemePalette, type ThemeSpacing } from './theme-defaults';
@@ -103,6 +104,8 @@ export type ModelMeta = {
   version?: string;
   desc?: string;
   updated?: string;
+  /** Loaded from ignatius.yml `flow_rules:` block; passed to validateFlows. */
+  flowRules?: import('./flow-validate').FlowRulesConfig;
 };
 
 export type Model = {
@@ -171,18 +174,28 @@ export async function parseModels(dir: string): Promise<ParseResult> {
     const parsed: unknown = parseYaml(await configFile.text());
     const raw: Record<string, unknown> = isRecord(parsed) ? parsed : {};
     // Meta lives at top-level keys (name, version, description, updated)
-    const { name, version, description, updated, theme: themeRaw, branding: brandingRaw } = raw;
+    const { name, version, description, updated, theme: themeRaw, branding: brandingRaw, flow_rules: flowRulesRaw } = raw;
     const metaName = typeof name === 'string' ? name : undefined;
     const metaVersion = typeof version === 'string' ? version : undefined;
     const metaDescription = typeof description === 'string' ? description : undefined;
     const metaUpdated = typeof updated === 'string' ? updated : undefined;
+    // Load flow_rules: block into _meta.flowRules
+    const flowRules: import('./flow-validate').FlowRulesConfig | undefined =
+      isRecord(flowRulesRaw)
+        ? {
+            ...(typeof flowRulesRaw['process_to_process'] === 'boolean'
+              ? { process_to_process: flowRulesRaw['process_to_process'] }
+              : {}),
+          }
+        : undefined;
     // _meta is only populated when at least one meta key is present; remains undefined if all are absent
-    if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined) {
+    if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined || flowRules !== undefined) {
       _meta = {
         ...(metaName !== undefined ? { name: metaName } : {}),
         ...(metaVersion !== undefined ? { version: metaVersion } : {}),
         ...(metaDescription !== undefined ? { desc: metaDescription } : {}),
         ...(metaUpdated !== undefined ? { updated: metaUpdated } : {}),
+        ...(flowRules !== undefined ? { flowRules } : {}),
       };
     }
     if (themeRaw !== null && typeof themeRaw === 'object') {
@@ -196,7 +209,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   const groups: Record<string, GroupConfig> = {};
   const groupsDir = `${dir}/_groups`;
   const groupGlob = new Bun.Glob('*.md');
-  for await (const path of groupGlob.scan(groupsDir)) {
+  if (existsSync(groupsDir)) for await (const path of groupGlob.scan(groupsDir)) {
     const name = path.replace(/\.md$/, '');
     const content = await Bun.file(`${groupsDir}/${path}`).text();
     const { frontmatter, body } = parseFrontmatter(content);
@@ -236,6 +249,8 @@ export async function parseModels(dir: string): Promise<ParseResult> {
 
   for await (const path of glob.scan(dir)) {
     if (path.split('/').some(seg => seg.startsWith('_'))) continue;
+    // Exclude any file under <modelDir>/flows/ — those are DFD files, not entity files
+    if (path.startsWith('flows/')) continue;
     const filePath = `${dir}/${path}`;
 
     let frontmatter: Frontmatter;

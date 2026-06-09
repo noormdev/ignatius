@@ -1,0 +1,5 @@
+---
+external: Buyer
+---
+
+External buyer.

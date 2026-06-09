@@ -79,6 +79,99 @@ function deepEqual(a: unknown, b: unknown): boolean {
   assert(result === '', "serialize({}) → ''");
 }
 
+// --- view field ---
+
+{
+  const result = parseHash('#view=graph');
+  assert(result.view === 'graph', "parse('#view=graph') → { view: 'graph' }");
+}
+
+{
+  const result = parseHash('#view=flow');
+  assert(result.view === 'flow', "parse('#view=flow') → { view: 'flow' }");
+}
+
+{
+  const result = parseHash('#view=dict');
+  assert(result.view === 'dict', "parse('#view=dict') → { view: 'dict' }");
+}
+
+{
+  const result = parseHash('#view=bogus');
+  assert(result.view === undefined, "parse('#view=bogus') → view dropped (invalid value)");
+}
+
+{
+  const result = parseHash('#view=graph&entity=Party&zoom=1.5&pan=10,20');
+  assert(result.view === 'graph', "parse with view + other params → view set");
+  assert(result.entity === 'Party', "parse with view + other params → entity set");
+  assert(result.zoom === 1.5, "parse with view + other params → zoom set");
+}
+
+{
+  const result = serializeHash({ view: 'flow' });
+  assert(result === 'view=flow', "serialize({ view: 'flow' }) → 'view=flow'");
+}
+
+{
+  const result = serializeHash({ view: 'graph', entity: 'Party' });
+  assert(result.includes('view=graph'), "serialize with view + entity contains view=graph");
+  assert(result.includes('entity=Party'), "serialize with view + entity contains entity=Party");
+}
+
+// --- dfd field ---
+
+{
+  const result = parseHash('#view=flow&dfd=order-to-cash');
+  assert(result.dfd === 'order-to-cash', "parse('#view=flow&dfd=order-to-cash') → { dfd: 'order-to-cash' }");
+}
+
+{
+  const result = parseHash('#view=flow&dfd=refund');
+  assert(result.dfd === 'refund', "parse('#view=flow&dfd=refund') → { dfd: 'refund' }");
+}
+
+{
+  // Empty dfd value dropped
+  const result = parseHash('#view=flow&dfd=');
+  assert(result.dfd === undefined, "parse('…&dfd=') → dfd dropped (empty)");
+}
+
+{
+  // dfd survives when other fields are present
+  const result = parseHash('#view=flow&dfd=order-to-cash&zoom=1.5');
+  assert(result.dfd === 'order-to-cash', "parse with dfd + other fields → dfd set");
+  assert(result.zoom === 1.5, "parse with dfd + other fields → zoom set");
+}
+
+{
+  const result = serializeHash({ view: 'flow', dfd: 'order-to-cash' });
+  assert(result.includes('dfd=order-to-cash'), "serialize with dfd → contains 'dfd=order-to-cash'");
+  assert(result.includes('view=flow'), "serialize with dfd → contains 'view=flow'");
+}
+
+{
+  // dfd with special chars: hyphens are safe
+  const result = serializeHash({ dfd: 'order-to-cash' });
+  assert(result === 'dfd=order-to-cash', "serialize({ dfd: 'order-to-cash' }) → 'dfd=order-to-cash'");
+}
+
+// --- dfd encode/decode symmetry ---
+
+{
+  // dfd with spaces (encoded as %20): decodeURIComponent must restore the original
+  const encoded = serializeHash({ view: 'flow', dfd: 'Create Sales Order' });
+  const parsed = parseHash('#' + encoded);
+  assert(parsed.dfd === 'Create Sales Order', "dfd encode/decode: 'Create Sales Order' round-trips exactly");
+}
+
+{
+  // dfd with hyphens (no encoding needed): still correct
+  const encoded = serializeHash({ view: 'flow', dfd: 'order-to-cash' });
+  const parsed = parseHash('#' + encoded);
+  assert(parsed.dfd === 'order-to-cash', "dfd encode/decode: 'order-to-cash' round-trips exactly");
+}
+
 // --- round-trip ---
 
 const states = [
@@ -86,6 +179,11 @@ const states = [
   { zoom: 1.5, pan: { x: 200, y: 100 } },
   { entity: 'X', zoom: 2, pan: { x: 10, y: -5 } },
   { entity: 'Foo_Bar', zoom: 0.75, pan: { x: -50, y: 33.5 } },
+  { view: 'graph' as const },
+  { view: 'flow' as const, entity: 'Order' },
+  { view: 'dict' as const, zoom: 1.0, pan: { x: 0, y: 0 } },
+  { view: 'flow' as const, dfd: 'order-to-cash' },
+  { view: 'flow' as const, dfd: 'refund' },
 ];
 
 for (const state of states) {

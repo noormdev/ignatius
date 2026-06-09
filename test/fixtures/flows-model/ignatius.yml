@@ -1,0 +1,3 @@
+name: Flows Test Model
+version: "1.0"
+description: Minimal model used to test flows/ directory exclusion from entity parsing

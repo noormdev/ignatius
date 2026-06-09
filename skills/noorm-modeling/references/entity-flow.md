@@ -49,7 +49,9 @@ suggestion* for this entity's PK. The user's structural choice wins; you follow 
 
 - **Detect:** scan a few existing entities. A composite PK that contains a foreign-key column
   → `key-inherited`. A single surrogate `id` PK with foreign keys as non-PK columns →
-  `orm-oriented`.
+  `orm-oriented`. If **no entities exist yet** (a fresh model), read the
+  `# Default key style:` comment at the top of `ignatius.yml` — the model bootstrap (M3)
+  records the user's choice there — and use it as the default suggestion without re-asking.
 - **If a prevailing style is clear,** state it as the default and move on — do not ask the
   user to confirm a mode:
   > "Existing entities here migrate parent keys into the child PK (key-inherited). I'll
@@ -179,7 +181,7 @@ Note: PK columns must also appear in `columns` with their types.
 
 Always run this step — do not skip or make it optional.
 
-Generate 2–3 example rows for this entity. Do not ask the user to supply them; produce them yourself using the column definitions and business context gathered so far, then show the rows and offer to add more.
+Generate 2–3 example rows for this entity. Do not ask the user to supply them; produce them yourself using the column definitions and business context gathered so far, then show the rows and offer to add more. (Exception: if a caller already elicited real instances — `discover` mode's Gate 5 — those instances *are* these rows; seed from them instead of generating fresh ones.)
 
 **Row authoring guidance:**
 
@@ -188,7 +190,7 @@ Generate 2–3 example rows for this entity. Do not ask the user to supply them;
   - **Nullability** — at least one row should have a nullable column set to a value, and (when there are multiple rows) at least one should leave it null.
   - **Classification membership** — if the entity is part of a subtype cluster, let one row represent one member kind and another row represent a different kind (where possible).
   - **FK populations** — populate FK columns with values that match the example rows of the parent entity (use a realistic value, not `1` or `<parent_id>`). If parent examples are not yet written, use a plausible surrogate (e.g. the parent entity's natural key pattern).
-- Rows are a `Record<string, unknown>[]` — keys must be a subset of `pk ∪ columns`. Every key outside that set produces a live-mode warning (`entity.example_unknown_column` — see `references/verification.md`); the structural check will catch stray keys when you verify.
+- Rows are a `Record<string, unknown>[]` — keys must be a subset of `pk ∪ columns`. **Self-check every key against that set before writing** — the `entity.example_unknown_column` rule is live-server-only and `ignatius validate` never prints it, so a stray key sails through the verification loop and only surfaces as a warning in the running app. You are the gate here, not the validator.
 
 **After generating:**
 
@@ -222,7 +224,7 @@ Ask, in order, capturing whatever the user offers (skip a prompt only if they ha
    - Record the answer as a **Business rules** line, e.g. "An SO_Line cannot exist without its SalesOrder (FK NOT NULL); deleting a SalesOrder cascade-deletes its lines. Source: …". This is the rule key-inherited would assert through key placement; in orm-oriented it becomes a documented constraint, not a lost one.
 5. **Justification for complexity** — for any rule or structure above, "Who decided this and why?" Record the source and rationale (e.g. "Billing department, 2026-05: chargeback costs below \$5 exceed revenue"). The justification is what stops a future developer from deleting complexity they don't understand.
 
-**Example rows (optional, high value).** Example rows go in the `examples:` frontmatter block (see Step E7b), not in the body markdown. For any entity with a mandatory parent or a subtype cluster, offer to capture 2–4 illustrative rows there. Concrete instances expose wrong rules that pass every structural check — one Party that is a Person and one that is a Business shows the exclusivity is real; a child row beside its parent shows no orphan is possible. Ask: "Want to sketch a few example rows? They catch nullability and exclusivity mistakes the linter can't see." Skip if the user declines.
+**Example rows: revisit, don't re-ask.** The rows were already written at Step E7b — do not ask the user whether they want examples; they exist. Instead, check whether anything surfaced in this step changes them: if a business rule, lifecycle state, mandatory parent, or subtype emerged here that the E7b rows don't exercise, extend or adjust the `examples:` block now (one Party that is a Person and one that is a Business shows the exclusivity is real; a child row beside its parent shows no orphan is possible). Concrete instances expose wrong rules that pass every structural check.
 
 Write what you gather into the entity body under clear headings (see the template). Capture the **source and reasoning**, not just the rule. If the user truly has nothing beyond a name, write a one-sentence purpose and move on — but ask first.
 

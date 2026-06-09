@@ -1,10 +1,12 @@
 import index from './index.html';
 import { parseModels } from './parse';
 import { validateModel } from './validate';
-import { generateDict } from './generators/dict';
 import { layoutFingerprint } from './layout-fingerprint';
-import { resolve, normalize, isAbsolute } from 'path';
-import { watch } from 'fs';
+import { parseFlows } from './flow-parse';
+import { validateFlows } from './flow-validate';
+import { buildFlowLayoutKeys } from './flow-fingerprint';
+import { resolve, normalize, isAbsolute, join } from 'path';
+import { watch, existsSync } from 'fs';
 
 const encoder = new TextEncoder();
 
@@ -64,24 +66,39 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
     port,
     routes: {
       '/': index,
-      '/dict': async (req) => {
-        const url = new URL(req.url);
-        const rawTheme = url.searchParams.get('theme');
-        const mode = rawTheme === 'light' ? 'light' : 'dark';
-        const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
-        const validation = validateModel(model);
-        const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
-        const renderModel = { ...model, nodes: validation.cleanedModel.nodes };
-        const html = await generateDict(renderModel, { globalErrors: allGlobalErrors, entityErrors: validation.entityErrors }, mode, { modelsDir, graphHref: '/', surface: 'live' });
-        return new Response(html, {
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        });
-      },
+      '/dict': () => Response.redirect('/#view=dict', 302),
       '/api/model': async () => {
         const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
         const validation = validateModel(model);
         const layoutKey = layoutFingerprint(model);
         return Response.json({ model, parseGlobalErrors, validation, layoutKey });
+      },
+      '/flow': () => Response.redirect('/#view=flow', 302),
+      '/api/flow': async () => {
+        // Guard: if no flows/ directory, return an empty-state payload (200), not 500.
+        const flowsDir = join(modelsDir, 'flows');
+        const hasFlows = existsSync(flowsDir);
+        if (!hasFlows) {
+          return Response.json({ diagrams: [], validation: { flowErrors: [], globalErrors: [], cleanedFlowModel: { diagrams: [], modelDir: modelsDir } }, flowLayoutKeys: {} });
+        }
+
+        const { model } = await parseModels(modelsDir);
+        const { flowModel } = await parseFlows(modelsDir);
+        const flowRulesConfig = model._meta?.flowRules ?? {};
+        const validation = validateFlows(flowModel, model, flowRulesConfig);
+        const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
+        // entityModel travels with the payload so the flow viewer's doc dialog can
+        // resolve `db:` store docs to their ERD entity narrative (and hot-reload
+        // them on edit). Static mode injects window.__MODEL__ instead.
+        return Response.json({ diagrams: flowModel.diagrams, entityModel: model, validation, flowLayoutKeys });
+      },
+      '/flow-dict': () => {
+        // CP5: the process dictionary is now fused into the SPA Dictionary view.
+        // Redirect to the unified app at /#view=dict.
+        return new Response(null, {
+          status: 302,
+          headers: { Location: '/#view=dict' },
+        });
       },
       '/api/asset': async (req) => {
         const url = new URL(req.url);

@@ -1,10 +1,10 @@
 /**
- * Verifies that semanticColors is mode-aware and that buildThemeCssVars
- * emits the correct badge vars for each mode.
+ * Verifies that semanticColors is mode-aware (dark + light palettes present and correct).
+ *
+ * buildThemeCssVars was removed along with src/generators/theme-css.ts (orphaned after
+ * the unified-app rework; the SPA applies theme at runtime via applyThemeCssVars).
  */
 import { semanticColors } from '../../src/theme-defaults';
-import { buildThemeCssVars } from '../../src/generators/theme-css';
-import { defaultTheme } from '../../src/theme-defaults';
 
 let failures = 0;
 
@@ -65,36 +65,6 @@ assert(
 assert(
     semanticColors.light.link === '#0969da',
     `light link is #0969da, got: ${semanticColors.light.link}`,
-);
-
-// --- buildThemeCssVars light mode emits light badge vars ---
-const lightVars = buildThemeCssVars(defaultTheme, 'light');
-assert(
-    lightVars.includes('--badge-independent-bg: #ddf4ff'),
-    `light vars contain --badge-independent-bg: #ddf4ff\ngot:\n${lightVars}`,
-);
-assert(
-    lightVars.includes('--badge-independent-fg: #0550ae'),
-    `light vars contain --badge-independent-fg: #0550ae`,
-);
-assert(
-    lightVars.includes('--color-link: #0969da'),
-    `light vars contain --color-link: #0969da`,
-);
-
-// --- buildThemeCssVars dark mode emits dark badge vars ---
-const darkVars = buildThemeCssVars(defaultTheme, 'dark');
-assert(
-    darkVars.includes('--badge-independent-bg: #0d419d'),
-    `dark vars contain --badge-independent-bg: #0d419d`,
-);
-assert(
-    darkVars.includes('--badge-independent-fg: #58a6ff'),
-    `dark vars contain --badge-independent-fg: #58a6ff`,
-);
-assert(
-    darkVars.includes('--color-link: #58a6ff'),
-    `dark vars contain --color-link: #58a6ff`,
 );
 
 console.log(`\n${failures === 0 ? 'ALL TESTS PASSED' : `${failures} TEST(S) FAILED`}`);

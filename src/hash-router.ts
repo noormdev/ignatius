@@ -1,11 +1,18 @@
 // Hash-router: pure parse + serialize for URL hash state.
-// Format: #entity=<id>&zoom=<n>&pan=<x>,<y>
+// Format: #view=<graph|dict|flow>&entity=<id>&zoom=<n>&pan=<x>,<y>&dfd=<diagram-id>
 // All params are optional. Unknown/malformed values are silently dropped.
 
+export type ViewName = 'graph' | 'dict' | 'flow';
+
+const VALID_VIEWS: Record<string, ViewName> = { graph: 'graph', dict: 'dict', flow: 'flow' };
+
 export interface HashState {
+  view?: ViewName;
   entity?: string;
   zoom?: number;
   pan?: { x: number; y: number };
+  /** Active flow diagram id — only meaningful when view === 'flow'. */
+  dfd?: string;
 }
 
 /**
@@ -18,6 +25,11 @@ export function parseHash(hash: string): HashState {
 
   const params = new URLSearchParams(raw);
   const state: HashState = {};
+
+  const viewVal = params.get('view');
+  if (viewVal !== null && viewVal in VALID_VIEWS) {
+    state.view = VALID_VIEWS[viewVal];
+  }
 
   const entityVal = params.get('entity');
   if (entityVal !== null && entityVal.length > 0) {
@@ -42,6 +54,11 @@ export function parseHash(hash: string): HashState {
     }
   }
 
+  const dfdVal = params.get('dfd');
+  if (dfdVal !== null && dfdVal.length > 0) {
+    state.dfd = decodeURIComponent(dfdVal);
+  }
+
   return state;
 }
 
@@ -52,6 +69,10 @@ export function parseHash(hash: string): HashState {
  */
 export function serializeHash(state: HashState): string {
   const parts: string[] = [];
+
+  if (state.view !== undefined) {
+    parts.push(`view=${state.view}`);
+  }
 
   if (state.entity !== undefined) {
     // encodeURIComponent: entity ids may contain spaces or unicode; numbers don't need it.
@@ -64,6 +85,10 @@ export function serializeHash(state: HashState): string {
     // Pan is written as "x,y" (not via URLSearchParams) to keep the comma readable.
     // Numbers are URL-safe; no encoding needed.
     parts.push(`pan=${state.pan.x},${state.pan.y}`);
+  }
+
+  if (state.dfd !== undefined) {
+    parts.push(`dfd=${encodeURIComponent(state.dfd)}`);
   }
 
   return parts.join('&');

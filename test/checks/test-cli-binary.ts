@@ -6,6 +6,10 @@
  *
  * Must be run AFTER `bun run build:cli` has produced ./dist/ignatius.
  *
+ * CP7: `dict`/`graph`/`flow` subcommands replaced by `export`. The binary tests
+ * now exercise `export` for the HTML output assertions. The old `dict`/`graph`
+ * stubs are kept registered so they appear in --help and exit 1 with a pointer.
+ *
  * Run with: bun test/test-cli-binary.ts
  */
 
@@ -18,7 +22,7 @@ const ROOT = join(import.meta.dir, '../..');
 const BINARY = join(ROOT, 'dist', 'ignatius');
 const MODELS = join(ROOT, 'models', 'key-inherited');
 const OUT_DICT = join(ROOT, 'tmp', 'out-binary-dict.html');
-const OUT_GRAPH = join(ROOT, 'tmp', 'out-binary-graph.html');
+const OUT_EXPORT = join(ROOT, 'tmp', 'out-binary-export.html');
 
 let failures = 0;
 
@@ -67,8 +71,9 @@ assert(existsSync(BINARY), `binary exists at dist/ignatius`);
   const { exitCode, stdout } = await run(['--help']);
   assert(exitCode === 0, '--help: exits 0');
   assert(stdout.includes('serve'), '--help: stdout contains "serve"');
-  assert(stdout.includes('dict'), '--help: stdout contains "dict"');
-  assert(stdout.includes('graph'), '--help: stdout contains "graph"');
+  // dict/graph/flow remain registered as stubs with their "removed" description
+  assert(stdout.includes('dict'), '--help: stdout contains "dict" (stub)');
+  assert(stdout.includes('export'), '--help: stdout contains "export"');
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -88,46 +93,38 @@ assert(existsSync(BINARY), `binary exists at dist/ignatius`);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// dict subcommand
+// dict/graph/flow stubs — must exit 1 and mention "export"
 // ──────────────────────────────────────────────────────────────────────────────
 
-{
-  const { exitCode } = await run(['dict', MODELS]);
-  assert(exitCode === 1, 'dict without -o: exits 1');
-}
-
-{
-  const { exitCode, stderr } = await run(['dict', MODELS, '-o', OUT_DICT]);
-  if (exitCode !== 0) console.error('dict stderr:', stderr);
-  assert(exitCode === 0, 'dict with -o: exits 0');
-  assert(existsSync(OUT_DICT), 'dict: output file exists');
-
-  if (existsSync(OUT_DICT)) {
-    const content = await Bun.file(OUT_DICT).text();
-    assert(content.toLowerCase().includes('<!doctype html>'), 'dict: output contains <!doctype html>');
-    assert(content.includes('id="entity-Party"'), 'dict: output contains entity-Party anchor');
-  }
+for (const verb of ['dict', 'graph', 'flow'] as const) {
+  const { exitCode, stderr } = await run([verb, MODELS, '-o', OUT_DICT]);
+  assert(exitCode === 1, `${verb} stub: exits 1`);
+  assert(stderr.includes('export'), `${verb} stub: stderr mentions 'export'`);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// graph subcommand
+// export subcommand
 // ──────────────────────────────────────────────────────────────────────────────
 
 {
-  const { exitCode } = await run(['graph', MODELS]);
-  assert(exitCode === 1, 'graph without -o: exits 1');
+  const { exitCode, stderr } = await run(['export', MODELS]);
+  // -o omitted → exit 1 with message
+  assert(exitCode === 1, 'export without -o: exits 1');
+  assert(stderr.includes('-o') || stderr.includes('required'), 'export without -o: stderr mentions -o');
 }
 
 {
-  const { exitCode, stderr } = await run(['graph', MODELS, '-o', OUT_GRAPH]);
-  if (exitCode !== 0) console.error('graph stderr:', stderr);
-  assert(exitCode === 0, 'graph with -o: exits 0');
-  assert(existsSync(OUT_GRAPH), 'graph: output file exists');
+  const { exitCode, stderr } = await run(['export', MODELS, '-o', OUT_EXPORT]);
+  if (exitCode !== 0) console.error('export stderr:', stderr);
+  assert(exitCode === 0, 'export with -o: exits 0');
+  assert(existsSync(OUT_EXPORT), 'export: output file exists');
 
-  if (existsSync(OUT_GRAPH)) {
-    const content = await Bun.file(OUT_GRAPH).text();
-    assert(content.toLowerCase().includes('<!doctype html>'), 'graph: output contains <!doctype html>');
-    assert(content.includes('window.__MODEL__'), 'graph: output contains window.__MODEL__');
+  if (existsSync(OUT_EXPORT)) {
+    const content = await Bun.file(OUT_EXPORT).text();
+    assert(content.toLowerCase().includes('<!doctype html>'), 'export: output contains <!doctype html>');
+    assert(content.includes('window.__MODEL__'), 'export: output contains window.__MODEL__');
+    assert(content.includes('window.__LAYOUT_KEY__'), 'export: output contains window.__LAYOUT_KEY__');
+    assert(content.includes('window.__IGNATIUS_MODE__ = "static"'), 'export: output contains static mode flag');
   }
 }
 
@@ -222,7 +219,7 @@ assert(existsSync(BINARY), `binary exists at dist/ignatius`);
 // Cleanup
 // ──────────────────────────────────────────────────────────────────────────────
 
-for (const f of [OUT_DICT, OUT_GRAPH]) {
+for (const f of [OUT_DICT, OUT_EXPORT]) {
   if (existsSync(f)) {
     try { await Bun.file(f).delete?.(); } catch { /* ignore */ }
   }

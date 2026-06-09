@@ -1,0 +1,3 @@
+name: Broken Flows Model
+version: "1.0"
+description: "Minimal model with a broken flow DFD (db: store not in entity catalog)"

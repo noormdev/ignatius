@@ -1,13 +1,12 @@
 # Commands
 
 
-ignatius has six subcommands. The four model commands read the same folder format, and the output commands respect the same theme. Two utility commands report and update the installed binary.
+ignatius has five subcommands. The three model commands read the same folder format. Two utility commands report and update the installed binary.
 
 | Subcommand | What it does |
 |---|---|
-| `serve` | Starts an interactive server and watches the folder for changes |
-| `dict` | Writes a self-contained data dictionary as a single HTML file |
-| `graph` | Writes a self-contained interactive graph as a single HTML file |
+| `serve` | Starts an interactive single-page app and watches the folder for changes |
+| `export` | Writes a self-contained model file (graph, dictionary, and flows) as one HTML file |
 | `validate` | Checks the model and reports findings without writing any output |
 | `version` | Prints the installed version |
 | `update` | Checks for a newer release and installs it |
@@ -16,7 +15,7 @@ ignatius has six subcommands. The four model commands read the same folder forma
 ## Model discovery
 
 
-The `[path]` argument is optional for the four model commands (`version` and `update` take no path). When omitted, ignatius searches up and down from the current directory for a model root (a folder containing `ignatius.yml`).
+The `[path]` argument is optional for the model commands (`version` and `update` take no path). When omitted, ignatius searches up and down from the current directory for a model root (a folder containing `ignatius.yml`).
 
 - When a path is itself a model root, ignatius uses that model directly.
 - When a path contains multiple model roots, ignatius picks one:
@@ -36,31 +35,33 @@ Starts a local server with live reload. Editing any `.md` or `.yaml` file in the
 ignatius serve [path] [-p|--port <port>] [--model <key>] [-o|--open]
 ```
 
-`server` is an accepted alias for `serve`. The port flag takes either `-p` or `--port`; the default is 3000. When the chosen port is already in use, ignatius finds the next free one by counting up (3000 → 3001 → 3002 …). In a terminal it asks which port to use, with that next free port as the default — press enter to accept it or type another. Run non-interactively (a pipe or CI), it advances automatically and prints the port it settled on. Pass `-o` or `--open` to open the server in your default browser once it has bound (it opens the port it actually settled on, even after a fallback). The server also exposes `/dict` (the data dictionary, with `?theme=light|dark`) and `/api/model` (the parsed model plus validation findings as JSON).
+`server` is an accepted alias for `serve`. The port flag takes either `-p` or `--port`; the default is 3000. When the chosen port is already in use, ignatius finds the next free one by counting up (3000 → 3001 → 3002 …). In a terminal it asks which port to use, with that next free port as the default — press enter to accept it or type another. Run non-interactively (a pipe or CI), it advances automatically and prints the port it settled on. Pass `-o` or `--open` to open the app in your default browser once it has bound (it opens the port it actually settled on, even after a fallback).
 
-While serving, a findings panel in the top-right corner lists any schema problems and updates on every save. See [Validation and findings](validation.md).
+`serve` renders a single-page app at `/`. The app has three in-app views — **Graph**, **Dictionary**, and **Flows** — switched without a page reload. The active view is reflected in `location.hash` (`#view=graph`, `#view=dict`, `#view=flow`). Back and forward navigation and deep links work.
 
+- **Graph** — the interactive Cytoscape ERD. Click a node to open the rich entity dialog (columns, relationships, examples, findings).
+- **Dictionary** — one inline, searchable reference page fusing the entity data dictionary and the flow process dictionary. Every entity, process, external, and data store renders in full; a search box filters live across titles, descriptions, properties, and data types; cross-references are anchor links. No dialogs.
+- **Flows** — the DFD viewer (see [Process flows](flows.md)). A `db:` store node opens the same rich entity dialog as a graph node; a process, external, or non-`db` store opens a plain markdown dialog.
 
-## dict
-
-
-Generates a static data dictionary: every entity with its attribute table, foreign-key links, and rendered documentation, as one HTML file with no external dependencies. Open it in any browser or commit it as a shareable artifact.
-
-```bash
-ignatius dict [path] -o dictionary.html [--theme light|dark] [--model <key>]
-```
+While serving, a findings panel lists any schema problems and updates on every save. See [Validation and findings](validation.md).
 
 
-## graph
+## export
 
 
-Generates a static interactive graph. The output embeds the full viewer, so the file is self-contained. The layout runs in the browser when the file opens, then the graph is interactive. Use this to share a diagram with someone who does not have ignatius installed.
+Generates a self-contained model file with all three views. The output is one HTML file with no external dependencies — open it in any browser or commit it as a shareable artifact.
 
 ```bash
-ignatius graph [path] -o graph.html [--theme light|dark] [--model <key>]
+ignatius export [path] -o model.html [--theme light|dark] [--model <key>]
 ```
 
-Both `dict` and `graph` default to the dark theme. Pass `--theme light` for the light palette.
+`-o` is required; omitting it prints an error and exits `1`.
+
+The file includes the Graph, Dictionary, and Flows views with full interactivity: view switching, live Dictionary search, entity dialog, theme toggle, and graph and flow node-position persistence — all offline, from `file://`. The export injects both the entity model and the flow model, so both position-restore keys work without a server.
+
+The exit code merges entity global errors, entity Class-B findings, and flow Class-B findings: exit `0` on a clean model, `1` when any of those are present. Warnings (Class A) alone do not fail the command.
+
+Note: the older `dict`, `graph`, and `flow` subcommands have been removed. Invoking one prints a one-line error pointing to `export`.
 
 
 ## validate
@@ -72,7 +73,7 @@ Checks the model and reports findings without generating any HTML. This is the f
 ignatius validate [path] [--model <key>]
 ```
 
-It prints each finding to stderr in the same format as the other commands and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. Use it as a lightweight quality gate while authoring or in CI.
+It prints each finding to stderr in the same format as `export` and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. When the model has a `flows/` directory, the flow rules run too and their findings are included. Use it as a lightweight quality gate while authoring or in CI.
 
 
 ## version
@@ -112,4 +113,4 @@ Notes:
 ## Exit codes
 
 
-`dict`, `graph`, and `validate` print any schema findings to stderr and exit `1` when the model has errors (omitted edges, dangling targets, unparseable files), `0` otherwise. Warnings alone do not fail the command. This makes the commands usable as a CI gate. See [Validation and findings](validation.md) for the rule catalog.
+`export` and `validate` print any schema findings to stderr and exit `1` when the model has errors (omitted edges, dangling targets, unparseable files), `0` otherwise. Warnings alone do not fail the command. This makes the commands usable as a CI gate. See [Validation and findings](validation.md) for the rule catalog.

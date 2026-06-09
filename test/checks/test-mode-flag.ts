@@ -1,15 +1,17 @@
 /**
- * Tests for build-time mode flag injection (CP-4).
+ * Tests for build-time mode flag injection (CP-4 / CP7).
  *
  * Verifies:
  * - dist/static/index.html contains window.__IGNATIUS_MODE__ = 'live' (from src/index.html)
- * - A generated static graph HTML contains window.__IGNATIUS_MODE__ = "static"
- * - "static" appears AFTER any "live" line in the generated graph (so 'static' wins)
+ * - A generated static export HTML contains window.__IGNATIUS_MODE__ = "static"
+ * - "static" appears AFTER any "live" line in the generated export (so 'static' wins)
  * - The live server's / route responds with HTML that contains window.__IGNATIUS_MODE__ = 'live'
  *
- * WHY: The spec requires that static-graph mode and live-server mode are
+ * WHY: The spec requires that static-export mode and live-server mode are
  * unambiguously distinguishable by the React bundle via this flag. The flag
  * is the only mechanism — no URL sniffing, no env vars.
+ *
+ * CP7: repointed Test 2 from `graph` to `export` (same injection contract).
  */
 
 import { join, resolve } from 'path';
@@ -54,17 +56,18 @@ function assert(condition: boolean, label: string, detail?: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Test 2: generated static graph HTML contains "static" flag AFTER "live"
+// Test 2: generated static export HTML contains "static" flag AFTER "live"
+// (CP7: repointed from `graph` to `export` — same injection contract)
 // ---------------------------------------------------------------------------
 
 {
   const bundleExists = await Bun.file(join(ROOT, 'dist/static/index.js')).exists();
 
   if (!bundleExists) {
-    console.log('  SKIP  graph mode-flag test: dist/static/index.js not built');
+    console.log('  SKIP  export mode-flag test: dist/static/index.js not built');
   } else {
-    const OUT = join(TMP, 'graph-mode.html');
-    const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), 'graph', MODELS, '-o', OUT], {
+    const OUT = join(TMP, 'export-mode.html');
+    const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), 'export', MODELS, '-o', OUT], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -74,14 +77,14 @@ function assert(condition: boolean, label: string, detail?: string): void {
 
     const file = Bun.file(OUT);
     const exists = await file.exists();
-    assert(exists, 'generated graph.html exists', OUT);
+    assert(exists, 'generated export.html exists', OUT);
 
     if (exists) {
       const content = await file.text();
 
       assert(
         content.includes('window.__IGNATIUS_MODE__ = "static"'),
-        'graph.html contains window.__IGNATIUS_MODE__ = "static"',
+        'export.html contains window.__IGNATIUS_MODE__ = "static"',
         `First 500 chars:\n${content.slice(0, 500)}`,
       );
 
@@ -93,8 +96,8 @@ function assert(condition: boolean, label: string, detail?: string): void {
       const injectionIdx = content.indexOf('<script>window.__IGNATIUS_MODE__ = "static"');
       const moduleScriptIdx = content.indexOf('<script type="module">');
 
-      assert(injectionIdx !== -1, 'graph.html has the static injection <script> tag');
-      assert(moduleScriptIdx !== -1, 'graph.html has an inlined <script type="module"> tag');
+      assert(injectionIdx !== -1, 'export.html has the static injection <script> tag');
+      assert(moduleScriptIdx !== -1, 'export.html has an inlined <script type="module"> tag');
       assert(
         injectionIdx < moduleScriptIdx,
         '"static" injection script appears before the inlined module script (executes first)',
@@ -129,5 +132,5 @@ function assert(condition: boolean, label: string, detail?: string): void {
   }
 }
 
-console.log('\n' + (failures === 0 ? 'All mode-flag tests passed.' : `${failures} mode-flag test(s) FAILED.`));
+console.log('\n' + (failures === 0 ? 'All mode-flag tests passed (CP7: export).' : `${failures} mode-flag test(s) FAILED.`));
 if (failures > 0) process.exit(1);

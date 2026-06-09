@@ -28,6 +28,9 @@ columns:
 #     predicate: { fwd: <parent→child business verb>, rev: <child→parent business verb> }
 #     # or a single string applied to both directions: predicate: <business verb phrase>
 # reference: true      # omit unless this is a lookup/code table
+examples:              # 2–3 sample rows (Step E7b) — every key must be in pk ∪ columns
+  - { <pk_col_1>: <value>, <other_col>: <value> }
+  - { <pk_col_1>: <value>, <other_col>: <value> }
 ---
 
 # <EntityName>
@@ -47,16 +50,11 @@ columns:
 ## Notes
 
 - <Justification for any structural complexity — who decided and why.>
-
-## Sample rows
-
-<!-- Optional, high value for entities with a mandatory parent or a subtype cluster.
-     2–4 concrete rows that show the rules hold (no orphan possible, exclusivity is real). -->
-
-| <pk_col> | <col> | <col> |
-|----------|-------|-------|
-| <value>  | ...   | ...   |
 ```
+
+Example rows live in the `examples:` frontmatter block above, not in the body — the viewer
+renders them as a table from the frontmatter. (Older entities may carry a prose `## Sample
+rows` body table; read it when seeding, but author new examples as frontmatter.)
 
 ### key-inherited dependent entity example
 
@@ -290,8 +288,8 @@ A single payment a Party makes toward an outstanding balance.
 
 A complete exclusive cluster: a base entity that divides into two mutually-exclusive kinds,
 selected by a discriminator. The `subtypes:` block lives on the **base**; each member is its
-own entity sharing the base's PK with a relationship back. Sample rows show the exclusivity is
-real — every base row is exactly one member. This is the shape, not a required structure.
+own entity sharing the base's PK with a relationship back. Example rows show the exclusivity
+is real — every base row is exactly one member. This is the shape, not a required structure.
 
 <example name="subtype-cluster">
 
@@ -320,19 +318,15 @@ relationships:
     on:
       type: code
     predicate: { fwd: classifies, rev: is classified by }
+examples:
+  - { party_id: 1, type: BUSINESS }
+  - { party_id: 2, type: PERSON }
 ---
 
 # Party
 
 A person or organization the business transacts with. The Party holds what is common to both
 kinds; each subtype holds what is specific to it.
-
-## Sample rows
-
-| party_id | type     |
-|----------|----------|
-| 1        | BUSINESS |
-| 2        | PERSON   |
 ```
 
 _Business.md (member — shares Party's PK, relates back):_
