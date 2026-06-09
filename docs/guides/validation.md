@@ -51,6 +51,15 @@ All Class A: the entity renders, flagged with a warning.
 | `entity.missing_columns` | `columns` is absent or empty. The attribute table renders empty. |
 | `entity.invalid_field_type` | A field has the wrong shape (e.g. `pk` is a string, not an array). Coerced to a safe default. |
 | `entity.unknown_group` | `group` references a name with no `_groups/<name>.md`. Renders without a color band. |
+| `entity.example_unknown_column` | An `examples:` row has a key that is not in `pk` or `columns`. **Live server only** — `ignatius validate` never prints this rule; the warning appears in the running app. |
+
+
+### Body rules
+
+
+| Rule ID | Class | Meaning |
+|---|---|---|
+| `body.unknown_link` | A | A `[[wiki-link]]` in the body targets an entity that does not exist. The link renders as muted, non-clickable text. |
 
 
 ### Edge rules
@@ -70,6 +79,26 @@ All Class A: the entity renders, flagged with a warning.
 | `cluster.missing_basetype` | B | The cluster's basetype is not a known entity. The whole cluster is stripped. |
 | `cluster.missing_member` | A | A cluster member is not a known entity. That member is dropped; the cluster is kept. |
 | `cluster.no_discriminator` | A | An exclusive cluster has no discriminator column. Inclusive clusters are exempt. |
+
+
+### Flow rules
+
+
+These run whenever the model has a `flows/` directory (see [Process flows](flows.md)). Findings are scoped to a diagram and process rather than an entity.
+
+| Rule ID | Class | Meaning |
+|---|---|---|
+| `flow.unknown_store` | B | A `db:` store names no known entity. Edges touching it are stripped. |
+| `flow.unknown_external` | B | An `ext:` token has no matching external definition. Edges are stripped. |
+| `flow.unknown_process` | B | A `proc:` token names no process in the diagram. Edges are stripped. |
+| `flow.illegal_connection` | B | Neither endpoint of a flow is a process. The edge is stripped. |
+| `flow.unknown_attribute` | A | A `db:` flow names a column absent from the entity's `pk` and `columns`. |
+| `flow.ambiguous_endpoint` | A | A bare endpoint name exists in more than one namespace — qualify it with a prefix. |
+| `flow.process_to_process` | A | A direct process-to-process flow. Silenceable with `flow_rules: { process_to_process: false }` in `ignatius.yml`. |
+| `flow.process_no_input` | A | A process has no input flows. |
+| `flow.process_no_output` | A | A process has no output flows. |
+| `flow.duplicate_number` | A | Two sibling processes declare the same `number:`. |
+| `flow.unbalanced_decomposition` | A | A sub-DFD's boundary flows do not match the parent process's declared inputs and outputs. |
 
 
 ## Trying it out

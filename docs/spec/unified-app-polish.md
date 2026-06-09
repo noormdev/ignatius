@@ -189,3 +189,6 @@ Commits (chronological):
   on close; graph/DD contexts unchanged); (3) the missing-link upgrade pass runs in FlowNodeModal + flow-opened
   entity dialog bodies so ext/store/process refs share the `.entity-link` color. Reviewer confirmed no CP7/CP8/
   CP12 regression. `test/visual/test-cp13-external-store-parity.ts`.
+
+
+**Squashed to `681c942` — 2026-06-09.** The per-checkpoint SHAs in this log are historical — unreachable from any branch after the `flow-edge-routing` branch was squashed to a single commit.

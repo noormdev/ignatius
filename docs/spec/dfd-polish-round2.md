@@ -164,3 +164,6 @@ Built across 4 checkpoints via the autopilot subagent loop, commit-only on `flow
 
 - Flow example *validation* (`flow.example_unknown_*`) — explicit non-goal this round (process-flows Open questions).
 - Pre-existing round-1 follow-ups remain open: `unified-app-polish-stack-entities-dfd`, `unified-app-polish-flow-modal-light-mode`.
+
+
+**Squashed to `681c942` — 2026-06-09.** The per-checkpoint SHAs in this log are historical — unreachable from any branch after the `flow-edge-routing` branch was squashed to a single commit.

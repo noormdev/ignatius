@@ -174,6 +174,9 @@ Built across 13 commits via `/subagent-implementation` (in place on `flow-edge-r
 - `.claude/project/signals.md` refresh deferred to the ship verb (full deterministic scan).
 
 
+**Squashed to `681c942` — 2026-06-09.** The per-checkpoint SHAs in this log are historical — unreachable from any branch after the `flow-edge-routing` branch was squashed to a single commit.
+
+
 ## Change log
 
 

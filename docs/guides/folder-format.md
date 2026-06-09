@@ -113,6 +113,22 @@ relationships:
 A predicate can also carry both reading directions with `{ fwd, rev }`. See [Bidirectional predicates](predicates.md).
 
 
+### Example rows
+
+
+An entity can carry sample instances in `examples:` frontmatter — a list of row objects whose keys are column names:
+
+```yaml
+examples:
+  - party_id: 1
+    type: BUSINESS
+  - party_id: 2
+    type: PERSON
+```
+
+The rows render as a collapsible table in the entity dialog and the dictionary. Two or three realistic rows are enough; their job is to make the rules concrete — a sample row that violates a constraint you believe in reveals a modeling error no structural check can catch. Every key must be a real column (or PK column); the live server flags unknown keys with an `entity.example_unknown_column` warning.
+
+
 ## A group file
 
 
@@ -128,3 +144,9 @@ Party identity, classifications, and ID documents.
 ```
 
 An entity whose `group` references a name with no matching `_groups/<name>.md` file renders without a color band and is flagged with an `entity.unknown_group` warning.
+
+
+## The flows folder
+
+
+A model can also carry data flow diagrams in an optional `flows/` folder at the root. Files under `flows/` are never scanned as entities — they describe processes, externals, and stores instead, and render in the app's Flows view. See [Process flows](flows.md) for the full format.

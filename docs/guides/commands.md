@@ -41,7 +41,7 @@ ignatius serve [path] [-p|--port <port>] [--model <key>] [-o|--open]
 
 - **Graph** — the interactive Cytoscape ERD. Click a node to open the rich entity dialog (columns, relationships, examples, findings).
 - **Dictionary** — one inline, searchable reference page fusing the entity data dictionary and the flow process dictionary. Every entity, process, external, and data store renders in full; a search box filters live across titles, descriptions, properties, and data types; cross-references are anchor links. No dialogs.
-- **Flows** — the DFD viewer. A `db:` store node opens the same rich entity dialog as a graph node; a process, external, or non-`db` store opens a plain markdown dialog.
+- **Flows** — the DFD viewer (see [Process flows](flows.md)). A `db:` store node opens the same rich entity dialog as a graph node; a process, external, or non-`db` store opens a plain markdown dialog.
 
 While serving, a findings panel lists any schema problems and updates on every save. See [Validation and findings](validation.md).
 
@@ -73,7 +73,7 @@ Checks the model and reports findings without generating any HTML. This is the f
 ignatius validate [path] [--model <key>]
 ```
 
-It prints each finding to stderr in the same format as `export` and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. Use it as a lightweight quality gate while authoring or in CI.
+It prints each finding to stderr in the same format as `export` and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. When the model has a `flows/` directory, the flow rules run too and their findings are included. Use it as a lightweight quality gate while authoring or in CI.
 
 
 ## version

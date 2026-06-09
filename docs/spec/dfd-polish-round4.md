@@ -154,3 +154,6 @@ Built across 3 checkpoints via the autopilot subagent loop, commit-only on `flow
 - Whether doc-less referenced stores should get a DD section (CP25 open question — user decision).
 - From round 3: the cytoscape `Core` typing defect (`dfd-polish-round3-cytoscape-typing`).
 - From round 1: `unified-app-polish-stack-entities-dfd`, `unified-app-polish-flow-modal-light-mode`.
+
+
+**Squashed to `681c942` — 2026-06-09.** The per-checkpoint SHAs in this log are historical — unreachable from any branch after the `flow-edge-routing` branch was squashed to a single commit.
