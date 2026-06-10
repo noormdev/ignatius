@@ -77,7 +77,9 @@ decompose one or more into sub-DFDs (Step F8).
 
 **Filename = the phrase with spaces→hyphens, Title-Case preserved** (`Collect Payment` →
 `Collect-Payment.md`). The filename minus `.md` is the process's id everywhere: the `proc:`
-token, wiki-link targets, and the sub-DFD folder name at F8 all match it exactly.
+token, wiki-link targets, and the sub-DFD folder name at F8 all match it exactly. When the
+model already has flow files, match their naming style instead — the Title-Case default is
+for the first diagram, not a rule to retrofit onto an existing `flows/` tree.
 
 For each process, the next steps (F3–F7) collect its connections, data, examples, and body.
 

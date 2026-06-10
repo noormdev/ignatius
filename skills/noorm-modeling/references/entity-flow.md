@@ -26,7 +26,7 @@ If it exists, ask: "That entity already exists. Overwrite, pick a different name
 
 #### Step E2a — Create group (sub-flow)
 Ask:
-1. Group slug (snake_case, becomes the filename and `group:` value)
+1. Group slug (becomes the filename and `group:` value — match the style of existing `_groups/` slugs; snake_case is the default for the first one)
 2. Label (human-readable, e.g. "Sales & Orders")
 3. Color (hex, e.g. `#2ea043`)
 4. Optional one-line description

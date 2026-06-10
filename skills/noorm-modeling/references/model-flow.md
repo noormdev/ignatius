@@ -62,7 +62,7 @@ If yes, collect:
 
 ### Step M6 — Groups
 
-Ask: "Define at least one group. For each: slug (snake_case), label, color (hex)."
+Ask: "Define at least one group. For each: slug (snake_case suggested), label, color (hex)."
 
 Collect groups until the user says done.
 
