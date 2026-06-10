@@ -56,6 +56,13 @@ Example rows live in the `examples:` frontmatter block above, not in the body �
 renders them as a table from the frontmatter. (Older entities may carry a prose `## Sample
 rows` body table; read it when seeding, but author new examples as frontmatter.)
 
+**Linking entities in the body.** Whenever the body names another entity, write it as a
+wiki-link — `[[Party]]`, or `[[PaymentMethod|payment method]]` for custom display text. Wiki-links
+are the *only* link form that resolves: the viewer turns them into in-app navigation and the
+linter validates the target (`body.unknown_link`). A markdown file link like `[Party](Party.md)`
+does **not** resolve — it renders as a dead relative link and is invisible to validation. Never
+use markdown file links; always use `[[Name]]`. The body examples below show this in practice.
+
 ### key-inherited dependent entity example
 
 The canonical form — composite PK with a local discriminator, no cross-entity reference needed:
@@ -145,7 +152,7 @@ relationships:
 
 # SalesOrder
 
-A sales order placed by a Party.
+A sales order placed by a [[Party]].
 ```
 
 ### orm-oriented entity example
@@ -229,7 +236,7 @@ relationships:
 
 # SalesOrder
 
-A sales order placed by a Party.
+A sales order placed by a [[Party]].
 ```
 
 ### Business-context example (the body carries the story)
@@ -267,7 +274,7 @@ relationships:
 
 # Payment
 
-A single payment a Party makes toward an outstanding balance.
+A single payment a [[Party]] makes toward an outstanding balance.
 
 ## Business rules
 
@@ -352,7 +359,7 @@ relationships:
 
 # Business
 
-The specialization of a Party that is a legal entity. Shares its identity with its Party — it
+The specialization of a [[Party]] that is a legal entity. Shares its identity with its Party — it
 does not invent a new key.
 ```
 

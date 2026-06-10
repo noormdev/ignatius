@@ -230,7 +230,7 @@ Ask, in order, capturing whatever the user offers (skip a prompt only if they ha
 
 Write what you gather into the entity body under clear headings (see the template). Capture the **source and reasoning**, not just the rule. If the user truly has nothing beyond a name, write a one-sentence purpose and move on — but ask first.
 
-**Link to other entities.** When the body names another entity, write it as a wiki-link so it becomes navigable: `[[Party]]`, or `[[PaymentMethod|payment method]]` to show different text. In the viewer the link opens that entity's modal; in the dict it jumps to its section. The target must match an entity id exactly (case-sensitive) — a link to a non-existent entity renders muted and trips `body.unknown_link`, so only link to entities that exist (or will, by the end of the model).
+**Link to other entities.** When the body names another entity, write it as a wiki-link so it becomes navigable: `[[Party]]`, or `[[PaymentMethod|payment method]]` to show different text. In the viewer the link opens that entity's modal; in the dict it jumps to its section. The target must match an entity id exactly (case-sensitive) — a link to a non-existent entity renders muted and trips `body.unknown_link`, so only link to entities that exist (or will, by the end of the model). **Wiki-links are the only link form that works. Never write a markdown file link like `[Party](Party.md)` or `[Party](./Party.md)` — it does not resolve (the renderer leaves it as a dead relative `.md` href), it is invisible to validation, and it breaks navigation. Always `[[Name]]`, never `[Name](Name.md)`.**
 
 ### Step E10 — Write the file
 

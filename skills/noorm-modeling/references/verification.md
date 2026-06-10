@@ -22,6 +22,7 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 | `entity.missing_columns` | warn | A | No columns defined | Add `columns:` map with at least the PK column types |
 | `entity.invalid_field_type` | warn | A | Invalid field shape | `pk` must be an array of strings, `columns` must be a map — fix the field shape |
 | `entity.unknown_group` | warn | A | Unknown group | Create `_groups/<name>.md` or correct the `group:` value |
+| `body.unknown_link` | warn | A | Body `[[wiki-link]]` target not in model | Fix the entity id inside `[[…]]` or author the target entity (only `[[…]]` links are checked — author body links as wiki-links, never `[X](X.md)`) |
 | `edge.unknown_target` | error | B | Edge target not in model | Add the missing entity file or correct the `target:` name |
 | `edge.dangling_fk_column` | warn | A | FK column not on source entity | Add the column to the entity's `columns` map or fix the `on:` mapping |
 | `cluster.missing_basetype` | error | B | Subtype cluster basetype not in model | Add the basetype entity file or fix the basetype name |
