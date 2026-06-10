@@ -393,29 +393,36 @@ name: <Model Name>
 # description: <optional description>
 # updated: "YYYY-MM-DD"
 
-# theme:            # omit to use parser defaults
+# theme:            # omit to use parser defaults; user values deep-merge over them
 #   dark:
-#     background: "#16171b"
-#     surface: "#1f2127"
-#     border: "#363941"
-#     text: "#e8e9ec"
-#     textMuted: "#9aa0a9"
-#     edgeIdentifying: "#9aa0a9"
-#     edgeReferential: "#454852"
+#     background: "#0e1116"
+#     surface: "#161b22"
+#     border: "#30363d"
+#     text: "#e6edf3"
+#     textMuted: "#8b949e"
+#     edgeIdentifying: "#8b949e"
+#     edgeReferential: "#3d424a"
 #   light:
-#     background: "#f7f7f8"
-#     surface: "#eceef0"
-#     border: "#d6dade"
-#     text: "#23262b"
-#     textMuted: "#646b73"
-#     edgeIdentifying: "#646b73"
-#     edgeReferential: "#c2c8ce"
+#     background: "#ffffff"
+#     surface: "#f6f8fa"
+#     border: "#d0d7de"
+#     text: "#1f2328"
+#     textMuted: "#656d76"
+#     edgeIdentifying: "#656d76"
+#     edgeReferential: "#b0b8c1"
+#   spacing:
+#     nodeSep: 60
+#   flowKinds:       # per-kind DFD store/external colors; partial overrides keep the rest
+#     cache:
+#       dark: { bg: "#3a2a00" }
+#       light: { bg: "#fff3c4" }
 
 # branding:         # omit to use built-in Noorm branding
+#   logo: ./assets/logo.svg        # or { dark: ..., light: ... }; resolved from the model root
 #   title: "<Model Name>"
 #   subtitle: "<optional subtitle>"
 #   copyright:
-#     text: "© <Org>"
+#     holder: "<Org>"
 #     year: <YYYY>
 #   poweredBy: true
 ```

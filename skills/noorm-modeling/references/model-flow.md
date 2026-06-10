@@ -30,25 +30,35 @@ entity flow reads at E3, never a constraint it enforces.
 
 Ask: "Custom theme colors? (y/n, default n — uses parser defaults)"
 
-If yes, collect dark + light palette values:
+If yes, collect dark + light palette values (defaults from `src/theme-defaults.ts`):
 
 | Key | Dark default | Light default |
 |-----|-------------|---------------|
-| `background` | `#16171b` | `#f7f7f8` |
-| `surface` | `#1f2127` | `#eceef0` |
-| `border` | `#363941` | `#d6dade` |
-| `text` | `#e8e9ec` | `#23262b` |
-| `textMuted` | `#9aa0a9` | `#646b73` |
-| `edgeIdentifying` | `#9aa0a9` | `#646b73` |
-| `edgeReferential` | `#454852` | `#c2c8ce` |
+| `background` | `#0e1116` | `#ffffff` |
+| `surface` | `#161b22` | `#f6f8fa` |
+| `border` | `#30363d` | `#d0d7de` |
+| `text` | `#e6edf3` | `#1f2328` |
+| `textMuted` | `#8b949e` | `#656d76` |
+| `edgeIdentifying` | `#8b949e` | `#656d76` |
+| `edgeReferential` | `#3d424a` | `#b0b8c1` |
 
-Ask only for values the user wants to override; others inherit defaults.
+Ask only for values the user wants to override; others inherit defaults — a user theme is deep-merged over the defaults.
+
+Two more theme blocks exist; offer them only when the user's answers point at them:
+
+- `theme.spacing` — layout spacing (`nodeSep`, default 60). Offer when the user mentions node density or layout tightness.
+- `theme.flowKinds` — per-kind DFD store/external colors. Each kind (`db`, `cache`, `queue`, `file`, `doc`, `manual`, `other`, `external`) takes `dark`/`light` entries of `{ bg, fg, border }`, deep-merged so a partial override keeps the rest of the palette. Offer when the model has (or will have) flows and the user wants brand-matched diagrams. See `docs/guides/themes-and-branding.md` for the worked example.
 
 ### Step M5 — Branding (optional)
 
 Ask: "Custom branding? (y/n, default n — uses built-in Noorm branding)"
 
-If yes, collect: `title`, optional `subtitle`, `copyright.text`, `copyright.year` (default current year), `poweredBy` flag (default true).
+If yes, collect:
+
+- `title`, optional `subtitle` (max 50 characters each).
+- `logo` — optional path to an SVG, resolved relative to the model root. A single path applies to both modes, or `{ dark, light }` for per-mode logos.
+- `copyright.holder` (the name on the © line) and `copyright.year` (default current year).
+- `poweredBy` flag (default true; `false` hides the footer attribution).
 
 ### Step M6 — Groups
 
