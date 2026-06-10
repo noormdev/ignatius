@@ -31,6 +31,8 @@ import type {
 } from './flow-parse';
 import type { FlowError, FlowValidationResult } from './flow-validate';
 import { buildEntityUsageIndex, buildFlowNodeUsageIndex } from './flow-usage-index';
+import { buildModelIndex } from './model-index';
+import type { ModelIndex } from './model-index';
 import type { ProcessUsage } from './flow-usage-index';
 import { FlowDiagramSvg, DARK_PALETTE, LIGHT_PALETTE } from './flow-view/FlowDiagramSvg';
 import type { MinimapData, FlowDiagramSvgProps, FlowPalette } from './flow-view/FlowDiagramSvg';
@@ -44,6 +46,35 @@ cytoscape.use(elk);
 // Graph layout algorithm, toggled at runtime from the FAB menu.
 // 'hierarchical' → ELK layered (ranked rows); 'organic' → ELK stress (force-directed).
 type LayoutMode = 'hierarchical' | 'organic';
+
+// ── ELK cost-scaling thresholds ───────────────────────────────────────────────
+// These constants gate both layered-thoroughness and organic post-processing.
+// Scaling is always by model.nodes.length (entity count, not cy leaf count).
+//
+// ORGANIC_FALLBACK_THRESHOLD: above this count, organic mode falls back to
+// cheap layered even when the user chose "organic". ELK stress is O(n²) per
+// iteration and cannot render 150+ nodes without crashing the tab.
+//
+// LAYERED_THOROUGHNESS_*: passed directly to ELK `elk.layered.thoroughness`.
+// Fewer iterations → faster layout; below 50 we keep the original high quality.
+//
+// ORGANIC_ITERS_*: iteration counts for arrangeOrganic post-processing passes.
+// `clusterFan` = separateClusterFans; `leafFan` = separateLeafFan; `deoverlap` = deoverlapNodes.
+// Below 50 nodes all three run at full quality (original hardcoded values).
+const ORGANIC_FALLBACK_THRESHOLD = 150; // at or above this count → fall back to cheap layered instead of stress
+
+const LAYERED_THOROUGHNESS_TINY    = 30;  // n < 50
+const LAYERED_THOROUGHNESS_SMALL   = 20;  // 50 ≤ n < 100
+const LAYERED_THOROUGHNESS_MEDIUM  = 14;  // 100 ≤ n < 200
+const LAYERED_THOROUGHNESS_LARGE   = 7;   // n ≥ 200
+
+// Organic post-processing pass counts per tier.
+// Full quality (original): clusterFan=80, leafFan=80, deoverlap=90.
+type OrganicIters = { clusterFan: number; leafFan: number; deoverlap: number };
+const ORGANIC_ITERS_TINY:   OrganicIters = { clusterFan: 80, leafFan: 80, deoverlap: 90 };  // n < 50
+const ORGANIC_ITERS_SMALL:  OrganicIters = { clusterFan: 40, leafFan: 40, deoverlap: 45 };  // 50 ≤ n < 100
+const ORGANIC_ITERS_MEDIUM: OrganicIters = { clusterFan: 20, leafFan: 20, deoverlap: 22 };  // 100 ≤ n < FALLBACK
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Place each subtype cluster's members on an arc around their joiner diamond,
 // fanning away from the basetype. Keeps basetype/subtype clusters cohesive under
@@ -226,12 +257,24 @@ function decollinearNodes(cy: cytoscape.Core) {
 // Post-process a settled organic (stress) layout: fan subtype clusters into tidy
 // rings, pull interleaved fans into distinct regions, spread hub satellites,
 // triangulate collinear pass-throughs, then clear residual node overlaps.
-function arrangeOrganic(cy: cytoscape.Core) {
+//
+// iters — iteration budget per pass (derived from node count via ORGANIC_ITERS_*).
+// Below the first threshold (<50 nodes) callers pass ORGANIC_ITERS_TINY, which
+// restores the original hardcoded 80/90 values and preserves full visual quality.
+function arrangeOrganic(cy: cytoscape.Core, iters: OrganicIters) {
   fanSubtypeClusters(cy);
-  separateClusterFans(cy, 80);
-  separateLeafFan(cy, 80);
+  separateClusterFans(cy, iters.clusterFan);
+  separateLeafFan(cy, iters.leafFan);
   decollinearNodes(cy);
-  deoverlapNodes(cy, 90);
+  deoverlapNodes(cy, iters.deoverlap);
+}
+
+// Derive the iteration budget for arrangeOrganic from entity count.
+// Returns ORGANIC_ITERS_TINY for n < 50 (original full-quality settings).
+function organicIters(n: number): OrganicIters {
+  if (n < 50)  return ORGANIC_ITERS_TINY;
+  if (n < 100) return ORGANIC_ITERS_SMALL;
+  return ORGANIC_ITERS_MEDIUM;
 }
 // @ts-expect-error — same interop gap; .use() exists at runtime
 cytoscape.use(cytoscapeNavigator);
@@ -306,6 +349,15 @@ declare global {
     // flow renderer's onDiagramChange callback so the visual harness can assert
     // DFD-preserve across SSE re-renders without DOM parsing.
     __IGNATIUS_ACTIVE_FLOW_DFD__?: string;
+    // Perf marker: stamped inside cy.one('layoutstop') so the measurement harness
+    // can read parse + layout timing without instrumenting the render loop.
+    // Read-only from outside; no layout behavior is changed.
+    __IGNATIUS_PERF__?: {
+      layoutStopAt: number;    // performance.now() at layoutstop
+      nodes: number;           // cytoscape node count (non-parent, excludes cluster boxes)
+      edges: number;           // cytoscape edge count
+      layoutMode: 'elk' | 'preset'; // which layout path ran
+    };
   }
 }
 
@@ -1314,9 +1366,13 @@ function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mo
   return base;
 }
 
-function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigate, processUsages, onNavigateToProcess, allFlowNodeIds }: {
+function SelectedEntityModal({ selected, model, nodeById, nodeIdSet, entityErrors, onClose, onNavigate, processUsages, onNavigateToProcess, allFlowNodeIds }: {
   selected: ModelNode;
   model: Model | null;
+  /** O(1) node lookup map — from modelIndex.nodeById. */
+  nodeById?: Map<string, ModelNode>;
+  /** O(1) node id membership set — from modelIndex.nodeIdSet. */
+  nodeIdSet?: Set<string>;
   entityErrors: EntityError[];
   onClose: () => void;
   onNavigate: (id: string) => void;
@@ -1328,9 +1384,10 @@ function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigat
 }) {
   const groups = model?.groups ?? {};
   const edges = model?.edges ?? [];
-  const nodes = model?.nodes ?? [];
   const groupCfg = selected.group ? groups[selected.group] : undefined;
-  const errorsForSelected = entityErrors.filter(e => e.entityId === selected.id);
+  // entityErrors is already scoped to this entity (pre-reduced by the caller via
+  // appErrorsByEntityId.get(selected.id) ?? []) — no id-filter needed here.
+  const errorsForSelected = entityErrors;
 
   // Upgrade pass for flow-opened modals: resolve missing-span links that were
   // rendered with entity-only knownIds but whose targets exist as flow nodes.
@@ -1369,7 +1426,7 @@ function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigat
         node={selected}
         edges={edges}
         onNavigate={(id) => {
-          const target = nodes.find(n => n.id === id);
+          const target = nodeById ? nodeById.get(id) : model?.nodes.find(n => n.id === id);
           if (target) onNavigate(id);
         }}
       />
@@ -1388,9 +1445,12 @@ function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigat
           const id = link.getAttribute('data-entity');
           // In flow context (allFlowNodeIds present), allow any flow node id;
           // in graph context, limit to ERD entity nodes only.
+          const hasNode = nodeIdSet
+            ? (id !== null && id !== undefined && nodeIdSet.has(id))
+            : (id !== null && id !== undefined && (model?.nodes.some(n => n.id === id) ?? false));
           const allowed = allFlowNodeIds
-            ? (id && (allFlowNodeIds.has(id) || nodes.some(n => n.id === id)))
-            : (id && nodes.some(n => n.id === id));
+            ? (id && (allFlowNodeIds.has(id) || hasNode))
+            : (id && hasNode);
           if (allowed && id) onNavigate(id);
         }}
         dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
@@ -1399,7 +1459,7 @@ function SelectedEntityModal({ selected, model, entityErrors, onClose, onNavigat
         node={selected}
         edges={edges}
         onNavigate={(id) => {
-          const target = nodes.find(n => n.id === id);
+          const target = nodeById ? nodeById.get(id) : model?.nodes.find(n => n.id === id);
           if (target) onNavigate(id);
         }}
       />
@@ -1972,8 +2032,9 @@ function DictExamplesAccordion({ node }: { node: ModelNode }) {
 function DictEntitySection({
   node,
   edges,
-  subtypeClusters,
-  entityErrors,
+  basetypeCluster,
+  memberCluster,
+  nodeErrors,
   missingTargets,
   onNavigate,
   onNavigateMissing,
@@ -1982,8 +2043,12 @@ function DictEntitySection({
 }: {
   node: ModelNode;
   edges: ModelEdge[];
-  subtypeClusters: SubtypeCluster[];
-  entityErrors: EntityError[];
+  /** Pre-looked-up cluster where node.id is the basetype (undefined if none). */
+  basetypeCluster: SubtypeCluster | undefined;
+  /** Pre-looked-up cluster where node.id is a member (undefined if none). */
+  memberCluster: SubtypeCluster | undefined;
+  /** Pre-filtered errors for this node. */
+  nodeErrors: EntityError[];
   missingTargets: Set<string>;
   onNavigate: (entityId: string) => void;
   onNavigateMissing: (id: string) => void;
@@ -1993,10 +2058,8 @@ function DictEntitySection({
   const pkList = node.pk.join(', ');
   const pkLabel = node.pk.length > 0 ? <span className="dict-pk-label">PK: <code>{pkList}</code></span> : null;
 
-  const isBasetypeOf = subtypeClusters.find(c => c.basetype === node.id);
-  const isSubtypeOf = subtypeClusters.find(c => c.members.includes(node.id));
-
-  const nodeErrors = entityErrors.filter(e => e.entityId === node.id);
+  const isBasetypeOf = basetypeCluster;
+  const isSubtypeOf = memberCluster;
 
   return (
     <section className="dict-entity-section" id={`entity-${node.id}`}>
@@ -2399,7 +2462,7 @@ function resolveBodyClick(
 function DictProcessSection({
   process,
   allProcesses,
-  flowErrors,
+  procErrors,
   onScrollToEntity,
   onScrollToSection,
   externalIds,
@@ -2407,7 +2470,8 @@ function DictProcessSection({
 }: {
   process: FlowProcess;
   allProcesses: FlowProcess[];
-  flowErrors: FlowError[];
+  /** Pre-filtered errors for this process (replaces flowErrors array + per-process filter). */
+  procErrors: FlowError[];
   onScrollToEntity: (entityId: string) => void;
   onScrollToSection: (id: string) => void;
   /** O(1) set of known external ids — used to decide whether a non-db endpoint is linkable. */
@@ -2415,7 +2479,6 @@ function DictProcessSection({
   /** O(1) set of known non-db store names — same purpose. */
   nonDbStoreNames: Record<string, true>;
 }) {
-  const procErrors = flowErrors.filter(e => e.processId === process.id);
 
   // Non-db endpoint handlers for the DD card. The token is `kind:name` (e.g. `ext:Customer`).
   // We split at the first colon to get the name, then check whether the DD has a section for it.
@@ -2591,6 +2654,7 @@ export function upgradeMissingLinksInContainer(
 
 function DictionaryView({
   model,
+  modelIndex,
   findings,
   flowDiagrams,
   flowFindings,
@@ -2600,6 +2664,7 @@ function DictionaryView({
   onToggleNav,
 }: {
   model: Model;
+  modelIndex: ModelIndex | null;
   findings: { globalErrors: GlobalError[]; entityErrors: EntityError[] };
   flowDiagrams: FlowDiagram[] | null;
   flowFindings: { flowErrors: FlowError[]; globalErrors: GlobalError[] };
@@ -2609,6 +2674,35 @@ function DictionaryView({
   onToggleNav: () => void;
 }) {
   const { globalErrors, entityErrors } = findings;
+
+  // O(1) error lookup maps so per-entity/per-process filters are single map
+  // lookups instead of O(n) array scans in every DictEntitySection/DictProcessSection.
+  const errorsByEntityId = useMemo(() => {
+    const m = new Map<string, EntityError[]>();
+    for (const e of entityErrors) {
+      const existing = m.get(e.entityId);
+      if (existing !== undefined) {
+        existing.push(e);
+      } else {
+        m.set(e.entityId, [e]);
+      }
+    }
+    return m;
+  }, [entityErrors]);
+
+  const errorsByProcessId = useMemo(() => {
+    const m = new Map<string, FlowError[]>();
+    for (const e of flowFindings.flowErrors) {
+      if (e.processId === undefined) continue;
+      const existing = m.get(e.processId);
+      if (existing !== undefined) {
+        existing.push(e);
+      } else {
+        m.set(e.processId, [e]);
+      }
+    }
+    return m;
+  }, [flowFindings.flowErrors]);
 
   // CP10: beforeprint/afterprint — clear active search so the FULL dictionary
   // renders when the user prints, then restore the prior term on afterprint.
@@ -2712,11 +2806,12 @@ function DictionaryView({
   }
 
   // Build group → sorted nodes mapping (pre-sorted, then optionally filtered).
+  // Uses modelIndex.nodesByGroup for O(1) group lookup instead of filter-scan.
   const groupOrderedNodes: Record<string, ModelNode[]> = {};
   for (const key of groupOrder) {
     const cfg = model.groups[key];
     if (!cfg) continue;
-    const groupNodes = model.nodes.filter(n => n.group === key);
+    const groupNodes = modelIndex?.nodesByGroup.get(key) ?? model.nodes.filter(n => n.group === key);
     if (groupNodes.length === 0) continue;
     groupOrderedNodes[key] = sortGroupNodes(groupNodes, model.subtypeClusters);
   }
@@ -2733,7 +2828,8 @@ function DictionaryView({
     for (const key of groupOrder) {
       const cfg = model.groups[key];
       if (!cfg) continue;
-      for (const n of model.nodes.filter(n => n.group === key)) {
+      // Use modelIndex.nodesByGroup for O(1) group lookup (no filter-scan).
+      for (const n of (modelIndex?.nodesByGroup.get(key) ?? model.nodes.filter(n => n.group === key))) {
         if (nodeMatchesSearch(n, term, cfg.label)) visibleSet[n.id] = true;
       }
     }
@@ -3126,8 +3222,9 @@ function DictionaryView({
                   key={n.id}
                   node={n}
                   edges={model.edges}
-                  subtypeClusters={model.subtypeClusters}
-                  entityErrors={entityErrors}
+                  basetypeCluster={modelIndex?.basetypeClusterById.get(n.id)}
+                  memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
+                  nodeErrors={errorsByEntityId.get(n.id) ?? []}
                   missingTargets={missingTargets}
                   onNavigate={scrollToSection}
                   onNavigateMissing={scrollToMissing}
@@ -3145,8 +3242,9 @@ function DictionaryView({
             key={n.id}
             node={n}
             edges={model.edges}
-            subtypeClusters={model.subtypeClusters}
-            entityErrors={entityErrors}
+            basetypeCluster={modelIndex?.basetypeClusterById.get(n.id)}
+            memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
+            nodeErrors={errorsByEntityId.get(n.id) ?? []}
             missingTargets={missingTargets}
             onNavigate={scrollToSection}
             onNavigateMissing={scrollToMissing}
@@ -3194,7 +3292,7 @@ function DictionaryView({
                       key={proc.id}
                       process={proc}
                       allProcesses={allProcessesDeep}
-                      flowErrors={flowFindings.flowErrors}
+                      procErrors={errorsByProcessId.get(proc.id) ?? []}
                       onScrollToEntity={scrollToEntity}
                       onScrollToSection={scrollToSection}
                       externalIds={ddExternalIds}
@@ -3727,7 +3825,7 @@ export function App() {
   // `fromFlow` marks the context: when true, the modal's FK/body/process-usage links
   // navigate in-place over the flow via flowOpenRef instead of switching views.
   function openEntityById(id: string, fromFlow = false) {
-    const node = model?.nodes.find(n => n.id === id);
+    const node = modelIndexRef.current?.nodeById.get(id);
     if (node) {
       setEntityModalOpenedFromFlow(fromFlow);
       setSelected(node);
@@ -3777,6 +3875,10 @@ export function App() {
   // layoutKey (updated by SSE rebuilds) without forcing a graph rebuild.
   // Mirror of the themeModeRef / findingsRef pattern.
   const layoutKeyRef = useRef<string>('');
+  // Ref mirror of modelIndex so cy-init closures always read the live index
+  // without adding modelIndex to the effect deps (which would rebuild the graph).
+  const modelIndexRef = useRef<ModelIndex | null>(null);
+  // NOTE: modelIndexRef.current is updated below, after the modelIndex useMemo.
   // Set by the cy-init effect; lets the FAB "Reset layout" button clear the
   // saved arrangement and re-run ELK from outside the effect closure.
   const resetLayoutRef = useRef<(() => void) | null>(null);
@@ -4139,6 +4241,11 @@ export function App() {
     if (view !== 'graph') return;
     if (!cyRef.current || !model || !svgRef.current) return;
     cyRef.current.style(buildStyles(model.groups, model.theme, themeMode));
+    // forceRender after style() so the canvas flushes the reassigned stylesheet
+    // immediately — without this the canvas may stay visually stale (edge lines
+    // absent) until the next browser-driven repaint, which is the symptom the
+    // user reported on theme-mode toggle for large models.
+    cyRef.current.forceRender();
     updateMarkers(cyRef.current, svgRef.current, model.theme, themeMode);
     const badgeIds = new Set(findings.entityErrors.map(e => e.entityId));
     drawWarningBadges(cyRef.current, svgRef.current, badgeIds);
@@ -4252,6 +4359,10 @@ export function App() {
     // Capture as a non-null binding so nested closures don't re-check
     const modelNonNull = model;
     const elements: cytoscape.ElementDefinition[] = [];
+    // Local id→element map for O(1) parent-wiring in the cluster loop below (L3).
+    // Populated as leaf node elements are pushed so the subsequent cluster loop
+    // can set parent without scanning the growing elements array.
+    const elementById = new Map<string, cytoscape.ElementDefinition>();
 
     // Build a set of subtype edges (child→parent) so we can rewire them through joiners
     const subtypeEdgeKeys = new Set<string>();
@@ -4262,14 +4373,16 @@ export function App() {
     }
 
     for (const node of model.nodes) {
-      elements.push({
+      const el: cytoscape.ElementDefinition = {
         data: {
           id: node.id,
           label: wrapEntityLabel(node.id),
           classification: node.classification,
           group: node.group ?? '',
         },
-      });
+      };
+      elements.push(el);
+      elementById.set(node.id, el);
     }
 
     // Add compound cluster nodes, joiner nodes, and rewire subtype edges
@@ -4312,8 +4425,8 @@ export function App() {
 
       // Each subtype is a child of the compound, with edge from joiner
       for (const member of cluster.members) {
-        // Set parent on the existing node element
-        const nodeEl = elements.find(e => e.data.id === member);
+        // Set parent on the existing node element via the local id→element map (O(1)).
+        const nodeEl = elementById.get(member);
         if (nodeEl) nodeEl.data.parent = clusterId;
 
         elements.push({
@@ -4359,12 +4472,43 @@ export function App() {
     const layerPadding = 30; // extra breathing room between layers
     const layerSpacing = Math.max(110, longestPredicate * charWidth + markerPadding + layerPadding);
 
+    // Entity count drives cost scaling (model.nodes.length = actual entity files).
+    const entityCount = model.nodes.length;
+
+    // Layered thoroughness: fewer iterations for larger models.
+    // Preserves original quality (30) below 50 entities; degrades gracefully above.
+    function layeredThoroughness(): number {
+      if (entityCount < 50)  return LAYERED_THOROUGHNESS_TINY;
+      if (entityCount < 100) return LAYERED_THOROUGHNESS_SMALL;
+      if (entityCount < 200) return LAYERED_THOROUGHNESS_MEDIUM;
+      return LAYERED_THOROUGHNESS_LARGE;
+    }
+
+    // For large models (≥ ORGANIC_FALLBACK_THRESHOLD), layered with low
+    // thoroughness is far cheaper than stress + arrangeOrganic's O(n²) passes.
+    // When the user's mode is 'organic' but the model exceeds the threshold,
+    // we silently run cheap layered — a non-crashing render beats a crash.
+    function effectiveAlgorithm(mode: LayoutMode): 'stress' | 'layered' {
+      if (mode === 'organic' && entityCount >= ORGANIC_FALLBACK_THRESHOLD) return 'layered';
+      return mode === 'organic' ? 'stress' : 'layered';
+    }
+
     // Two switchable layout algorithms (FAB toggle):
     //   hierarchical → ELK layered  (ranked rows; identification reads top-down)
     //   organic      → ELK stress   (force-directed hub-and-spoke; relatedness reads spatially)
+    //                  BUT: above ORGANIC_FALLBACK_THRESHOLD, falls back to cheap layered
+    //                  because stress is O(n²) per iteration and crashes at large node counts.
     // Stress edge length scales off the layered layer spacing so the two feel comparable.
     const buildLayoutOpts = (mode: LayoutMode): cytoscape.LayoutOptions => {
-      if (mode === 'organic') {
+      const algo = effectiveAlgorithm(mode);
+      if (algo === 'stress') {
+        // Stress iteration limit scales by entity count to cap O(n²) work.
+        // Below 50 nodes: no limit (original behaviour, full quality).
+        // 50–99: cap at 150 iterations; 100–FALLBACK: cap at 80.
+        const stressIterLimit =
+          entityCount < 50  ? undefined :
+          entityCount < 100 ? 150 :
+                              80;
         return {
           name: 'elk',
           elk: {
@@ -4374,9 +4518,20 @@ export function App() {
             'elk.stress.desiredEdgeLength': String(Math.max(280, Math.round(layerSpacing * 1.6))),
             'elk.spacing.nodeNode': String(Math.max(120, model.theme.spacing.nodeSep)),
             'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+            ...(stressIterLimit !== undefined
+              ? { 'elk.stress.iterationLimit': String(stressIterLimit) }
+              : {}),
           },
         } as cytoscape.LayoutOptions;
       }
+      // Layered — used both when mode === 'hierarchical' and when organic falls back.
+      // Organic-fallback ALWAYS uses cheap strategies regardless of n: the fallback
+      // exists to avoid a crash, not to produce a quality layered render.
+      // Genuine hierarchical mode degrades strategies only at n ≥ 200.
+      const inOrganicFallback = mode === 'organic' && entityCount >= ORGANIC_FALLBACK_THRESHOLD;
+      const useExpensiveStrategies = !inOrganicFallback && entityCount < 200;
+      // Organic-fallback also uses the lowest thoroughness tier to stay fast.
+      const thoroughness = inOrganicFallback ? LAYERED_THOROUGHNESS_LARGE : layeredThoroughness();
       return {
         name: 'elk',
         elk: {
@@ -4384,13 +4539,13 @@ export function App() {
           'elk.direction': 'DOWN',
           'elk.layered.spacing.nodeNodeBetweenLayers': String(layerSpacing),
           'elk.spacing.nodeNode': String(model.theme.spacing.nodeSep),
-          'elk.edgeRouting': 'ORTHOGONAL',
+          'elk.edgeRouting': useExpensiveStrategies ? 'ORTHOGONAL' : 'POLYLINE',
           'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
           // Greedy post-pass: swap adjacent nodes whenever it removes a crossing.
           'elk.layered.crossingMinimization.greedySwitch.type': 'TWO_SIDED',
-          // More crossing-minimization iterations (default 7). Slower, fewer crossings.
-          'elk.layered.thoroughness': '30',
-          'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+          // Thoroughness ladder: lower = faster at cost of crossing quality.
+          'elk.layered.thoroughness': String(thoroughness),
+          'elk.layered.nodePlacement.strategy': useExpensiveStrategies ? 'NETWORK_SIMPLEX' : 'BRANDES_KOEPF',
           // Pull edges toward straight lines, reducing near-crossings.
           'elk.layered.nodePlacement.favorStraightEdges': 'true',
           'elk.layered.layering.strategy': 'NETWORK_SIMPLEX',
@@ -4402,12 +4557,40 @@ export function App() {
 
     const elkLayoutOpts = buildLayoutOpts(layoutModeRef.current);
 
+    // L1: skip ELK when a cached layout already covers this model topology.
+    // Load before constructing cy so the decision is made once and the layout
+    // option passed to the constructor is correct.
+    const layoutStore = createLayoutStore();
+    const preloadedSavedKey = layoutKeyRef.current;
+    const preloadedSaved = preloadedSavedKey ? layoutStore.load(preloadedSavedKey) : null;
+
+    // Shared helper: apply a saved PositionMap onto a cytoscape instance.
+    // Skips compound parents (_cluster_*): setting a parent's position translates
+    // all its children, displacing them from their own saved absolute coordinates.
+    // Restoring children only lets each cluster box recompute its bounding box.
+    // Joiners (_joiner_*) ARE leaf nodes and ARE restored when present in the map.
+    // Reused by the layoutstop ELK-restore path and by the CP6 worker path.
+    function applySavedPositions(cyInst: cytoscape.Core, saved: PositionMap): void {
+      for (const [id, pos] of Object.entries(saved)) {
+        const node = cyInst.$id(id);
+        if (!node.empty() && !node.isParent()) node.position(pos);
+      }
+    }
+
+    // For the preset path we must NOT run any layout during the cytoscape
+    // constructor: the preset layout fires layoutstop synchronously, before
+    // cy.one('layoutstop') can be attached. Use the null layout for construction
+    // so the handler is always attached before the layout fires, then run the
+    // appropriate layout manually below.
+    const nullLayoutOpts = { name: 'null' } satisfies cytoscape.LayoutOptions;
+    const chosenLayout = preloadedSaved ? nullLayoutOpts : elkLayoutOpts;
+
     let cy: cytoscape.Core;
     try {
       cy = cytoscape({
         container: graphRef.current,
         elements,
-        layout: elkLayoutOpts,
+        layout: chosenLayout,
         style: buildStyles(model.groups, model.theme, themeMode),
         minZoom: 0.3,
         maxZoom: 3,
@@ -4495,7 +4678,9 @@ export function App() {
           if (state.pan === undefined) {
             cy.center(target);
           }
-          const node = modelNonNull.nodes.find(n => n.id === state.entity);
+          const node = state.entity !== undefined
+            ? modelIndexRef.current?.nodeById.get(state.entity)
+            : undefined;
           if (node) {
             setSelected(node);
             setShowEntityModal(true);
@@ -4505,33 +4690,76 @@ export function App() {
       }
     }
 
-    const layoutStore = createLayoutStore();
     cy.one('layoutstop', () => {
-      // Restore saved positions (if any) BEFORE fitting, so the fit centers on
-      // the user-arranged layout. All-or-nothing: key match → restore all; miss → ELK stands.
-      const savedKey = layoutKeyRef.current;
-      const saved = savedKey ? layoutStore.load(savedKey) : null;
-      if (saved) {
-        for (const [id, pos] of Object.entries(saved)) {
-          const node = cy.$id(id);
-          // Skip compound parents (subtype-cluster boxes): setting a parent's
-          // position translates its children, displacing them from their own
-          // saved absolute positions. Restore children only; the parent's
-          // bounding box recomputes around them.
-          if (!node.empty() && !node.isParent()) node.position(pos);
+      if (preloadedSaved) {
+        // Preset path: ELK never ran. Apply saved positions now (nodes are at
+        // origin from the preset layout placeholder). The same applySavedPositions
+        // helper is reused here and will be reused again by the CP6 worker path.
+        applySavedPositions(cy, preloadedSaved);
+      } else {
+        // ELK path: check if positions were saved AFTER the ELK run completed
+        // (e.g. user dragged on a prior visit and the key matches). If so, restore
+        // them over ELK's result. If not, fall through to fit on ELK positions.
+        const savedKey = layoutKeyRef.current;
+        const saved = savedKey ? layoutStore.load(savedKey) : null;
+        if (saved) {
+          applySavedPositions(cy, saved);
+        } else if (layoutModeRef.current === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
+          // Organic initial layout (e.g. an SSE rebuild while toggled to organic):
+          // arrange clusters into fans and clear overlaps so it doesn't render messy.
+          // Skip when organic fell back to layered (large model) — arrangeOrganic is
+          // tuned for the stress layout's output and produces poor results on layered.
+          arrangeOrganic(cy, organicIters(entityCount));
         }
-      } else if (layoutModeRef.current === 'organic') {
-        // Organic initial layout (e.g. an SSE rebuild while toggled to organic):
-        // arrange clusters into fans and clear overlaps so it doesn't render messy.
-        arrangeOrganic(cy);
+
+        // Auto-save ELK-computed positions so the next page load takes the fast
+        // preset path instead of re-running ELK. Only save when a key is present
+        // and no prior save existed (to avoid overwriting user-dragged positions
+        // on an SSE-triggered layout re-run with no user intent to reset).
+        if (savedKey && !saved) {
+          const elkPositions: Record<string, { x: number; y: number }> = {};
+          cy.nodes().forEach((node) => {
+            if (node.isParent()) return;
+            const pos = node.position();
+            elkPositions[node.id()] = { x: pos.x, y: pos.y };
+          });
+          layoutStore.save(savedKey, elkPositions);
+        }
       }
 
       cy.fit(undefined, 30);
-      redrawMarkers();
+      // Re-apply the stylesheet after positions are settled. For large models
+      // the element texture cache can hold stale entries from the pre-layout
+      // (zero-position) state. cy.style() calls eles.updateStyle() which marks
+      // every element dirty and flushes the cache — the subsequent forceRender()
+      // then paints edges from scratch. Without this, the canvas renders a
+      // one-time blank frame (lines absent) and only recovers on the next
+      // viewport-driven repaint. This is the root cause of the "wipe" bug on
+      // large models; toggling theme (which calls cy.style()) was the accidental
+      // fix the user discovered.
+      cy.style(buildStyles(modelNonNull.groups, modelNonNull.theme, themeModeRef.current));
+      // Force a synchronous canvas paint so edge lines and endpoints are
+      // rendered before redrawMarkers reads renderedSourceEndpoint(). Without
+      // this, cy.fit() updates the internal viewport but the canvas hasn't
+      // painted yet — renderedSourceEndpoint() returns null/NaN and the
+      // crow's-foot SVG overlay draws nothing. forceRender() flushes the
+      // canvas synchronously; requestAnimationFrame defers the SVG pass to
+      // after the browser composite step so coordinates are stable.
+      cy.forceRender();
+      requestAnimationFrame(redrawMarkers);
 
       // Anchor 100% to this fit zoom so the readout is intuitive.
       zoomBaselineRef.current = cy.zoom();
       setZoomPercent(100);
+
+      // Perf marker: stamped once per layout cycle for the measurement harness.
+      // layoutMode distinguishes whether the fast preset path or ELK ran.
+      window.__IGNATIUS_PERF__ = {
+        layoutStopAt: performance.now(),
+        nodes: cy.nodes(':childless').length,
+        edges: cy.edges().length,
+        layoutMode: preloadedSaved ? 'preset' : 'elk',
+      };
 
       // Restore state from URL hash after layout settles (no race with ELK)
       const initialState = parseHash(location.hash);
@@ -4539,6 +4767,15 @@ export function App() {
         applyHashState(initialState);
       }
     });
+
+    // For the preset path the cytoscape constructor ran with 'null' (no layout)
+    // so nodes are placed at (0,0). Kick off the preset layout manually NOW,
+    // after the cy.one('layoutstop') handler is registered, so the handler fires.
+    // The preset layout fires layoutstop synchronously — the handler runs inline.
+    // The ELK path already started layout during construction (async); no-op here.
+    if (preloadedSaved) {
+      cy.layout({ name: 'preset', fit: false } satisfies cytoscape.LayoutOptions).run();
+    }
 
     cy.on('viewport', () => {
       redrawMarkers();
@@ -4591,7 +4828,7 @@ export function App() {
 
     cy.on('tap', 'node', (evt) => {
       const nodeId = evt.target.id();
-      const node = model.nodes.find(n => n.id === nodeId);
+      const node = modelIndexRef.current?.nodeById.get(nodeId);
       if (node) {
         setSelected(node);
         setShowEntityModal(true);
@@ -4622,7 +4859,9 @@ export function App() {
       const mode = layoutModeRef.current;
       const lo = cy.layout(buildLayoutOpts(mode));
       lo.one('layoutstop', () => {
-        if (mode === 'organic') arrangeOrganic(cy);
+        if (mode === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
+          arrangeOrganic(cy, organicIters(entityCount));
+        }
         cy.fit(undefined, 30);
         redrawMarkers();
         // Re-anchor zoom baseline after a fresh layout fit.
@@ -4641,7 +4880,10 @@ export function App() {
       lo.one('layoutstop', () => {
         // Organic layout stretches identifying edges and can collide nearby fans;
         // re-arrange clusters into tidy fans and clear overlaps before fitting.
-        if (mode === 'organic') arrangeOrganic(cy);
+        // Skip when organic fell back to layered (large model).
+        if (mode === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
+          arrangeOrganic(cy, organicIters(entityCount));
+        }
         cy.fit(undefined, 30);
         redrawMarkers();
         // Re-anchor zoom baseline after a layout mode switch.
@@ -4658,7 +4900,7 @@ export function App() {
       cy.elements().unselect();
       target.select();
       cy.center(target);
-      const node = modelNonNull.nodes.find(n => n.id === id);
+      const node = modelIndexRef.current?.nodeById.get(id);
       if (node) setSelected(node);
       scheduleHashWrite({ ...viewportState(), entity: id });
     };
@@ -4893,6 +5135,44 @@ export function App() {
     [flowDiagrams, model],
   );
 
+  // O(1) lookup maps over the current parsed model. Rebuilt whenever the model
+  // object changes (SSE refetch / static-mode initial load). Never serialized.
+  const modelIndex = useMemo(
+    () => (model ? buildModelIndex(model) : null),
+    [model],
+  );
+
+  // In static mode, liveOnly errors (e.g. example_unknown_column) must be hidden
+  // because those validations only run when the server has filesystem access.
+  // In live mode all entity errors are shown as-is.
+  // Hoisted once here so both SelectedEntityModal and FindingsPanel share the
+  // same filtered array without each doing an independent .filter() call.
+  const visibleEntityErrors = useMemo(
+    () =>
+      window.__IGNATIUS_MODE__ === 'static'
+        ? findings.entityErrors.filter(e => !RULES[e.ruleId]?.liveOnly)
+        : findings.entityErrors,
+    [findings.entityErrors],
+  );
+
+  // O(1) per-entity error lookup. Built over visibleEntityErrors so the modal
+  // receives only the errors it should display, scoped to the selected entity.
+  const appErrorsByEntityId = useMemo(() => {
+    const m = new Map<string, EntityError[]>();
+    for (const e of visibleEntityErrors) {
+      const existing = m.get(e.entityId);
+      if (existing !== undefined) {
+        existing.push(e);
+      } else {
+        m.set(e.entityId, [e]);
+      }
+    }
+    return m;
+  }, [visibleEntityErrors]);
+  // Keep the ref in sync so cy-init closures and early-declared functions always
+  // read the live index without re-running effects or causing stale-closure bugs.
+  modelIndexRef.current = modelIndex;
+
   const showBanner = !bannerDismissed && findings.globalErrors.length > 0;
   const isFlowSurface = view === 'flow';
   const isLiveMode = window.__IGNATIUS_MODE__ === 'live';
@@ -4933,6 +5213,7 @@ export function App() {
         <div style={{ display: view === 'dict' ? 'block' : 'none' }}>
           <DictionaryView
             model={model}
+            modelIndex={modelIndex}
             findings={findings}
             flowDiagrams={flowDiagrams}
             flowFindings={flowFindings}
@@ -5162,11 +5443,9 @@ export function App() {
         <SelectedEntityModal
           selected={selected}
           model={model}
-          entityErrors={
-            window.__IGNATIUS_MODE__ === 'static'
-              ? findings.entityErrors.filter(e => !RULES[e.ruleId]?.liveOnly)
-              : findings.entityErrors
-          }
+          nodeById={modelIndex?.nodeById}
+          nodeIdSet={modelIndex?.nodeIdSet}
+          entityErrors={appErrorsByEntityId.get(selected.id) ?? []}
           onClose={() => { setShowEntityModal(false); setEntityModalOpenedFromFlow(false); }}
           onNavigate={(id) => {
             if (entityModalOpenedFromFlow) {
@@ -5174,7 +5453,7 @@ export function App() {
               // Preserve the fromFlow flag so chained navigations stay in-place.
               openEntityById(id, true);
             } else {
-              const target = model?.nodes.find(n => n.id === id);
+              const target = modelIndexRef.current?.nodeById.get(id);
               if (target) {
                 setSelected(target);
                 navigateToEntity(id);
@@ -5223,13 +5502,7 @@ export function App() {
               ? [...findings.globalErrors, ...flowFindings.globalErrors]
               : findings.globalErrors
         }
-        entityErrors={
-          view === 'flow'
-            ? []
-            : window.__IGNATIUS_MODE__ === 'static'
-              ? findings.entityErrors.filter(e => !RULES[e.ruleId]?.liveOnly)
-              : findings.entityErrors
-        }
+        entityErrors={view === 'flow' ? [] : visibleEntityErrors}
         flowErrors={view === 'flow' || view === 'dict' ? flowFindings.flowErrors : undefined}
         collapsed={panelCollapsed}
         onCollapse={() => setPanelCollapsed(true)}
