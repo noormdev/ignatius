@@ -43,9 +43,14 @@ Read the system; do not ask the user to retype what a file already states.
 
 Reconstruct the data model from the schema, in IDEF1X order:
 
-1. **Entities from tables.** One table → one candidate entity. A pure join table (only FKs in
-   its PK, no other meaningful columns) is an associative entity — note it; classification is
-   derived by the parser, never declared.
+1. **Entities from tables.** One table → one candidate entity, **named exactly as the source
+   names it** — `sales_orders` stays `sales_orders`, not `SalesOrder`. The entity id is
+   free-form (the parser enforces no casing) and it is what every relationship `target`,
+   `[[wiki-link]]`, and `db:` token must match, so a rename breaks the correspondence with the
+   real system. If the user wants convention-cased names, that is a rename *decision* surfaced
+   like any other anti-pattern (faithful first, better second) — never a silent cleanup. A pure
+   join table (only FKs in its PK, no other meaningful columns) is an associative entity — note
+   it; classification is derived by the parser, never declared.
 2. **Attributes from columns.** Carry name, type, and nullability. Nullability matters: a
    `NOT NULL` FK is a mandatory parent; a nullable FK is optional — this is the existence rule
    the ER must preserve (see `references/entity-flow.md` E9).

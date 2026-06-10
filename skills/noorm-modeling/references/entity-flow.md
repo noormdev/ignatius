@@ -9,7 +9,9 @@ If multiple `ignatius.yml` roots exist, ask which one.
 
 ### Step E1 — Entity id
 
-Ask: "Entity name (PascalCase, becomes the file name)?"
+Ask: "Entity name (becomes the file name and the id used in relationships, wiki-links, and `db:` tokens)?"
+
+The id is free-form — the parser enforces no casing. PascalCase (`SalesOrder`) is the greenfield convention; suggest it for new models, but match the prevailing style when the model already has one. When entities come from an existing system (reverse-engineering), keep the source's names verbatim — `sales_orders` stays `sales_orders`; renaming to convention is a user decision, never an automatic cleanup.
 
 ### Step E2 — Group
 
@@ -82,7 +84,7 @@ Ask based on convention:
 Ask: "Does this entity reference any parent entities? (FK relationships)"
 
 If yes, for each relationship collect:
-1. `target` — parent entity name (PascalCase)
+1. `target` — parent entity id, matched exactly (case-sensitive)
 2. `on` mapping — `{ child_col: parent_col }` pairs
 3. `predicate` — the relationship in the language of the business. Ask for both readings:
    > "How would a domain expert describe this link, in both directions? Forward, parent → child (e.g. Party **makes payments using** PaymentMethod); reverse, child → parent (e.g. PaymentMethod **is used for payments by** Party)."
@@ -228,7 +230,7 @@ Ask, in order, capturing whatever the user offers (skip a prompt only if they ha
 
 Write what you gather into the entity body under clear headings (see the template). Capture the **source and reasoning**, not just the rule. If the user truly has nothing beyond a name, write a one-sentence purpose and move on — but ask first.
 
-**Link to other entities.** When the body names another entity, write it as a wiki-link so it becomes navigable: `[[Party]]`, or `[[PaymentMethod|payment method]]` to show different text. In the viewer the link opens that entity's modal; in the dict it jumps to its section. The target must match an entity id exactly (PascalCase) — a link to a non-existent entity renders muted and trips `body.unknown_link`, so only link to entities that exist (or will, by the end of the model).
+**Link to other entities.** When the body names another entity, write it as a wiki-link so it becomes navigable: `[[Party]]`, or `[[PaymentMethod|payment method]]` to show different text. In the viewer the link opens that entity's modal; in the dict it jumps to its section. The target must match an entity id exactly (case-sensitive) — a link to a non-existent entity renders muted and trips `body.unknown_link`, so only link to entities that exist (or will, by the end of the model).
 
 ### Step E10 — Write the file
 
