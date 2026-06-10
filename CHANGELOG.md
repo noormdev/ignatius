@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.8.0](https://github.com/noormdev/ignatius/compare/v0.7.0...v0.8.0) (2026-06-10)
+
+
+### Features
+
+* **skill:** adapt to the user's conventions instead of inventing defaults ([3afd0c4](https://github.com/noormdev/ignatius/commit/3afd0c40409f126747e3f2050f25824f0016caac))
+
+
+### Bug Fixes
+
+* **skill:** correct theme/branding teaching in model mode (M4/M5) ([1168bf4](https://github.com/noormdev/ignatius/commit/1168bf449084707be7d25f7a2be9e3e98fa14de5))
+* **skill:** entity ids are free-form — PascalCase is a suggestion, not a rule ([641e676](https://github.com/noormdev/ignatius/commit/641e676ca1b196c0ab324269f4bf7a54abf2de78))
+* **skill:** teach [[wiki-link]] body links by example, forbid markdown .md links ([bb5d4b8](https://github.com/noormdev/ignatius/commit/bb5d4b87d0fc21c5266b825d357c2a1c1680deb5))
+
+
+### Performance Improvements
+
+* **graph:** render large models at scale — ELK avoidance + O(1) indexes ([99efe8b](https://github.com/noormdev/ignatius/commit/99efe8b47790437a54e811cba7b2739317e68287))
+
 ## [0.7.0](https://github.com/noormdev/ignatius/compare/v0.6.0...v0.7.0) (2026-06-09)
 
 
