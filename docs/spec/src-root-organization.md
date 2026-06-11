@@ -78,3 +78,5 @@ Built across 6 iterations of /subagent-implementation on branch `app-tsx-decompo
 - none — sole ledger item (F-1 stale comment) fixed in R6.
 
 **Squashed to b2c3342 — 2026-06-11.** Per-iteration SHAs above are historical (unreachable from any branch).
+
+**Merged into main as a338655 — 2026-06-11.**
