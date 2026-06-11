@@ -5,7 +5,7 @@ import type { LayoutMode } from '../../views/graph/GraphView';
 
 export interface FabMenuProps {
   view: ViewName;
-  isLiveMode: boolean;
+  hasFlows: boolean;
   groupEntries: [string, GroupConfig][];
   layoutMode: LayoutMode;
   minimapOpen: boolean;
@@ -20,7 +20,7 @@ export interface FabMenuProps {
 
 export function FabMenu({
   view,
-  isLiveMode,
+  hasFlows,
   groupEntries,
   layoutMode,
   minimapOpen,
@@ -115,7 +115,7 @@ export function FabMenu({
               Dictionary
             </button>
           )}
-          {view !== 'flow' && isLiveMode && (
+          {view !== 'flow' && hasFlows && (
             <button
               className="fab-menu-item"
               role="menuitem"

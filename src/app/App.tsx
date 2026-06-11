@@ -236,7 +236,6 @@ export function App() {
 
   const showBanner = !bannerDismissed && findings.globalErrors.length > 0;
   const isFlowSurface = view === 'flow';
-  const isLiveMode = window.__IGNATIUS_MODE__ === 'live';
 
   return (
     <div className="app">
@@ -368,7 +367,7 @@ export function App() {
       </button>
       <FabMenu
         view={view}
-        isLiveMode={isLiveMode}
+        hasFlows={(flowDiagrams?.length ?? 0) > 0}
         groupEntries={groupEntries}
         layoutMode={layoutMode}
         minimapOpen={minimapOpen}
