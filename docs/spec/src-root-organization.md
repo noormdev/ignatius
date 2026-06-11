@@ -76,3 +76,5 @@ Built across 6 iterations of /subagent-implementation on branch `app-tsx-decompo
 
 **Deferred items still open:**
 - none — sole ledger item (F-1 stale comment) fixed in R6.
+
+**Squashed to b2c3342 — 2026-06-11.** Per-iteration SHAs above are historical (unreachable from any branch).

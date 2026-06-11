@@ -240,3 +240,5 @@ Built across 19 iterations of /subagent-implementation on branch `app-tsx-decomp
 
 **Deferred items still open:**
 - none — all 8 FOLLOWUPS ledger items fixed or closed in-branch (F-1, F-3..F-8 fixed; F-4 resolved as optional-prop).
+
+**Squashed to b2c3342 — 2026-06-11.** Per-iteration SHAs above are historical (unreachable from any branch).
