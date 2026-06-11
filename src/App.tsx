@@ -5175,7 +5175,6 @@ export function App() {
 
   const showBanner = !bannerDismissed && findings.globalErrors.length > 0;
   const isFlowSurface = view === 'flow';
-  const isLiveMode = window.__IGNATIUS_MODE__ === 'live';
   // Callbacks wired to the imperative drill handlers registered via chromeCallbacks.onRegisterHandlers.
   function handleFlowDrillUp(idx: number) {
     flowDrillUpRef.current?.(idx);
@@ -5328,7 +5327,7 @@ export function App() {
               Dictionary
             </button>
           )}
-          {view !== 'flow' && isLiveMode && (
+          {view !== 'flow' && (flowDiagrams?.length ?? 0) > 0 && (
             <button
               className="fab-menu-item"
               role="menuitem"
