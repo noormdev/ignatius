@@ -39,8 +39,8 @@ No linter or formatter configured in package.json.
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 38863 | 169 | 68% |
-| Markdown | 14502 | 199 | 25% |
+| TypeScript | 39242 | 207 | 67% |
+| Markdown | 15036 | 203 | 46% |
 | CSS | 2161 | 2 | 3% |
 | YAML | 1324 | 12 | 2% |
 | Shell | 116 | 1 | 0% |
@@ -299,6 +299,8 @@ Coupling: references [`docs/spec/noorm-modeling-skill.md`](../../docs/spec/noorm
 
 ### docs
 
+[`docs/design/app-tsx-decomposition.md`](../../docs/design/app-tsx-decomposition.md) (142L) — design doc for the `src/App.tsx` → [`src/app/`](../../src/app) decomposition: motivation, layer map, migration strategy, and file layout.
+[`docs/design/src-root-organization.md`](../../docs/design/src-root-organization.md) (49L) — design doc for the [`src/`](../../src) top-level subdirectory split (app/, cli/, flows/, model/, server/, theme/, flow-view/, generators/, types/).
 [`docs/design/bidirectional-predicates.md`](../../docs/design/bidirectional-predicates.md) — design doc for the bidirectional predicate feature.
 [`docs/design/cli-and-outputs.md`](../../docs/design/cli-and-outputs.md) — design doc for CLI modes and static output approach.
 [`docs/design/markdown-driven-erd.md`](../../docs/design/markdown-driven-erd.md) — design doc for markdown-driven entity file format.
@@ -312,6 +314,8 @@ Coupling: references [`docs/spec/noorm-modeling-skill.md`](../../docs/spec/noorm
 [`docs/design/wiki-entity-links.md`](../../docs/design/wiki-entity-links.md) (59L) — design doc for wiki-style `[[Entity]]` body links.
 [`docs/design/process-flows.md`](../../docs/design/process-flows.md) (207L) — design doc for SSADM DFD subsystem.
 [`docs/design/unified-app.md`](../../docs/design/unified-app.md) (152L) — design doc for unified SPA collapse (Graph + Dictionary + Flows in one app; `export` replaces `dict`/`graph`/`flow`).
+[`docs/spec/app-tsx-decomposition.md`](../../docs/spec/app-tsx-decomposition.md) (244L) — implementation contract for the App.tsx decomposition: layer rules, module boundaries, component file list, and import direction constraints.
+[`docs/spec/src-root-organization.md`](../../docs/spec/src-root-organization.md) (80L) — implementation contract for the [`src/`](../../src) directory split: canonical subdirectory → module mapping, cross-domain import rules.
 [`docs/spec/cli-and-outputs.md`](../../docs/spec/cli-and-outputs.md) — implementation contract for CLI output modes and theme system.
 [`docs/spec/branding.md`](../../docs/spec/branding.md) — implementation contract for branding.
 [`docs/spec/dict-navigation.md`](../../docs/spec/dict-navigation.md) — implementation contract for dict side nav.

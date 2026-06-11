@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-06-11T13:14:19Z
+generated_at: 2026-06-11T15:52:44Z
 atomic_version: 4.2.0
 ---
 # Deterministic signals
@@ -48,7 +48,7 @@ atomic_version: 4.2.0
 │   ├── research/ (1)
 │   │   └── ssadm-dfd-rules.md (7d83a02, 118L, 8356ch, 8460B)
 │   ├── spec/ (23)
-│   │   ├── app-tsx-decomposition.md (5f7191b, 242L, 21321ch, 22087B)
+│   │   ├── app-tsx-decomposition.md (51ed9a3, 244L, 21431ch, 22199B)
 │   │   ├── bidirectional-predicates.md (e6355c0, 157L, 7664ch, 7712B)
 │   │   ├── branding.md (bd50adc, 102L, 8976ch, 9031B)
 │   │   ├── cli-and-outputs.md (5cb56d9, 133L, 12077ch, 12154B)
@@ -66,7 +66,7 @@ atomic_version: 4.2.0
 │   │   ├── process-flows.md (930ea21, 682L, 82332ch, 82890B)
 │   │   ├── render-perf-indexing.md (81d5c58, 202L, 14691ch, 14869B)
 │   │   ├── schema-lint-and-error-ux.md (6a3d652, 141L, 20922ch, 20995B)
-│   │   ├── src-root-organization.md (7852868, 54L, 4765ch, 4793B)
+│   │   ├── src-root-organization.md (6ab1dcc, 80L, 6248ch, 6314B)
 │   │   ├── unified-app-polish.md (bcecad9, 194L, 20163ch, 20284B)
 │   │   ├── unified-app.md (02a3bda, 216L, 29279ch, 29469B)
 │   │   ├── viewer-fab-ux.md (9a889a1, 101L, 8717ch, 8759B)
@@ -469,7 +469,7 @@ atomic_version: 4.2.0
 ## Languages
 
 - TypeScript: 39242 LOC (67%), 207 files (47%)
-- Markdown: 15008 LOC (25%), 203 files (46%)
+- Markdown: 15036 LOC (25%), 203 files (46%)
 - CSS: 2161 LOC (3%), 2 files (0%)
 - YAML: 1324 LOC (2%), 12 files (2%)
 - Shell: 116 LOC (0%), 1 file (0%)
