@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/noormdev/ignatius/compare/v0.8.0...v0.8.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* **frontend:** show Data Flows menu item in static exports ([98844cd](https://github.com/noormdev/ignatius/commit/98844cd2f624d1b92f2beefe7935dbf428a92b6a))
+
 ## [0.8.0](https://github.com/noormdev/ignatius/compare/v0.7.0...v0.8.0) (2026-06-10)
 
 
