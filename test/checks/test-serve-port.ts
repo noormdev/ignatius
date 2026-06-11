@@ -8,7 +8,7 @@
  * the compiled binary in test-cli-binary.ts; here we test the pure-ish helpers.
  */
 
-import { findAvailablePort, isAddrInUse } from '../../src/serve-port';
+import { findAvailablePort, isAddrInUse } from '../../src/cli/serve-port';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

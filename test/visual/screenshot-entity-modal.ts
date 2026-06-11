@@ -18,7 +18,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync, writeFileSync } from 'fs';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const FIXTURE = join(ROOT, 'tmp', 'cp4-fixture');

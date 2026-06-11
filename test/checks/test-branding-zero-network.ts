@@ -14,7 +14,7 @@
  * CP8b: generateDict is deleted (serve no longer generates static dict HTML).
  * Only the `export` output is verified here; the binary section uses `export`.
  */
-import { parseModels } from '../../src/parse';
+import { parseModels } from '../../src/model/parse';
 import { generateApp } from '../../src/generators/app';
 import { loadBundleFromDir } from '../../src/generators/embedded-bundle';
 import { chromium } from 'playwright';

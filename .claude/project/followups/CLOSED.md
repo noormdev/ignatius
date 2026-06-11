@@ -14,3 +14,4 @@
 - 2026-05-30 ignatius-authoring-skill — "Author a Claude skill for using ignatius (markdown-driven ERD authoring)" — *(closed 2026-05-30)*
 - 2026-05-30 bidirectional-edge-predicates — "Forward/reverse predicates flowing parent→child, swap on hover" — *(closed 2026-05-30)*
 - 2026-05-31 github-repo-setup-noormdev — "Push to GitHub as noormdev/ignatius + replace README URL placeholders" — *(closed 2026-05-31)*
+- 2026-06-10 app-tsx-decomposition — "Decompose App.tsx — 5300+ lines hosting all three views" — *(closed 2026-06-10)*

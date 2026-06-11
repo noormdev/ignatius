@@ -33,10 +33,10 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { buildFlowData } from './flow-layout';
-import type { FlowDiagram } from '../flow-parse';
+import type { FlowDiagram } from '../flows/flow-parse';
 import type { NodePos, FlowElementData } from './flow-layout';
-import type { PositionMap } from '../layout-store';
-import type { FlowKindEntry, FlowKindKey } from '../theme-defaults';
+import type { PositionMap } from '../app/views/graph/layout-store';
+import type { FlowKindEntry, FlowKindKey } from '../theme/theme-defaults';
 
 // ── Visual palettes — theme-aware ─────────────────────────────────────────────
 

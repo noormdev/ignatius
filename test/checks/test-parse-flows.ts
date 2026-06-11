@@ -9,8 +9,8 @@
  *  - Entity-file exclusion: no flow process file appears as a ModelNode in parseModels
  */
 
-import { parseFlows } from '../../src/flow-parse';
-import { parseModels } from '../../src/parse';
+import { parseFlows } from '../../src/flows/flow-parse';
+import { parseModels } from '../../src/model/parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {

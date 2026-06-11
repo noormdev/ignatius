@@ -61,7 +61,7 @@ if (!bundleExists) {
 
 async function runExport(modelPath: string, outFile: string): Promise<{ exitCode: number; stderr: string }> {
     const proc = Bun.spawn(
-        ['bun', join(ROOT, 'src/cli.ts'), 'export', modelPath, '-o', outFile],
+        ['bun', join(ROOT, 'src/cli/cli.ts'), 'export', modelPath, '-o', outFile],
         { stdout: 'pipe', stderr: 'pipe' },
     );
     const timer = setTimeout(() => proc.kill(), 60_000);
@@ -175,7 +175,7 @@ async function runExport(modelPath: string, outFile: string): Promise<{ exitCode
 {
     const { exitCode, stderr } = await (async () => {
         const proc = Bun.spawn(
-            ['bun', join(ROOT, 'src/cli.ts'), 'export', KEY_INHERITED],
+            ['bun', join(ROOT, 'src/cli/cli.ts'), 'export', KEY_INHERITED],
             { stdout: 'pipe', stderr: 'pipe' },
         );
         const timer = setTimeout(() => proc.kill(), 30_000);

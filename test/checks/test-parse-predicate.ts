@@ -11,7 +11,7 @@
  * Fixture written to tmp/test-parse-predicate/ and left in place (tmp/ is gitignored).
  */
 
-import { parseModels, normalizePredicate } from '../../src/parse';
+import { parseModels, normalizePredicate } from '../../src/model/parse';
 import { rmSync, mkdirSync, existsSync } from 'node:fs';
 
 const TMP = 'tmp/test-parse-predicate';

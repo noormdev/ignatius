@@ -8,8 +8,8 @@
  * Exports: assignStoreNumbers, buildFlowData, computeFlowLayout
  */
 
-import type { FlowDiagram } from '../flow-parse';
-import type { FlowKindKey } from '../theme-defaults';
+import type { FlowDiagram } from '../flows/flow-parse';
+import type { FlowKindKey } from '../theme/theme-defaults';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ function processColumnX(processes: FlowDiagram['processes']): Map<string, number
   return m;
 }
 
-import type { FlowStoreRef } from '../flow-parse';
+import type { FlowStoreRef } from '../flows/flow-parse';
 
 type ExtCopy = { id: string; role: 'src' | 'snk'; label: string; extId: string; extKind?: FlowStoreRef['kind']; procs: string[] };
 type ExternalRouting = {

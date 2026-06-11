@@ -15,8 +15,8 @@
  */
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { parseFlows } from '../../src/flow-parse';
-import type { FlowExternal, FlowProcess, FlowStoreRef } from '../../src/flow-parse';
+import { parseFlows } from '../../src/flows/flow-parse';
+import type { FlowExternal, FlowProcess, FlowStoreRef } from '../../src/flows/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {

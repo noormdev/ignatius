@@ -14,8 +14,8 @@
 
 import { resolve } from 'path';
 import { generateApp } from '../../src/generators/app';
-import type { Model } from '../../src/parse';
-import type { FlowModel } from '../../src/flow-parse';
+import type { Model } from '../../src/model/parse';
+import type { FlowModel } from '../../src/flows/flow-parse';
 import type { BundleContent } from '../../src/generators/embedded-bundle';
 
 const ROOT = resolve(import.meta.dir, '../..');

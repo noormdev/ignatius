@@ -1,5 +1,5 @@
 /**
- * test-layout-store.ts — unit tests for src/layout-store.ts.
+ * test-layout-store.ts — unit tests for src/app/views/graph/layout-store.ts.
  *
  * Uses an in-memory Map-backed StorageLike stub so no real localStorage is
  * needed. The store module is injected with it via createLayoutStore(storage).
@@ -12,8 +12,8 @@
  *   5. Clear removes one key's entry without touching others.
  */
 
-import { createLayoutStore } from '../../src/layout-store';
-import type { StorageLike, PositionMap } from '../../src/layout-store';
+import { createLayoutStore } from '../../src/app/views/graph/layout-store';
+import type { StorageLike, PositionMap } from '../../src/app/views/graph/layout-store';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

@@ -1,7 +1,7 @@
 // Verification: body.unknown_link fires for `[[…]]` body links whose target is
 // not an entity, and stays quiet when every target resolves. Model literals only.
-import { validateModel } from '../../src/validate';
-import type { Model, ModelNode } from '../../src/parse';
+import { validateModel } from '../../src/model/validate';
+import type { Model, ModelNode } from '../../src/model/parse';
 
 function baseNode(overrides: Partial<ModelNode> & { id: string }): ModelNode {
   return {

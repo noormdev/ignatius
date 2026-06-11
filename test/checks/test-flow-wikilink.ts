@@ -6,7 +6,7 @@
  * viewer resolves it at click time.
  */
 
-import { parseFlows } from '../../src/flow-parse';
+import { parseFlows } from '../../src/flows/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) { console.error('FAIL:', msg); process.exit(1); }

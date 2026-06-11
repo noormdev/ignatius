@@ -8,7 +8,7 @@
  * Fixture written to tmp/test-parse-examples/ and left in place (tmp/ is gitignored).
  */
 
-import { parseModels } from '../../src/parse';
+import { parseModels } from '../../src/model/parse';
 import { rmSync, mkdirSync, existsSync } from 'node:fs';
 
 const TMP = 'tmp/test-parse-examples';

@@ -9,7 +9,7 @@
  */
 
 import { resolve, join } from 'path';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
 

@@ -36,8 +36,8 @@ pass('generator exited 0');
 
 // ── Parse ─────────────────────────────────────────────────────────────────────
 
-const { parseModels } = await import('../../src/parse.ts');
-const { validateModel } = await import('../../src/validate.ts');
+const { parseModels } = await import('../../src/model/parse');
+const { validateModel } = await import('../../src/model/validate');
 
 const { model, globalErrors } = await parseModels(modelDir);
 pass(`parseModels: ${model.nodes.length} nodes, ${model.edges.length} edges`);

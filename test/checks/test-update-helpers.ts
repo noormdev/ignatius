@@ -15,7 +15,7 @@ import {
   parseTagFromLocation,
   assetForPlatform,
   parseChecksums,
-} from '../../src/update';
+} from '../../src/cli/update';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

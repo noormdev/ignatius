@@ -8,9 +8,9 @@
  *
  * CP8b: generateGraph is deleted; migrated to generateApp + fake BundleContent.
  */
-import { parseModels } from '../../src/parse';
+import { parseModels } from '../../src/model/parse';
 import { generateApp } from '../../src/generators/app';
-import { mergeBranding } from '../../src/branding-defaults';
+import { mergeBranding } from '../../src/theme/branding-defaults';
 import type { BundleContent } from '../../src/generators/embedded-bundle';
 import { chromium } from 'playwright';
 import { resolve } from 'node:path';

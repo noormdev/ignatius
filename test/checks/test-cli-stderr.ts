@@ -7,7 +7,7 @@
  * - Exit code 1 when GlobalErrors exist (broken-demo has 4 globals)
  * - Exit code 1 when GlobalErrors exist via malformed fixture
  *
- * WHY run via `bun src/cli.ts` not the binary: binary requires a prior
+ * WHY run via `bun src/cli/cli.ts` not the binary: binary requires a prior
  * build:cli; this test targets the source path for faster CI iteration.
  *
  * CP7: repointed from `dict`/`graph` to `export` (which writes ONE file and
@@ -25,7 +25,7 @@ mkdirSync(TMP, { recursive: true });
 const OUT = join(TMP, 'export-cli-stderr.html');
 
 async function run(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), ...args], {
+  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli/cli.ts'), ...args], {
     stdout: 'pipe',
     stderr: 'pipe',
   });

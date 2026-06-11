@@ -41,7 +41,7 @@ function assert(condition: boolean, label: string) {
 
 note(`Starting ignatius serve models/key-inherited on port ${PORT}…`);
 const proc = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', 'models/key-inherited', '--port', String(PORT)],
+  ['bun', 'src/cli/cli.ts', 'serve', 'models/key-inherited', '--port', String(PORT)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 

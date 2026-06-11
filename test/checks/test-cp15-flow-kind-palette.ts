@@ -10,8 +10,8 @@
  *  - `resolveFlowKindPalette(mode)` with no overrides returns defaultFlowKinds[mode].
  */
 
-import { resolveFlowKindPalette, mergeTheme, defaultFlowKinds } from '../../src/theme-defaults';
-import type { FlowKindKey } from '../../src/theme-defaults';
+import { resolveFlowKindPalette, mergeTheme, defaultFlowKinds } from '../../src/theme/theme-defaults';
+import type { FlowKindKey } from '../../src/theme/theme-defaults';
 
 const pass = (label: string) => console.log(`PASS: ${label}`);
 const fail = (label: string): never => { console.error(`FAIL: ${label}`); process.exit(1); };

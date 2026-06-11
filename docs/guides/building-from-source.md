@@ -14,7 +14,7 @@ That runs three stages in order:
 
 1. **Bundle** the React app (`build:bundle`).
 2. **Rename** the hashed output files to stable names so they can be embedded (`build:stable-names`).
-3. **Compile** `src/cli.ts` into `dist/ignatius`.
+3. **Compile** `src/cli/cli.ts` into `dist/ignatius`.
 
 The `serve` and `validate` subcommands work without a prior bundle build. `export` needs the embedded bundle, so build it first if you only ran `build:bundle`.
 
@@ -24,12 +24,12 @@ The `serve` and `validate` subcommands work without a prior bundle build. `expor
 
 | Path | Contents |
 |---|---|
-| `src/cli.ts` | Argument parsing and subcommand dispatch (built on citty) |
-| `src/discover.ts` | Pure model-root resolver for the `[path]` discovery rules |
-| `src/server.ts` | The `serve` server with live reload over SSE |
-| `src/parse.ts` | Reads the folder, parses frontmatter, derives the model |
-| `src/validate.ts` | Pure linter: rules, severities, and the cleaned model |
-| `src/App.tsx` | The React SPA: Graph, Dictionary, and Flows views; findings panel; theme toggle |
+| `src/cli/cli.ts` | Argument parsing and subcommand dispatch (built on citty) |
+| `src/cli/discover.ts` | Pure model-root resolver for the `[path]` discovery rules |
+| `src/server/server.ts` | The `serve` server with live reload over SSE |
+| `src/model/parse.ts` | Reads the folder, parses frontmatter, derives the model |
+| `src/model/validate.ts` | Pure linter: rules, severities, and the cleaned model |
+| `src/app/App.tsx` | The React SPA: Graph, Dictionary, and Flows views; findings panel; theme toggle |
 | `src/generators/` | Static output for `export` |
 | `models/` | Reference schemas used as the default folder |
 | `docs/design/` | Design documents for the format and the CLI |

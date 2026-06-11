@@ -13,14 +13,14 @@
     "url": "https://github.com/noormdev/ignatius/issues"
   },
   "scripts": {
-    "dev": "bun --hot src/server.ts",
-    "dev:cli": "bun --hot src/cli.ts serve models/key-inherited",
-    "cli": "bun src/cli.ts",
-    "build": "bun build ./src/index.html --outdir=dist --sourcemap --target=browser --minify --define:process.env.NODE_ENV='\"production\"' --env='BUN_PUBLIC_*'",
-    "start": "NODE_ENV=production bun src/server.ts",
-    "build:bundle": "bun build src/index.html --outdir=dist/static --minify --target=browser --define:process.env.NODE_ENV='\"production\"'",
+    "dev": "bun --hot src/server/server.ts",
+    "dev:cli": "bun --hot src/cli/cli.ts serve models/key-inherited",
+    "cli": "bun src/cli/cli.ts",
+    "build": "bun build ./src/app/index.html --outdir=dist --sourcemap --target=browser --minify --define:process.env.NODE_ENV='\"production\"' --env='BUN_PUBLIC_*'",
+    "start": "NODE_ENV=production bun src/server/server.ts",
+    "build:bundle": "bun build src/app/index.html --outdir=dist/static --minify --target=browser --define:process.env.NODE_ENV='\"production\"'",
     "build:stable-names": "bun scripts/stable-names.ts",
-    "build:cli": "bun run build:bundle && bun run build:stable-names && bun build --compile src/cli.ts --outfile dist/ignatius",
+    "build:cli": "bun run build:bundle && bun run build:stable-names && bun build --compile src/cli/cli.ts --outfile dist/ignatius",
     "test": "for f in test/checks/*.ts; do echo \"=== $f ===\" && bun \"$f\" || exit 1; done",
     "typecheck": "bunx tsc --noEmit"
   },

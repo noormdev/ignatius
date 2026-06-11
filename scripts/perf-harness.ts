@@ -84,7 +84,7 @@ if (MODEL_ARG) {
 
 note('Measuring parse time…');
 
-const { parseModels } = await import('../src/parse.ts');
+const { parseModels } = await import('../src/model/parse');
 
 let lastParseMs = 0;
 for (let i = 0; i < Math.max(RUNS, 1); i++) {
@@ -99,7 +99,7 @@ const parseMs = Math.round(lastParseMs);
 note(`Starting ignatius serve ${modelDir} --port ${PORT}…`);
 
 const serverProc = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', modelDir, '--port', String(PORT)],
+  ['bun', 'src/cli/cli.ts', 'serve', modelDir, '--port', String(PORT)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 

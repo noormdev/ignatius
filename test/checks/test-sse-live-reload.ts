@@ -9,7 +9,7 @@
  * Run: bun test/test-sse-live-reload.ts
  */
 
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 import { resolve } from 'path';
 
 const PORT = 3299;

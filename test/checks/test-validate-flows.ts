@@ -12,13 +12,13 @@
  * - flow.duplicate_number fires on an authored sibling local-number collision.
  */
 
-import { parseFlows } from '../../src/flow-parse';
-import { validateFlows } from '../../src/flow-validate';
-import type { FlowError, FlowRulesConfig } from '../../src/flow-validate';
-import type { FlowModel, FlowDiagram, FlowEdge, FlowProcess, FlowExternal, FlowStoreRef } from '../../src/flow-parse';
-import type { Model, ModelNode } from '../../src/parse';
-import { defaultTheme } from '../../src/theme-defaults';
-import { defaultBranding } from '../../src/branding-defaults';
+import { parseFlows } from '../../src/flows/flow-parse';
+import { validateFlows } from '../../src/flows/flow-validate';
+import type { FlowError, FlowRulesConfig } from '../../src/flows/flow-validate';
+import type { FlowModel, FlowDiagram, FlowEdge, FlowProcess, FlowExternal, FlowStoreRef } from '../../src/flows/flow-parse';
+import type { Model, ModelNode } from '../../src/model/parse';
+import { defaultTheme } from '../../src/theme/theme-defaults';
+import { defaultBranding } from '../../src/theme/branding-defaults';
 
 // ---------------------------------------------------------------------------
 // Entity model helpers
@@ -298,7 +298,7 @@ for (const ruleId of parseableRules) {
 // ---------------------------------------------------------------------------
 
 {
-    const { RULES } = await import('../../src/validate');
+    const { RULES } = await import('../../src/model/validate');
     const flowRuleIds = [
         'flow.unknown_store',
         'flow.unknown_external',
@@ -340,7 +340,7 @@ for (const ruleId of parseableRules) {
 // ---------------------------------------------------------------------------
 
 {
-    const { formatFindingsForStderr } = await import('../../src/validate');
+    const { formatFindingsForStderr } = await import('../../src/model/validate');
 
     // Called with 2 args (existing callers) must still work
     const lines2 = formatFindingsForStderr([], []);

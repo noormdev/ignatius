@@ -16,8 +16,8 @@
  * - A bare name absent from all namespaces returns null.
  */
 
-import { resolveEndpoint } from '../../src/flow-parse';
-import type { EndpointContextPublic, FlowEndpoint } from '../../src/flow-parse';
+import { resolveEndpoint } from '../../src/flows/flow-parse';
+import type { EndpointContextPublic, FlowEndpoint } from '../../src/flows/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {

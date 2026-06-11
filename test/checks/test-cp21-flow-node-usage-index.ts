@@ -14,8 +14,8 @@
  *   - regression: buildEntityUsageIndex still returns bare entityId keys for db: endpoints
  */
 
-import { buildFlowNodeUsageIndex, buildEntityUsageIndex, type ProcessUsage } from '../../src/flow-usage-index';
-import type { FlowDiagram, FlowProcess, FlowEdge } from '../../src/flow-parse';
+import { buildFlowNodeUsageIndex, buildEntityUsageIndex, type ProcessUsage } from '../../src/flows/flow-usage-index';
+import type { FlowDiagram, FlowProcess, FlowEdge } from '../../src/flows/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

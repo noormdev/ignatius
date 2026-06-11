@@ -10,7 +10,7 @@
 
 import { chromium } from 'playwright';
 import { resolve } from 'path';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 
 const modelsDir = resolve(import.meta.dir, '../../models');
 const tmpDir = resolve(import.meta.dir, '../../tmp');

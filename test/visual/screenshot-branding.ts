@@ -8,7 +8,7 @@
 
 import { chromium } from 'playwright';
 import { resolve } from 'path';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 
 const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
 const brandingFile = resolve(modelsDir, '_branding.yaml');

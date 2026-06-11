@@ -43,7 +43,7 @@ const SERVER_URL = `http://localhost:${PORT}`;
 
 note(`Starting ignatius serve ${MODEL_DIR} --port ${PORT}…`);
 const proc = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', MODEL_DIR, '--port', String(PORT)],
+  ['bun', 'src/cli/cli.ts', 'serve', MODEL_DIR, '--port', String(PORT)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 

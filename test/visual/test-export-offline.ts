@@ -47,7 +47,7 @@ if (!bundleExists) {
 
 note('Generating export file…');
 const exportProc = Bun.spawn(
-    ['bun', 'src/cli.ts', 'export', 'models/key-inherited', '-o', OUT],
+    ['bun', 'src/cli/cli.ts', 'export', 'models/key-inherited', '-o', OUT],
     { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 const timer = setTimeout(() => exportProc.kill(), 60_000);

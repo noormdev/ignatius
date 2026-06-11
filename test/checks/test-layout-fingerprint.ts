@@ -14,9 +14,9 @@
  *   - array ordering does NOT affect key (sort proven)
  */
 
-import { layoutFingerprint } from '../../src/layout-fingerprint';
-import type { Model, ModelNode, ModelEdge } from '../../src/parse';
-import { defaultTheme } from '../../src/theme-defaults';
+import { layoutFingerprint } from '../../src/model/layout-fingerprint';
+import type { Model, ModelNode, ModelEdge } from '../../src/model/parse';
+import { defaultTheme } from '../../src/theme/theme-defaults';
 
 // Hard assert: exits non-zero on failure so bun run test / CI gates on it.
 function assert(cond: boolean, msg: string): asserts cond {

@@ -6,7 +6,7 @@
  * splitting on hyphens, underscores, camelCase, acronym, and digit boundaries.
  */
 
-import { titlelize } from '../../src/titlelize';
+import { titlelize } from '../../src/flows/titlelize';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

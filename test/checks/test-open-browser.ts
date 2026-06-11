@@ -5,7 +5,7 @@
  * break browser launch on one platform.
  */
 
-import { browserOpenCommand } from '../../src/open-browser';
+import { browserOpenCommand } from '../../src/cli/open-browser';
 
 function assertEq(actual: string[], expected: string[], msg: string): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {

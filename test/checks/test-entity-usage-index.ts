@@ -10,8 +10,8 @@
  *   - entity with no usage → empty array / no key in the map
  */
 
-import { buildEntityUsageIndex, type ProcessUsage } from '../../src/flow-usage-index';
-import type { FlowDiagram, FlowProcess, FlowEdge } from '../../src/flow-parse';
+import { buildEntityUsageIndex, type ProcessUsage } from '../../src/flows/flow-usage-index';
+import type { FlowDiagram, FlowProcess, FlowEdge } from '../../src/flows/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

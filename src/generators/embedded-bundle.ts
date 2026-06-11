@@ -39,7 +39,7 @@ export type BundleContent = {
 /**
  * Load bundle content from a directory on disk.
  *
- * WHY: When running in development mode (bun src/cli.ts) the bundle lives in
+ * WHY: When running in development mode (bun src/cli/cli.ts) the bundle lives in
  * dist/static/ and we read it from disk. When running as a compiled binary the
  * caller passes the content directly via loadEmbeddedBundle().
  */
@@ -74,7 +74,7 @@ export async function loadBundleFromDir(bundleDir: string): Promise<BundleConten
     throw new Error(
       `Could not find bundled JS/CSS in ${bundleDir}/index.html. ` +
       `Expected src="[./]index-*.js" and href="[./]index-*.css". ` +
-      `Run: bun build src/index.html --outdir=dist/static --minify --target=browser\n` +
+      `Run: bun build src/app/index.html --outdir=dist/static --minify --target=browser\n` +
       `Bundle dir contents: ${dirContents.join(', ')}`,
     );
   }
@@ -88,7 +88,7 @@ export async function loadBundleFromDir(bundleDir: string): Promise<BundleConten
 /**
  * Read the embedded bundle assets at runtime.
  *
- * When running as a dev script (bun src/cli.ts), these are real paths on disk.
+ * When running as a dev script (bun src/cli/cli.ts), these are real paths on disk.
  * When running as a compiled binary, Bun rewrites them to $bunfs/ paths with the
  * content baked in — so Bun.file().text() still works, no external files needed.
  */

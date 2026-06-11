@@ -15,7 +15,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODELS = join(ROOT, 'models');
@@ -92,7 +92,7 @@ if (!bundleExists) {
   console.log('Run: bun run build:bundle first');
 } else {
   const OUT = join(TMP, 'graph-cp5-visual.html');
-  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), 'graph', MODELS, '-o', OUT], {
+  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli/cli.ts'), 'graph', MODELS, '-o', OUT], {
     stdout: 'pipe',
     stderr: 'pipe',
   });

@@ -22,7 +22,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODELS = join(ROOT, 'models/broken-demo');
@@ -56,7 +56,7 @@ if (!bundleExists) {
   console.log('  SKIP  static-mode tests: dist/static/index.js not built (run bun run build:bundle)');
 } else {
   const OUT = join(TMP, 'export-cp5-check.html');
-  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), 'export', MODELS, '-o', OUT], {
+  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli/cli.ts'), 'export', MODELS, '-o', OUT], {
     stdout: 'pipe',
     stderr: 'pipe',
   });

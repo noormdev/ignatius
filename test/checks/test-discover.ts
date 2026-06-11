@@ -1,6 +1,6 @@
 // Verification: resolveModel() pure model-root discovery
 // Covers: base-is-root, container-many, walk-up, none, skip-list, --model select, --model no-match
-import { resolveModel } from '../../src/discover';
+import { resolveModel } from '../../src/cli/discover';
 import { resolve } from 'path';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 

@@ -29,7 +29,7 @@ const fail = (m: string): never => { console.error('FAIL:', m); process.exit(1);
 
 note('Starting ignatius serve models/key-inherited…');
 const proc = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', 'models/key-inherited', '--port', '7401'],
+  ['bun', 'src/cli/cli.ts', 'serve', 'models/key-inherited', '--port', '7401'],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 

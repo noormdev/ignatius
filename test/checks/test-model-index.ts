@@ -6,10 +6,10 @@
  * and validates the exported ModelIndex shape.
  */
 
-import { buildModelIndex, type ModelIndex } from '../../src/model-index';
-import type { Model, ModelNode, ModelEdge, SubtypeCluster, ColumnDef } from '../../src/parse';
-import { defaultTheme } from '../../src/theme-defaults';
-import type { Branding } from '../../src/branding-defaults';
+import { buildModelIndex, type ModelIndex } from '../../src/model/model-index';
+import type { Model, ModelNode, ModelEdge, SubtypeCluster, ColumnDef } from '../../src/model/parse';
+import { defaultTheme } from '../../src/theme/theme-defaults';
+import type { Branding } from '../../src/theme/branding-defaults';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

@@ -1,8 +1,8 @@
 // Verification: parseModels reads theme/branding/meta from ignatius.yml
 // Covers: (a) full ignatius.yml, (b) only name: in ignatius.yml, (c) no ignatius.yml
-import { parseModels } from '../../src/parse';
-import { defaultTheme } from '../../src/theme-defaults';
-import { defaultBranding } from '../../src/branding-defaults';
+import { parseModels } from '../../src/model/parse';
+import { defaultTheme } from '../../src/theme/theme-defaults';
+import { defaultBranding } from '../../src/theme/branding-defaults';
 import { resolve } from 'path';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 

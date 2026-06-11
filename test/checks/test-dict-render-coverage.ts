@@ -65,13 +65,13 @@ async function waitForServer(url: string, timeout = 12_000): Promise<boolean> {
 
 note(`Starting key-inherited server on port ${PORT_A}…`);
 const procA = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', 'models/key-inherited', '--port', String(PORT_A)],
+  ['bun', 'src/cli/cli.ts', 'serve', 'models/key-inherited', '--port', String(PORT_A)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 
 note(`Starting broken-demo server on port ${PORT_B}…`);
 const procB = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', 'models/broken-demo', '--port', String(PORT_B)],
+  ['bun', 'src/cli/cli.ts', 'serve', 'models/broken-demo', '--port', String(PORT_B)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 

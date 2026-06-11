@@ -20,10 +20,10 @@
  *       under ERD default — they never share bucket entries in the same storage.
  */
 
-import { layoutFlowFingerprint } from '../../src/flow-fingerprint';
-import { createLayoutStore } from '../../src/layout-store';
-import type { FlowDiagram, FlowProcess, FlowExternal, FlowStoreRef, FlowEdge, FlowEndpoint } from '../../src/flow-parse';
-import type { StorageLike, PositionMap } from '../../src/layout-store';
+import { layoutFlowFingerprint } from '../../src/flows/flow-fingerprint';
+import { createLayoutStore } from '../../src/app/views/graph/layout-store';
+import type { FlowDiagram, FlowProcess, FlowExternal, FlowStoreRef, FlowEdge, FlowEndpoint } from '../../src/flows/flow-parse';
+import type { StorageLike, PositionMap } from '../../src/app/views/graph/layout-store';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

@@ -47,7 +47,7 @@ const SERVER_URL = `http://localhost:${PORT}`;
 
 note(`Starting ignatius serve ${MODEL_DIR} --port ${PORT}…`);
 const proc = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', MODEL_DIR, '--port', String(PORT)],
+  ['bun', 'src/cli/cli.ts', 'serve', MODEL_DIR, '--port', String(PORT)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 
@@ -173,7 +173,7 @@ const PORT2 = 7703;
 
 note(`Starting small-model server (key-inherited) --port ${PORT2}…`);
 const proc2 = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', SMALL_MODEL, '--port', String(PORT2)],
+  ['bun', 'src/cli/cli.ts', 'serve', SMALL_MODEL, '--port', String(PORT2)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 const server2Ready = await waitForServer(`http://localhost:${PORT2}`, 20_000);

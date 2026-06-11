@@ -9,7 +9,7 @@
  * Run: bun test/checks/test-dict-route.ts
  */
 
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 import { resolve } from 'path';
 
 const PORT = 3298;

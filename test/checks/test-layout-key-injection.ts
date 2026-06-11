@@ -11,10 +11,10 @@
  */
 import { generateApp } from '../../src/generators/app';
 import type { BundleContent } from '../../src/generators/embedded-bundle';
-import { layoutFingerprint } from '../../src/layout-fingerprint';
-import { mergeTheme } from '../../src/theme-defaults';
-import { mergeBranding } from '../../src/branding-defaults';
-import type { Model } from '../../src/parse';
+import { layoutFingerprint } from '../../src/model/layout-fingerprint';
+import { mergeTheme } from '../../src/theme/theme-defaults';
+import { mergeBranding } from '../../src/theme/branding-defaults';
+import type { Model } from '../../src/model/parse';
 
 let failures = 0;
 

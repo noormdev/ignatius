@@ -12,7 +12,7 @@
  * directly on synthetic in-memory inputs — the live fixture has no such entries.
  */
 
-import { parseFlows, parseProcessExamples } from '../../src/flow-parse';
+import { parseFlows, parseProcessExamples } from '../../src/flows/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {

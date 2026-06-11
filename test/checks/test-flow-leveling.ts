@@ -13,20 +13,20 @@
  * Fixture: test/fixtures/flows-leveling/ (3 levels: auth→Authenticate→Login).
  */
 
-import { parseFlows } from '../../src/flow-parse';
-import { parseModels } from '../../src/parse';
-import { validateFlows } from '../../src/flow-validate';
-import type { FlowError } from '../../src/flow-validate';
+import { parseFlows } from '../../src/flows/flow-parse';
+import { parseModels } from '../../src/model/parse';
+import { validateFlows } from '../../src/flows/flow-validate';
+import type { FlowError } from '../../src/flows/flow-validate';
 import type {
     FlowModel,
     FlowDiagram,
     FlowEdge,
     FlowProcess,
     FlowStoreRef,
-} from '../../src/flow-parse';
-import type { Model, ModelNode } from '../../src/parse';
-import { defaultTheme } from '../../src/theme-defaults';
-import { defaultBranding } from '../../src/branding-defaults';
+} from '../../src/flows/flow-parse';
+import type { Model, ModelNode } from '../../src/model/parse';
+import { defaultTheme } from '../../src/theme/theme-defaults';
+import { defaultBranding } from '../../src/theme/branding-defaults';
 
 // ---------------------------------------------------------------------------
 // Helpers

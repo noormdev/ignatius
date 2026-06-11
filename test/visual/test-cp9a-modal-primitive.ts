@@ -45,7 +45,7 @@ const fail = (m: string): never => {
 
 note(`Starting ignatius serve ${FIXTURE} on port ${PORT}…`);
 const proc = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', FIXTURE, '--port', String(PORT)],
+  ['bun', 'src/cli/cli.ts', 'serve', FIXTURE, '--port', String(PORT)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 

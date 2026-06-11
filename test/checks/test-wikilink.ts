@@ -7,7 +7,7 @@
  */
 
 import MarkdownIt from 'markdown-it';
-import { wikiLinkPlugin, splitWikiTarget, type WikiLinkEnv } from '../../src/wikilink';
+import { wikiLinkPlugin, splitWikiTarget, type WikiLinkEnv } from '../../src/model/wikilink';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

@@ -19,7 +19,7 @@
  */
 
 import { useState, useImperativeHandle, forwardRef, useRef } from 'react';
-import type { FlowDiagram } from '../flow-parse';
+import type { FlowDiagram } from '../flows/flow-parse';
 import type { MinimapData } from './FlowDiagramSvg';
 import { DARK_PALETTE, LIGHT_PALETTE } from './FlowDiagramSvg';
 

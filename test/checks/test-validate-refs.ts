@@ -2,8 +2,8 @@
 // Positive (violation present) + negative (no violation) per rule.
 // Also verifies cleanedModel Class B stripping for edge.unknown_target and cluster.missing_basetype.
 // No fixture files — Model literals only.
-import { validateModel, RULES } from '../../src/validate';
-import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../../src/parse';
+import { validateModel, RULES } from '../../src/model/validate';
+import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../../src/model/parse';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -325,7 +325,7 @@ function hasGlobalError(result: ReturnType<typeof validateModel>, ruleId: string
 // produce zero findings.
 // ---------------------------------------------------------------------------
 
-import { parseModels } from '../../src/parse';
+import { parseModels } from '../../src/model/parse';
 
 {
     const { model, globalErrors: parseGlobals } = await parseModels('models/key-inherited');

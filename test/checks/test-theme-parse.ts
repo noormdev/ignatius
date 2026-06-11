@@ -1,7 +1,7 @@
 // Verification: parseModels returns theme field, merges with defaults correctly
 // Config is now loaded from ignatius.yml (not _theme.yaml).
-import { parseModels } from '../../src/parse';
-import { defaultTheme } from '../../src/theme-defaults';
+import { parseModels } from '../../src/model/parse';
+import { defaultTheme } from '../../src/theme/theme-defaults';
 import { resolve } from 'path';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 

@@ -1,5 +1,5 @@
 // Verification: hash-router parse + serialize round-trips
-import { parseHash, serializeHash } from '../../src/hash-router';
+import { parseHash, serializeHash } from '../../src/app/hash-router';
 
 let passed = 0;
 let failed = 0;

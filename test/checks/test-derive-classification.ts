@@ -6,7 +6,7 @@
  * This ensures the test survives CP-2 when hand-authored fields are stripped.
  */
 
-import { parseModels } from '../../src/parse';
+import { parseModels } from '../../src/model/parse';
 
 const { model } = await parseModels('models/key-inherited');
 

@@ -7,7 +7,7 @@
  * - Broken model (broken-demo) → exit 1, same 4 errors + 8 warnings as dict/graph.
  * - Findings print to stderr in the shared "<severity>  <ruleId>  <location>  <message>" format.
  *
- * WHY run via `bun src/cli.ts` not the binary: faster CI iteration, no prior build:cli.
+ * WHY run via `bun src/cli/cli.ts` not the binary: faster CI iteration, no prior build:cli.
  */
 
 import { join, resolve } from 'path';
@@ -17,7 +17,7 @@ const CLEAN = join(ROOT, 'models/key-inherited');
 const BROKEN = join(ROOT, 'models/broken-demo');
 
 async function run(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), ...args], {
+  const proc = Bun.spawn(['bun', join(ROOT, 'src/cli/cli.ts'), ...args], {
     stdout: 'pipe',
     stderr: 'pipe',
   });

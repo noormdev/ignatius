@@ -6,8 +6,8 @@
  * shape of test-validate-entity.ts.
  */
 
-import { validateModel, formatFindingsForStderr, RULES } from '../../src/validate';
-import type { Model, ModelNode, ModelEdge } from '../../src/parse';
+import { validateModel, formatFindingsForStderr, RULES } from '../../src/model/validate';
+import type { Model, ModelNode, ModelEdge } from '../../src/model/parse';
 
 // ---------------------------------------------------------------------------
 // Helpers (mirror test-validate-entity.ts)

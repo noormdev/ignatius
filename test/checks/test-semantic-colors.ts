@@ -4,7 +4,7 @@
  * buildThemeCssVars was removed along with src/generators/theme-css.ts (orphaned after
  * the unified-app rework; the SPA applies theme at runtime via applyThemeCssVars).
  */
-import { semanticColors } from '../../src/theme-defaults';
+import { semanticColors } from '../../src/theme/theme-defaults';
 
 let failures = 0;
 

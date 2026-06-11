@@ -2,7 +2,7 @@
  * Tests for build-time mode flag injection (CP-4 / CP7).
  *
  * Verifies:
- * - dist/static/index.html contains window.__IGNATIUS_MODE__ = 'live' (from src/index.html)
+ * - dist/static/index.html contains window.__IGNATIUS_MODE__ = 'live' (from src/app/index.html)
  * - A generated static export HTML contains window.__IGNATIUS_MODE__ = "static"
  * - "static" appears AFTER any "live" line in the generated export (so 'static' wins)
  * - The live server's / route responds with HTML that contains window.__IGNATIUS_MODE__ = 'live'
@@ -16,7 +16,7 @@
 
 import { join, resolve } from 'path';
 import { mkdirSync } from 'fs';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODELS = join(ROOT, 'models/key-inherited');
@@ -35,7 +35,7 @@ function assert(condition: boolean, label: string, detail?: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Test 1: dist/static/index.html contains 'live' flag (from src/index.html)
+// Test 1: dist/static/index.html contains 'live' flag (from src/app/index.html)
 // ---------------------------------------------------------------------------
 
 {
@@ -67,7 +67,7 @@ function assert(condition: boolean, label: string, detail?: string): void {
     console.log('  SKIP  export mode-flag test: dist/static/index.js not built');
   } else {
     const OUT = join(TMP, 'export-mode.html');
-    const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), 'export', MODELS, '-o', OUT], {
+    const proc = Bun.spawn(['bun', join(ROOT, 'src/cli/cli.ts'), 'export', MODELS, '-o', OUT], {
       stdout: 'pipe',
       stderr: 'pipe',
     });

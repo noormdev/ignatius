@@ -1,7 +1,7 @@
 // Verification: parseModels returns branding field, merges with defaults correctly
 // Config is now loaded from ignatius.yml (not _branding.yaml).
-import { parseModels } from '../../src/parse';
-import { defaultBranding } from '../../src/branding-defaults';
+import { parseModels } from '../../src/model/parse';
+import { defaultBranding } from '../../src/theme/branding-defaults';
 import { resolve } from 'path';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
 

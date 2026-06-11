@@ -1,8 +1,8 @@
 // Verification: validateModel fires correct ruleId for every Class A entity rule.
 // Positive case (violation present) + negative case (model satisfies the rule).
 // No fixture files — Model literals only.
-import { validateModel, RULES } from '../../src/validate';
-import type { Model, ModelNode, ModelEdge } from '../../src/parse';
+import { validateModel, RULES } from '../../src/model/validate';
+import type { Model, ModelNode, ModelEdge } from '../../src/model/parse';
 
 // ---------------------------------------------------------------------------
 // Helpers

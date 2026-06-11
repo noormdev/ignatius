@@ -6,7 +6,7 @@
 // Approach: build temporary fixture dirs under tmp/ (gitignored),
 // include one malformed file + one valid file per scenario,
 // assert globalErrors contains the expected ruleId and the bad file is absent from model.nodes.
-import { parseModels } from '../../src/parse';
+import { parseModels } from '../../src/model/parse';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';

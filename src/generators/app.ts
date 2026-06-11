@@ -21,10 +21,10 @@
  * SPA was unified.
  */
 
-import type { Model } from '../parse';
-import type { FlowModel } from '../flow-parse';
-import { layoutFingerprint } from '../layout-fingerprint';
-import { buildFlowLayoutKeys } from '../flow-fingerprint';
+import type { Model } from '../model/parse';
+import type { FlowModel } from '../flows/flow-parse';
+import { layoutFingerprint } from '../model/layout-fingerprint';
+import { buildFlowLayoutKeys } from '../flows/flow-fingerprint';
 import type { BundleContent } from './embedded-bundle';
 import { loadBundleFromDir } from './embedded-bundle';
 
@@ -111,7 +111,7 @@ export async function generateApp(
   );
 
   // Strip the body live-mode script so the injection's 'static' wins.
-  // dist/static/index.html retains the inline script from src/index.html that sets
+  // dist/static/index.html retains the inline script from src/app/index.html that sets
   // window.__IGNATIUS_MODE__ = 'live'. That runs AFTER the head injection, so we
   // must remove it. The pattern matches both the old form (mode only) and the new
   // form (mode + surface) for robustness across bundle rebuilds.

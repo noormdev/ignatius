@@ -73,7 +73,7 @@ note('Injected Ghost-Process.md referencing db:GhostEntity (absent entity)');
 
 note(`Starting ignatius serve ${FIXTURE_DST} on port ${PORT}…`);
 const proc = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', FIXTURE_DST, '--port', String(PORT)],
+  ['bun', 'src/cli/cli.ts', 'serve', FIXTURE_DST, '--port', String(PORT)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 

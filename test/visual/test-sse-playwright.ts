@@ -13,7 +13,7 @@
  */
 
 import { chromium } from 'playwright';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 import { resolve } from 'path';
 
 const PORT = 3298;

@@ -5,7 +5,7 @@
  * short names stay untouched — the behaviour that keeps graph nodes compact.
  */
 
-import { wrapEntityLabel } from '../../src/wrap-label';
+import { wrapEntityLabel } from '../../src/app/views/graph/wrap-label';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {

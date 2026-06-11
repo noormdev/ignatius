@@ -14,7 +14,7 @@ Decompose `src/App.tsx` (5514 lines) into a layered `src/app/` tree with a stric
 
 ## Success criteria
 
-1. `bun run typecheck` exits 0 after every checkpoint.
+1. `bun run typecheck` introduces no new errors after any checkpoint. Baseline: 434 pre-existing errors at branch point `b919b37` (115 in `src/App.tsx`; CI runs typecheck `continue-on-error: true`). Gate per checkpoint: total error count ≤ baseline; relocated `App.tsx` errors may move files but not multiply.
 2. `bun run test` (54 check scripts) exits 0 after every checkpoint.
 3. `bun run build:bundle` succeeds after every checkpoint.
 4. `src/main.tsx` imports from `./app/App` without breakage.
@@ -191,4 +191,52 @@ Same risk class as P2a: ownership moves, screenshot-gated.
 
 ## Change log
 
-<!-- empty on creation -->
+
+
+### 2026-06-10 — Typecheck gate is baseline-relative
+
+**What changed:** SC-1 restated from "typecheck exits 0" to "no new errors vs the 434-error baseline at `b919b37`".
+
+**Why:** baseline verification in the worktree showed 434 pre-existing tsc errors (115 in `src/App.tsx`, plus `trash/`, `test/`); CI already runs typecheck `continue-on-error: true`. Exit-0 was unachievable without scope creep (see followup `parse-ts-preexisting-tsc-errors`).
+
+**Superseded:** SC-1 "bun run typecheck exits 0 after every checkpoint."
+
+## Implementation log
+
+### shipped — 2026-06-10
+
+Built across 19 iterations of /subagent-implementation on branch `app-tsx-decomposition`. Commits (chronological):
+
+- `3090728` — P1-1 scaffold src/app/ + move shell
+- `bc61899` — P1-2 logic layer
+- `d96b062` — P1-3 dom helpers + flow-node-ids
+- `575f2c6` — P1-4 graph helpers (organic-layout, navigator, styles)
+- `6689673` — P1-5 ui primitives (Modal, ZoomControl)
+- `efaa5f1` — P1-6 process + flow-node components (10 files)
+- `09dfbc2` — P1-7 entity components (9 files, twins colocated)
+- `acfcb25` — P1-8 FindingsPanel + LegendModal
+- `5553078` — P1-9 DictionaryView evacuation (P1 done: 5514L → 2274L)
+- `6b3da5e` — P2a-1 FlowsView + FlowsViewHandle
+- `23204ef` — P2a-2 GraphView + GraphViewHandle (1 fix round: panelNavigate select-only)
+- `a3bae06` — P2b-1 columns twins → variant component
+- `25a19d8` — P2b-2 relationships twins → variant component
+- `0a403e8` — P2b-3 examples twins → variant component
+- `0d67f70` — P2c-1 shell hooks (useModelData, useHashRoute, useThemeMode)
+- `e65216d` — P2c-2 FabMenu (shell at 483L)
+- `161fd84` — P3-1 signals refresh
+- `fdb9e7c` — P3-2 followup closure
+- `e5f3a10` — symbol renames aligned to file names (ledger F-3)
+- `4ab0a67` — polish batch: ledger F-2/F-4/F-5/F-6/F-7/F-8 (1 fix round on badge redraw)
+
+**Out-of-scope work performed during this build:**
+- Repaired `test/visual/test-cp10b-findings-panel.ts` — broken on main before this branch (stale `'Flows'` FAB label expectation vs actual "Data Flows").
+- Fixed latent stale-warning-badge bug: badges now redraw on SSE finding changes via `redrawMarkersRef` (previously only on viewport/theme events).
+
+**Unforeseens — surprises that emerged during implementation:**
+- `bun run typecheck` baseline was 434 pre-existing errors, not 0 — SC-1 amended to a baseline-relative gate before iteration 1 (see Change log).
+- Typecheck count drifts when implementers leave scratch `.ts` files in gitignored `tmp/` (tsconfig sweeps them) — gate refined to exclude `tmp/`.
+- P2a-2 first pass changed findings-panel navigation semantics (opened the entity modal); caught by reviewer against base diff, fixed with a dedicated `onPanelSelect` callback.
+- F-6 badge-redraw first pass appended without clearing (drawWarningBadges is append-only); fixed by routing through the cy-init `redrawMarkers` closure via ref.
+
+**Deferred items still open:**
+- none — all 8 FOLLOWUPS ledger items fixed or closed in-branch (F-1, F-3..F-8 fixed; F-4 resolved as optional-prop).

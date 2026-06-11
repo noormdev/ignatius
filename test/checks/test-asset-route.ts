@@ -4,7 +4,7 @@
  */
 
 import { resolve } from 'path';
-import { serveCommand } from '../../src/server';
+import { serveCommand } from '../../src/server/server';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 
 const fixtureDir = resolve(import.meta.dir, '../../tmp/test-fixtures/asset-route-test');

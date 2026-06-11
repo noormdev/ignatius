@@ -1,7 +1,7 @@
 /**
  * test-flow-cli.ts — CP7: `ignatius export` assertions for flow-containing models.
  *
- * Invokes the CLI via `bun src/cli.ts` (no prior binary build required, except
+ * Invokes the CLI via `bun src/cli/cli.ts` (no prior binary build required, except
  * where the bundle is needed — those tests are guarded with a bundleExists check).
  *
  * Verifies:
@@ -31,7 +31,7 @@ const NO_FLOWS_MODEL = join(ROOT, 'models/orm-pure');
 const TMP = join(ROOT, 'tmp');
 
 async function run(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-    const proc = Bun.spawn(['bun', join(ROOT, 'src/cli.ts'), ...args], {
+    const proc = Bun.spawn(['bun', join(ROOT, 'src/cli/cli.ts'), ...args], {
         stdout: 'pipe',
         stderr: 'pipe',
     });

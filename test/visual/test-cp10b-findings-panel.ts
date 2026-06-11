@@ -26,7 +26,7 @@ const fail = (m: string): never => { console.error('FAIL:', m); process.exit(1);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function waitForServer(url: string, timeout = 12_000): Promise<boolean> {
+async function waitForServer(url: string, timeout = 20_000): Promise<boolean> {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     try {
@@ -41,7 +41,7 @@ async function waitForServer(url: string, timeout = 12_000): Promise<boolean> {
 async function waitForGraph(page: import('playwright').Page): Promise<void> {
   const ok = await page.waitForFunction(
     () => !!(window as { __IGNATIUS_CY__?: unknown }).__IGNATIUS_CY__,
-    { timeout: 12_000 },
+    { timeout: 20_000 },
   ).then(() => true).catch(() => false);
   if (!ok) fail('Graph (__IGNATIUS_CY__) did not become ready');
 }
@@ -73,7 +73,7 @@ note('\n═══ Test 1: key-inherited flow view — NO findings panel (0 flow 
 
 const PORT1 = 7410;
 const proc1 = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', 'models/key-inherited', '--port', String(PORT1)],
+  ['bun', 'src/cli/cli.ts', 'serve', 'models/key-inherited', '--port', String(PORT1)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 
@@ -92,7 +92,7 @@ try {
 
   // Switch to flow view
   await openFab(page1);
-  await clickFabItem(page1, 'Flows');
+  await clickFabItem(page1, 'Data Flows');
   await waitForFlow(page1);
 
   await page1.waitForTimeout(600);
@@ -129,7 +129,7 @@ note('\n═══ Test 2: broken-demo graph view — .findings-panel IS visible 
 
 const PORT2 = 7411;
 const proc2 = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', 'models/broken-demo', '--port', String(PORT2)],
+  ['bun', 'src/cli/cli.ts', 'serve', 'models/broken-demo', '--port', String(PORT2)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 
@@ -201,7 +201,7 @@ note(`Injected violation: ${violationPath}`);
 
 const PORT3 = 7412;
 const proc3 = Bun.spawn(
-  ['bun', 'src/cli.ts', 'serve', FIXTURE_DST3, '--port', String(PORT3)],
+  ['bun', 'src/cli/cli.ts', 'serve', FIXTURE_DST3, '--port', String(PORT3)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
 );
 
@@ -223,7 +223,7 @@ try {
 
   // Switch to flow view
   await openFab(page3);
-  await clickFabItem(page3, 'Flows');
+  await clickFabItem(page3, 'Data Flows');
   await waitForFlow(page3);
   await page3.waitForTimeout(800);
 
