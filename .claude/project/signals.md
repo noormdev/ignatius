@@ -39,13 +39,13 @@ No linter or formatter configured in package.json.
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 39242 | 207 | 67% |
-| Markdown | 15036 | 203 | 46% |
+| TypeScript | 39241 | 207 | 66% |
+| Markdown | 15040 | 203 | 25% |
 | CSS | 2161 | 2 | 3% |
 | YAML | 1324 | 12 | 2% |
+| HTML | 633 | 3 | 1% |
 | Shell | 116 | 1 | 0% |
 | JSON | 101 | 4 | 0% |
-| HTML | 27 | 2 | 0% |
 | TOML | 2 | 1 | 0% |
 
 ## DevOps & CI

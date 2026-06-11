@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-06-11T15:52:44Z
+generated_at: 2026-06-11T18:42:35Z
 atomic_version: 4.2.0
 ---
 # Deterministic signals
@@ -48,7 +48,7 @@ atomic_version: 4.2.0
 │   ├── research/ (1)
 │   │   └── ssadm-dfd-rules.md (7d83a02, 118L, 8356ch, 8460B)
 │   ├── spec/ (23)
-│   │   ├── app-tsx-decomposition.md (51ed9a3, 244L, 21431ch, 22199B)
+│   │   ├── app-tsx-decomposition.md (430d88c, 246L, 21478ch, 22248B)
 │   │   ├── bidirectional-predicates.md (e6355c0, 157L, 7664ch, 7712B)
 │   │   ├── branding.md (bd50adc, 102L, 8976ch, 9031B)
 │   │   ├── cli-and-outputs.md (5cb56d9, 133L, 12077ch, 12154B)
@@ -66,7 +66,7 @@ atomic_version: 4.2.0
 │   │   ├── process-flows.md (930ea21, 682L, 82332ch, 82890B)
 │   │   ├── render-perf-indexing.md (81d5c58, 202L, 14691ch, 14869B)
 │   │   ├── schema-lint-and-error-ux.md (6a3d652, 141L, 20922ch, 20995B)
-│   │   ├── src-root-organization.md (6ab1dcc, 80L, 6248ch, 6314B)
+│   │   ├── src-root-organization.md (828c298, 82L, 6295ch, 6363B)
 │   │   ├── unified-app-polish.md (bcecad9, 194L, 20163ch, 20284B)
 │   │   ├── unified-app.md (02a3bda, 216L, 29279ch, 29469B)
 │   │   ├── viewer-fab-ux.md (9a889a1, 101L, 8717ch, 8759B)
@@ -252,7 +252,7 @@ atomic_version: 4.2.0
 │   │   │   ├── dict/ (1 file, 0 dirs)
 │   │   │   ├── flow/ (2 files, 0 dirs)
 │   │   │   └── graph/ (7 files, 0 dirs)
-│   │   ├── App.tsx (418a362, 479L, 20765ch, 20862B)
+│   │   ├── App.tsx (99470ca, 478L, 20726ch, 20823B)
 │   │   ├── globals.d.ts (77489f4, 46L, 2556ch, 2562B)
 │   │   ├── hash-router.ts (04e4fa6, 95L, 2804ch, 2806B)
 │   │   ├── index.html (e560504, 14L, 396ch, 396B)
@@ -457,6 +457,7 @@ atomic_version: 4.2.0
 ├── bun.lock (caa1079, 95L, 6860ch, 6860B)
 ├── bunfig.toml (3ab75b0, 2L, 35ch, 35B)
 ├── install.sh (64a6757, 116L, 3578ch, 3594B)
+├── output.html (0a13de5, 606L, 2614203ch, 2616768B)
 ├── package.json (4929cd4, 46L, 1741ch, 1743B)
 ├── release-please-config.json (9f191fe, 15L, 416ch, 416B)
 ├── release-please-manifest.json (bd8c3c4, 3L, 19ch, 19B)
@@ -468,11 +469,11 @@ atomic_version: 4.2.0
 
 ## Languages
 
-- TypeScript: 39242 LOC (67%), 207 files (47%)
-- Markdown: 15036 LOC (25%), 203 files (46%)
+- TypeScript: 39241 LOC (66%), 207 files (47%)
+- Markdown: 15040 LOC (25%), 203 files (46%)
 - CSS: 2161 LOC (3%), 2 files (0%)
 - YAML: 1324 LOC (2%), 12 files (2%)
+- HTML: 633 LOC (1%), 3 files (0%)
 - Shell: 116 LOC (0%), 1 file (0%)
 - JSON: 101 LOC (0%), 4 files (0%)
-- HTML: 27 LOC (0%), 2 files (0%)
 - TOML: 2 LOC (0%), 1 file (0%)
