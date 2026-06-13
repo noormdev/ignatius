@@ -62,10 +62,10 @@ jobs:
           for name in "${!targets[@]}"; do
             target="${targets[$name]}"
             echo "Building ignatius-$name..."
-            bun build --compile --target="$target" src/cli.ts --outfile "dist/release/ignatius-$name"
+            bun build --compile --target="$target" src/cli/cli.ts --outfile "dist/release/ignatius-$name"
           done
           # Windows binary needs .exe suffix
-          bun build --compile --target=bun-windows-x64 src/cli.ts --outfile dist/release/ignatius-windows-x64.exe
+          bun build --compile --target=bun-windows-x64 src/cli/cli.ts --outfile dist/release/ignatius-windows-x64.exe
 
       - name: Generate checksums
         working-directory: dist/release
