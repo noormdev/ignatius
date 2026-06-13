@@ -1,4 +1,5 @@
 import type { ModelNode, ModelEdge } from '../../../model/parse';
+import { relationshipRowKey } from '../../logic/relationship-key';
 
 /**
  * Unified relationships table for the entity modal and the data dictionary card.
@@ -43,7 +44,7 @@ export function ChildrenTable({
             </thead>
             <tbody>
               {children.map(e => (
-                <tr key={e.source}>
+                <tr key={relationshipRowKey(e)}>
                   <td>
                     <a
                       href={`#entity-${e.source}`}
@@ -95,7 +96,7 @@ export function ChildrenTable({
           </thead>
           <tbody>
             {children.map(edge => (
-              <tr key={edge.source}>
+              <tr key={relationshipRowKey(edge)}>
                 <td>
                   <a className="fk-link" onClick={() => onNavigate(edge.source)}>
                     {edge.source}
