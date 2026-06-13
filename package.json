@@ -1,6 +1,6 @@
 {
   "name": "ignatius",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "description": "ignatius — a markdown-driven IDEF1X ERD viewer + static site generator",
