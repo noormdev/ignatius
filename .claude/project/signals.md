@@ -39,13 +39,13 @@ No linter or formatter configured in package.json.
 
 | Language | LOC | Files | % |
 |----------|-----|-------|---|
-| TypeScript | 39241 | 207 | 66% |
-| Markdown | 15040 | 203 | 25% |
-| CSS | 2161 | 2 | 3% |
-| YAML | 1324 | 12 | 2% |
-| HTML | 633 | 3 | 1% |
+| TypeScript | 46748 | 216 | 70% |
+| Markdown | 15518 | 206 | 23% |
+| CSS | 2583 | 2 | 3% |
+| YAML | 1324 | 12 | 1% |
 | Shell | 116 | 1 | 0% |
 | JSON | 101 | 4 | 0% |
+| HTML | 27 | 2 | 0% |
 | TOML | 2 | 1 | 0% |
 
 ## DevOps & CI
@@ -71,7 +71,7 @@ No linter or formatter configured in package.json.
 | generators | [`src/generators/`](../../src/generators) | Unified static HTML export via `generateApp` (single file — graph + dict + flows); [`src/generators/app.ts`](../../src/generators/app.ts) is the sole static generator; [`src/generators/embedded-bundle.ts`](../../src/generators/embedded-bundle.ts) loads the React bundle. Separate `dict.ts`, `graph.ts`, `flow-graph.ts`, `flow-dict.ts`, `inline-asset.ts`, `theme-css.ts` were removed when the SPA was unified. | (below) |
 | theme | [`src/theme/`](../../src/theme) | ThemeConfig + Branding types, default palettes, dark/light merging | (below) |
 | skill | [`skills/noorm-modeling/`](../../skills/noorm-modeling) | Project-scoped Claude skill: Q&A-driven entity authoring + model bootstrap, convention-aware, writes files + verifies with `ignatius validate` | (below) |
-| docs | [`docs/`](../../docs) | Design docs, specs, guides, glossary. Includes [`docs/spec/unified-app-polish.md`](../../docs/spec/unified-app-polish.md) (CP1–CP13 batch spec), [`docs/spec/dfd-polish-round2.md`](../../docs/spec/dfd-polish-round2.md) (CP14–17 batch spec), [`docs/spec/dfd-polish-round3.md`](../../docs/spec/dfd-polish-round3.md) (CP18–23 batch spec), [`docs/spec/process-flows.md`](../../docs/spec/process-flows.md) (637L comprehensive flow spec), [`docs/spec/render-perf-indexing.md`](../../docs/spec/render-perf-indexing.md) (202L render-perf spec: ELK skip/worker + ModelIndex), [`docs/spec/dd-spotlight-grid.md`](../../docs/spec/dd-spotlight-grid.md) (DD browse-lens spotlight grid spec: contracts for spotlight.ts, flow-spotlight.ts, GridCard, FlowNodeGridCard, SpotlightOverlay, DictionaryView browse lens, CSS classes; CP1–CP15 build order), [`docs/design/dd-spotlight-grid.md`](../../docs/design/dd-spotlight-grid.md) (design doc: browse/read lens concept, spotlight predicate philosophy, flow-node cross-domain spotlight, focus mode), and [`docs/glossary.md`](../../docs/glossary.md) (canonical DG/DD/DFD/DE/DS/EE vocabulary). | (below) |
+| docs | [`docs/`](../../docs) | Design docs, specs, guides, research notes, glossary. Includes [`docs/spec/unified-app-polish.md`](../../docs/spec/unified-app-polish.md) (CP1–CP13 batch spec), [`docs/spec/dfd-polish-round2.md`](../../docs/spec/dfd-polish-round2.md) (CP14–17 batch spec), [`docs/spec/dfd-polish-round3.md`](../../docs/spec/dfd-polish-round3.md) (CP18–23 batch spec), [`docs/spec/process-flows.md`](../../docs/spec/process-flows.md) (637L comprehensive flow spec), [`docs/spec/render-perf-indexing.md`](../../docs/spec/render-perf-indexing.md) (202L render-perf spec: ELK skip/worker + ModelIndex), [`docs/spec/dd-spotlight-grid.md`](../../docs/spec/dd-spotlight-grid.md) (DD browse-lens spotlight grid spec: contracts for spotlight.ts, flow-spotlight.ts, GridCard, FlowNodeGridCard, SpotlightOverlay, DictionaryView browse lens, CSS classes; CP1–CP15 build order), [`docs/design/dd-spotlight-grid.md`](../../docs/design/dd-spotlight-grid.md) (design doc: browse/read lens concept, spotlight predicate philosophy, flow-node cross-domain spotlight, focus mode), and [`docs/glossary.md`](../../docs/glossary.md) (canonical DG/DD/DFD/DE/DS/EE vocabulary). | (below) |
 | scripts | [`scripts/`](../../scripts) | Build helpers: stable-names.ts, convert-yaml-to-md.ts, probe.ts, screenshot.ts; perf tooling: gen-synthetic-model.ts (synthetic IDEF1X model generator), perf-harness.ts (Playwright-based render latency measurement) | (below) |
 
 ## Domain detail
@@ -341,6 +341,7 @@ Coupling: references [`docs/spec/noorm-modeling-skill.md`](../../docs/spec/noorm
 [`docs/spec/dfd-polish-round2.md`](../../docs/spec/dfd-polish-round2.md) (166L) — implementation contract for CP14–17 DFD polish round 2: no text-select on DFD nodes (CP14), kind-colored stores/externals with YAML-overridable `theme.flowKinds` palette (CP15), per-process in/out data examples rendered as tables in process dialog (CP16), shared glossary [`docs/glossary.md`](../../docs/glossary.md) (CP17).
 [`docs/spec/dfd-polish-round3.md`](../../docs/spec/dfd-polish-round3.md) (235L) — implementation contract for CP18–23 DFD polish round 3: navigator lifecycle teardown on view-switch (CP18), DFD minimap visual alignment to DG minimap (CP19), clickable IO table endpoints in process dialogs (CP20), Processes cross-reference section in external/store dialogs via `buildFlowNodeUsageIndex` (CP21), view-agnostic `ZoomControl` component wired to Graph via cytoscape adapter (CP22), ZoomControl wired to Flows view via `FlowDiagramSvg` imperative handles (CP23).
 [`docs/glossary.md`](../../docs/glossary.md) (52L) — canonical vocabulary: DG (Data Graph), DD (Data Dictionary), DFD (Data Flow Diagram), DE (Data Entity), DS (Data Store), EE (External Entity), Process, Data Flow. States DS ⊃ DE (every `db:` store is a data entity; non-`db` stores are not). Lists all `kind:` values and their colors.
+[`docs/research/ssadm-dfd-rules.md`](../../docs/research/ssadm-dfd-rules.md) (118L) — research notes on SSADM DFD rules used when specifying `flow.*` validation rules in [`docs/spec/process-flows.md`](../../docs/spec/process-flows.md).
 [`docs/design/dd-spotlight-grid.md`](../../docs/design/dd-spotlight-grid.md) — design doc for the DD browse-lens spotlight grid feature. Covers the browse/read dual-lens concept, spotlight predicate philosophy (predicates as business sentences radiating from a card), flow-node cross-domain spotlight (entity grid ↔ process/store/external grid via `db:` endpoint bridging), and focus mode (CP15: grid filtered to connected set). Open questions: deep-link into browse lens, multi-select spotlight.
 [`docs/spec/dd-spotlight-grid.md`](../../docs/spec/dd-spotlight-grid.md) — implementation contract for the DD browse-lens spotlight grid. Contracts: `spotlight.ts` (`SpotlightConnection` shape, invariants), `flow-spotlight.ts` (`FlowSpotlightConnection` shape, token scheme, sub-DFD walk), `GridCard` + `FlowNodeGridCard` (card id token scheme: entity=bare id, proc=`proc:<id>`, ext=`ext:<id>`, store=`<kind>:<name>`), `SpotlightOverlay` (SVG leader-line geometry, dashed flow lines, off-screen chips, hover-reveal pills), `DictionaryView` browse lens (lens toggle, spotlight state machine, focus mode, search exclusivity, fixed search bar). CP1–CP15 build order table. Scope note: CP1–CP7 entities-only foundation; CP8–CP15 (this amendment) add flow nodes + cross-domain data-flow spotlight + focus mode.
 
