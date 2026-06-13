@@ -14,8 +14,10 @@
  *
  * No Bun/Node-only APIs at module top level — this file is browser-safe.
  *
- * Scope: CP1 — positions + short-label positions only. Full column-list labels
- * are NOT laid out inline (on-demand via hover/click, CP2).
+ * Scope: CP1 + CP2 — node positions for all nodes; label positions for short
+ * inline labels only (ext:/kind: payload phrases where neither endpoint is db:).
+ * Full db: column-list labels are NOT laid out inline — their data contract
+ * is available on hover/click of the edge in FlowDiagramSvg (CP2).
  */
 
 import ELK from 'elkjs/lib/elk.bundled.js';
@@ -33,9 +35,9 @@ export type ElkLayoutResult = {
   /** Node id → absolute {x, y} top-left corner. */
   positions: Record<string, { x: number; y: number }>;
   /**
-   * Edge id → label position for SHORT inline labels only.
-   * Only populated for ext:/kind: payload phrases — not db: column lists.
-   * CP1 scope: empty record; label positions arrive in CP2.
+   * Edge id → label position for SHORT inline labels only (CP2).
+   * Populated for ext:/kind: payload phrases where neither endpoint is db:.
+   * db: column-list edges are absent — their contract is on-demand (hover/click).
    */
   labelPositions: Record<string, { x: number; y: number }>;
 };
@@ -114,6 +116,41 @@ export function bandOf(
   return 3;
 }
 
+// ── Label classification ──────────────────────────────────────────────────────
+
+/**
+ * isDbEdge — true when either endpoint of an edge is a `db:` entity node.
+ *
+ * `db:` entity edges carry full column-list data contracts. These are NOT
+ * rendered as always-on inline canvas labels (CP2): the contract is
+ * available on hover/click instead. Only `ext:` and non-`db` `kind:` store
+ * edges may render short payload phrases inline.
+ *
+ * Split-store ids carry a `--read` or `--write` suffix (from buildFlowData).
+ * An endpoint like `db:Payment--write` is still a db: edge — the suffix is
+ * stripped before the prefix check so split copies are correctly classified.
+ *
+ * Exported so the SVG renderer can apply the same classification rule (single
+ * source of truth — no duplicate in FlowDiagramSvg).
+ */
+export function isDbEdge(sourceId: string, targetId: string): boolean {
+  const srcBase = sourceId.includes('--') ? sourceId.slice(0, sourceId.indexOf('--')) : sourceId;
+  const tgtBase = targetId.includes('--') ? targetId.slice(0, targetId.indexOf('--')) : targetId;
+  return srcBase.startsWith('db:') || tgtBase.startsWith('db:');
+}
+
+/**
+ * Measure the pixel width of a short label string.
+ * Uses the same approximation as the renderer (~6.6px per char at the chip
+ * font size, plus padding). Minimum 40px; used to size ELK label dummies.
+ */
+function measureLabelWidth(text: string, minW = 40): number {
+  return Math.max(minW, Math.round(text.length * 6.6 + 16));
+}
+
+/** Height of an inline edge label chip (matches CHIP_LINE_H + 2×CHIP_PAD_Y). */
+const LABEL_CHIP_H = 21;
+
 // ── ELK graph construction ────────────────────────────────────────────────────
 
 function buildElkGraph(
@@ -130,6 +167,8 @@ function buildElkGraph(
     'elk.spacing.nodeNode': '40',
     'elk.spacing.edgeNode': '20',
     'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+    // Enable ELK center-placement for inline short labels.
+    'elk.edgeLabels.placement': 'CENTER',
   };
 
   const children: ElkNode[] = nodes.map(n => {
@@ -145,11 +184,23 @@ function buildElkGraph(
     };
   });
 
-  const elkEdges = edges.map(e => ({
-    id: e.id,
-    sources: [e.source],
-    targets: [e.target],
-  }));
+  const elkEdges = edges.map(e => {
+    const base = { id: e.id, sources: [e.source], targets: [e.target] };
+    // Only short payload phrases (non-db: edges) get an ELK label dummy.
+    // db: column-list edges contribute NO label entry — ELK reserves no space
+    // for them (CP2 contract).
+    if (!isDbEdge(e.source, e.target) && e.label) {
+      return {
+        ...base,
+        labels: [{
+          text: e.label,
+          width: measureLabelWidth(e.label),
+          height: LABEL_CHIP_H,
+        }],
+      };
+    }
+    return base;
+  });
 
   return {
     id: 'root',
@@ -162,14 +213,17 @@ function buildElkGraph(
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
- * computeElkLayout — async ELK positions for a FlowDiagram.
+ * computeElkLayout — async ELK positions for a FlowDiagram (CP1 + CP2).
  *
  * Internally calls buildFlowData(diagram) for nodes/edges/storeNums, assigns
  * each node a band partition by role, runs elkjs Layered with DOWN direction +
  * partitioning + nodeNodeBetweenLayers/nodeNode spacing, and maps the ELK
  * output to node-id → position.
  *
- * labelPositions is empty in CP1 — short inline labels are added in CP2.
+ * CP2: For edges where neither endpoint is db:, an ELK label dummy is
+ * provided so ELK reserves space and returns a label position. The resulting
+ * labelPositions map is keyed by edge id. db: column-list edges have no label
+ * dummy and produce no labelPositions entry.
  */
 export async function computeElkLayout(
   diagram: FlowDiagram,
@@ -204,8 +258,25 @@ export async function computeElkLayout(
     }
   }
 
+  // Extract label positions for short inline labels (non-db: edges only).
+  // ELK returns x/y on the first label of each edge when label dummies were
+  // provided. db: edges had no label entry, so they produce no labelPosition.
+  const labelPositions: Record<string, { x: number; y: number }> = {};
+
+  for (const edge of result.edges ?? []) {
+    const lbl = edge.labels?.[0];
+    if (
+      edge.id !== undefined &&
+      lbl !== undefined &&
+      lbl.x !== undefined &&
+      lbl.y !== undefined
+    ) {
+      labelPositions[edge.id] = { x: lbl.x, y: lbl.y };
+    }
+  }
+
   return {
     positions,
-    labelPositions: {},
+    labelPositions,
   };
 }

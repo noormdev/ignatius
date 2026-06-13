@@ -33,6 +33,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { buildFlowData } from './flow-layout';
+import { isDbEdge } from './elk-flow-layout';
 import type { FlowDiagram } from '../flows/flow-parse';
 import type { NodePos, FlowElementData } from './flow-layout';
 import type { PositionMap } from '../app/views/graph/layout-store';
@@ -657,10 +658,12 @@ function StoreNode({
 // above everything) so a line never draws over another edge's label.
 
 function EdgePath({
-  d, label, opacity, highlighted, c, onHoverChange,
+  d, label, hasDbContract, opacity, highlighted, c, onHoverChange,
 }: {
   d: string;
   label: string;
+  /** When true, this edge carries a db: column-list contract (not inline). */
+  hasDbContract: boolean;
   opacity: number;
   highlighted: boolean;
   c: FlowPalette;
@@ -672,7 +675,13 @@ function EdgePath({
       style={{ transition: 'opacity 0.12s' }}
       onPointerEnter={() => onHoverChange(true)}
       onPointerLeave={() => onHoverChange(false)}
+      // data-contract is present on ALL labelled edges (db: and non-db:) so the
+      // DOM-level C13 assertion can locate the contract text without hovering.
+      data-contract={label || undefined}
+      data-contract-type={hasDbContract ? 'db' : 'inline'}
     >
+      {/* SVG <title> provides the native tooltip on hover — the primary on-demand
+          disclosure mechanism for db: column-list contracts (C13). */}
       {label && <title>{label}</title>}
       <path
         d={d} fill="none"
@@ -1223,7 +1232,16 @@ export function FlowDiagramSvg({
 
   // Pre-resolve each edge's path and chip once, so they can be drawn in two
   // separate layers (paths under the nodes, chips above everything).
-  type EdgeRender = { id: string; d: string; points: Pt[]; label: string; chip: NodePos; lines: string[] };
+  type EdgeRender = {
+    id: string;
+    d: string;
+    points: Pt[];
+    label: string;
+    chip: NodePos;
+    lines: string[];
+    /** True when the edge carries a db: column-list contract (no inline chip). */
+    hasDbContract: boolean;
+  };
   const edgeRenders: EdgeRender[] = edges.flatMap(edge => {
     const fromNode = nodeById.get(edge.source);
     const toNode = nodeById.get(edge.target);
@@ -1240,8 +1258,16 @@ export function FlowDiagramSvg({
     const chip = override
       ? projectOntoPolyline(points, override.x, override.y)
       : chipAnchor(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
-    const lines = edge.label ? edge.label.split(', ').map(l => truncateLabel(l, CHIP_MAX_CHARS)) : [];
-    return [{ id: edge.id, d: pointsToD(points), points, label: edge.label, chip, lines }];
+
+    // CP2: db: column-list edges do NOT render inline. lines is [] so the chip
+    // layer is suppressed. The full label (data contract) lives in EdgePath's
+    // <title> and data-contract attribute for on-demand hover/click disclosure.
+    const hasDbContract = isDbEdge(edge.source, edge.target);
+    const lines = hasDbContract || !edge.label
+      ? []
+      : edge.label.split(', ').map(l => truncateLabel(l, CHIP_MAX_CHARS));
+
+    return [{ id: edge.id, d: pointsToD(points), points, label: edge.label, chip, lines, hasDbContract }];
   });
 
   // Keep auto-placed labels off the node boxes and off each other; user-placed
@@ -1311,6 +1337,7 @@ export function FlowDiagramSvg({
             key={e.id}
             d={e.d}
             label={e.label}
+            hasDbContract={e.hasDbContract}
             opacity={edgeOpacity(e.id)}
             highlighted={draggingEdge === e.id}
             c={c}
