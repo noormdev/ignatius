@@ -1,0 +1,211 @@
+/**
+ * elk-flow-layout.ts — async ELK positions module for DFD diagrams.
+ *
+ * Accepts a FlowDiagram, runs elkjs Layered headlessly with 5-band partitioning
+ * (source-ext=0, input-store=1, process-row=2, output-store=3, sink-ext=4),
+ * and returns node positions keyed by node id.
+ *
+ * Browser + Bun dual-env:
+ *   - Browser: default new ELK() works via built-in Web Worker.
+ *   - Bun: pass opts.workerFactory pointing at the resolved elk-worker.min.js
+ *     (Bun's global Worker handles it; verified in tmp/elk-spike/smoke2.ts).
+ *     The caller is responsible for calling process.exit() because the worker
+ *     keeps the Bun event loop alive.
+ *
+ * No Bun/Node-only APIs at module top level — this file is browser-safe.
+ *
+ * Scope: CP1 — positions + short-label positions only. Full column-list labels
+ * are NOT laid out inline (on-demand via hover/click, CP2).
+ */
+
+import ELK from 'elkjs/lib/elk.bundled.js';
+import type { ELKConstructorArguments, ElkNode } from 'elkjs/lib/elk-api.js';
+import type { FlowDiagram } from '../flows/flow-parse';
+import { buildFlowData } from './flow-layout';
+import type { FlowElementData } from './flow-layout';
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type NodeElement = Extract<FlowElementData, { kind: 'node' }>;
+type EdgeElement = Extract<FlowElementData, { kind: 'edge' }>;
+
+export type ElkLayoutResult = {
+  /** Node id → absolute {x, y} top-left corner. */
+  positions: Record<string, { x: number; y: number }>;
+  /**
+   * Edge id → label position for SHORT inline labels only.
+   * Only populated for ext:/kind: payload phrases — not db: column lists.
+   * CP1 scope: empty record; label positions arrive in CP2.
+   */
+  labelPositions: Record<string, { x: number; y: number }>;
+};
+
+export type ComputeElkLayoutOpts = {
+  /**
+   * Override the ELK instance factory. Use in Bun/Node environments:
+   *   opts.workerFactory = () => new Worker(<resolved elk-worker.min.js>)
+   * In browsers, omit this — the default ELK() constructor works.
+   */
+  workerFactory?: ELKConstructorArguments['workerFactory'];
+};
+
+// ── Node sizing ──────────────────────────────────────────────────────────────
+
+const estW = (text: string, px = 6.6, pad = 24, min = 80) =>
+  Math.max(min, Math.round(text.length * px + pad));
+
+/**
+ * nodeSize — canonical width/height for a node element.
+ *
+ * Exported so test helpers can compute bounding-box extents (y + height) using
+ * the same sizes that are fed to ELK, keeping the C4 band-ordering check
+ * consistent with the actual layout.
+ */
+export function nodeSize(n: NodeElement): { width: number; height: number } {
+  if (n.nodeType === 'process') return { width: 130, height: 64 };
+  if (n.nodeType === 'external') return { width: estW(n.label, 6.6, 28, 110), height: 52 };
+  // store — prefix with D# if present
+  const label = `D${n.storeNum ?? ''} ${n.label}`;
+  return { width: estW(label, 6.6, 30, 150), height: 44 };
+}
+
+// ── Band assignment ───────────────────────────────────────────────────────────
+
+/**
+ * bandOf — assign a partition band index to a node.
+ *
+ * Bands (matches the 5-band layout contract in docs/spec/dfd-overhaul.md C4):
+ *   0 — source-ext  (externals that feed into processes)
+ *   1 — input-store (stores processes read)
+ *   2 — process-row (all processes)
+ *   3 — output-store (stores processes write)
+ *   4 — sink-ext    (externals that receive output)
+ *
+ * Split-store ids carry a `--read` or `--write` suffix (from buildFlowData).
+ * External copy ids carry a `--src` or `--snk` marker (from buildFlowData).
+ *
+ * The rule mirrors the harness bandOf in tmp/elk-spike/harness.ts (proven).
+ * Exported so the test can re-derive bands for the ordering invariant check.
+ */
+export function bandOf(
+  n: NodeElement,
+  srcSet: Set<string>,
+): number {
+  if (n.nodeType === 'process') return 2;
+
+  if (n.nodeType === 'external') {
+    // buildFlowData encodes role in the id suffix:
+    //   ext:<id>--snk or ext:<id>--snk--<proc>  → sink (band 4)
+    //   ext:<id>--src or ext:<id>--src--<proc>  → source (band 0)
+    if (n.id.includes('--snk')) return 4;
+    if (n.id.includes('--src')) return 0;
+    // Fallback: use edge membership to decide role.
+    return srcSet.has(n.id) ? 0 : 4;
+  }
+
+  // Store — split copies carry explicit suffix.
+  if (n.id.endsWith('--read')) return 1;
+  if (n.id.endsWith('--write')) return 3;
+  // Unsplit store: in srcSet → it is a source of data to some process → input band.
+  if (srcSet.has(n.id)) return 1;
+  // Isolated store — not in srcSet, no --read/--write suffix, not a split copy.
+  // buildFlowData's split-copy strategy means such a node should not occur in a
+  // well-formed diagram; band 3 (output-store) is the safe defensive default.
+  return 3;
+}
+
+// ── ELK graph construction ────────────────────────────────────────────────────
+
+function buildElkGraph(
+  nodes: NodeElement[],
+  edges: EdgeElement[],
+): ElkNode {
+  const srcSet = new Set(edges.map(e => e.source));
+
+  const layoutOptions: Record<string, string> = {
+    'elk.algorithm': 'layered',
+    'elk.direction': 'DOWN',
+    'elk.partitioning.activate': 'true',
+    'elk.layered.spacing.nodeNodeBetweenLayers': '60',
+    'elk.spacing.nodeNode': '40',
+    'elk.spacing.edgeNode': '20',
+    'elk.layered.spacing.edgeNodeBetweenLayers': '20',
+  };
+
+  const children: ElkNode[] = nodes.map(n => {
+    const { width, height } = nodeSize(n);
+    const band = bandOf(n, srcSet);
+    return {
+      id: n.id,
+      width,
+      height,
+      layoutOptions: {
+        'elk.partitioning.partition': String(band),
+      },
+    };
+  });
+
+  const elkEdges = edges.map(e => ({
+    id: e.id,
+    sources: [e.source],
+    targets: [e.target],
+  }));
+
+  return {
+    id: 'root',
+    layoutOptions,
+    children,
+    edges: elkEdges,
+  };
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+/**
+ * computeElkLayout — async ELK positions for a FlowDiagram.
+ *
+ * Internally calls buildFlowData(diagram) for nodes/edges/storeNums, assigns
+ * each node a band partition by role, runs elkjs Layered with DOWN direction +
+ * partitioning + nodeNodeBetweenLayers/nodeNode spacing, and maps the ELK
+ * output to node-id → position.
+ *
+ * labelPositions is empty in CP1 — short inline labels are added in CP2.
+ */
+export async function computeElkLayout(
+  diagram: FlowDiagram,
+  opts?: ComputeElkLayoutOpts,
+): Promise<ElkLayoutResult> {
+  const { nodes, edges } = buildFlowData(diagram);
+  const graph = buildElkGraph(nodes, edges);
+
+  const elkArgs: ELKConstructorArguments = {};
+  if (opts?.workerFactory) {
+    elkArgs.workerFactory = opts.workerFactory;
+  }
+
+  const elk = new ELK(elkArgs);
+
+  let result: ElkNode;
+  try {
+    result = await elk.layout(graph);
+  } catch (err) {
+    elk.terminateWorker();
+    throw new Error(
+      `ELK layout failed for diagram "${diagram.id}": ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  elk.terminateWorker();
+
+  const positions: Record<string, { x: number; y: number }> = {};
+
+  for (const child of result.children ?? []) {
+    if (child.id !== undefined && child.x !== undefined && child.y !== undefined) {
+      positions[child.id] = { x: child.x, y: child.y };
+    }
+  }
+
+  return {
+    positions,
+    labelPositions: {},
+  };
+}

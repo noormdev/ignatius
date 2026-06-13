@@ -10,7 +10,7 @@
         "cytoscape": "^3.31.0",
         "cytoscape-elk": "^2.2.0",
         "cytoscape-navigator": "^2.0.2",
-        "elkjs": "^0.9.3",
+        "elkjs": "^0.11.0",
         "markdown-it": "^14.1.0",
         "react": "^19",
         "react-dom": "^19",
@@ -52,7 +52,7 @@
 
     "cytoscape-navigator": ["cytoscape-navigator@2.0.2", "", { "peerDependencies": { "cytoscape": "^2.6.0 || ^3.0.0" } }, "sha512-TZFBLFWEMW858UOt4rzusOjtDj7YT5vNx2uCwpUuicUYbaWCHHcUROBZWO+hiuSPWpVhvGLFlOq3NBcAVYOAgw=="],
 
-    "elkjs": ["elkjs@0.9.3", "", {}, "sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ=="],
+    "elkjs": ["elkjs@0.11.1", "", {}, "sha512-zxxR9k+rx5ktMwT/FwyLdPCrq7xN6e4VGGHH8hA01vVYKjTFik7nHOxBnAYtrgYUB1RpAiLvA1/U2YraWxyKKg=="],
 
     "entities": ["entities@4.5.0", "", {}, "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="],
 
@@ -91,5 +91,7 @@
     "webview-bun": ["webview-bun@2.4.0", "", {}, "sha512-0+ugnQlcUHmuW+iLeb+Lzb8rGUJh7WEdXvNsuvaVEXT3EagK380XdD7heVJu0Ek/mNxMY3G2JM142YRQ1hDUGQ=="],
 
     "yaml": ["yaml@2.8.4", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-ml/JPOj9fOQK8RNnWojA67GbZ0ApXAUlN2UQclwv2eVgTgn7O9gg9o7paZWKMp4g0H3nTLtS9LVzhkpOFIKzog=="],
+
+    "cytoscape-elk/elkjs": ["elkjs@0.9.3", "", {}, "sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ=="],
   }
 }

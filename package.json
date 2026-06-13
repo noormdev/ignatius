@@ -30,7 +30,7 @@
     "cytoscape": "^3.31.0",
     "cytoscape-elk": "^2.2.0",
     "cytoscape-navigator": "^2.0.2",
-    "elkjs": "^0.9.3",
+    "elkjs": "^0.11.0",
     "markdown-it": "^14.1.0",
     "react": "^19",
     "react-dom": "^19",
