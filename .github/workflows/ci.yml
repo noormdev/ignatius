@@ -39,7 +39,7 @@ jobs:
         run: bun run build:stable-names
 
       - name: Compile binary (stage B)
-        run: bun build --compile src/cli.ts --outfile dist/ignatius
+        run: bun build --compile src/cli/cli.ts --outfile dist/ignatius
 
       - name: Run test scripts
         # Run every check under test/checks/ (same as `bun run test`) so the
