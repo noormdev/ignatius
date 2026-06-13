@@ -972,7 +972,9 @@ code {
 
 /* ── DictionaryView — in-app inline data dictionary ──────────────────────── */
 
-/* Outer container: full-viewport scrollable panel, sits above graph-panel */
+/* CP17: Outer container — full-viewport-width fixed scroll container.
+   The scrollbar sits at the right edge of the window (not mid-page).
+   No max-width or margin here — those live on .dict-view-inner. */
 .dict-view {
   position: fixed;
   inset: 0;
@@ -980,18 +982,51 @@ code {
   z-index: 10;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Padding: top clears branding-block; right clears theme-toggle + FAB; bottom/left give breathing room */
-  padding: 72px 2rem 5rem 2rem;
-  max-width: 1100px;
-  margin: 0 auto;
-  /* Keep full-width centering while the fixed positioning applies */
-  left: 0;
-  right: 0;
 }
 
-/* Search box — top of dictionary, full-width */
+/* CP17: Inner content wrapper — centers and bounds the readable column. */
+.dict-view-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  /* Top clears the fixed search bar (~56px bar + 12px gap = 68px).
+     Right clears theme-toggle + FAB; bottom/left give breathing room. */
+  padding: 76px 2rem 5rem 2rem;
+}
+
+/* CP17: Fixed top search bar — frosted, centered, bounded.
+   Sits above scrolled content (z-30) but below branding/toggle (z-50). */
+.dict-search-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dict-search-bar-inner {
+  width: 100%;
+  max-width: 1100px;
+  padding: 8px 2rem 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background-color: color-mix(in srgb, var(--color-background) 75%, transparent);
+}
+
+/* The .dict-search block still carries the input + lens toggle inside the bar.
+   It is no longer sticky — it's a flex child of .dict-search-bar-inner. */
 .dict-search {
-  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .dict-search-input {
@@ -1687,8 +1722,8 @@ a.dict-link-missing:hover {
 }
 
 @media (max-width: 768px) {
-  .dict-view {
-    padding: 52px 0.75rem 4rem 0.75rem;
+  .dict-view-inner {
+    padding: 76px 0.75rem 4rem 0.75rem;
   }
 
   .dict-group-header {
@@ -1892,6 +1927,375 @@ a.dict-link-missing:hover {
   user-select: none;
 }
 
+/* ── Browse lens — segmented lens toggle ─────────────────────────────────── */
+
+.dict-lens-toggle {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-left: 0.75rem;
+  flex-shrink: 0;
+}
+
+.dict-lens-btn {
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.dict-lens-btn + .dict-lens-btn {
+  border-left: 1px solid var(--color-border);
+}
+
+.dict-lens-btn--active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.dict-lens-btn:not(.dict-lens-btn--active):hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+/* ── Browse lens — grid layout ───────────────────────────────────────────── */
+
+.dict-browse-lens {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.dict-browse-group {}
+
+/* CP10: Flow-node sections in the browse lens. Same visual rhythm as entity groups. */
+.dict-browse-flow-group {}
+
+.dict-browse-flow-header {
+  color: var(--color-text-muted);
+}
+
+.dict-browse-group-header {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  border-left: 4px solid var(--color-border);
+  padding-left: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.dict-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+/* ── Grid card ───────────────────────────────────────────────────────────── */
+
+.dict-grid-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  user-select: none;
+}
+
+.dict-grid-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.dict-grid-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.dict-grid-card-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+  word-break: break-word;
+  line-height: 1.25;
+}
+
+.dict-grid-card-info {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.1s;
+}
+
+.dict-grid-card-info:hover {
+  color: var(--color-text);
+}
+
+.dict-grid-card-badge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dict-grid-card-pk {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 0.1rem;
+}
+
+.dict-grid-card-pk-col {
+  font-size: 0.72rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: var(--color-text-muted);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.dict-grid-card-col-count {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: auto;
+}
+
+/* CP10: Flow-node grid cards (process / external / store).
+ * Reuse .dict-grid-card base; add kind-specific accent overrides below.
+ */
+
+.dict-flow-grid-card {
+  /* No extra overrides needed: kind accent is applied via inline borderLeftColor. */
+}
+
+/* Process card: dotted number rendered as a small mono prefix. */
+.dict-flow-card-number {
+  font-size: 0.72rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Kind label badge — small text line below the name, tinted by accent color. */
+.dict-flow-card-kind {
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+}
+
+/* ── Spotlight dim/spotlit modifiers (CP3) ───────────────────────────────── */
+/*
+ * When a spotlight is active on the browse lens, every card that is neither
+ * the active card nor in its connection set receives .dict-grid-card--dim.
+ * The active card and its connected cards receive .dict-grid-card--spotlit.
+ * Both use CSS opacity transitions — no per-card inline styles.
+ */
+
+.dict-grid-card--dim {
+  opacity: 0.25;
+  transition: opacity 0.18s;
+}
+
+.dict-grid-card--spotlit {
+  opacity: 1;
+  transition: opacity 0.18s;
+}
+
+/* ── Spotlight leader-line overlay (CP4) ─────────────────────────────────── */
+/*
+ * The SVG overlay is position:fixed, spans the full viewport, and sits above the
+ * grid cards (z-index 15 < dict-search z-index 20). pointer-events:none ensures
+ * it never blocks card hover/click. CSS fallback vars mirror the runtime values
+ * set by applyThemeCssVars; these fire on initial paint before JS applies theme.
+ */
+
+:root {
+  --spotlight-line-out: #f59e0b;
+  --spotlight-line-in: #38bdf8;
+  --spotlight-line-flow: #a78bfa;
+}
+
+.theme-light {
+  --spotlight-line-out: #d97706;
+  --spotlight-line-in: #0284c7;
+  --spotlight-line-flow: #7c3aed;
+}
+
+.spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 15;
+  /* display:none is flipped to 'block' imperatively by SpotlightOverlay.redraw() */
+  display: none;
+}
+
+/* ── Off-screen connection chips (CP5) ───────────────────────────────────── */
+/*
+ * Chips appear on the active card for connections whose target is outside the
+ * .dict-view scrollport. The chips container is positioned:fixed imperatively
+ * by SpotlightOverlay.redrawChips() just below the active card's bottom edge.
+ * Chips are pointer-events:auto so click-to-scroll works.
+ * The flash animation fires on target cards scrolled into view.
+ */
+
+.spotlight-chips-container {
+  display: none; /* flipped imperatively */
+  pointer-events: none; /* children set auto */
+  z-index: 16;
+}
+
+.spotlight-chip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  padding: 3px 7px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: inherit;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  pointer-events: auto;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.spotlight-chip:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  border-color: var(--spotlight-line-out, #f59e0b);
+}
+
+.spotlight-chip-arrow {
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  color: var(--spotlight-line-out, #f59e0b);
+}
+
+.spotlight-chip-name {
+  font-weight: 600;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.spotlight-chip-sep {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.spotlight-chip-pred {
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Flash animation — added by chip click, removed on animationend. */
+@keyframes spotlight-flash {
+  0%   { box-shadow: 0 0 0 3px var(--spotlight-line-out, #f59e0b), 0 0 12px 4px var(--spotlight-line-out, #f59e0b); }
+  60%  { box-shadow: 0 0 0 3px var(--spotlight-line-out, #f59e0b), 0 0 12px 4px var(--spotlight-line-out, #f59e0b); }
+  100% { box-shadow: none; }
+}
+
+.dict-grid-card--flash {
+  animation: spotlight-flash 1.2s ease-out forwards;
+}
+
+/* ── Focus / isolate mode (CP15) ─────────────────────────────────────────── */
+/*
+ * The focus bar appears when a card is pinned (to offer activating focus mode)
+ * or when focus is already active (to offer exiting back to the full grid).
+ * It sticks below the sticky search bar and above the grid cards.
+ * The bar stops propagation on click so it never clears the pin.
+ */
+
+.dict-focus-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  margin: 0 0 8px 0;
+  border-radius: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.dict-focus-bar--active {
+  border-color: var(--spotlight-line-out, #f59e0b);
+  background: color-mix(in srgb, var(--spotlight-line-out, #f59e0b) 8%, var(--color-surface));
+}
+
+.dict-focus-bar-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dict-focus-bar-label strong {
+  color: var(--color-text);
+}
+
+.dict-focus-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--spotlight-line-out, #f59e0b);
+  background: transparent;
+  color: var(--spotlight-line-out, #f59e0b);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.dict-focus-btn:hover {
+  background: var(--spotlight-line-out, #f59e0b);
+  color: var(--color-background);
+}
+
+.dict-focus-btn--exit {
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.dict-focus-btn--exit:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
 /* ── Print styles — Dictionary printable ──────────────────────────────────── */
 /*
  * The dict-view is a fixed+scrollable overlay on screen. In print we need it
@@ -1905,7 +2309,7 @@ a.dict-link-missing:hover {
   .graph-panel,
   .flow-chrome,
   .graph-global-banner,
-  .dict-search,
+  .dict-search-bar,
   .dict-nav-panel,
   .findings-panel,
   .theme-toggle,
@@ -1932,6 +2336,12 @@ a.dict-link-missing:hover {
     background: white !important;
     color: black !important;
     z-index: auto !important;
+  }
+
+  /* Reset inner wrapper padding for print */
+  .dict-view-inner {
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   /* Page-break avoidance: keep each entity/process/store card on one page */
@@ -1969,6 +2379,18 @@ a.dict-link-missing:hover {
 
   /* Suppress the reader legend to save paper — it's a screen affordance */
   .dict-reader-legend {
+    display: none !important;
+  }
+
+  /* Suppress browse-lens chrome (grid + toggle + leader lines + chips + focus bar) — print
+   * always shows read lens. Belt-and-braces on top of the beforeprint forced switch.
+   * Also suppresses the flow-node browse sections (CP10) and focus bar (CP15). */
+  .dict-browse-lens,
+  .dict-browse-flow-group,
+  .dict-lens-toggle,
+  .spotlight-overlay,
+  .spotlight-chips-container,
+  .dict-focus-bar {
     display: none !important;
   }
 }

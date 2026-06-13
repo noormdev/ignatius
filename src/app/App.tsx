@@ -304,6 +304,8 @@ export function App() {
             onSearchChange={setDictSearchText}
             dictNavOpen={dictNavOpen}
             onToggleNav={() => setDictNavOpen(prev => !prev)}
+            onOpenEntity={id => openEntityById(id)}
+            themeMode={themeMode}
           />
         </div>
       ) : view === 'dict' ? (

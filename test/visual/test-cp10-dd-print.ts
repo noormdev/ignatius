@@ -155,7 +155,7 @@ try {
     }
 
     return {
-      searchHidden: isHidden('.dict-search'),
+      searchHidden: isHidden('.dict-search-bar'),
       fabHidden: isHidden('.fab'),
       navHidden: isHidden('.dict-nav-panel'),
       themeToggleHidden: isHidden('.theme-toggle'),
@@ -168,8 +168,8 @@ try {
 
   note(`Chrome hidden under print: ${JSON.stringify(chromeVisible)}`);
 
-  if (!chromeVisible.searchHidden) fail('.dict-search should be display:none under print');
-  note('OK: .dict-search hidden under print');
+  if (!chromeVisible.searchHidden) fail('.dict-search-bar should be display:none under print');
+  note('OK: .dict-search-bar hidden under print');
 
   if (!chromeVisible.fabHidden) fail('.fab should be display:none under print');
   note('OK: .fab hidden under print');

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Model, ModelNode } from '../../../model/parse';
 import type {
   FlowDiagram,
@@ -10,12 +10,32 @@ import type { FlowError } from '../../../flows/flow-validate';
 import type { EntityError, GlobalError } from '../../../model/validate';
 import type { ModelIndex } from '../../../model/model-index';
 import { buildEntityUsageIndex } from '../../../flows/flow-usage-index';
+import { resolveFlowKindPalette, type FlowKindKey, type FlowKindEntry } from '../../../theme/theme-defaults';
 import { sortGroupNodes, nodeMatchesSearch, processMatchesSearch, externalMatchesSearch, storeMatchesSearch, compareDottedProcesses } from '../../logic/search';
 import { resolveBodyClick, upgradeMissingLinksInContainer } from '../../dom/body-links';
+import { buildSpotlightConnections } from '../../logic/spotlight';
+import { buildFlowSpotlightConnections } from '../../logic/flow-spotlight';
+import { buildFlowDocResolver } from '../../logic/doc-resolver';
+import type { FlowDocResult } from '../../logic/doc-resolver';
+import { SpotlightOverlay } from '../../components/entity/SpotlightOverlay';
 import { EntityCard } from '../../components/entity/EntityCard';
+import { GridCard } from '../../components/entity/GridCard';
+import { ProcessGridCard, ExternalGridCard, StoreGridCard } from '../../components/entity/FlowNodeGridCard';
 import { ExternalCard } from '../../components/flow-node/ExternalCard';
 import { StoreCard } from '../../components/flow-node/StoreCard';
 import { ProcessCard } from '../../components/process/ProcessCard';
+import { FlowNodeModal } from '../../components/flow-node/FlowNodeModal';
+
+// Lens persistence key.
+const LENS_STORAGE_KEY = 'ignatius-dict-lens';
+
+function readStoredLens(): 'read' | 'browse' {
+  try {
+    const v = localStorage.getItem(LENS_STORAGE_KEY);
+    if (v === 'browse') return 'browse';
+  } catch {}
+  return 'read';
+}
 
 function DictionaryView({
   model,
@@ -27,6 +47,8 @@ function DictionaryView({
   onSearchChange,
   dictNavOpen,
   onToggleNav,
+  onOpenEntity,
+  themeMode,
 }: {
   model: Model;
   modelIndex: ModelIndex | null;
@@ -37,8 +59,144 @@ function DictionaryView({
   onSearchChange: (v: string) => void;
   dictNavOpen: boolean;
   onToggleNav: () => void;
+  onOpenEntity: (id: string) => void;
+  themeMode: 'dark' | 'light';
 }) {
   const { globalErrors, entityErrors } = findings;
+
+  // Lens state: 'read' = full document view (default); 'browse' = compact grid.
+  // Persisted to localStorage; invalid stored value → 'read'.
+  const [lens, setLens] = useState<'read' | 'browse'>(readStoredLens);
+
+  // ── Spotlight state (CP3) ──────────────────────────────────────────────────
+  // hoverId: card currently under the pointer; pinnedId: card clicked to pin.
+  // Active spotlight = pinnedId ?? hoverId.
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  // CP14: labelHoverCardId — which CONNECTED (lit) card the pointer is currently over.
+  // Distinct from hoverId (which changes the active spotlight node when unpinned).
+  // When non-null, the overlay reveals pills only for this card's connection(s).
+  const [labelHoverCardId, setLabelHoverCardId] = useState<string | null>(null);
+  // CP15: focusId — when non-null, the browse grid is filtered to {focusId} ∪ connected-card-set.
+  // Component state only; never written to URL hash.
+  const [focusId, setFocusId] = useState<string | null>(null);
+
+  // CP10: local state for the FlowNodeModal opened from browse-lens grid cards.
+  // The resolver is rebuilt from allDiagrams via useMemo (see below).
+  const [openFlowResult, setOpenFlowResult] = useState<FlowDocResult | null>(null);
+
+  function switchLens(next: 'read' | 'browse') {
+    try {
+      localStorage.setItem(LENS_STORAGE_KEY, next);
+    } catch {}
+    setHoverId(null);
+    setPinnedId(null);
+    setLabelHoverCardId(null);
+    setFocusId(null);
+    setLens(next);
+  }
+
+  // Spotlight active id — may be a bare entity id or a "<kind>:<name>" flow-node token.
+  // Detection: flow-node tokens always contain ":" (entity ids are PascalCase, no colon).
+  const activeId = pinnedId ?? hoverId;
+  const activeIsEntity = activeId !== null && !activeId.includes(':');
+
+  // FK connections — entity only. Computed here since modelIndex is available.
+  const spotlightConnections = useMemo(() => {
+    if (activeId === null || !activeIsEntity || modelIndex === null) return [];
+    return buildSpotlightConnections(modelIndex, activeId);
+  }, [activeId, modelIndex]);
+
+  // Flow-lookup token for the active card:
+  //   entity  → "db:<entityId>" (its flow endpoint token)
+  //   flow-node → the card's own raw token (already "<kind>:<name>")
+  const activeFlowToken = activeId === null
+    ? null
+    : activeIsEntity
+      ? `db:${activeId}`
+      : activeId;
+
+  // NOTE: flowSpotlightConnections and the unified spotlitIds are computed later
+  // (after allDiagrams is declared) so allDiagrams is in scope for the useMemo deps.
+
+  // Ref for the browse-lens container — passed to SpotlightOverlay for ResizeObserver.
+  const browseLensRef = useRef<HTMLDivElement | null>(null);
+
+  // Clear pinnedId, focusId (and labelHoverCardId) when the committed search term changes.
+  // CP15: search and focus are mutually exclusive — a search-term change clears focus.
+  // Use a ref to track the previous term so we only clear on genuine changes.
+  // Exception: when activateFocus() clears the search (focus→no-search), the echo must
+  // NOT clear focusId — the sentinel focusClearingSearchRef guards that one echo.
+  const prevSearchTermRef = useRef(searchText);
+  useEffect(() => {
+    if (prevSearchTermRef.current !== searchText) {
+      prevSearchTermRef.current = searchText;
+      if (focusClearingSearchRef.current) {
+        // activateFocus() caused this change — skip clearing both pinnedId and focusId.
+        // The pin must stay active so focus mode can render {focusId} ∪ connected.
+        focusClearingSearchRef.current = false;
+        setLabelHoverCardId(null);
+        // pinnedId and focusId intentionally NOT cleared — activateFocus() is about to set focusId.
+        return;
+      }
+      setPinnedId(null);
+      setLabelHoverCardId(null);
+      setFocusId(null);
+    }
+  }, [searchText]);
+
+  // Esc key clears focus first (if focused), then pin. CP15: focus takes Esc priority.
+  // Using a ref so the handler sees the current focusId without re-registering.
+  const focusIdRef = useRef<string | null>(null);
+  focusIdRef.current = focusId;
+
+  useEffect(() => {
+    if (lens !== 'browse') return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        if (focusIdRef.current !== null) {
+          // Clear focus first; leave pin intact so user can still see the spotlit state.
+          setFocusId(null);
+        } else {
+          setPinnedId(null);
+          setLabelHoverCardId(null);
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [lens]);
+
+  // CP14: Refs for stable access inside useCallback handlers without adding deps.
+  // spotlitIdsRef: the current lit set (active ∪ connected cards).
+  // activeIdRef: the current active spotlight id.
+  const spotlitIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const activeIdRef = useRef<string | null>(null);
+
+  // Card interaction callbacks — stable via useCallback so GridCard doesn't rerender
+  // on every spotlight state change (cards without dim/spotlit class stay static).
+  const handleCardMouseEnter = useCallback((id: string) => {
+    setHoverId(id);
+    // CP14: If a spotlight is active and this card is a connected (lit) card
+    // (but not the active card itself), reveal its label by tracking it as labelHoverCardId.
+    const active = activeIdRef.current;
+    if (active !== null && id !== active && spotlitIdsRef.current.has(id)) {
+      setLabelHoverCardId(id);
+    }
+  }, []);
+  const handleCardMouseLeave = useCallback((_id: string) => {
+    setHoverId(null);
+    setLabelHoverCardId(null);
+  }, []);
+  const handleCardClick = useCallback((id: string) => {
+    setPinnedId(prev => {
+      const next = prev === id ? null : id;
+      // Spec: unpinning clears focusId. Focus without a pin is always invalid.
+      if (next === null) setFocusId(null);
+      return next;
+    });
+    setLabelHoverCardId(null);
+  }, []);
 
   // O(1) error lookup maps so per-entity/per-process filters are single map
   // lookups instead of O(n) array scans in every DictEntitySection/DictProcessSection.
@@ -84,10 +242,64 @@ function DictionaryView({
   onSearchChangeRef.current = onSearchChange;
   const savedSearchRef = useRef('');
 
+  // Lens refs for the beforeprint/afterprint lens force — mirrors the CP10 pattern.
+  // beforeprint forces 'read' so the full document renders; afterprint restores.
+  const lensRef = useRef(lens);
+  lensRef.current = lens;
+  const savedLensRef = useRef<'read' | 'browse'>('read');
+
+  // Debounced search: keystrokes land in local state immediately (input stays
+  // responsive); the committed term (searchText, which drives filtering and the
+  // CP9 highlight walk) updates 200ms after typing pauses. External commits
+  // (print clear/restore) sync back into the input and cancel any pending commit.
+  const [searchInput, setSearchInput] = useState(searchText);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sentinel distinguishing our own commit echoing back through the searchText
+  // prop from a genuinely external change. Without it, the echo of a commit
+  // would cancel a pending timer for keystrokes typed right after the commit.
+  const lastCommittedRef = useRef<string | null>(null);
+  // CP15: Sentinel set by activateFocus() before it calls onSearchChange('') so
+  // the searchText effect knows to skip clearing focusId on that one echo.
+  // The effect consumes it (resets to false) so normal user typing still clears.
+  const focusClearingSearchRef = useRef(false);
+
+  useEffect(() => {
+    if (lastCommittedRef.current !== null && searchText === lastCommittedRef.current) {
+      lastCommittedRef.current = null;
+      return; // own-commit echo — input already shows this value
+    }
+    lastCommittedRef.current = null;
+    if (searchDebounceRef.current !== null) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+    setSearchInput(searchText);
+  }, [searchText]);
+
+  // Clear any pending commit on unmount.
+  useEffect(() => () => {
+    if (searchDebounceRef.current !== null) clearTimeout(searchDebounceRef.current);
+  }, []);
+
+  function handleSearchInput(value: string) {
+    setSearchInput(value);
+    if (searchDebounceRef.current !== null) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      searchDebounceRef.current = null;
+      lastCommittedRef.current = value;
+      onSearchChangeRef.current(value);
+    }, 200);
+  }
+
   useEffect(() => {
     function handleBeforePrint() {
       savedSearchRef.current = searchTextRef.current;
       if (searchTextRef.current !== '') onSearchChangeRef.current('');
+      // Force read lens for print — browse chrome (grid, toggle) is suppressed by
+      // @media print rules, but forcing the lens here ensures the read-lens DOM
+      // is present (not just hidden) so the full document renders for printing.
+      savedLensRef.current = lensRef.current;
+      if (lensRef.current !== 'read') setLens('read');
     }
 
     function handleAfterPrint() {
@@ -95,6 +307,12 @@ function DictionaryView({
         onSearchChangeRef.current(savedSearchRef.current);
         savedSearchRef.current = '';
       }
+      // Restore the prior lens after printing, then clear the saved value so a
+      // stale lens can't be restored on a subsequent print (mirrors savedSearchRef clear).
+      if (savedLensRef.current !== 'read') {
+        setLens(savedLensRef.current);
+      }
+      savedLensRef.current = 'read';
     }
 
     window.addEventListener('beforeprint', handleBeforePrint);
@@ -104,7 +322,8 @@ function DictionaryView({
       window.removeEventListener('afterprint', handleAfterPrint);
     };
   // Empty deps: register once on mount, unregister on unmount.
-  // Handlers read searchTextRef/onSearchChangeRef/savedSearchRef (all stable refs).
+  // Handlers read searchTextRef/onSearchChangeRef/savedSearchRef/lensRef/savedLensRef
+  // (all stable refs). setLens is stable across renders.
   }, []);
 
   // Build missing-target set (entities referenced by FK but not present).
@@ -218,21 +437,38 @@ function DictionaryView({
   }
   const allProcessesDeep = collectProcessesDeep(allDiagrams);
 
-  // Deduplicate externals by id (same external may appear in multiple DFDs).
+  // Deduplicate externals by id across ALL diagrams (recursively including sub-DFDs).
+  // Mirrors collectStoreRefs — an external that only appears in a sub-DFD (same bug
+  // class CP18 fixed for stores) is now captured and has a valid card to scroll to.
   const externalById: Record<string, FlowExternal> = {};
-  for (const d of allDiagrams) {
-    for (const ext of d.externals) externalById[ext.id] = ext;
-  }
-  const allExternals = Object.values(externalById);
-
-  // Deduplicate non-db stores by name across diagrams.
-  const storeByName: Record<string, FlowStoreRef> = {};
-  for (const d of allDiagrams) {
-    for (const s of d.storeRefs) {
-      if (s.kind !== 'db') storeByName[s.name] = s;
+  function collectExternals(diagrams: FlowDiagram[]): void {
+    for (const d of diagrams) {
+      for (const ext of d.externals) externalById[ext.id] = ext;
+      collectExternals(d.subDfds);
     }
   }
+  collectExternals(allDiagrams);
+  const allExternals = Object.values(externalById);
+
+  // Deduplicate non-db stores by name across ALL diagrams (recursively including sub-DFDs).
+  // CP18: must walk sub-DFDs so stores that only appear in a sub-DFD (e.g. queue:OrderIntake
+  // in Create-Sales-Order) are captured. Previously only top-level diagrams were iterated.
+  const storeByName: Record<string, FlowStoreRef> = {};
+  function collectStoreRefs(diagrams: FlowDiagram[]): void {
+    for (const d of diagrams) {
+      for (const s of d.storeRefs) {
+        if (s.kind !== 'db') storeByName[s.name] = s;
+      }
+      collectStoreRefs(d.subDfds);
+    }
+  }
+  collectStoreRefs(allDiagrams);
   const allNonDbStores = Object.values(storeByName).filter(s => s.bodyHtml !== undefined);
+
+  // CP18: Full set of non-db stores for the browse lens — includes every store referenced
+  // by any flow edge, even those without a _stores/*.md doc file (e.g. queue:OrderIntake).
+  // The read lens and ddNonDbStoreNames stay on allNonDbStores (bodyHtml-filtered) — correct.
+  const allBrowseStores = Object.values(storeByName);
 
   // O(1) membership sets for DD-card endpoint clickability (CP25).
   // Built from the same source arrays as allExternals/allNonDbStores so they stay in sync.
@@ -247,6 +483,98 @@ function DictionaryView({
   // state change; allDiagrams is the only dependency that affects the index.
   const entityUsageIndex = useMemo(() => buildEntityUsageIndex(allDiagrams), [allDiagrams]);
 
+  // CP11: flow connections for the active spotlight card.
+  // Defined here (after allDiagrams) so the dep is in scope.
+  const flowSpotlightConnections = useMemo(() => {
+    if (activeFlowToken === null || allDiagrams.length === 0) return [];
+    return buildFlowSpotlightConnections(allDiagrams, activeFlowToken);
+  }, [activeFlowToken, allDiagrams]);
+
+  // CP11: unified lit set — {activeId} ∪ FK-connected ids ∪ flow-connected card ids.
+  // Replaces the earlier entity-only spotlitIds.
+  const spotlitIds = useMemo<ReadonlySet<string>>(() => {
+    if (activeId === null) return new Set();
+    const ids = new Set<string>();
+    ids.add(activeId);
+    for (const c of spotlightConnections) ids.add(c.otherId);
+    for (const c of flowSpotlightConnections) ids.add(c.otherCardId);
+    return ids;
+  }, [activeId, spotlightConnections, flowSpotlightConnections]);
+
+  // CP15: focus set — {focusId} ∪ connected-card-set(focusId).
+  // Computed from the same spotlight logic so cross-domain connections are included.
+  // When focusId is null, focusSet is null (no filter applied).
+  const focusSet = useMemo<ReadonlySet<string> | null>(() => {
+    if (focusId === null) return null;
+    const ids = new Set<string>();
+    ids.add(focusId);
+    // FK connections (entity-focused only).
+    const focusIsEntity = !focusId.includes(':');
+    if (focusIsEntity && modelIndex !== null) {
+      for (const c of buildSpotlightConnections(modelIndex, focusId)) ids.add(c.otherId);
+    }
+    // Flow connections (all card types).
+    if (allDiagrams.length > 0) {
+      const focusFlowToken = focusIsEntity ? `db:${focusId}` : focusId;
+      for (const c of buildFlowSpotlightConnections(allDiagrams, focusFlowToken)) {
+        ids.add(c.otherCardId);
+      }
+    }
+    return ids;
+  }, [focusId, modelIndex, allDiagrams]);
+
+  // CP14: keep refs in sync so stable handleCardMouseEnter can read current values.
+  spotlitIdsRef.current = spotlitIds;
+  activeIdRef.current = activeId;
+
+  // CP10: flow kind palette for browse-lens card accents.
+  const kindPalette = useMemo(
+    () => resolveFlowKindPalette(themeMode, model.theme?.flowKinds),
+    [themeMode, model.theme],
+  );
+
+  // CP10: flow doc resolver for the browse-lens ⓘ button on flow-node cards.
+  // Rebuilt whenever the diagram set changes (SSE / static load).
+  const resolveFlowDoc = useMemo(
+    () => buildFlowDocResolver(allDiagrams, model),
+    [allDiagrams, model],
+  );
+
+  // CP15: activate focus mode — sets focusId = pinnedId, clears search (mutually exclusive).
+  function activateFocus() {
+    if (pinnedId === null) return;
+    // Focus clears search (the two never compose).
+    if (searchText !== '') {
+      // Set sentinel BEFORE calling onSearchChange so the searchText useEffect knows
+      // this change is from us and should NOT clear focusId (we're about to set it).
+      focusClearingSearchRef.current = true;
+      onSearchChange('');
+      setSearchInput('');
+      if (searchDebounceRef.current !== null) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+      lastCommittedRef.current = '';
+    }
+    setFocusId(pinnedId);
+  }
+
+  // CP15: exit focus — clear focusId, leave pinnedId intact (spotlight stays active).
+  function exitFocus() {
+    setFocusId(null);
+  }
+
+  // Open the FlowNodeModal for a given flow token (from browse-lens ⓘ buttons).
+  function openFlowNode(token: string) {
+    const result = resolveFlowDoc(token);
+    if (!result) return;
+    if (result.kind === 'entity') {
+      onOpenEntity(result.entityId);
+    } else {
+      setOpenFlowResult(result);
+    }
+  }
+
   // Per-diagram top-level processes (for the nav and DFD headings).
   const hasDiagrams = allDiagrams.length > 0;
   const hasProcesses = allProcessesDeep.length > 0;
@@ -259,7 +587,8 @@ function DictionaryView({
   if (!hasSearch) {
     for (const p of allProcessesDeep) visibleProcessIds[p.id] = true;
     for (const e of allExternals) visibleExternalIds[e.id] = true;
-    for (const s of allNonDbStores) visibleStoreNames[s.name] = true;
+    // CP18: browse lens uses allBrowseStores (full set) so undocumented stores are visible.
+    for (const s of allBrowseStores) visibleStoreNames[s.name] = true;
   } else {
     for (const p of allProcessesDeep) {
       if (processMatchesSearch(p, term)) visibleProcessIds[p.id] = true;
@@ -267,7 +596,8 @@ function DictionaryView({
     for (const e of allExternals) {
       if (externalMatchesSearch(e, term)) visibleExternalIds[e.id] = true;
     }
-    for (const s of allNonDbStores) {
+    // CP18: search filter also iterates the full set.
+    for (const s of allBrowseStores) {
       if (storeMatchesSearch(s, term)) visibleStoreNames[s.name] = true;
     }
   }
@@ -300,8 +630,9 @@ function DictionaryView({
   );
   const visibleStoreKey = useMemo(
     () => Object.keys(visibleStoreNames).sort().join('\0'),
+    // CP18: depends on allBrowseStores (full set) since visibleStoreNames is now derived from it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [term, allNonDbStores],
+    [term, allBrowseStores],
   );
 
   // CP9: DOM highlight — apply CSS Custom Highlight API ranges over the visible
@@ -323,17 +654,13 @@ function DictionaryView({
     const container = document.querySelector<HTMLElement>('[data-ignatius="dict-view"]');
     if (!container) return;
 
-    // Exclude the search input itself from highlighting.
-    const searchInput = container.querySelector('.dict-search-input');
-
     const lowerTerm = term.toLowerCase();
     const ranges: Range[] = [];
 
-    // Walk all text nodes under the dict-view container, excluding the search box.
+    // Walk all text nodes under the dict-view container. The search input lives
+    // outside this container (in the fixed bar), so no exclusion guard needed.
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
       acceptNode(node) {
-        // Skip text inside the search input.
-        if (searchInput && searchInput.contains(node)) return NodeFilter.FILTER_REJECT;
         const text = node.nodeValue ?? '';
         return text.trim().length > 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
       },
@@ -481,22 +808,46 @@ function DictionaryView({
         </div>
       </nav>
 
+      {/* CP17: Fixed top search bar — frosted, centered, sits above scrolled content. */}
+      <div className="dict-search-bar">
+        <div className="dict-search-bar-inner">
+          <div className="dict-search">
+            <input
+              type="search"
+              className="dict-search-input"
+              placeholder="Search entities, columns, processes, stores…"
+              value={searchInput}
+              onChange={e => handleSearchInput(e.currentTarget.value)}
+              aria-label="Search dictionary"
+            />
+            <div className="dict-lens-toggle" role="group" aria-label="Dictionary lens">
+              <button
+                type="button"
+                className={`dict-lens-btn${lens === 'read' ? ' dict-lens-btn--active' : ''}`}
+                onClick={() => switchLens('read')}
+                aria-pressed={lens === 'read'}
+              >
+                Read
+              </button>
+              <button
+                type="button"
+                className={`dict-lens-btn${lens === 'browse' ? ' dict-lens-btn--active' : ''}`}
+                onClick={() => switchLens('browse')}
+                aria-pressed={lens === 'browse'}
+              >
+                Browse
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main dict content */}
       <div className="dict-view" data-ignatius="dict-view">
-        {/* Search — spans entities + processes + externals + stores */}
-        <div className="dict-search">
-          <input
-            type="search"
-            className="dict-search-input"
-            placeholder="Search entities, columns, processes, stores…"
-            value={searchText}
-            onChange={e => onSearchChange(e.currentTarget.value)}
-            aria-label="Search dictionary"
-          />
-        </div>
+        <div className="dict-view-inner">
 
-        {/* Reader legend */}
-        <details className="dict-reader-legend" open>
+        {/* Reader legend — read lens only; not meaningful in browse/grid view */}
+        {lens === 'read' && <details className="dict-reader-legend" open>
           <summary>How to read this</summary>
           <div className="dict-reader-legend-grid">
             <section className="dict-reader-legend-cell">
@@ -553,81 +904,317 @@ function DictionaryView({
               </p>
             </section>
           </div>
-        </details>
+        </details>}
 
         {/* No-results message when search matches nothing across all kinds */}
         {hasSearch && !hasAnyVisible && (
           <p className="dict-no-results">No results match "{term}"</p>
         )}
 
-        {/* Entity sections by group */}
-        {groupOrder.map(key => {
-          const cfg = model.groups[key];
-          if (!cfg) return null;
-          const sorted = groupOrderedNodes[key];
-          if (!sorted || sorted.length === 0) return null;
-          const visibleNodes = sorted.filter(n => visibleSet[n.id]);
-          if (visibleNodes.length === 0) return null;
-          return (
-            <section key={key} className="dict-group-section">
-              <div
-                className="dict-group-header"
-                style={{ borderLeft: `4px solid ${cfg.color}`, paddingLeft: '1rem' }}
-              >
-                <h1 className="dict-group-title" style={{ color: cfg.color }}>{cfg.label}</h1>
-                {cfg.desc && (
-                  <div
-                    className="dict-group-desc"
-                    dangerouslySetInnerHTML={{ __html: cfg.desc }}
-                  />
-                )}
+        {/* ── Browse lens: compact entity card grid ── */}
+        {lens === 'browse' && (
+          // Empty grid area click (click on the .dict-browse-lens background, not a card) clears pin.
+          // Cards stop propagation via their own click handlers (they toggle pinnedId instead).
+          <div
+            ref={browseLensRef}
+            className="dict-browse-lens"
+            onClick={() => { setPinnedId(null); setFocusId(null); }}
+          >
+            {/* CP15: Focus bar — shown while pinned and not yet focused; allows activating focus mode. */}
+            {pinnedId !== null && focusId === null && (
+              <div className="dict-focus-bar" onClick={e => e.stopPropagation()}>
+                <span className="dict-focus-bar-label">Pinned: <strong>{pinnedId}</strong></span>
+                <button
+                  type="button"
+                  className="dict-focus-btn"
+                  onClick={e => { e.stopPropagation(); activateFocus(); }}
+                  aria-label="Focus: show only connected cards"
+                >
+                  Focus neighborhood
+                </button>
               </div>
-              {visibleNodes.map(n => (
-                <EntityCard
-                  key={n.id}
-                  node={n}
-                  edges={model.edges}
-                  basetypeCluster={modelIndex?.basetypeClusterById.get(n.id)}
-                  memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
-                  nodeErrors={errorsByEntityId.get(n.id) ?? []}
-                  missingTargets={missingTargets}
-                  onNavigate={scrollToSection}
-                  onNavigateMissing={scrollToMissing}
-                  processUsages={entityUsageIndex.get(n.id)}
-                  onScrollToProcess={scrollToProcess}
-                />
-              ))}
-            </section>
-          );
-        })}
+            )}
 
-        {/* Ungrouped entities */}
-        {ungrouped.filter(n => visibleSet[n.id]).map(n => (
-          <EntityCard
-            key={n.id}
-            node={n}
-            edges={model.edges}
-            basetypeCluster={modelIndex?.basetypeClusterById.get(n.id)}
-            memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
-            nodeErrors={errorsByEntityId.get(n.id) ?? []}
-            missingTargets={missingTargets}
-            onNavigate={scrollToSection}
-            onNavigateMissing={scrollToMissing}
-            processUsages={entityUsageIndex.get(n.id)}
-            onScrollToProcess={scrollToProcess}
-          />
-        ))}
+            {/* CP15: Show-all bar — shown while in focus mode; allows exiting back to full grid. */}
+            {focusId !== null && (
+              <div className="dict-focus-bar dict-focus-bar--active" onClick={e => e.stopPropagation()}>
+                <span className="dict-focus-bar-label">Focused: <strong>{focusId}</strong> and neighbors</span>
+                <button
+                  type="button"
+                  className="dict-focus-btn dict-focus-btn--exit"
+                  onClick={e => { e.stopPropagation(); exitFocus(); }}
+                  aria-label="Exit focus mode — show all cards"
+                >
+                  Show all
+                </button>
+              </div>
+            )}
 
-        {/* Missing entity placeholders */}
-        {[...missingTargets].map(id => (
-          <section key={id} id={`missing-${id}`} className="dict-missing-section">
-            <h2>{id} (omitted)</h2>
-            <p>This entity was referenced but does not exist in the model.</p>
-          </section>
-        ))}
+            {groupOrder.map(key => {
+              const cfg = model.groups[key];
+              if (!cfg) return null;
+              const sorted = groupOrderedNodes[key];
+              if (!sorted || sorted.length === 0) return null;
+              // CP15: when focused, only render cards in the focus set.
+              const visibleNodes = sorted.filter(n =>
+                visibleSet[n.id] && (focusSet === null || focusSet.has(n.id))
+              );
+              if (visibleNodes.length === 0) return null;
+              return (
+                <section key={key} className="dict-browse-group">
+                  <div
+                    className="dict-browse-group-header"
+                    style={{ borderLeftColor: cfg.color, color: cfg.color }}
+                  >
+                    {cfg.label}
+                  </div>
+                  <div className="dict-grid">
+                    {visibleNodes.map(n => {
+                      const spotlitClass = activeId === null
+                        ? ''
+                        : spotlitIds.has(n.id)
+                          ? 'dict-grid-card--spotlit'
+                          : 'dict-grid-card--dim';
+                      return (
+                        <GridCard
+                          key={n.id}
+                          node={n}
+                          groupColor={cfg.color}
+                          spotlitClass={spotlitClass}
+                          onOpenEntity={onOpenEntity}
+                          onMouseEnter={handleCardMouseEnter}
+                          onMouseLeave={handleCardMouseLeave}
+                          onClick={handleCardClick}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+            {/* Ungrouped entities */}
+            {(() => {
+              const visibleUngrouped = ungrouped.filter(n =>
+                visibleSet[n.id] && (focusSet === null || focusSet.has(n.id))
+              );
+              if (visibleUngrouped.length === 0) return null;
+              return (
+                <section className="dict-browse-group">
+                  <div className="dict-browse-group-header" style={{ borderLeftColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}>
+                    Ungrouped
+                  </div>
+                  <div className="dict-grid">
+                    {visibleUngrouped.map(n => {
+                      const spotlitClass = activeId === null
+                        ? ''
+                        : spotlitIds.has(n.id)
+                          ? 'dict-grid-card--spotlit'
+                          : 'dict-grid-card--dim';
+                      return (
+                        <GridCard
+                          key={n.id}
+                          node={n}
+                          groupColor={undefined}
+                          spotlitClass={spotlitClass}
+                          onOpenEntity={onOpenEntity}
+                          onMouseEnter={handleCardMouseEnter}
+                          onMouseLeave={handleCardMouseLeave}
+                          onClick={handleCardClick}
+                        />
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })()}
 
-        {/* ── Process-model section (CP5) ── */}
-        {hasDiagrams && (
+            {/* ── CP10: Flow-node grid sections (Processes / Externals / Stores) ── */}
+            {hasDiagrams && (() => {
+              // Processes section — sorted by dotted number; CP15: filter by focus set.
+              const visibleProcs = [...allProcessesDeep]
+                .filter(p => visibleProcessIds[p.id] && (focusSet === null || focusSet.has(`proc:${p.id}`)))
+                .sort(compareDottedProcesses);
+
+              // Externals section — sorted alphabetically by display label; CP15: filter by focus set.
+              const visibleExts = allExternals
+                .filter(e => visibleExternalIds[e.id] && (focusSet === null || focusSet.has(`ext:${e.id}`)))
+                .sort((a, b) => a.label.localeCompare(b.label));
+
+              // Data stores section — sorted alphabetically by displayName; CP15: filter by focus set.
+              // CP18: uses allBrowseStores (full set) so undocumented stores like queue:OrderIntake appear.
+              const visibleStores = allBrowseStores
+                .filter(s => visibleStoreNames[s.name] && (focusSet === null || focusSet.has(`${s.kind}:${s.name}`)))
+                .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+              return (
+                <>
+                  {visibleProcs.length > 0 && (
+                    <section className="dict-browse-group dict-browse-flow-group">
+                      <div className="dict-browse-group-header dict-browse-flow-header">
+                        Processes
+                      </div>
+                      <div className="dict-grid">
+                        {visibleProcs.map(proc => {
+                          const procToken = `proc:${proc.id}`;
+                          const procSpotlitClass = activeId === null
+                            ? ''
+                            : spotlitIds.has(procToken)
+                              ? 'dict-grid-card--spotlit'
+                              : 'dict-grid-card--dim';
+                          return (
+                            <ProcessGridCard
+                              key={proc.id}
+                              process={proc}
+                              spotlitClass={procSpotlitClass}
+                              onOpenNode={openFlowNode}
+                              onMouseEnter={handleCardMouseEnter}
+                              onMouseLeave={handleCardMouseLeave}
+                              onClick={handleCardClick}
+                            />
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {visibleExts.length > 0 && (
+                    <section className="dict-browse-group dict-browse-flow-group">
+                      <div className="dict-browse-group-header dict-browse-flow-header">
+                        External entities
+                      </div>
+                      <div className="dict-grid">
+                        {visibleExts.map(ext => {
+                          const extToken = `ext:${ext.id}`;
+                          const extSpotlitClass = activeId === null
+                            ? ''
+                            : spotlitIds.has(extToken)
+                              ? 'dict-grid-card--spotlit'
+                              : 'dict-grid-card--dim';
+                          return (
+                            <ExternalGridCard
+                              key={ext.id}
+                              external={ext}
+                              kindPalette={kindPalette}
+                              themeMode={themeMode}
+                              spotlitClass={extSpotlitClass}
+                              onOpenNode={openFlowNode}
+                              onMouseEnter={handleCardMouseEnter}
+                              onMouseLeave={handleCardMouseLeave}
+                              onClick={handleCardClick}
+                            />
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {visibleStores.length > 0 && (
+                    <section className="dict-browse-group dict-browse-flow-group">
+                      <div className="dict-browse-group-header dict-browse-flow-header">
+                        Data stores
+                      </div>
+                      <div className="dict-grid">
+                        {visibleStores.map(store => {
+                          const storeToken = `${store.kind}:${store.name}`;
+                          const storeSpotlitClass = activeId === null
+                            ? ''
+                            : spotlitIds.has(storeToken)
+                              ? 'dict-grid-card--spotlit'
+                              : 'dict-grid-card--dim';
+                          return (
+                            <StoreGridCard
+                              key={storeToken}
+                              store={store}
+                              kindPalette={kindPalette}
+                              spotlitClass={storeSpotlitClass}
+                              onOpenNode={openFlowNode}
+                              onMouseEnter={handleCardMouseEnter}
+                              onMouseLeave={handleCardMouseLeave}
+                              onClick={handleCardClick}
+                            />
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ── Read lens: full document entity sections ── */}
+        {lens === 'read' && (
+          <>
+            {groupOrder.map(key => {
+              const cfg = model.groups[key];
+              if (!cfg) return null;
+              const sorted = groupOrderedNodes[key];
+              if (!sorted || sorted.length === 0) return null;
+              const visibleNodes = sorted.filter(n => visibleSet[n.id]);
+              if (visibleNodes.length === 0) return null;
+              return (
+                <section key={key} className="dict-group-section">
+                  <div
+                    className="dict-group-header"
+                    style={{ borderLeft: `4px solid ${cfg.color}`, paddingLeft: '1rem' }}
+                  >
+                    <h1 className="dict-group-title" style={{ color: cfg.color }}>{cfg.label}</h1>
+                    {cfg.desc && (
+                      <div
+                        className="dict-group-desc"
+                        dangerouslySetInnerHTML={{ __html: cfg.desc }}
+                      />
+                    )}
+                  </div>
+                  {visibleNodes.map(n => (
+                    <EntityCard
+                      key={n.id}
+                      node={n}
+                      edges={model.edges}
+                      basetypeCluster={modelIndex?.basetypeClusterById.get(n.id)}
+                      memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
+                      nodeErrors={errorsByEntityId.get(n.id) ?? []}
+                      missingTargets={missingTargets}
+                      onNavigate={scrollToSection}
+                      onNavigateMissing={scrollToMissing}
+                      processUsages={entityUsageIndex.get(n.id)}
+                      onScrollToProcess={scrollToProcess}
+                    />
+                  ))}
+                </section>
+              );
+            })}
+
+            {/* Ungrouped entities */}
+            {ungrouped.filter(n => visibleSet[n.id]).map(n => (
+              <EntityCard
+                key={n.id}
+                node={n}
+                edges={model.edges}
+                basetypeCluster={modelIndex?.basetypeClusterById.get(n.id)}
+                memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
+                nodeErrors={errorsByEntityId.get(n.id) ?? []}
+                missingTargets={missingTargets}
+                onNavigate={scrollToSection}
+                onNavigateMissing={scrollToMissing}
+                processUsages={entityUsageIndex.get(n.id)}
+                onScrollToProcess={scrollToProcess}
+              />
+            ))}
+
+            {/* Missing entity placeholders */}
+            {[...missingTargets].map(id => (
+              <section key={id} id={`missing-${id}`} className="dict-missing-section">
+                <h2>{id} (omitted)</h2>
+                <p>This entity was referenced but does not exist in the model.</p>
+              </section>
+            ))}
+          </>
+        )}
+
+        {/* ── Process-model section (CP5) — read lens only ── */}
+        {lens === 'read' && hasDiagrams && (
           <>
             <h2 className="flow-dict-section-heading">Process Model</h2>
 
@@ -712,7 +1299,42 @@ function DictionaryView({
             )}
           </>
         )}
+        </div>{/* .dict-view-inner */}
       </div>
+
+      {/* CP10: FlowNodeModal for browse-lens flow-node card ⓘ buttons.
+          Opened by openFlowNode(); closed via setOpenFlowResult(null). */}
+      {openFlowResult?.kind === 'node' && (
+        <FlowNodeModal
+          node={openFlowResult.node}
+          allProcesses={openFlowResult.allProcesses}
+          doc={openFlowResult.doc}
+          onClose={() => setOpenFlowResult(null)}
+          onNavigate={(token) => {
+            const result = resolveFlowDoc(token);
+            if (!result) return;
+            if (result.kind === 'entity') {
+              setOpenFlowResult(null);
+              onOpenEntity(result.entityId);
+            } else {
+              setOpenFlowResult(result);
+            }
+          }}
+        />
+      )}
+
+      {/* CP4/CP12: Leader-line overlay — rendered when browse lens is active and a spotlight is set.
+          Position:fixed SVG outside the scrolling dict-view so it spans the full viewport.
+          CP12: flowConnections draws dashed flow lines alongside solid FK lines. */}
+      {lens === 'browse' && activeId !== null && (
+        <SpotlightOverlay
+          activeId={activeId}
+          connections={spotlightConnections}
+          flowConnections={flowSpotlightConnections}
+          labelHoverCardId={labelHoverCardId}
+          gridContainerRef={browseLensRef}
+        />
+      )}
     </>
   );
 }

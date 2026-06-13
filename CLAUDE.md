@@ -149,6 +149,7 @@ Paths are relative to `docs/design/`, `docs/spec/`, `docs/guides/`, and `skills/
 | Themes | cli-and-outputs | cli-and-outputs | themes-and-branding | model-flow M4 |
 | Branding | branding | branding | themes-and-branding | model-flow M5 |
 | Dict navigation + polish | dict-navigation | dict-navigation, dict-polish | — | — |
+| DD browse lens: spotlight grid (entity + flow-node cards, hover/pin spotlight; solid FK predicate lines + dashed cross-domain data-flow lines; hover-reveal labels; off-screen chips; facing-edge anchoring; focus/isolate mode for scale) | dd-spotlight-grid | dd-spotlight-grid | — | — |
 | Graph viewer FAB UX | viewer-fab-ux | viewer-fab-ux | — | — |
 | Graph node position persistence (drag-to-save, reset) | graph-position-persistence | graph-position-persistence | — | — |
 | Business-narrative body + existence/cascade rules | markdown-driven-erd | noorm-modeling-skill | modeling-skill | entity-flow E9, templates (body sections) |

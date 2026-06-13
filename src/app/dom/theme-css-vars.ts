@@ -37,6 +37,20 @@ export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
     mode === 'dark' ? 'rgba(255, 215, 0, 0.40)' : 'rgba(255, 195, 0, 0.50)',
   );
 
+  // CP4: Spotlight leader-line stroke colors — out (FK-holding side) vs in (referenced/parent side).
+  // Out: orange-amber to read as "going out to parent".
+  // In: teal-blue to read as "incoming children".
+  // CP12: Flow lines use a distinct purple so they never read as FK edges on the same canvas.
+  if (mode === 'dark') {
+    root.style.setProperty('--spotlight-line-out', '#f59e0b');
+    root.style.setProperty('--spotlight-line-in', '#38bdf8');
+    root.style.setProperty('--spotlight-line-flow', '#a78bfa');
+  } else {
+    root.style.setProperty('--spotlight-line-out', '#d97706');
+    root.style.setProperty('--spotlight-line-in', '#0284c7');
+    root.style.setProperty('--spotlight-line-flow', '#7c3aed');
+  }
+
   // Direction-badge colors (read/write/readwrite) — mode-aware so they adapt on
   // theme switch. Dark: slightly brighter tints; light: slightly more saturated.
   if (mode === 'dark') {
