@@ -106,9 +106,9 @@ export function bandOf(
   if (n.nodeType === 'process') return 2;
 
   if (n.nodeType === 'external') {
-    // buildFlowData encodes role in the id suffix:
-    //   ext:<id>--snk or ext:<id>--snk--<proc>  → sink (band 4)
-    //   ext:<id>--src or ext:<id>--src--<proc>  → source (band 0)
+    // buildFlowData encodes role in the id suffix (CP4a: at most two copies):
+    //   ext:<id>--snk  → sink (band 4, aggregates all sink partners)
+    //   ext:<id>--src  → source (band 0, aggregates all source partners)
     if (n.id.includes('--snk')) return 4;
     if (n.id.includes('--src')) return 0;
     // Fallback: use edge membership to decide role.
@@ -132,9 +132,8 @@ export function bandOf(
  * isDbEdge — true when either endpoint of an edge is a `db:` entity node.
  *
  * `db:` entity edges carry full column-list data contracts. These are NOT
- * rendered as always-on inline canvas labels (CP2): the contract is
- * available on hover/click instead. Only `ext:` and non-`db` `kind:` store
- * edges may render short payload phrases inline.
+ * rendered as always-on inline canvas labels: the contract is available on
+ * hover/click instead.
  *
  * Split-store ids carry a `--read` or `--write` suffix (from buildFlowData).
  * An endpoint like `db:Payment--write` is still a db: edge — the suffix is
@@ -147,6 +146,27 @@ export function isDbEdge(sourceId: string, targetId: string): boolean {
   const srcBase = sourceId.includes('--') ? sourceId.slice(0, sourceId.indexOf('--')) : sourceId;
   const tgtBase = targetId.includes('--') ? targetId.slice(0, targetId.indexOf('--')) : targetId;
   return srcBase.startsWith('db:') || tgtBase.startsWith('db:');
+}
+
+/**
+ * Maximum label character length for an inline canvas chip (CP4a).
+ *
+ * Labels longer than this threshold inflate diagram width as badly as `db:`
+ * column lists. They are rendered on-demand (hover/click) instead of inline.
+ * The gate is label *length*, not endpoint kind.
+ */
+export const SHORT_LABEL_MAX = 22;
+
+/**
+ * isInlineLabel — true when a label is short enough to render as an inline
+ * canvas chip (CP4a length gate).
+ *
+ * Returns false for undefined, empty, or any string longer than SHORT_LABEL_MAX.
+ * Exported as the single source of truth used by buildElkGraph (label-dummy
+ * reservation) and FlowDiagramSvg (inline chip rendering).
+ */
+export function isInlineLabel(label: string | undefined): boolean {
+  return !!label && label.length <= SHORT_LABEL_MAX;
 }
 
 /**
@@ -196,10 +216,11 @@ function buildElkGraph(
 
   const elkEdges = edges.map(e => {
     const base = { id: e.id, sources: [e.source], targets: [e.target] };
-    // Only short payload phrases (non-db: edges) get an ELK label dummy.
-    // db: column-list edges contribute NO label entry — ELK reserves no space
-    // for them (CP2 contract).
-    if (!isDbEdge(e.source, e.target) && e.label) {
+    // Only short labels get an ELK label dummy (CP4a length gate).
+    // Long labels — db: column lists AND long ext:/kind: payload phrases alike —
+    // contribute NO label entry: ELK reserves no space for them. Their data
+    // contract is available on hover/click in the renderer.
+    if (isInlineLabel(e.label)) {
       return {
         ...base,
         labels: [{
@@ -230,10 +251,10 @@ function buildElkGraph(
  * partitioning + nodeNodeBetweenLayers/nodeNode spacing, and maps the ELK
  * output to node-id → position.
  *
- * CP2: For edges where neither endpoint is db:, an ELK label dummy is
- * provided so ELK reserves space and returns a label position. The resulting
- * labelPositions map is keyed by edge id. db: column-list edges have no label
- * dummy and produce no labelPositions entry.
+ * CP4a length gate: an ELK label dummy is provided only for short labels
+ * (isInlineLabel — ≤ SHORT_LABEL_MAX chars). Long labels — db: column lists
+ * and long ext:/kind: payload phrases alike — have no label dummy and produce
+ * no labelPositions entry. Their data contract is available on hover/click.
  */
 export async function computeElkLayout(
   diagram: FlowDiagram,

@@ -64,13 +64,6 @@ export type FlowRenderData = {
 
 /** Horizontal spacing between process columns. */
 const PROC_COL_W = 380;
-/**
- * Distance (px) from the centroid of an external's partners beyond which that
- * partner gets its own local copy of the external. Keeps a single copy when
- * partners cluster, and splits per-partner only when they're spread far enough
- * that one shared copy would force a long crossing edge.
- */
-const EXT_FAR_THRESHOLD = 250;
 
 /** Column x for each process (`proc:id` → x), in dottedNumber order. */
 function processColumnX(processes: FlowDiagram['processes']): Map<string, number> {
@@ -101,10 +94,15 @@ type ExternalRouting = {
 };
 
 /**
- * Decide how each external is drawn: one shared copy when its partner processes
- * cluster, or a per-partner copy when they're spread far apart (so edges stay
- * short and local instead of spanning the diagram). Source copies sit above
- * their readers, sink copies below their writers.
+ * Decide how each external is drawn: at most two aggregated copies per external.
+ *
+ * Source copy `ext:<id>--src` (band 0 / top): aggregates ALL partner processes
+ * that the external emits into. Sink copy `ext:<id>--snk` (band 4 / bottom):
+ * aggregates ALL partner processes that emit into the external.
+ *
+ * An external with only one role gets a single copy. The old per-partner split
+ * (`ext:<id>--src--<proc>`) is removed — it was the cause of the "LLM Agent
+ * duplicated 5×" defect (C14).
  */
 function buildExternalRouting(diagram: FlowDiagram, procX: Map<string, number>): ExternalRouting {
   const readers = new Map<string, Set<string>>(); // extId → reader proc ids
@@ -118,35 +116,22 @@ function buildExternalRouting(diagram: FlowDiagram, procX: Map<string, number>):
     if (e.from.kind === 'proc' && e.to.kind === 'ext') add(writers, e.to.name, e.from.name);
   }
 
-  const xOf = (procId: string) => procX.get(`proc:${procId}`) ?? 0;
   const copies: ExtCopy[] = [];
-  const resolveMap = new Map<string, string>(); // `${extId}|${procId}|${role}` → copy id
+  const resolveMap = new Map<string, string>(); // `${extId}|${role}` → copy id
 
   for (const ext of diagram.externals) {
     for (const role of ['src', 'snk'] as const) {
       const partners = [...((role === 'src' ? readers : writers).get(ext.id) ?? [])];
       if (partners.length === 0) continue;
-      const centroid = partners.reduce((a, p) => a + xOf(p), 0) / partners.length;
-      const near: string[] = [];
-      for (const p of partners) {
-        if (Math.abs(xOf(p) - centroid) > EXT_FAR_THRESHOLD) {
-          const id = `ext:${ext.id}--${role}--${p}`;
-          copies.push({ id, role, label: ext.label, extId: ext.id, extKind: ext.kind, procs: [p] });
-          resolveMap.set(`${ext.id}|${p}|${role}`, id);
-        } else {
-          near.push(p);
-        }
-      }
-      if (near.length > 0) {
-        const id = `ext:${ext.id}--${role}`;
-        copies.push({ id, role, label: ext.label, extId: ext.id, extKind: ext.kind, procs: near });
-        for (const p of near) resolveMap.set(`${ext.id}|${p}|${role}`, id);
-      }
+      // One aggregated copy per role — all partners share the same node id.
+      const id = `ext:${ext.id}--${role}`;
+      copies.push({ id, role, label: ext.label, extId: ext.id, extKind: ext.kind, procs: partners });
+      resolveMap.set(`${ext.id}|${role}`, id);
     }
   }
 
-  const resolve = (extName: string, procId: string, role: 'src' | 'snk') =>
-    resolveMap.get(`${extName}|${procId}|${role}`) ?? `ext:${extName}--${role}`;
+  const resolve = (extName: string, _procId: string, role: 'src' | 'snk') =>
+    resolveMap.get(`${extName}|${role}`) ?? `ext:${extName}--${role}`;
   return { copies, resolve };
 }
 
@@ -218,8 +203,8 @@ export function buildFlowData(diagram: FlowDiagram): FlowRenderData {
     }
   }
 
-  // External routing: one shared copy when partners cluster, per-partner copies
-  // when they're spread far apart (see buildExternalRouting).
+  // External routing: at most one aggregated copy per role — a source copy
+  // (band 0) and/or a sink copy (band 4) per external (see buildExternalRouting).
   const procX = processColumnX(diagram.processes);
   const extRouting = buildExternalRouting(diagram, procX);
 
