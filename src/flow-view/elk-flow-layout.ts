@@ -14,10 +14,11 @@
  *
  * No Bun/Node-only APIs at module top level — this file is browser-safe.
  *
- * Scope: CP1 + CP2 — node positions for all nodes; label positions for short
- * inline labels only (ext:/kind: payload phrases where neither endpoint is db:).
- * Full db: column-list labels are NOT laid out inline — their data contract
- * is available on hover/click of the edge in FlowDiagramSvg (CP2).
+ * Scope: CP1 + CP2 + CP4c — node positions for all nodes and routed edge
+ * geometry. ELK is handed node+edge geometry only — no label dummy nodes.
+ * Label dummies split a band across two sub-layers (proven in
+ * tmp/dfd-compare/layer-exp.ts); removing them yields single-row bands (C16).
+ * The renderer places short labels in the inter-band channel itself (CP4c).
  */
 
 // elkjs main entry (lib/main.js) is used instead of elk.bundled.js:
@@ -44,12 +45,6 @@ type EdgeElement = Extract<FlowElementData, { kind: 'edge' }>;
 export type ElkLayoutResult = {
   /** Node id → absolute {x, y} top-left corner. */
   positions: Record<string, { x: number; y: number }>;
-  /**
-   * Edge id → label position for SHORT inline labels only (CP2).
-   * Populated for ext:/kind: payload phrases where neither endpoint is db:.
-   * db: column-list edges are absent — their contract is on-demand (hover/click).
-   */
-  labelPositions: Record<string, { x: number; y: number }>;
   /**
    * Edge id → routed polyline points from ELK's `sections[0]` (CP4b).
    * Each entry is the full routed geometry: [startPoint, ...bendPoints, endPoint].
@@ -169,24 +164,13 @@ export const SHORT_LABEL_MAX = 22;
  * canvas chip (CP4a length gate).
  *
  * Returns false for undefined, empty, or any string longer than SHORT_LABEL_MAX.
- * Exported as the single source of truth used by buildElkGraph (label-dummy
- * reservation) and FlowDiagramSvg (inline chip rendering).
+ * Exported as the single source of truth used by FlowDiagramSvg (inline chip
+ * rendering). ELK no longer receives label dummies — the renderer owns all label
+ * placement (CP4c).
  */
 export function isInlineLabel(label: string | undefined): boolean {
   return !!label && label.length <= SHORT_LABEL_MAX;
 }
-
-/**
- * Measure the pixel width of a short label string.
- * Uses the same approximation as the renderer (~6.6px per char at the chip
- * font size, plus padding). Minimum 40px; used to size ELK label dummies.
- */
-function measureLabelWidth(text: string, minW = 40): number {
-  return Math.max(minW, Math.round(text.length * 6.6 + 16));
-}
-
-/** Height of an inline edge label chip (matches CHIP_LINE_H + 2×CHIP_PAD_Y). */
-const LABEL_CHIP_H = 21;
 
 // ── ELK graph construction ────────────────────────────────────────────────────
 
@@ -204,11 +188,12 @@ function buildElkGraph(
     'elk.spacing.nodeNode': '40',
     'elk.spacing.edgeNode': '20',
     'elk.layered.spacing.edgeNodeBetweenLayers': '20',
-    // Enable ELK center-placement for inline short labels.
-    'elk.edgeLabels.placement': 'CENTER',
     // CP4b: request orthogonal edge routing so ELK returns sections with
     // start, optional bend points, and end — producing crossing-minimised
     // routed geometry instead of center-to-center trunks.
+    // CP4c: elk.edgeLabels.placement is NOT set — ELK is handed geometry
+    // only (no label dummy nodes). Label dummies split bands across sub-layers;
+    // omitting them yields single-row bands (C16).
     'elk.edgeRouting': 'ORTHOGONAL',
   };
 
@@ -225,24 +210,15 @@ function buildElkGraph(
     };
   });
 
-  const elkEdges = edges.map(e => {
-    const base = { id: e.id, sources: [e.source], targets: [e.target] };
-    // Only short labels get an ELK label dummy (CP4a length gate).
-    // Long labels — db: column lists AND long ext:/kind: payload phrases alike —
-    // contribute NO label entry: ELK reserves no space for them. Their data
-    // contract is available on hover/click in the renderer.
-    if (isInlineLabel(e.label)) {
-      return {
-        ...base,
-        labels: [{
-          text: e.label,
-          width: measureLabelWidth(e.label),
-          height: LABEL_CHIP_H,
-        }],
-      };
-    }
-    return base;
-  });
+  // CP4c: no label entries on any edge — ELK is handed node+edge geometry only.
+  // Label dummy nodes split a band across sub-layers (proven in
+  // tmp/dfd-compare/layer-exp.ts); removing them yields single-row bands (C16).
+  // The renderer places short inline labels in the inter-band channel itself.
+  const elkEdges = edges.map(e => ({
+    id: e.id,
+    sources: [e.source],
+    targets: [e.target],
+  }));
 
   return {
     id: 'root',
@@ -255,17 +231,16 @@ function buildElkGraph(
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
- * computeElkLayout — async ELK positions for a FlowDiagram (CP1 + CP2).
+ * computeElkLayout — async ELK positions for a FlowDiagram (CP1 + CP2 + CP4c).
  *
  * Internally calls buildFlowData(diagram) for nodes/edges/storeNums, assigns
  * each node a band partition by role, runs elkjs Layered with DOWN direction +
  * partitioning + nodeNodeBetweenLayers/nodeNode spacing, and maps the ELK
- * output to node-id → position.
+ * output to node-id → position and edge-id → routed polyline.
  *
- * CP4a length gate: an ELK label dummy is provided only for short labels
- * (isInlineLabel — ≤ SHORT_LABEL_MAX chars). Long labels — db: column lists
- * and long ext:/kind: payload phrases alike — have no label dummy and produce
- * no labelPositions entry. Their data contract is available on hover/click.
+ * CP4c: ELK receives no label dummy nodes (geometry only). The renderer places
+ * short labels in the inter-band channel via nodeBounds/basePositions lookups.
+ * No labelPositions output — callers should not reference it.
  */
 export async function computeElkLayout(
   diagram: FlowDiagram,
@@ -300,30 +275,17 @@ export async function computeElkLayout(
     }
   }
 
-  // Extract label positions for short inline labels (non-db: edges only).
-  // ELK returns x/y on the first label of each edge when label dummies were
-  // provided. db: edges had no label entry, so they produce no labelPosition.
-  const labelPositions: Record<string, { x: number; y: number }> = {};
-
   // Extract routed edge geometry from ELK's sections (CP4b).
   // With elk.edgeRouting: ORTHOGONAL, each laid-out edge carries sections[0]
   // with startPoint, optional bendPoints, and endPoint. The polyline is the
   // concatenation: [startPoint, ...bendPoints, endPoint].
   // Coordinates are in the same absolute space as node positions — no offset needed.
+  //
+  // CP4c: no label positions extracted — ELK was not given label dummies, so
+  // no label x/y is present on edges. The renderer owns all label placement.
   const edgeRoutes: Record<string, Array<{ x: number; y: number }>> = {};
 
   for (const edge of result.edges ?? []) {
-    const lbl = edge.labels?.[0];
-    if (
-      edge.id !== undefined &&
-      lbl !== undefined &&
-      lbl.x !== undefined &&
-      lbl.y !== undefined
-    ) {
-      labelPositions[edge.id] = { x: lbl.x, y: lbl.y };
-    }
-
-    // Route extraction: use sections[0] if present.
     if (edge.id !== undefined) {
       const section = edge.sections?.[0];
       if (section !== undefined) {
@@ -339,7 +301,6 @@ export async function computeElkLayout(
 
   return {
     positions,
-    labelPositions,
     edgeRoutes,
   };
 }

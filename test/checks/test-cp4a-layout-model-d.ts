@@ -11,31 +11,27 @@
  *
  *  C13 (length gate) — isInlineLabel('order_id') is true;
  *       isInlineLabel of a long payload is false; boundary at SHORT_LABEL_MAX.
- *       buildElkGraph reserves a label dummy only for short labels:
- *       - a known long-label edge in memory-lifecycle is absent from labelPositions
- *       - a known short-label edge (if present) IS present
- *       (all non-db labels in memory-lifecycle are > 22 chars; the check verifies
- *       the labelPositions record is empty for non-db, non-short edges.)
+ *       The gate is exercised against real memory-lifecycle edge labels:
+ *       - every non-db labeled edge has label.length > SHORT_LABEL_MAX (so isInlineLabel=false)
+ *       - every db long-label edge likewise fails the gate
+ *       - both short and long real labels are present in the diagram so the gate
+ *         is proven active in both directions.
+ *
+ * Note (CP-4c): labelPositions was removed from ElkLayoutResult — ELK receives
+ * no label dummy nodes (geometry only). C13 is re-asserted here via isInlineLabel
+ * directly, without referencing the now-removed labelPositions output.
  */
 
-import { createRequire } from 'node:module';
 import { parseFlows } from '../../src/flows/flow-parse';
 import type { FlowDiagram } from '../../src/flows/flow-parse';
 import { buildFlowData } from '../../src/flow-view/flow-layout';
 import {
-  computeElkLayout,
   isInlineLabel,
   SHORT_LABEL_MAX,
   isDbEdge,
-  type ElkLayoutResult,
 } from '../../src/flow-view/elk-flow-layout';
 
 const MODEL_DIR = 'models/llm-memory-db-mssql';
-
-// Supply a Bun-compatible ELK workerFactory (see test-elk-flow-positions.ts).
-const require = createRequire(import.meta.url);
-const workerPath = require.resolve('elkjs/lib/elk-worker.min.js');
-const workerFactory = () => new Worker(workerPath);
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {
@@ -88,9 +84,12 @@ assert(longLabel.length > SHORT_LABEL_MAX, `test label is not actually long (${l
 assert(!isInlineLabel(longLabel), `isInlineLabel('${longLabel}') should be false`);
 console.log(`PASS: isInlineLabel long payload (len=${longLabel.length}) = false`);
 
-// ── C13: ELK label-dummy reservation ────────────────────────────────────────
+// ── C13: length-gate verification against real memory-lifecycle edges ────────
 
-console.log('\n=== C13: ELK label-dummy reservation in memory-lifecycle ===');
+console.log('\n=== C13: length gate (isInlineLabel) against memory-lifecycle edges ===');
+
+// CP-4c note: labelPositions was removed from ElkLayoutResult — ELK no longer
+// receives label dummy nodes. C13 is verified here via isInlineLabel directly.
 
 const memLifeDiagram = findDiagramInTree(flowModel.diagrams, 'memory-lifecycle');
 if (!memLifeDiagram) {
@@ -99,42 +98,32 @@ if (!memLifeDiagram) {
 }
 
 const { edges: memEdges } = buildFlowData(memLifeDiagram);
-const result: ElkLayoutResult = await computeElkLayout(memLifeDiagram, { workerFactory });
 
-// The production gate is `isInlineLabel` (length), NOT `isDbEdge`. We use
-// `isDbEdge` here ONLY to scope the subset: in memory-lifecycle every non-db
-// labeled edge has a label > 22 chars (verified: shortest is "newly assigned
-// memory_id" = 24 chars), so those are a clean set of expected-suppressed edges.
+// Non-db labeled edges: in memory-lifecycle every non-db labeled edge has a
+// label > 22 chars (verified: shortest is "newly assigned memory_id" = 24 chars).
+// All must fail isInlineLabel (gate is false for long payloads).
 const nonDbLabeledEdges = memEdges.filter(e => !isDbEdge(e.source, e.target) && e.label);
 console.log(`  Non-db labeled edges: ${nonDbLabeledEdges.length}`);
 
 for (const edge of nonDbLabeledEdges) {
   assert(
     !isInlineLabel(edge.label),
-    `Edge ${edge.id} label "${edge.label.slice(0, 40)}" (len=${edge.label.length}) is ≤22 chars — test assumption wrong`,
-  );
-  const hasLabelPos = result.labelPositions[edge.id] !== undefined;
-  assert(
-    !hasLabelPos,
-    `Long-label edge ${edge.id} ("${edge.label.slice(0, 40)}", len=${edge.label.length}) has a label position — should be absent`,
+    `Edge ${edge.id} label "${edge.label.slice(0, 40)}" (len=${edge.label.length}) is ≤${SHORT_LABEL_MAX} chars — length gate should suppress it`,
   );
   console.log(
-    `  PASS: long-label edge ${edge.id} (len=${edge.label.length}) absent from labelPositions`,
+    `  PASS: long-label non-db edge ${edge.id} (len=${edge.label.length}) → isInlineLabel=false`,
   );
 }
 
-// Sanity: we tested at least one long-label edge
+// Sanity: we tested at least one long-label non-db edge
 assert(
   nonDbLabeledEdges.length > 0,
   'No non-db labeled edges found in memory-lifecycle — test is vacuous',
 );
 
-console.log('PASS C13: all long-label non-db edges are absent from labelPositions');
+console.log('PASS C13: all long-label non-db edges return isInlineLabel=false');
 
-// The length gate governs db: edges too — a long db: column-list label must
-// likewise be absent from labelPositions (this used to be the db-only rule;
-// now it falls out of the same length gate). Assert it explicitly so the gate
-// is proven to apply regardless of endpoint kind.
+// Db long-label edges must also fail the gate (length-based, not kind-based).
 const dbLongLabeledEdges = memEdges.filter(e => isDbEdge(e.source, e.target) && e.label && !isInlineLabel(e.label));
 assert(
   dbLongLabeledEdges.length > 0,
@@ -142,11 +131,31 @@ assert(
 );
 for (const edge of dbLongLabeledEdges) {
   assert(
-    result.labelPositions[edge.id] === undefined,
-    `Long-label db: edge ${edge.id} (len=${edge.label.length}) has a label position — length gate must suppress it`,
+    !isInlineLabel(edge.label),
+    `Long-label db: edge ${edge.id} (len=${edge.label.length}) should fail isInlineLabel`,
   );
 }
-console.log(`PASS C13: ${dbLongLabeledEdges.length} long-label db: edges also absent from labelPositions (length gate, not kind)`);
+console.log(`PASS C13: ${dbLongLabeledEdges.length} long-label db: edges also return isInlineLabel=false (length gate, not kind)`);
+
+// Verify that at least one edge with a short label exists in the model or the
+// boundary test string — the gate must be exercisable in BOTH directions.
+// Use the boundary value (22 chars) from the helper tests above as a proxy.
+assert(
+  isInlineLabel('a'.repeat(SHORT_LABEL_MAX)),
+  `isInlineLabel must return true for a ${SHORT_LABEL_MAX}-char string (gate is active in the short direction)`,
+);
+console.log(`PASS C13: gate is active in both directions (isInlineLabel is true ≤${SHORT_LABEL_MAX} chars, false above)`);
+
+// Live-data short direction: memory-lifecycle carries real short labels (e.g.
+// "verb_forward", "domain") that the gate must classify as inline. Assert at
+// least one real edge label is inline-eligible, so the "true" direction is
+// proven against actual model data, not only the synthetic boundary string.
+const shortLabeledEdges = memEdges.filter(e => e.label && isInlineLabel(e.label));
+assert(
+  shortLabeledEdges.length > 0,
+  'No short-label edge found in memory-lifecycle — the inline direction is untested on live data',
+);
+console.log(`PASS C13: ${shortLabeledEdges.length} live short-label edges are inline-eligible (e.g. "${shortLabeledEdges[0]?.label}")`);
 
 // ── C14: external role-split ≤2 on L1 overview ──────────────────────────────
 

@@ -1320,12 +1320,53 @@ export function FlowDiagramSvg({
     if (override) {
       chip = projectOntoPolyline(points, override.x, override.y);
     } else if (elkPts !== null) {
-      // For ELK-routed edges: place the chip at the midpoint of the polyline.
-      // This keeps it on the route and avoids the hand-router's chipAnchor
-      // logic (which relies on fromX/toX fan-out anchors, not ELK geometry).
-      const fallback: Pt = [fromPos.x, fromPos.y];
-      const midPt: Pt = points[Math.floor(points.length / 2)] ?? points[0] ?? fallback;
-      chip = { x: midPt[0], y: midPt[1] };
+      // CP4c: for ELK-routed edges, place the chip in the inter-band CHANNEL —
+      // the y midway between source-bottom and target-top (whichever is "upper"
+      // and "lower" in screen coordinates). The route midpoint lands on a node;
+      // the channel point lands between them.
+      //
+      // 1. Determine the upper and lower node boxes.
+      const fromSn = fromNode.nodeType === 'store' ? (fromNode.label ?? fromNode.storeName) : undefined;
+      const toSn = toNode.nodeType === 'store' ? (toNode.label ?? toNode.storeName) : undefined;
+      const fb = nodeBounds(fromPos, fromNode.nodeType, fromSn);
+      const tb = nodeBounds(toPos, toNode.nodeType, toSn);
+      // upper = whichever box has the smaller center-y; lower = the other.
+      const upperBottom = fb.cy <= tb.cy ? fb.y + fb.h : tb.y + tb.h;
+      const lowerTop    = fb.cy <= tb.cy ? tb.y : fb.y;
+      const channelY = (upperBottom + lowerTop) / 2;
+
+      // 2. Find the route's x at channelY by walking segments and interpolating
+      //    on the segment that spans channelY. Fall back to nearest point if none
+      //    spans it (guards against routes that don't cross the channel).
+      let channelX: number = elkPts[0]?.[0] ?? fromPos.x;
+      let foundSpan = false;
+      for (let i = 1; i < elkPts.length; i++) {
+        const prev = elkPts[i - 1];
+        const curr = elkPts[i];
+        if (prev === undefined || curr === undefined) continue;
+        const [ax, ay] = prev;
+        const [bx, by] = curr;
+        const minY = Math.min(ay, by);
+        const maxY = Math.max(ay, by);
+        if (channelY >= minY && channelY <= maxY) {
+          // Segment spans channelY; interpolate x.
+          const span = by - ay;
+          const t = span === 0 ? 0 : (channelY - ay) / span;
+          channelX = ax + t * (bx - ax);
+          foundSpan = true;
+          break;
+        }
+      }
+      if (!foundSpan) {
+        // No segment spans channelY — use nearest point to channelY on the route.
+        let nearestDist = Infinity;
+        for (const pt of elkPts) {
+          const d = Math.abs(pt[1] - channelY);
+          if (d < nearestDist) { nearestDist = d; channelX = pt[0]; }
+        }
+      }
+
+      chip = { x: channelX, y: channelY };
     } else {
       const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
       chip = chipAnchor(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
