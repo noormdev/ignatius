@@ -34,6 +34,7 @@
     "markdown-it": "^14.1.0",
     "react": "^19",
     "react-dom": "^19",
+    "web-worker": "^1.5.0",
     "yaml": "^2.8.4"
   },
   "devDependencies": {

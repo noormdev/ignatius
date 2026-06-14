@@ -746,6 +746,8 @@ function EdgeChip({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+export type ElkPositionMap = Record<string, { x: number; y: number }>;
+
 export type FlowDiagramSvgProps = {
   diagram: FlowDiagram;
   /** Current app theme. Selects the flow palette — 'dark' (default) or 'light'. */
@@ -758,6 +760,14 @@ export type FlowDiagramSvgProps = {
    *  when the user clicks its ⓘ badge — opens the documentation dialog. */
   onOpenDoc?: (docToken: string) => void;
   onReady?: () => void;
+  /**
+   * ELK-computed node positions, keyed by node id (from computeElkLayout).
+   * When provided, this is the primary layout source — overrides the synchronous
+   * banded positions from computeFlowLayout. savedPositions drag overrides still
+   * win over both ELK positions and banded positions (same priority as before).
+   * Shape is a plain Record (not Map) matching ElkLayoutResult.positions.
+   */
+  elkPositions?: ElkPositionMap;
   /** Pre-loaded positions from persistence; overrides computed banded layout */
   savedPositions?: PositionMap;
   /** Fingerprint key for this diagram, used to scope saves */
@@ -796,6 +806,7 @@ export function FlowDiagramSvg({
   onDrill,
   onOpenDoc,
   onReady,
+  elkPositions,
   savedPositions,
   onPositionsChange,
   onViewChange,
@@ -812,9 +823,20 @@ export function FlowDiagramSvg({
   // rebuilds when the diagram (and thus `nodes`) changes, not every render.
   const nodeById = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
 
-  // Merge banded positions with any saved overrides. savedPositions holds node
+  // Position source priority (highest → lowest):
+  //   1. savedPositions drag overrides (user dragged a node — always wins)
+  //   2. elkPositions (ELK-computed via computeElkLayout, when wired in FlowsView)
+  //   3. bandedPositions (synchronous fallback from computeFlowLayout)
+  //
+  // When elkPositions is provided, it replaces bandedPositions as the base.
+  // savedPositions always overrides whichever base is active, as before.
+  const basePositions: Map<string, NodePos> = elkPositions !== undefined
+    ? new Map(Object.entries(elkPositions))
+    : new Map(bandedPositions);
+
+  // Merge base positions with any saved drag overrides. savedPositions holds node
   // positions keyed by node id, and dragged-label positions keyed `chip:<edgeId>`.
-  const initialPositions: Map<string, NodePos> = new Map(bandedPositions);
+  const initialPositions: Map<string, NodePos> = new Map(basePositions);
   const initialChipOverrides = new Map<string, NodePos>();
   if (savedPositions) {
     for (const [id, saved] of Object.entries(savedPositions)) {

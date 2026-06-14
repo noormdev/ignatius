@@ -16,6 +16,8 @@ import { buildFlowDocResolver } from '../../logic/doc-resolver';
 import { splitDocToken } from '../../logic/doc-resolver';
 import type { FlowDoc, FlowDocResult } from '../../logic/doc-resolver';
 import { buildFlowNodeUsageIndex } from '../../../flows/flow-usage-index';
+import { computeElkLayout } from '../../../flow-view/elk-flow-layout';
+import type { ElkPositionMap } from '../../../flow-view/FlowDiagramSvg';
 import { parseHash, serializeHash } from '../../hash-router';
 import type { HashState } from '../../hash-router';
 import type { Model } from '../../../model/parse';
@@ -256,6 +258,10 @@ export function initFlowGraphCore(
   // lifecycle it replaces.
   let svgRoot: ReactRoot | null = null;
   let svgContainer: HTMLDivElement | null = null;
+  // Monotonically increasing render generation. Each renderDiagram call captures
+  // its generation number; after any await the call checks whether it is still the
+  // latest — if a newer call started while ELK was computing, the stale call aborts.
+  let renderGen = 0;
 
   // Returns the fingerprint for a diagram id from the injected layout keys map.
   // Static: window.__FLOW_LAYOUT_KEYS__; live: injected by the app-level flow
@@ -264,8 +270,14 @@ export function initFlowGraphCore(
     return window.__FLOW_LAYOUT_KEYS__?.[diagramId] ?? '';
   }
 
-  function renderDiagram(diagram: FlowDiagram) {
-    // Unmount previous SVG root.
+  async function renderDiagram(diagram: FlowDiagram) {
+    // Claim this render generation. Any concurrent renderDiagram that starts
+    // while we await ELK will bump renderGen and invalidate ours.
+    renderGen += 1;
+    const myGen = renderGen;
+
+    // Unmount previous SVG root immediately (prevents the old diagram showing
+    // while ELK computes positions for the new one).
     if (svgRoot) {
       svgRoot.unmount();
       svgRoot = null;
@@ -281,6 +293,28 @@ export function initFlowGraphCore(
     const savedPositions: PositionMap | null = layoutKey
       ? flowLayoutStore.load(layoutKey)
       : null;
+
+    // Always run ELK to get the deterministic base positions, then layer
+    // savedPositions drag overrides on top. This prevents the hybrid-layout
+    // bug where a partial drag (only some nodes moved) would leave non-dragged
+    // nodes at banded fallback positions instead of ELK positions.
+    // ELK is deterministic, so re-running it on re-render produces no churn.
+    let elkPositions: ElkPositionMap | undefined;
+    try {
+      const elkResult = await computeElkLayout(diagram);
+      // Guard: if a newer renderDiagram call started while ELK was computing
+      // (e.g. the user clicked a different DFD), abort — the newer call wins.
+      if (renderGen !== myGen) return;
+      elkPositions = elkResult.positions;
+    } catch (err) {
+      // ELK layout failure is non-fatal: fall back to banded positions.
+      console.warn('[ignatius] ELK layout failed, falling back to banded positions:', err);
+      if (renderGen !== myGen) return;
+    }
+
+    // Guard: if the renderer was torn down while we awaited ELK (e.g. view
+    // switched away), the container will have been removed — abort.
+    if (!container.isConnected) return;
 
     // Create a fresh full-bleed sub-div for the SVG.
     const div = document.createElement('div');
@@ -306,14 +340,15 @@ export function initFlowGraphCore(
       const label = proc ? `${proc.dottedNumber} ${proc.label}` : processId;
       stack.push({ diagram: subDfd, label });
       pushChromeState();
-      renderDiagram(subDfd);
+      void renderDiagram(subDfd);
     }
 
     // Reset layout for this diagram: clear saved positions and re-render with
-    // the banded defaults. Registered with FlowChrome so the FAB can trigger it.
+    // ELK positions (or banded fallback). Registered with FlowChrome so the FAB
+    // can trigger it.
     function resetLayout() {
       if (layoutKey) flowLayoutStore.clear(layoutKey);
-      renderDiagram(diagram);
+      void renderDiagram(diagram);
     }
     chromeCallbacks?.onResetLayout?.(resetLayout);
 
@@ -345,6 +380,7 @@ export function initFlowGraphCore(
               window.__IGNATIUS_FLOW_READY__ = true;
               window.__IGNATIUS_FLOW_GEN__ = (window.__IGNATIUS_FLOW_GEN__ ?? 0) + 1;
             },
+            elkPositions,
             savedPositions: savedPositions ?? undefined,
             layoutKey,
             onPositionsChange: (posMap: PositionMap) => {
@@ -388,7 +424,7 @@ export function initFlowGraphCore(
     const target = stack[stack.length - 1];
     if (!target) return;
     pushChromeState();
-    renderDiagram(target.diagram);
+    void renderDiagram(target.diagram);
     // onActiveDiagramChange fired inside renderDiagram above.
   }
 
@@ -432,7 +468,7 @@ export function initFlowGraphCore(
     onDiagramChange?.(rootId);
     chromeCallbacks?.onDiagramsChange(allDiagrams, rootId);
     pushChromeState();
-    renderDiagram(target);
+    void renderDiagram(target);
   }
 
   // Seed the stack with the starting DFD (preserving selection across SSE re-renders).
@@ -460,7 +496,7 @@ export function initFlowGraphCore(
     onDiagramChange?.(startDiagram.id);
     chromeCallbacks?.onDiagramsChange(allDiagrams, activeSelectorId);
     chromeCallbacks?.onRegisterHandlers(drillUp, selectDiagramById);
-    renderDiagram(startDiagram);
+    void renderDiagram(startDiagram);
   } else {
     // startDiagramId was null, unknown, or stale — fall back to first top-level diagram.
     const startDiagram = allDiagrams[0]!;
@@ -468,7 +504,7 @@ export function initFlowGraphCore(
     onDiagramChange?.(startDiagram.id);
     chromeCallbacks?.onDiagramsChange(allDiagrams, activeSelectorId);
     chromeCallbacks?.onRegisterHandlers(drillUp, selectDiagramById);
-    renderDiagram(startDiagram);
+    void renderDiagram(startDiagram);
   }
 
   return () => {

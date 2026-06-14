@@ -20,7 +20,17 @@
  * is available on hover/click of the edge in FlowDiagramSvg (CP2).
  */
 
-import ELK from 'elkjs/lib/elk.bundled.js';
+// elkjs main entry (lib/main.js) is used instead of elk.bundled.js:
+//   - In Bun/Node (test scripts): a workerFactory must be passed explicitly (e.g. by
+//     test/checks/test-elk-flow-positions.ts) because Bun has no ambient Worker shim
+//     when running scripts directly.
+//   - In the browser bundle: elkjs/lib/main.js detects the installed `web-worker`
+//     package and uses it as a Worker shim — the shim resolves to the browser's
+//     native Worker in the Bun-compiled bundle. No workerFactory arg is needed;
+//     ELK runs via the Worker shim, not on the main thread.
+// DFDs are small (< 50 nodes); the async layout call resolves quickly from the
+// caller's view regardless of threading model.
+import ELK from 'elkjs';
 import type { ELKConstructorArguments, ElkNode } from 'elkjs/lib/elk-api.js';
 import type { FlowDiagram } from '../flows/flow-parse';
 import { buildFlowData } from './flow-layout';
