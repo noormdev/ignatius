@@ -43,7 +43,7 @@ type NodeElement = Extract<FlowElementData, { kind: 'node' }>;
 type EdgeElement = Extract<FlowElementData, { kind: 'edge' }>;
 
 export type ElkLayoutResult = {
-  /** Node id → absolute {x, y} top-left corner. */
+  /** Node id → absolute {x, y} node CENTER (ELK top-left + half size). */
   positions: Record<string, { x: number; y: number }>;
   /**
    * Edge id → routed polyline points from ELK's `sections[0]` (CP4b).
@@ -269,9 +269,25 @@ export async function computeElkLayout(
 
   const positions: Record<string, { x: number; y: number }> = {};
 
+  // O(1) lookup for the size fallback below (avoids nodes.find per child).
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+
   for (const child of result.children ?? []) {
     if (child.id !== undefined && child.x !== undefined && child.y !== undefined) {
-      positions[child.id] = { x: child.x, y: child.y };
+      // CP4d: return node CENTER (ELK top-left + half size) instead of top-left.
+      // The SVG renderer (nodeBounds) is center-based: it draws nodes at pos.x ± w/2.
+      // Returning centers aligns ELK positions with the renderer's coordinate convention
+      // so that ELK edge routes (which stay in ELK/top-left absolute space) connect to
+      // the rendered node boxes without the half-node offset that caused routes to pass
+      // through or beside nodes (C17).
+      //
+      // Guard: ELK echoes width/height back on result children (we set them in
+      // buildElkGraph). Fall back to nodeSize if absent to avoid dividing undefined.
+      const inputNode = nodeById.get(child.id);
+      const fallback = inputNode !== undefined ? nodeSize(inputNode) : { width: 0, height: 0 };
+      const w = child.width ?? fallback.width;
+      const h = child.height ?? fallback.height;
+      positions[child.id] = { x: child.x + w / 2, y: child.y + h / 2 };
     }
   }
 

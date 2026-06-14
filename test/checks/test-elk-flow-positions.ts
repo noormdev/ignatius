@@ -49,10 +49,14 @@ type BandBounds = { min: number; max: number };
  * buildFlowData. Uses bandOf (re-exported by elk-flow-layout) so the test
  * derives bands the same way the module does.
  *
- * max-y is the node BOTTOM edge (pos.y + height) — not the top-left corner —
- * so the C4 invariant checks bounding-box extremes, not centroid approximations.
+ * max-y is the node BOTTOM edge — not the top-left corner — so the C4
+ * invariant checks bounding-box extremes, not centroid approximations.
  * nodeSize is imported from elk-flow-layout so heights are consistent with what
  * ELK received.
+ *
+ * CP4d: positions are node CENTERS (pos.y = cy), so:
+ *   top = cy - height/2
+ *   bottom = cy + height/2
  */
 function bandBounds(
   nodes: ReturnType<typeof buildFlowData>['nodes'],
@@ -67,8 +71,9 @@ function bandBounds(
     if (pos === undefined) continue;
     const band = bandOf(n, srcSet);
     const { height } = nodeSize(n);
-    const topY = pos.y;
-    const botY = pos.y + height;
+    // pos.y is the node center Y (CP4d).
+    const topY = pos.y - height / 2;
+    const botY = pos.y + height / 2;
     const existing = bounds.get(band);
     if (existing === undefined) {
       bounds.set(band, { min: topY, max: botY });
