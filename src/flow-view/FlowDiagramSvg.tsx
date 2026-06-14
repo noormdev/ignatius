@@ -768,6 +768,16 @@ export type FlowDiagramSvgProps = {
    * Shape is a plain Record (not Map) matching ElkLayoutResult.positions.
    */
   elkPositions?: ElkPositionMap;
+  /**
+   * ELK-routed edge geometry, keyed by edge id (from computeElkLayout).
+   * Each entry is the full routed polyline: [startPoint, ...bendPoints, endPoint].
+   * When provided for an edge, the renderer draws the ELK polyline instead of
+   * self-routing via orthogonalPath — but ONLY when neither of the edge's
+   * endpoints has been dragged off its ELK base position. If a node is dragged,
+   * edges touching it revert to orthogonalPath (the live drag-time router).
+   * Absent or undefined: orthogonalPath is used for all edges (no regression).
+   */
+  elkEdgeRoutes?: Record<string, Array<{ x: number; y: number }>>;
   /** Pre-loaded positions from persistence; overrides computed banded layout */
   savedPositions?: PositionMap;
   /** Fingerprint key for this diagram, used to scope saves */
@@ -807,6 +817,7 @@ export function FlowDiagramSvg({
   onOpenDoc,
   onReady,
   elkPositions,
+  elkEdgeRoutes,
   savedPositions,
   onPositionsChange,
   onViewChange,
@@ -1272,14 +1283,53 @@ export function FlowDiagramSvg({
     if (!fromNode || !toNode || !fromPos || !toPos) return [];
     const fromStoreName = fromNode.nodeType === 'store' ? (fromNode.label ?? fromNode.storeName) : undefined;
     const toStoreName = toNode.nodeType === 'store' ? (toNode.label ?? toNode.storeName) : undefined;
-    const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
-    const points = orthogonalPath(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+
+    // CP4b: use ELK's routed geometry when available and neither endpoint has
+    // been dragged off its ELK base position. "Moved" = current position differs
+    // from basePositions (a savedPositions override or a live drag). When a
+    // node is moved, its edges revert to the live hand-router (orthogonalPath).
+    const elkRoute = elkEdgeRoutes?.[edge.id];
+    const fromBase = basePositions.get(edge.source);
+    const toBase = basePositions.get(edge.target);
+    const fromMoved = fromBase === undefined
+      || fromPos.x !== fromBase.x
+      || fromPos.y !== fromBase.y;
+    const toMoved = toBase === undefined
+      || toPos.x !== toBase.x
+      || toPos.y !== toBase.y;
+    // Use ELK's routed polyline when present and neither endpoint has been
+    // dragged off its ELK base position; else hand-route. `elkPts` is non-null
+    // exactly when the route is usable — which also narrows the chip branch.
+    const elkPts: Pt[] | null =
+      elkRoute !== undefined && elkRoute.length >= 2 && !fromMoved && !toMoved
+        ? elkRoute.map((p): Pt => [p.x, p.y])
+        : null;
+
+    let points: Pt[];
+    if (elkPts !== null) {
+      points = elkPts;
+    } else {
+      const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
+      points = orthogonalPath(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+    }
+
     // A dragged label slides along the path: snap its saved point onto the
     // (possibly re-routed) polyline. Otherwise use the auto-placed anchor.
     const override = chipOverrides.get(edge.id);
-    const chip = override
-      ? projectOntoPolyline(points, override.x, override.y)
-      : chipAnchor(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+    let chip: NodePos;
+    if (override) {
+      chip = projectOntoPolyline(points, override.x, override.y);
+    } else if (elkPts !== null) {
+      // For ELK-routed edges: place the chip at the midpoint of the polyline.
+      // This keeps it on the route and avoids the hand-router's chipAnchor
+      // logic (which relies on fromX/toX fan-out anchors, not ELK geometry).
+      const fallback: Pt = [fromPos.x, fromPos.y];
+      const midPt: Pt = points[Math.floor(points.length / 2)] ?? points[0] ?? fallback;
+      chip = { x: midPt[0], y: midPt[1] };
+    } else {
+      const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
+      chip = chipAnchor(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+    }
 
     // CP4a length gate: inline chip renders only for short labels (isInlineLabel).
     // Long labels — db: column lists and long ext:/kind: payload phrases alike —

@@ -31,7 +31,7 @@
 // DFDs are small (< 50 nodes); the async layout call resolves quickly from the
 // caller's view regardless of threading model.
 import ELK from 'elkjs';
-import type { ELKConstructorArguments, ElkNode } from 'elkjs/lib/elk-api.js';
+import type { ELKConstructorArguments, ElkNode, ElkPoint } from 'elkjs/lib/elk-api.js';
 import type { FlowDiagram } from '../flows/flow-parse';
 import { buildFlowData } from './flow-layout';
 import type { FlowElementData } from './flow-layout';
@@ -50,6 +50,13 @@ export type ElkLayoutResult = {
    * db: column-list edges are absent — their contract is on-demand (hover/click).
    */
   labelPositions: Record<string, { x: number; y: number }>;
+  /**
+   * Edge id → routed polyline points from ELK's `sections[0]` (CP4b).
+   * Each entry is the full routed geometry: [startPoint, ...bendPoints, endPoint].
+   * Coordinates are in the same absolute space as `positions` (no offset needed).
+   * Edges that ELK did not route (e.g. produced no sections) are absent.
+   */
+  edgeRoutes: Record<string, Array<{ x: number; y: number }>>;
 };
 
 export type ComputeElkLayoutOpts = {
@@ -199,6 +206,10 @@ function buildElkGraph(
     'elk.layered.spacing.edgeNodeBetweenLayers': '20',
     // Enable ELK center-placement for inline short labels.
     'elk.edgeLabels.placement': 'CENTER',
+    // CP4b: request orthogonal edge routing so ELK returns sections with
+    // start, optional bend points, and end — producing crossing-minimised
+    // routed geometry instead of center-to-center trunks.
+    'elk.edgeRouting': 'ORTHOGONAL',
   };
 
   const children: ElkNode[] = nodes.map(n => {
@@ -294,6 +305,13 @@ export async function computeElkLayout(
   // provided. db: edges had no label entry, so they produce no labelPosition.
   const labelPositions: Record<string, { x: number; y: number }> = {};
 
+  // Extract routed edge geometry from ELK's sections (CP4b).
+  // With elk.edgeRouting: ORTHOGONAL, each laid-out edge carries sections[0]
+  // with startPoint, optional bendPoints, and endPoint. The polyline is the
+  // concatenation: [startPoint, ...bendPoints, endPoint].
+  // Coordinates are in the same absolute space as node positions — no offset needed.
+  const edgeRoutes: Record<string, Array<{ x: number; y: number }>> = {};
+
   for (const edge of result.edges ?? []) {
     const lbl = edge.labels?.[0];
     if (
@@ -304,10 +322,24 @@ export async function computeElkLayout(
     ) {
       labelPositions[edge.id] = { x: lbl.x, y: lbl.y };
     }
+
+    // Route extraction: use sections[0] if present.
+    if (edge.id !== undefined) {
+      const section = edge.sections?.[0];
+      if (section !== undefined) {
+        const pts: Array<ElkPoint> = [
+          section.startPoint,
+          ...(section.bendPoints ?? []),
+          section.endPoint,
+        ];
+        edgeRoutes[edge.id] = pts.map(p => ({ x: p.x, y: p.y }));
+      }
+    }
   }
 
   return {
     positions,
     labelPositions,
+    edgeRoutes,
   };
 }

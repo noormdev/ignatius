@@ -300,12 +300,17 @@ export function initFlowGraphCore(
     // nodes at banded fallback positions instead of ELK positions.
     // ELK is deterministic, so re-running it on re-render produces no churn.
     let elkPositions: ElkPositionMap | undefined;
+    let elkEdgeRoutes: Record<string, Array<{ x: number; y: number }>> | undefined;
     try {
       const elkResult = await computeElkLayout(diagram);
       // Guard: if a newer renderDiagram call started while ELK was computing
       // (e.g. the user clicked a different DFD), abort — the newer call wins.
       if (renderGen !== myGen) return;
       elkPositions = elkResult.positions;
+      // CP4b: capture routed edge geometry alongside positions.
+      // On ELK failure (catch below), elkEdgeRoutes stays undefined so the
+      // renderer falls back to orthogonalPath for all edges — no regression.
+      elkEdgeRoutes = elkResult.edgeRoutes;
     } catch (err) {
       // ELK layout failure is non-fatal: fall back to banded positions.
       console.warn('[ignatius] ELK layout failed, falling back to banded positions:', err);
@@ -381,6 +386,7 @@ export function initFlowGraphCore(
               window.__IGNATIUS_FLOW_GEN__ = (window.__IGNATIUS_FLOW_GEN__ ?? 0) + 1;
             },
             elkPositions,
+            elkEdgeRoutes,
             savedPositions: savedPositions ?? undefined,
             layoutKey,
             onPositionsChange: (posMap: PositionMap) => {
