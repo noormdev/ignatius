@@ -7,6 +7,7 @@ import type {
   FlowStoreRef,
 } from '../../../flows/flow-parse';
 import type { FlowError } from '../../../flows/flow-validate';
+import { SYNTHETIC_DIAGRAM_IDS } from '../../../flows/flow-derive-levels';
 import type { EntityError, GlobalError } from '../../../model/validate';
 import type { ModelIndex } from '../../../model/model-index';
 import { buildEntityUsageIndex } from '../../../flows/flow-usage-index';
@@ -426,11 +427,15 @@ function DictionaryView({
 
   // Collect all processes / externals / non-db stores from all diagrams (flat).
   const allDiagrams = flowDiagrams ?? [];
-  // Include sub-DFD processes recursively.
+  // Include sub-DFD processes recursively, skipping synthetic context/L1 diagrams
+  // introduced by CP4 level derivation — those carry the "System" process and
+  // empty activity stubs that are not user-authored and must not appear in the DD.
   function collectProcessesDeep(diagrams: FlowDiagram[]): FlowProcess[] {
     const result: FlowProcess[] = [];
     for (const d of diagrams) {
-      result.push(...d.processes);
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) {
+        result.push(...d.processes);
+      }
       result.push(...collectProcessesDeep(d.subDfds));
     }
     return result;
@@ -440,10 +445,14 @@ function DictionaryView({
   // Deduplicate externals by id across ALL diagrams (recursively including sub-DFDs).
   // Mirrors collectStoreRefs — an external that only appears in a sub-DFD (same bug
   // class CP18 fixed for stores) is now captured and has a valid card to scroll to.
+  // Skip synthetic diagrams (context/L1) — their externals are the promoted union of
+  // leaf externals and would be double-counted; the leaves themselves carry the same set.
   const externalById: Record<string, FlowExternal> = {};
   function collectExternals(diagrams: FlowDiagram[]): void {
     for (const d of diagrams) {
-      for (const ext of d.externals) externalById[ext.id] = ext;
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) {
+        for (const ext of d.externals) externalById[ext.id] = ext;
+      }
       collectExternals(d.subDfds);
     }
   }
@@ -453,11 +462,17 @@ function DictionaryView({
   // Deduplicate non-db stores by name across ALL diagrams (recursively including sub-DFDs).
   // CP18: must walk sub-DFDs so stores that only appear in a sub-DFD (e.g. queue:OrderIntake
   // in Create-Sales-Order) are captured. Previously only top-level diagrams were iterated.
+  // Skip synthetic diagrams (context/L1) — the L1 overview carries promoted-store refs that
+  // are already present in the individual leaf diagrams; collecting them again here would
+  // produce no duplicates (dedup by name) but the store refs on the synthetic diagrams
+  // have empty bodyHtml and could shadow the real leaf store refs on a first-write-wins basis.
   const storeByName: Record<string, FlowStoreRef> = {};
   function collectStoreRefs(diagrams: FlowDiagram[]): void {
     for (const d of diagrams) {
-      for (const s of d.storeRefs) {
-        if (s.kind !== 'db') storeByName[s.name] = s;
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) {
+        for (const s of d.storeRefs) {
+          if (s.kind !== 'db') storeByName[s.name] = s;
+        }
       }
       collectStoreRefs(d.subDfds);
     }
@@ -769,7 +784,9 @@ function DictionaryView({
                 function collectNavProcesses(diagrams: FlowDiagram[]): FlowProcess[] {
                   const result: FlowProcess[] = [];
                   for (const d of diagrams) {
-                    result.push(...d.processes);
+                    if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) {
+                      result.push(...d.processes);
+                    }
                     result.push(...collectNavProcesses(d.subDfds));
                   }
                   return result;
@@ -1224,8 +1241,10 @@ function DictionaryView({
               function collectVisible(diagrams: FlowDiagram[]): FlowProcess[] {
                 const result: FlowProcess[] = [];
                 for (const d of diagrams) {
-                  for (const p of d.processes) {
-                    if (visibleProcessIds[p.id]) result.push(p);
+                  if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) {
+                    for (const p of d.processes) {
+                      if (visibleProcessIds[p.id]) result.push(p);
+                    }
                   }
                   result.push(...collectVisible(d.subDfds));
                 }

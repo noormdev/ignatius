@@ -11,12 +11,23 @@
 
 import { parseFlows } from '../../src/flows/flow-parse';
 import { parseModels } from '../../src/model/parse';
+import type { FlowDiagram } from '../../src/flows/flow-parse';
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {
         console.error('FAIL:', msg);
         process.exit(1);
     }
+}
+
+/** Walk the leveled tree to find a diagram by id. */
+function findDiagramInTree(diagrams: FlowDiagram[], id: string): FlowDiagram | undefined {
+    for (const d of diagrams) {
+        if (d.id === id) return d;
+        const found = findDiagramInTree(d.subDfds, id);
+        if (found) return found;
+    }
+    return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -28,11 +39,13 @@ const CLEAN_FIXTURE = 'test/fixtures/flows';
 const { flowModel, globalErrors } = await parseFlows(CLEAN_FIXTURE);
 
 assert(globalErrors.length === 0, `parseFlows clean fixture — expected no globalErrors, got: ${JSON.stringify(globalErrors)}`);
-assert(flowModel.diagrams.length === 1, `parseFlows — expected 1 diagram, got ${flowModel.diagrams.length}`);
-console.log('PASS: parseFlows clean fixture — no errors, 1 diagram');
+// After CP4 leveling the top-level diagrams array contains the synthesised
+// context (Level-0) diagram. The leaf 'clean' diagram is nested inside the tree.
+assert(flowModel.diagrams.length > 0, `parseFlows — expected at least 1 diagram (context), got 0`);
+console.log('PASS: parseFlows clean fixture — no errors, diagrams present');
 
-const diagram = flowModel.diagrams[0]!;
-assert(diagram.id === 'clean', `diagram.id should be 'clean', got '${diagram.id}'`);
+const diagram = findDiagramInTree(flowModel.diagrams, 'clean');
+assert(diagram !== undefined, `diagram 'clean' not found in leveled tree; top-level ids: ${flowModel.diagrams.map(d => d.id).join(', ')}`);
 console.log('PASS: diagram.id = clean');
 
 // ---------------------------------------------------------------------------
@@ -44,7 +57,9 @@ const placeOrder = diagram.processes[0]!;
 assert(placeOrder.id === 'Place-Order', `process id should be 'Place-Order', got '${placeOrder.id}'`);
 assert(placeOrder.label === 'Place Order', `process label should be 'Place Order', got '${placeOrder.label}'`);
 assert(placeOrder.number === 1, `process number should be 1, got ${placeOrder.number}`);
-assert(placeOrder.dottedNumber === '1', `dottedNumber should be '1', got '${placeOrder.dottedNumber}'`);
+// After CP4 leveling the leaf 'clean' is the 1st (and only) L1 activity (N=1),
+// so its processes are renumbered to '1.<local>'. Place-Order was local '1' → now '1.1'.
+assert(placeOrder.dottedNumber === '1.1', `dottedNumber should be '1.1' (CP4 renumbering), got '${placeOrder.dottedNumber}'`);
 assert(placeOrder.flowId === 'clean', `process flowId should be 'clean', got '${placeOrder.flowId}'`);
 assert(typeof placeOrder.bodyHtml === 'string' && placeOrder.bodyHtml.length > 0, 'process bodyHtml should be non-empty');
 console.log('PASS: top-level process shape correct');
@@ -64,7 +79,10 @@ const reserveStock = subDfd.processes[0]!;
 assert(reserveStock.id === 'Reserve-Stock', `sub-process id should be 'Reserve-Stock', got '${reserveStock.id}'`);
 assert(reserveStock.label === 'Reserve Stock', `sub-process label should be 'Reserve Stock', got '${reserveStock.label}'`);
 assert(reserveStock.number === 1, `sub-process number should be 1, got ${reserveStock.number}`);
-assert(reserveStock.dottedNumber === '1.1', `sub-process dottedNumber should be '1.1', got '${reserveStock.dottedNumber}'`);
+// Reserve-Stock is in the sub-DFD of Place-Order; renumberLeaf only renumbers
+// the leaf's top-level processes (N.x), not deeper sub-DFD children.
+// Reserve-Stock retains its original relative number '1.1' from the parser.
+assert(reserveStock.dottedNumber === '1.1', `sub-process dottedNumber should be '1.1' (original, sub-DFD not re-prefixed), got '${reserveStock.dottedNumber}'`);
 assert(reserveStock.hasSubDfd === false, 'Reserve-Stock should have hasSubDfd=false');
 assert(subDfd.subDfds.length === 0, `sub-DFD should have no further subDfds, got ${subDfd.subDfds.length}`);
 console.log('PASS: recursive sub-DFD: Reserve-Stock in Place-Order/, dottedNumber=1.1');

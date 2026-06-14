@@ -15,6 +15,7 @@ import MarkdownIt from 'markdown-it';
 import type { GlobalError } from '../model/validate';
 import { wikiLinkPlugin } from '../model/wikilink';
 import { titlelize } from './titlelize';
+import { deriveLevels } from './flow-derive-levels';
 
 const md = new MarkdownIt();
 // `[[Target]]` links in flow markdown (process / external / store bodies) render
@@ -748,8 +749,11 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
         diagrams.push(diagram);
     }
 
+    const rawFlowModel: FlowModel = { diagrams, modelDir };
+    const flowModel = deriveLevels(rawFlowModel);
+
     return {
-        flowModel: { diagrams, modelDir },
+        flowModel,
         globalErrors,
     };
 }

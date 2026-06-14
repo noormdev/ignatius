@@ -53,7 +53,8 @@ export type RuleId =
   | 'flow.illegal_connection'
   | 'flow.process_to_process'
   | 'flow.unbalanced_decomposition'
-  | 'flow.duplicate_number';
+  | 'flow.duplicate_number'
+  | 'flow.store_naming_collision';
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -244,6 +245,11 @@ export const RULES: Record<RuleId, RuleEntry> = {
   'flow.duplicate_number': {
     title: 'Duplicate sibling process number',
     explanation: 'Two sibling processes in the same DFD declare the same local `number:` value. Local numbers must be unique among siblings. Correct the `number:` fields so each sibling has a distinct rank.',
+    class: 'A',
+  },
+  'flow.store_naming_collision': {
+    title: 'Store token conflict across diagrams',
+    explanation: 'The same store token (kind:name) appears in multiple diagrams with conflicting `kind` or `title` attributes. The derivation cannot silently merge them. Reconcile the store definition across the affected diagrams so the token resolves consistently.',
     class: 'A',
   },
 };

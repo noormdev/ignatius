@@ -19,6 +19,7 @@ import type {
     FlowProcess,
     FlowStoreRef,
 } from './flow-parse';
+import { CONTEXT_DIAGRAM_ID, SYSTEM_PROCESS_ID } from './flow-derive-levels';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -569,6 +570,17 @@ function validateDiagram(
     config: FlowRulesConfig,
     allErrors: FlowError[],
 ): FlowDiagram {
+    // CP4: synthesised context and L1 diagrams are not user-authored. Skip all
+    // rule checks on them — only recurse into their sub-DFDs (the real leaves).
+    if (diagram.id === CONTEXT_DIAGRAM_ID || diagram.id === SYSTEM_PROCESS_ID) {
+        const cleanedSubDfds: FlowDiagram[] = [];
+        for (const subDfd of diagram.subDfds) {
+            const cleanedSub = validateDiagram(subDfd, entityModel, config, allErrors);
+            cleanedSubDfds.push(cleanedSub);
+        }
+        return { ...diagram, subDfds: cleanedSubDfds };
+    }
+
     // Phase 1: Class B checks — build the stripped edge set
     const { errors: storeErrors, strippedEdgeIds: stripped1 } =
         checkUnknownStore(diagram, entityModel);
@@ -596,12 +608,15 @@ function validateDiagram(
     allErrors.push(...checkProcessIsolation(diagram, activeEdges));
     allErrors.push(...checkDuplicateNumbers(diagram));
 
-    // Phase 3: decomposition check at every seam
+    // Phase 3: decomposition check at every seam.
+    // Note: the early-return at the top of this function already handles the
+    // synthetic context and L1 diagrams — they never reach here, so isSyntheticDiagram
+    // would always be false. Check directly per sub-DFD without a redundant guard.
     const cleanedSubDfds: FlowDiagram[] = [];
     for (const subDfd of diagram.subDfds) {
         // Find the parent process for this sub-DFD
         const parentProcess = diagram.processes.find(p => p.id === subDfd.id);
-        if (parentProcess) {
+        if (parentProcess !== undefined) {
             allErrors.push(...checkUnbalancedDecomposition(diagram, parentProcess, subDfd));
         }
         // Recurse
@@ -610,6 +625,66 @@ function validateDiagram(
     }
 
     return buildCleanedDiagram(diagram, stripped4, cleanedSubDfds);
+}
+
+// ---------------------------------------------------------------------------
+// Naming-collision check (CP4)
+// ---------------------------------------------------------------------------
+
+/**
+ * flow.store_naming_collision (Class A)
+ *
+ * Walks the entire FlowModel tree and collects all FlowStoreRef entries.
+ * A naming collision occurs when the same token (kind:name) appears across
+ * two or more diagrams with conflicting attributes: different `kind` (impossible
+ * by construction — kind is part of the token) or different `displayName`.
+ *
+ * Mechanical only — no edit-distance heuristics.
+ * Fires once per conflicting token (not once per diagram).
+ */
+function checkStoreNamingCollisions(flowModel: FlowModel): FlowError[] {
+    // Collect all store refs across the entire tree
+    type StoreEntry = { ref: FlowStoreRef; diagramId: string };
+    const entries: StoreEntry[] = [];
+
+    function collectRefs(diagram: FlowDiagram) {
+        for (const ref of diagram.storeRefs) {
+            entries.push({ ref, diagramId: diagram.id });
+        }
+        for (const sub of diagram.subDfds) {
+            collectRefs(sub);
+        }
+    }
+    for (const diagram of flowModel.diagrams) {
+        collectRefs(diagram);
+    }
+
+    // Group by token
+    const byToken = new Map<string, StoreEntry[]>();
+    for (const entry of entries) {
+        const token = `${entry.ref.kind}:${entry.ref.name}`;
+        if (!byToken.has(token)) byToken.set(token, []);
+        byToken.get(token)!.push(entry);
+    }
+
+    const errors: FlowError[] = [];
+    for (const [token, tokenEntries] of byToken) {
+        const firstDisplayName = tokenEntries[0]!.ref.displayName;
+        const conflicting = tokenEntries.filter(e => e.ref.displayName !== firstDisplayName);
+        if (conflicting.length === 0) continue;
+
+        const diagrams = [...new Set(tokenEntries.map(e => e.diagramId))].sort();
+        const variants = [...new Set(tokenEntries.map(e => e.ref.displayName))].sort();
+
+        errors.push({
+            ruleId: 'flow.store_naming_collision',
+            flowId: diagrams[0]!,
+            severity: 'warning',
+            message: `Store token '${token}' has conflicting display names across diagrams [${diagrams.join(', ')}]: [${variants.join(', ')}]. Reconcile the store title so it resolves consistently.`,
+        });
+    }
+
+    return errors;
 }
 
 // ---------------------------------------------------------------------------
@@ -623,6 +698,9 @@ export function validateFlows(
 ): FlowValidationResult {
     const allErrors: FlowError[] = [];
     const cleanedDiagrams: FlowDiagram[] = [];
+
+    // CP4: check naming collisions across the entire tree before per-diagram validation
+    allErrors.push(...checkStoreNamingCollisions(flowModel));
 
     for (const diagram of flowModel.diagrams) {
         const cleaned = validateDiagram(diagram, entityModel, config, allErrors);

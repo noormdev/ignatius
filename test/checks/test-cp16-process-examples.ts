@@ -13,6 +13,17 @@
  */
 
 import { parseFlows, parseProcessExamples } from '../../src/flows/flow-parse';
+import type { FlowDiagram } from '../../src/flows/flow-parse';
+
+/** Walk the leveled tree to find a diagram by id. */
+function findDiagramInTree(diagrams: FlowDiagram[], id: string): FlowDiagram | undefined {
+    for (const d of diagrams) {
+        if (d.id === id) return d;
+        const found = findDiagramInTree(d.subDfds, id);
+        if (found) return found;
+    }
+    return undefined;
+}
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {
@@ -86,8 +97,9 @@ console.log('PASS: parseFlows key-inherited — no globalErrors');
 // Locate the order-to-cash diagram + Collect-Payment process
 // ---------------------------------------------------------------------------
 
-const otcDiagram = flowModel.diagrams.find(d => d.id === 'order-to-cash');
-assert(otcDiagram !== undefined, 'Expected to find order-to-cash diagram');
+// After CP4 leveling the leaf diagram 'order-to-cash' is nested in the tree.
+const otcDiagram = findDiagramInTree(flowModel.diagrams, 'order-to-cash');
+assert(otcDiagram !== undefined, 'Expected to find order-to-cash diagram in leveled tree');
 
 const collectPayment = otcDiagram.processes.find(p => p.id === 'Collect-Payment');
 assert(collectPayment !== undefined, 'Expected to find Collect-Payment process');

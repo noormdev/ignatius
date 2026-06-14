@@ -19,8 +19,19 @@
  */
 
 import { parseFlows } from '../../src/flows/flow-parse';
+import type { FlowDiagram } from '../../src/flows/flow-parse';
 import { buildFlowData } from '../../src/flow-view/flow-layout';
 import { isDbEdge } from '../../src/flow-view/elk-flow-layout';
+
+/** Walk the leveled tree to find a diagram by id. */
+function findDiagramInTree(diagrams: FlowDiagram[], id: string): FlowDiagram | undefined {
+  for (const d of diagrams) {
+    if (d.id === id) return d;
+    const found = findDiagramInTree(d.subDfds, id);
+    if (found) return found;
+  }
+  return undefined;
+}
 
 const MODEL_DIR = 'models/llm-memory-db-mssql';
 const TARGETS = ['memory-lifecycle', 'tag-administration'];
@@ -41,9 +52,10 @@ let dbEdges = 0;
 let nonDbEdges = 0;
 
 for (const target of TARGETS) {
-  const diagram = flowModel.diagrams.find(d => d.id === target);
+  // After CP4 leveling the activity leaf diagrams are nested in the tree.
+  const diagram = findDiagramInTree(flowModel.diagrams, target);
   if (!diagram) {
-    console.error(`FAIL: diagram not found: ${target}`);
+    console.error(`FAIL: diagram not found in leveled tree: ${target}`);
     process.exit(1);
   }
 

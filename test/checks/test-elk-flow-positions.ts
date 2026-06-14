@@ -85,10 +85,20 @@ function bandBounds(
 
 const { flowModel } = await parseFlows(MODEL_DIR);
 
+function findDiagramInTree(diagrams: FlowDiagram[], id: string): FlowDiagram | undefined {
+  for (const d of diagrams) {
+    if (d.id === id) return d;
+    const found = findDiagramInTree(d.subDfds, id);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 function findDiagram(id: string): FlowDiagram {
-  const d = flowModel.diagrams.find(d => d.id === id);
+  // After CP4 leveling, activity diagrams are nested in the tree.
+  const d = findDiagramInTree(flowModel.diagrams, id);
   if (!d) {
-    console.error(`FAIL: diagram not found: ${id}`);
+    console.error(`FAIL: diagram not found in leveled tree: ${id}`);
     process.exit(1);
   }
   return d;

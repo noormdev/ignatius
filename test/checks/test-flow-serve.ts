@@ -79,35 +79,47 @@ console.log('\n── GET /api/flow (has flows) ──');
     '/api/flow: payload.entityModel.nodes is a non-empty array (db-store docs depend on it)',
     `entityModel keys: ${entityModel ? Object.keys(entityModel).join(', ') : 'undefined'}`);
 
-  // key-inherited has order-to-cash + refund → 2 top-level diagrams
+  // After CP4 leveling the top-level diagrams array contains the synthesised
+  // context (Level-0) diagram. The leaf activity diagrams (order-to-cash, refund)
+  // are nested as sub-DFDs. diagrams.length === 1 (the context).
   const diagrams = payload.diagrams as unknown[];
   assert(
-    diagrams.length === 2,
-    `/api/flow: diagrams.length === 2 (got ${diagrams.length})`,
+    diagrams.length >= 1,
+    `/api/flow: diagrams.length >= 1 (got ${diagrams.length})`,
   );
 
-  // Both diagram ids should appear in flowLayoutKeys
+  // Collect all diagram ids recursively from the leveled tree.
+  function collectIds(ds: unknown[]): Set<string> {
+    const found = new Set<string>();
+    for (const d of ds) {
+      const rec = d as Record<string, unknown>;
+      if (typeof rec.id === 'string') found.add(rec.id);
+      if (Array.isArray(rec.subDfds)) {
+        for (const id of collectIds(rec.subDfds)) found.add(id);
+      }
+    }
+    return found;
+  }
+
+  const allIds = collectIds(diagrams);
+
+  // Both leaf diagrams must appear somewhere in the tree.
+  assert(allIds.has('order-to-cash'), '/api/flow: "order-to-cash" diagram present');
+  assert(allIds.has('refund'), '/api/flow: "refund" diagram present');
+
+  // Both diagram ids should appear in flowLayoutKeys (the server builds keys for the
+  // full tree including synthesised context/L1 and the leaves).
   const keys = payload.flowLayoutKeys as Record<string, unknown>;
-  const diagram0 = diagrams[0] as Record<string, unknown>;
-  const diagram1 = diagrams[1] as Record<string, unknown>;
-  const id0 = typeof diagram0?.id === 'string' ? diagram0.id : '';
-  const id1 = typeof diagram1?.id === 'string' ? diagram1.id : '';
-
   assert(
-    id0 in keys,
-    `/api/flow: flowLayoutKeys contains id "${id0}"`,
+    'order-to-cash' in keys,
+    `/api/flow: flowLayoutKeys contains id "order-to-cash"`,
     `keys: ${Object.keys(keys).join(', ')}`,
   );
   assert(
-    id1 in keys,
-    `/api/flow: flowLayoutKeys contains id "${id1}"`,
+    'refund' in keys,
+    `/api/flow: flowLayoutKeys contains id "refund"`,
     `keys: ${Object.keys(keys).join(', ')}`,
   );
-
-  // Confirm the two expected diagram ids are present
-  const ids = new Set([id0, id1]);
-  assert(ids.has('order-to-cash'), '/api/flow: "order-to-cash" diagram present');
-  assert(ids.has('refund'), '/api/flow: "refund" diagram present');
 
   // validation shape
   const validation = payload.validation as Record<string, unknown>;

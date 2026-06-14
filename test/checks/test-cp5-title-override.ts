@@ -16,7 +16,17 @@
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { parseFlows } from '../../src/flows/flow-parse';
-import type { FlowExternal, FlowProcess, FlowStoreRef } from '../../src/flows/flow-parse';
+import type { FlowDiagram, FlowExternal, FlowProcess, FlowStoreRef } from '../../src/flows/flow-parse';
+
+/** Walk the leveled tree to find a diagram by id. */
+function findDiagramInTree(diagrams: FlowDiagram[], id: string): FlowDiagram | undefined {
+    for (const d of diagrams) {
+        if (d.id === id) return d;
+        const found = findDiagramInTree(d.subDfds, id);
+        if (found) return found;
+    }
+    return undefined;
+}
 
 function assert(cond: boolean, msg: string): asserts cond {
     if (!cond) {
@@ -70,10 +80,13 @@ Handles incoming requests from buyers.
 const { flowModel, globalErrors } = await parseFlows(FIXTURE);
 
 assert(globalErrors.length === 0, `parseFlows title-override fixture — expected no globalErrors, got: ${JSON.stringify(globalErrors)}`);
-assert(flowModel.diagrams.length === 1, `expected 1 diagram, got ${flowModel.diagrams.length}`);
+// After CP4 leveling the tree contains context + L1 wrapping the leaf 'sample-dfd'.
+assert(flowModel.diagrams.length > 0, `expected at least 1 diagram (context), got 0`);
 console.log('PASS: title-override fixture parses without errors');
 
-const diagram = flowModel.diagrams[0]!;
+// Find the actual leaf diagram in the leveled tree
+const diagram = findDiagramInTree(flowModel.diagrams, 'sample-dfd');
+assert(diagram !== undefined, `diagram 'sample-dfd' not found in leveled tree`);
 
 // ---------------------------------------------------------------------------
 // 1. FlowExternal: id is stable slug; label is the title: override
