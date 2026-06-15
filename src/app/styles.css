@@ -14,6 +14,15 @@ html, body, #root {
   color: var(--color-text);
 }
 
+/* Baseline: every anchor uses the themeable link colour, never the browser
+   default (#0000EE). Markdown body links ([text](url)) render as plain <a> with
+   no class; without this they'd fall back to the unthemed default while the
+   class-styled links (.entity-link, .fk-link) stay on --color-link. Specific
+   link classes still win on specificity (e.g. .entity-link--missing → muted). */
+a {
+  color: var(--color-link);
+}
+
 .app {
   position: relative;
   height: 100vh;
