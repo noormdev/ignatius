@@ -228,6 +228,29 @@ function buildElkGraph(
   };
 }
 
+/**
+ * Terminate ELK's worker without ever throwing.
+ *
+ * Worker cleanup must NEVER discard a successful layout. In Bun (real Worker)
+ * `terminateWorker()` frees the worker so the process can exit. In the browser
+ * bundle ELK runs on the main thread via the `web-worker` shim, whose fake
+ * worker has no `terminate()` — calling it throws `this.worker.terminate is not
+ * a function`. If that exception escaped `computeElkLayout`, the caller
+ * (`FlowsView.renderDiagram`) would treat the (actually successful) layout as a
+ * failure and silently fall back to the banded positioner — which is exactly the
+ * regression this guard exists to prevent. Swallow the error: the layout already
+ * succeeded and there is no worker to free on the main thread.
+ *
+ * Exported so the regression is unit-testable (the browser path can't run in Bun).
+ */
+export function terminateQuietly(elk: { terminateWorker: () => void }): void {
+  try {
+    elk.terminateWorker();
+  } catch {
+    // main-thread shim (browser): no worker to terminate — cleanup is a no-op.
+  }
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
@@ -260,12 +283,12 @@ export async function computeElkLayout(
   try {
     result = await elk.layout(graph);
   } catch (err) {
-    elk.terminateWorker();
+    terminateQuietly(elk);
     throw new Error(
       `ELK layout failed for diagram "${diagram.id}": ${err instanceof Error ? err.message : String(err)}`,
     );
   }
-  elk.terminateWorker();
+  terminateQuietly(elk);
 
   const positions: Record<string, { x: number; y: number }> = {};
 
