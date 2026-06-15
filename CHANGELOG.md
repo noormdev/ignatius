@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.10.0](https://github.com/noormdev/ignatius/compare/v0.9.0...v0.10.0) (2026-06-15)
+
+
+### Features
+
+* **flow:** background-colored edge casing for over/under crossings ([10110e8](https://github.com/noormdev/ignatius/commit/10110e8b160ae7d3129b4c8624f2366dedde5dff))
+* **flow:** consume ELK orthogonal edge routing (CP-4b) ([b328c7a](https://github.com/noormdev/ignatius/commit/b328c7a4dcc56fa5df9576baf2b25e35ded37bad))
+* **flow:** derive context + Level-1 overview leveling (CP4) ([d10cc83](https://github.com/noormdev/ignatius/commit/d10cc838513f5c84f29b19b8de13a6c52644d9cf))
+* **flow:** edge data contracts on-demand, not always-on (CP2) ([ee8fe2a](https://github.com/noormdev/ignatius/commit/ee8fe2acc6dfc2d440c01bccaf3cda1944ac35fd))
+* **flow:** ELK headless layout positions module (CP1) ([714a864](https://github.com/noormdev/ignatius/commit/714a8649108435a285a7e7bc3b1717869142a3d0))
+* **flow:** render DFDs with ELK layout (CP3) ([88feb31](https://github.com/noormdev/ignatius/commit/88feb31d925230dd4eeca8f92b1b2ae5f37f672a))
+* **flow:** role-split externals + length-gated labels (CP-4a) ([37592cf](https://github.com/noormdev/ignatius/commit/37592cf675a1003a3f7f1a14ba9a41227333410a))
+* **graph:** edge casing for over/under crossings via line-outline ([9993151](https://github.com/noormdev/ignatius/commit/999315154f540e91ec4cbff83d9d005e33850534))
+* **models:** add llm-memory-db-mssql example ([bcede4a](https://github.com/noormdev/ignatius/commit/bcede4a05d106bab92987f6a6effba3d061150a1))
+* **theme:** light/dark variants for findings panel + warning status colors ([b09c4c7](https://github.com/noormdev/ignatius/commit/b09c4c7fcf25c758208222271f2ad6953dccb11b))
+
+
+### Bug Fixes
+
+* **app:** theme all anchor links via --color-link (no browser-default blue) ([8d52e7c](https://github.com/noormdev/ignatius/commit/8d52e7cdf6e934d58138e47fb62ab37c524b76ca))
+* **dict:** unique row keys for parallel relationship edges ([b6d3a92](https://github.com/noormdev/ignatius/commit/b6d3a92db6dd2654b3309d419920365c81ad1b8e))
+* **flow:** guard ELK terminateWorker so it runs in the browser (CP-4e) ([75b2c82](https://github.com/noormdev/ignatius/commit/75b2c8283986e915da0247ec9a89c1f499cfcbf2))
+* **flow:** return ELK node centers to align routes with nodes (CP-4d) ([ef6cf92](https://github.com/noormdev/ignatius/commit/ef6cf92568476090c2d3658afb2414765ccca547))
+* **flow:** single-row bands by dropping ELK label dummies (CP-4c) ([c9234f1](https://github.com/noormdev/ignatius/commit/c9234f1b176c2bed7fb10e456e6550b7e15a8078))
+* **flow:** widen edge casing to 3px each side for clearer over/under ([090cb04](https://github.com/noormdev/ignatius/commit/090cb04ec7c15fa8f447e041d009c668fcb3ddcd))
+
 ## [0.9.0](https://github.com/noormdev/ignatius/compare/v0.8.1...v0.9.0) (2026-06-13)
 
 
