@@ -685,11 +685,11 @@ function EdgePath({
       {label && <title>{label}</title>}
       {/* Background-coloured casing drawn under the line. Edge groups render in
           order, so where a later edge crosses an earlier one this halo masks the
-          line beneath — giving an over/under read at crossings. ~1px each side. */}
+          line beneath — giving an over/under read at crossings. ~3px each side. */}
       <path
         d={d} fill="none"
         stroke={c.canvas}
-        strokeWidth={(highlighted ? EDGE_SW + 1 : EDGE_SW) + 2}
+        strokeWidth={(highlighted ? EDGE_SW + 1 : EDGE_SW) + 6}
         strokeLinecap="round"
       />
       <path
