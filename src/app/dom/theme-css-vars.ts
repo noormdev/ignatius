@@ -51,6 +51,31 @@ export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
     root.style.setProperty('--spotlight-line-flow', '#7c3aed');
   }
 
+  // Status colors (error + warning) — mode-aware so findings UI is legible in both themes.
+  // LOUD surfaces (global banner, error-fallback box) use *-strong: saturated red with
+  // light text in both modes. SOFT surfaces (badges, severity chips) flip with the theme.
+  if (mode === 'dark') {
+    root.style.setProperty('--color-error-bg', '#7f1d1d');
+    root.style.setProperty('--color-error-fg', '#fecaca');
+    root.style.setProperty('--color-error-bg-strong', '#9b1c1c');
+    root.style.setProperty('--color-error-fg-strong', '#fef2f2');
+    root.style.setProperty('--color-error-accent', '#e05252');
+    root.style.setProperty('--color-error-border', '#991b1b');
+    root.style.setProperty('--color-warning-bg', '#78350f');
+    root.style.setProperty('--color-warning-fg', '#fde68a');
+    root.style.setProperty('--color-warning-accent', '#f59e0b');
+  } else {
+    root.style.setProperty('--color-error-bg', '#fee2e2');
+    root.style.setProperty('--color-error-fg', '#991b1b');
+    root.style.setProperty('--color-error-bg-strong', '#b91c1c');
+    root.style.setProperty('--color-error-fg-strong', '#fef2f2');
+    root.style.setProperty('--color-error-accent', '#dc2626');
+    root.style.setProperty('--color-error-border', '#fca5a5');
+    root.style.setProperty('--color-warning-bg', '#fef3c7');
+    root.style.setProperty('--color-warning-fg', '#92400e');
+    root.style.setProperty('--color-warning-accent', '#b45309');
+  }
+
   // Direction-badge colors (read/write/readwrite) — mode-aware so they adapt on
   // theme switch. Dark: slightly brighter tints; light: slightly more saturated.
   if (mode === 'dark') {

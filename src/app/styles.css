@@ -675,8 +675,8 @@ code {
   top: 0;
   left: 0;
   right: 0;
-  background: #9b1c1c;
-  color: #fef2f2;
+  background: var(--color-error-bg-strong);
+  color: var(--color-error-fg-strong);
   z-index: 200;
   padding: 8px 48px 8px 16px; /* right padding for close button */
   font-size: 13px;
@@ -690,7 +690,7 @@ code {
   right: 12px;
   background: none;
   border: none;
-  color: #fecaca;
+  color: var(--color-error-fg-strong);
   font-size: 20px;
   cursor: pointer;
   line-height: 1;
@@ -709,7 +709,7 @@ code {
 
 .graph-global-banner-row strong {
   font-weight: 700;
-  color: #fca5a5;
+  color: var(--color-error-fg-strong);
   flex-shrink: 0;
 }
 
@@ -723,7 +723,7 @@ code {
 .graph-modal-issues-section h4 {
   font-size: 11px;
   font-weight: 600;
-  color: #e05252;
+  color: var(--color-error-accent);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -743,13 +743,13 @@ code {
   color: var(--color-text-secondary);
   padding: 6px 10px;
   background: rgba(224, 82, 82, 0.08);
-  border-left: 3px solid #e05252;
+  border-left: 3px solid var(--color-error-accent);
   border-radius: 0 4px 4px 0;
   line-height: 1.4;
 }
 
 .graph-modal-issues-section li strong {
-  color: #e05252;
+  color: var(--color-error-accent);
   font-weight: 600;
 }
 
@@ -780,9 +780,9 @@ code {
 }
 
 .findings-panel-badge {
-  background: #7f1d1d;
-  color: #fecaca;
-  border: 1px solid #991b1b;
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+  border: 1px solid var(--color-error-border);
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 13px;
@@ -794,7 +794,7 @@ code {
 }
 
 .findings-panel-badge:hover {
-  background: #991b1b;
+  background: var(--color-error-border);
 }
 
 .findings-panel-header {
@@ -809,7 +809,7 @@ code {
 .findings-panel-header h3 {
   font-size: 13px;
   font-weight: 600;
-  color: #fca5a5;
+  color: var(--color-error-fg);
   margin: 0;
 }
 
@@ -876,13 +876,13 @@ code {
 }
 
 .finding-severity--error {
-  background: #7f1d1d;
-  color: #fecaca;
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
 }
 
 .finding-severity--warning {
-  background: #78350f;
-  color: #fde68a;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
 }
 
 .finding-rule {
@@ -1377,7 +1377,7 @@ code {
 
 .dict-entity-warning > summary {
   cursor: pointer;
-  color: #f59e0b;
+  color: var(--color-warning-accent);
   font-weight: 600;
   user-select: none;
   list-style: none;
@@ -1626,18 +1626,18 @@ code {
 
 /* Missing FK links */
 a.dict-link-missing {
-  color: #f59e0b;
+  color: var(--color-warning-accent);
   text-decoration: underline dotted;
 }
 
 a.dict-link-missing:hover {
-  color: #d97706;
+  color: var(--color-warning-accent);
 }
 
 /* Missing entity placeholder sections */
 .dict-missing-section {
   background: var(--color-surface);
-  border: 1px dashed #f59e0b;
+  border: 1px dashed var(--color-warning-accent);
   border-radius: 8px;
   padding: 1.25rem;
   margin-bottom: 1.5rem;
@@ -1647,7 +1647,7 @@ a.dict-link-missing:hover {
 .dict-missing-section h2 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #f59e0b;
+  color: var(--color-warning-accent);
   margin-bottom: 0.5rem;
 }
 
@@ -1770,8 +1770,8 @@ a.dict-link-missing:hover {
 .graph-error-fallback-box {
   max-width: 560px;
   width: 90%;
-  background: #9b1c1c;
-  color: #fef2f2;
+  background: var(--color-error-bg-strong);
+  color: var(--color-error-fg-strong);
   border-radius: 10px;
   padding: 28px 32px;
   font-size: 14px;
@@ -1783,7 +1783,7 @@ a.dict-link-missing:hover {
   font-size: 18px;
   font-weight: 700;
   margin-bottom: 12px;
-  color: #fca5a5;
+  color: var(--color-error-fg-strong);
 }
 
 .graph-error-fallback-box pre {
@@ -1795,7 +1795,7 @@ a.dict-link-missing:hover {
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #fecaca;
+  color: var(--color-error-fg-strong);
   margin-top: 10px;
 }
 
@@ -1846,7 +1846,7 @@ a.dict-link-missing:hover {
   border-color: color-mix(in srgb, var(--color-link) 20%, var(--color-border));
 }
 .flow-kind-ext { color: var(--color-text-muted); font-size: 0.75rem; }
-.flow-col-unknown { color: #f59e0b; }
+.flow-col-unknown { color: var(--color-warning-accent); }
 .flow-no-flows { color: var(--color-text-muted); font-size: 0.85rem; padding: 0.5rem 0; }
 
 /* Shared body for all flow node types (process, external, store) */
