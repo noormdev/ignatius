@@ -88,6 +88,12 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
       style: {
         'width': 1.5,
         'line-color': p.edgeIdentifying,
+        // Background-coloured casing under each edge: where edges cross, the
+        // later-drawn edge's outline masks the line beneath, giving an over/under
+        // read (matches the DFD edge casing). Outline colour = canvas background,
+        // so it's invisible except at crossings.
+        'line-outline-width': 3,
+        'line-outline-color': p.background,
         'target-arrow-shape': 'none',
         'source-arrow-shape': 'none',
         'curve-style': 'bezier',
