@@ -683,6 +683,15 @@ function EdgePath({
       {/* SVG <title> provides the native tooltip on hover — the primary on-demand
           disclosure mechanism for db: column-list contracts (C13). */}
       {label && <title>{label}</title>}
+      {/* Background-coloured casing drawn under the line. Edge groups render in
+          order, so where a later edge crosses an earlier one this halo masks the
+          line beneath — giving an over/under read at crossings. ~1px each side. */}
+      <path
+        d={d} fill="none"
+        stroke={c.canvas}
+        strokeWidth={(highlighted ? EDGE_SW + 1 : EDGE_SW) + 2}
+        strokeLinecap="round"
+      />
       <path
         d={d} fill="none"
         stroke={highlighted ? EDGE_HIGHLIGHT : c.edge}
