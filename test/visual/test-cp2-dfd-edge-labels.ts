@@ -1,16 +1,19 @@
 /**
- * CP2 visual assertion: edge-label on-demand strategy.
+ * CP2+CP4 visual assertion: edge-label truncated-preview strategy.
  *
- * Proves C5 + C13 from docs/spec/dfd-overhaul.md:
+ * Proves C5 + C13 from docs/spec/dfd-overhaul.md (updated for CP4):
  *
  *  C5  — on the dense diagrams `memory-lifecycle` and `tag-administration`,
- *         no always-on inline chip labels appear for db: column-list edges.
- *         The canvas only shows short payload phrase chips for ext:/kind: edges.
+ *         db: column-list edges (long labels) now render a single truncated
+ *         preview chip ending with '…'. The chip text is shorter than the full
+ *         column list but the full data is reachable via hover/data-contract.
  *
  *  C13 — the full data contract (column list) is reachable in the DOM for each
- *         db: edge: the SVG <title> element carries the label text so the
- *         contract is disclosed on hover (native SVG tooltip). The data-contract
- *         attribute also carries the text for programmatic access.
+ *         truncated-preview edge: the data-contract attribute carries the label
+ *         text so the contract is disclosed on hover (styled HTML tooltip).
+ *         The native SVG <title> has been removed; the styled tooltip is the
+ *         sole full-disclosure mechanism. data-contract is the programmatic
+ *         anchor.
  *
  * Run: bun test/visual/test-cp2-dfd-edge-labels.ts
  *
@@ -106,30 +109,32 @@ async function selectDiagram(diagramId: string): Promise<void> {
 
 interface EdgeReport {
   id: string;
-  hasDbContract: boolean;
+  /** True when data-contract-type="hidden" — i.e. the edge has a long label with a truncated preview chip. */
+  isHidden: boolean;
   contractText: string;
+  /** Whether the edge group still carries the data-contract attribute (regression guard). */
+  hasDataContract: boolean;
+  /** Whether a native SVG <title> is present — should be ABSENT after CP2. */
+  hasSvgTitle: boolean;
   /** C5 structural check: number of [data-ignatius="flow-chip"] elements
-   *  that are siblings in the same SVG layer AND are descendants of an
-   *  ancestor group sharing the same edge group. For db: edges this must
-   *  be zero — no inline chip element may be associated with the edge,
-   *  regardless of text content. */
+   *  that are descendants of the edge group.
+   *  After CP4: hidden edges now produce exactly 1 truncated preview chip. */
   associatedChipCount: number;
+  /** Text content of the first chip element inside the edge group, or '' if none. */
+  firstChipText: string;
 }
 
 /**
- * Introspect the SVG to verify CP2 constraints:
+ * Introspect the SVG to verify CP2+CP4 constraints:
  *
- *  C5  — for every <g data-contract-type="db"> edge group, ZERO
- *         [data-ignatius="flow-chip"] elements exist inside the same SVG
- *         (structural check — independent of chip text content).
+ *  C5  — for every edge group with data-contract-type="hidden", exactly ONE
+ *         [data-ignatius="flow-chip"] element exists inside its subtree (the
+ *         truncated preview chip added by CP4). Its text ends with '…' and is
+ *         shorter than the full data-contract text (not the full column list).
  *
- *  C13 — the <title> and data-contract attribute on each db: edge group carry
- *         non-empty contract text (disclosed on hover).
- *
- *  For db: edges the chip layer must be completely absent — no element with
- *  data-ignatius="flow-chip" should appear in the SVG for that edge. Because
- *  EdgeChip is only rendered when `lines.length > 0` and `isDbEdge` sets
- *  `lines = []`, a db: edge's chip element should not be in the DOM at all.
+ *  C13 — the data-contract attribute on each gated (hidden) edge group carries
+ *         non-empty contract text (the styled HTML tooltip reads from this).
+ *         The native SVG <title> must NOT be present (it has been superseded).
  *
  * Returns a list of edge reports for inspection.
  */
@@ -138,34 +143,27 @@ async function collectEdgeReports(): Promise<EdgeReport[]> {
     const svg = document.querySelector('[data-ignatius="flow-svg"]');
     if (!svg) return [];
 
-    // Total chip count in the SVG. For C5 we assert the db: edge group has
-    // no chip element at all — we verify by checking that no chip exists
-    // whose key matches the edge id. Since EdgeChip uses `key={e.id}` in
-    // React, the rendered chip group sits in the chip layer (Layer 3) with
-    // no direct DOM link to the edge path group (Layer 1). Instead we count
-    // all chips in the SVG: for a well-formed render with isDbEdge suppression,
-    // the number of chip elements must equal the number of non-db: labelled
-    // edges. We track this globally (see diagram-level assertions below).
-    //
-    // For each db: edge group we assert associatedChipCount = 0 by checking
-    // whether ANY chip element is inside the edge's own <g> subtree. Since
-    // chips are in a separate layer, a db: edge group will never contain a
-    // chip descendant — this is the correct structural invariant.
     const reports: EdgeReport[] = [];
     for (const g of svg.querySelectorAll('[data-contract]')) {
       const contractText = g.getAttribute('data-contract') ?? '';
       const contractType = g.getAttribute('data-contract-type') ?? '';
 
-      // Structural: count chip elements that are DOM descendants of this edge
-      // group. For db: edges (Layer 1 <g>), chips live in a separate Layer 3
-      // group and are NEVER descendants — so this count must be 0.
-      const associatedChipCount = g.querySelectorAll('[data-ignatius="flow-chip"]').length;
+      // C5 structural check: chip count inside this edge group.
+      const chipEls = g.querySelectorAll('[data-ignatius="flow-chip"]');
+      const associatedChipCount = chipEls.length;
+      const firstChipText = chipEls.length > 0 ? (chipEls[0].textContent ?? '') : '';
+
+      // C13 (updated): no native <title>; data-contract is the programmatic anchor.
+      const hasSvgTitle = g.querySelector('title') !== null;
 
       reports.push({
-        id: g.getAttribute('data-contract')?.slice(0, 20) ?? '',
-        hasDbContract: contractType === 'db',
+        id: contractText.slice(0, 20),
+        isHidden: contractType === 'hidden',
         contractText,
+        hasDataContract: contractText.length > 0,
+        hasSvgTitle,
         associatedChipCount,
+        firstChipText,
       });
     }
     return reports;
@@ -186,42 +184,61 @@ for (const diagramId of DIAGRAMS) {
 
   note(`  Found ${reports.length} labelled edges in DOM.`);
 
-  const dbReports = reports.filter(r => r.hasDbContract);
-  const inlineReports = reports.filter(r => !r.hasDbContract);
+  const hiddenReports = reports.filter(r => r.isHidden);
+  const inlineReports = reports.filter(r => !r.isHidden);
 
-  note(`  db: edges (contract suppressed): ${dbReports.length}`);
-  note(`  inline edges (short payload): ${inlineReports.length}`);
+  note(`  Truncated-preview (hidden) edges: ${hiddenReports.length}`);
+  note(`  Inline (short payload) edges: ${inlineReports.length}`);
 
-  // C5: structural check — no db: edge group may contain a chip element.
-  // EdgeChip is only rendered when lines.length > 0; isDbEdge sets lines=[]
-  // for db: edges, so no chip is ever a DOM descendant of a db: edge group.
-  // This assertion is independent of chip text content (avoids false-negatives
-  // when a non-db label shares text with a db: column name).
-  let dbWithAssociatedChip = 0;
-  for (const r of dbReports) {
-    if (r.associatedChipCount > 0) {
-      dbWithAssociatedChip++;
-      note(`  ERROR db: edge "${r.contractText.slice(0, 60)}" has ${r.associatedChipCount} chip element(s) in its DOM subtree`);
+  // C5 (updated for CP4): every hidden edge must contain exactly ONE chip element
+  // showing a truncated preview ending with '…'. The chip text must be shorter
+  // than the full data-contract text (it is the truncated first ~22 chars, not
+  // the full column list).
+  let hiddenWithoutChip = 0;
+  let hiddenWithBadChip = 0;
+  for (const r of hiddenReports) {
+    if (r.associatedChipCount !== 1) {
+      hiddenWithoutChip++;
+      note(`  ERROR truncated edge "${r.contractText.slice(0, 60)}" has ${r.associatedChipCount} chip(s) — expected exactly 1`);
+    } else if (!r.firstChipText.endsWith('…')) {
+      hiddenWithBadChip++;
+      note(`  ERROR truncated edge chip text "${r.firstChipText}" does not end with '…'`);
+    } else if (r.firstChipText === r.contractText) {
+      hiddenWithBadChip++;
+      note(`  ERROR truncated edge chip text equals full contract — not actually truncated: "${r.firstChipText}"`);
+    } else {
+      note(`  PASS truncated edge: chip="${r.firstChipText}" vs full="${r.contractText.slice(0, 60)}…"`);
     }
   }
   assert(
-    dbWithAssociatedChip === 0,
-    `C5 ${diagramId}: ${dbReports.length} db: edges, 0 should have chip elements — got ${dbWithAssociatedChip} with chips`,
+    hiddenWithoutChip === 0,
+    `C5 ${diagramId}: ${hiddenReports.length} truncated-preview edges, each must have exactly 1 chip — ${hiddenWithoutChip} did not`,
+  );
+  assert(
+    hiddenWithBadChip === 0,
+    `C5 ${diagramId}: truncated preview chip must end with '…' and differ from the full contract — ${hiddenWithBadChip} did not`,
   );
 
-  // C13: for db: edges, the data-contract attribute carries the label.
-  // (The <title> delivers on hover; data-contract is the programmatic anchor.)
-  let dbWithoutContract = 0;
-  for (const r of dbReports) {
-    if (!r.contractText) dbWithoutContract++;
+  // C13 (updated): for gated edges, data-contract carries the full label text.
+  // Native SVG <title> must NOT be present — it has been removed in CP2;
+  // the styled HTML tooltip is the sole hover disclosure mechanism.
+  let hiddenWithoutContract = 0;
+  let hiddenWithSvgTitle = 0;
+  for (const r of hiddenReports) {
+    if (!r.hasDataContract) hiddenWithoutContract++;
+    if (r.hasSvgTitle) hiddenWithSvgTitle++;
   }
   assert(
-    dbWithoutContract === 0,
-    `C13 ${diagramId}: ${dbReports.length} db: edges, all must have data-contract text — ${dbWithoutContract} missing`,
+    hiddenWithoutContract === 0,
+    `C13 ${diagramId}: ${hiddenReports.length} gated edges, all must have data-contract text — ${hiddenWithoutContract} missing`,
+  );
+  assert(
+    hiddenWithSvgTitle === 0,
+    `C13 ${diagramId}: native SVG <title> must be absent (superseded by styled tooltip) — ${hiddenWithSvgTitle} edges still have it`,
   );
 
-  // Sanity: there must be some db: edges on these dense diagrams.
-  assert(dbReports.length > 0, `C5/C13 ${diagramId}: no db: edges found — test is vacuous`);
+  // Sanity: there must be some truncated-preview edges on these dense diagrams.
+  assert(hiddenReports.length > 0, `C5/C13 ${diagramId}: no truncated-preview edges found — test is vacuous`);
 
   await shot(`${diagramId}-after.png`);
   note(`  PASS ${diagramId}: C5 and C13 satisfied.`);
@@ -231,5 +248,5 @@ for (const diagramId of DIAGRAMS) {
 
 await browser.close();
 proc.kill();
-note('\nAll CP2 visual assertions passed (C5 + C13).');
+note('\nAll CP2+CP4 visual assertions passed (C5 + C13).');
 process.exit(0);

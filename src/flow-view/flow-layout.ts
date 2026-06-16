@@ -38,7 +38,26 @@ export type FlowElementData =
       source: string;
       target: string;
       label: string;
+      /** Structured data items for the hover tooltip. Array passthrough when edge.data is already
+       *  string[]; a non-empty string is split on the literal ", " separator; empty/undefined → []. */
+      dataLines: string[];
     };
+
+/**
+ * Normalize edge data to a string array for structured hover display.
+ *
+ * - string[]             → returned as-is (passthrough; items may contain ", " without splitting).
+ * - non-empty string     → split on the literal ", " separator, matching the existing inline-chip
+ *                          join precedent (`edge.data.join(', ')`).
+ * - empty string / undefined → [].
+ *
+ * Pure; no DOM/React imports.
+ */
+export function normalizeEdgeData(data: string | string[] | undefined): string[] {
+  if (Array.isArray(data)) return data;
+  if (!data) return [];
+  return data.split(', ');
+}
 
 /** Endpoint kinds that denote a data store (everything except `ext` and `proc`). */
 const STORE_KINDS: Record<string, true> = { db: true, cache: true, queue: true, file: true, doc: true, manual: true };
@@ -283,6 +302,7 @@ export function buildFlowData(diagram: FlowDiagram): FlowRenderData {
     }
 
     const label = Array.isArray(edge.data) ? edge.data.join(', ') : (edge.data ?? '');
+    const dataLines = normalizeEdgeData(edge.data);
     // Read vs write is not encoded on the edge: it is conveyed at render time by
     // arrow direction (store→process reads, process→store writes), per canonical
     // SSADM/Gane-Sarson notation. No line-style distinction.
@@ -292,6 +312,7 @@ export function buildFlowData(diagram: FlowDiagram): FlowRenderData {
       source: fromId,
       target: toId,
       label,
+      dataLines,
     });
   }
 

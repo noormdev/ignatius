@@ -2421,3 +2421,43 @@ a.dict-link-missing:hover {
     display: none !important;
   }
 }
+
+/* ── DFD edge hover tooltip ─────────────────────────────────────────────────── */
+
+.flow-edge-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  max-width: 360px;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.flow-edge-tooltip__header {
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 5px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow-edge-tooltip__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.flow-edge-tooltip__list li {
+  color: var(--color-text-muted);
+  padding: 1px 0;
+  white-space: normal;
+}

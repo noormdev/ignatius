@@ -667,22 +667,20 @@ function EdgePath({
   opacity: number;
   highlighted: boolean;
   c: FlowPalette;
-  onHoverChange: (hovering: boolean) => void;
+  onHoverChange: (entering: boolean, clientX?: number, clientY?: number) => void;
 }) {
   return (
     <g
       opacity={opacity}
       style={{ transition: 'opacity 0.12s' }}
-      onPointerEnter={() => onHoverChange(true)}
+      onPointerEnter={e => onHoverChange(true, e.clientX, e.clientY)}
       onPointerLeave={() => onHoverChange(false)}
+      onPointerMove={e => onHoverChange(true, e.clientX, e.clientY)}
       // data-contract is present on ALL labelled edges so the contract text is
       // reachable via the DOM for on-demand hover/click disclosure.
       data-contract={label || undefined}
       data-contract-type={hasHiddenLabel ? 'hidden' : 'inline'}
     >
-      {/* SVG <title> provides the native tooltip on hover — the primary on-demand
-          disclosure mechanism for db: column-list contracts (C13). */}
-      {label && <title>{label}</title>}
       {/* Background-coloured casing drawn under the line. Edge groups render in
           order, so where a later edge crosses an earlier one this halo masks the
           line beneath — giving an over/under read at crossings. ~3px each side. */}
@@ -722,7 +720,7 @@ function EdgeChip({
   opacity: number;
   c: FlowPalette;
   onPointerDown: (e: React.PointerEvent<SVGGElement>) => void;
-  onHoverChange: (hovering: boolean) => void;
+  onHoverChange: (entering: boolean, clientX?: number, clientY?: number) => void;
 }) {
   const { w: chipW, h: chipH } = chipDims(lines);
   const topY = pos.y - chipH / 2;
@@ -732,8 +730,9 @@ function EdgeChip({
       opacity={opacity}
       style={{ cursor: 'grab', userSelect: 'none', WebkitUserSelect: 'none', transition: 'opacity 0.12s' }}
       onPointerDown={onPointerDown}
-      onPointerEnter={() => onHoverChange(true)}
+      onPointerEnter={e => onHoverChange(true, e.clientX, e.clientY)}
       onPointerLeave={() => onHoverChange(false)}
+      onPointerMove={e => onHoverChange(true, e.clientX, e.clientY)}
     >
       <rect
         x={pos.x - chipW / 2} y={topY}
@@ -883,6 +882,14 @@ export function FlowDiagramSvg({
   const [hover, setHover] = useState<{ kind: 'node' | 'edge'; id: string } | null>(null);
   // Edge whose label is being dragged — its line shows the bright highlight.
   const [draggingEdge, setDraggingEdge] = useState<string | null>(null);
+
+  // HTML tooltip for edge hover: shows full dataLines content at pointer coords.
+  // Separate from `hover` so the tooltip can carry pointer screen coords without
+  // triggering the SVG dim/highlight mechanism on every mousemove.
+  const [edgeTooltip, setEdgeTooltip] = useState<{ edgeId: string; x: number; y: number } | null>(null);
+  // Flicker guard: delay clearing the tooltip so that crossing from the edge path
+  // layer to the chip layer (two separate <g> elements) does not flash it off.
+  const tooltipClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pan: world-space translate applied as CSS transform on the inner <g>.
   const [tx, setTx] = useState(0);
@@ -1252,6 +1259,7 @@ export function FlowDiagramSvg({
   useEffect(() => {
     return () => {
       if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+      if (tooltipClearTimer.current !== null) clearTimeout(tooltipClearTimer.current);
     };
   }, []);
 
@@ -1283,6 +1291,12 @@ export function FlowDiagramSvg({
     lines: string[];
     /** True when the label is hidden (too long for an inline chip). */
     hasHiddenLabel: boolean;
+    /** Structured data items for the hover tooltip (from CP1 dataLines). */
+    dataLines: string[];
+    /** Human-readable source node label for the tooltip header. */
+    sourceLabel: string;
+    /** Human-readable target node label for the tooltip header. */
+    targetLabel: string;
   };
   const edgeRenders: EdgeRender[] = edges.flatMap(edge => {
     const fromNode = nodeById.get(edge.source);
@@ -1381,17 +1395,22 @@ export function FlowDiagramSvg({
       chip = chipAnchor(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
     }
 
-    // CP4a length gate: inline chip renders only for short labels (isInlineLabel).
-    // Long labels — db: column lists and long ext:/kind: payload phrases alike —
-    // have lines=[] so the chip layer is suppressed. The full label (data
-    // contract) lives in EdgePath's <title> and data-contract attribute for
-    // on-demand hover/click disclosure.
+    // CP4a length gate: short labels (≤ SHORT_LABEL_MAX) render full inline,
+    // split by item. Long labels (db: column lists and long payload phrases)
+    // render a single truncated preview chip ending in '…' so the canvas always
+    // shows a "more data here" marker; the full contract is still in data-contract
+    // and the hover tooltip reveals it. Empty label → no chip (lines stays []).
     const lines = isInlineLabel(edge.label)
       ? edge.label.split(', ').map(l => truncateLabel(l, CHIP_MAX_CHARS))
-      : [];
+      : edge.label
+        ? [truncateLabel(edge.label, CHIP_MAX_CHARS)]
+        : [];
     const hasHiddenLabel = !!edge.label && !isInlineLabel(edge.label);
 
-    return [{ id: edge.id, d: pointsToD(points), points, label: edge.label, chip, lines, hasHiddenLabel }];
+    const sourceLabel = fromNode.label;
+    const targetLabel = toNode.label;
+
+    return [{ id: edge.id, d: pointsToD(points), points, label: edge.label, chip, lines, hasHiddenLabel, dataLines: edge.dataLines, sourceLabel, targetLabel }];
   });
 
   // Keep auto-placed labels off the node boxes and off each other; user-placed
@@ -1424,7 +1443,33 @@ export function FlowDiagramSvg({
   const nodeOpacity = (id: string) => (!focus || focus.nodes.has(id) ? 1 : DIM_OPACITY);
   const edgeOpacity = (id: string) => (!focus || focus.edges.has(id) ? 1 : DIM_OPACITY);
 
+  // Resolve the hovered edge render for the tooltip.
+  const tooltipEdge = edgeTooltip !== null
+    ? edgeRenders.find(e => e.id === edgeTooltip.edgeId)
+    : undefined;
+
+  // Clamp a fixed-position tooltip so it stays within the viewport.
+  // Offsets: 16px right + 12px below the pointer; flip left when near right edge.
+  const TOOLTIP_OFFSET_X = 16;
+  const TOOLTIP_OFFSET_Y = 12;
+  const TOOLTIP_W_ESTIMATE = 220; // max expected tooltip width for right-edge clamp
+  let tooltipLeft: number | undefined;
+  let tooltipTop: number | undefined;
+  if (edgeTooltip !== null && tooltipEdge !== undefined && tooltipEdge.dataLines.length > 0) {
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1440;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 900;
+    tooltipLeft = edgeTooltip.x + TOOLTIP_OFFSET_X;
+    tooltipTop = edgeTooltip.y + TOOLTIP_OFFSET_Y;
+    if (tooltipLeft + TOOLTIP_W_ESTIMATE > vw) {
+      tooltipLeft = edgeTooltip.x - TOOLTIP_W_ESTIMATE - TOOLTIP_OFFSET_X;
+    }
+    if (tooltipTop + 40 > vh) {
+      tooltipTop = edgeTooltip.y - 40 - TOOLTIP_OFFSET_Y;
+    }
+  }
+
   return (
+    <>
     <svg
       ref={svgRef}
       width="100%"
@@ -1465,7 +1510,21 @@ export function FlowDiagramSvg({
             opacity={edgeOpacity(e.id)}
             highlighted={draggingEdge === e.id}
             c={c}
-            onHoverChange={h => setHover(h ? { kind: 'edge', id: e.id } : null)}
+            onHoverChange={(entering, cx, cy) => {
+              setHover(entering ? { kind: 'edge', id: e.id } : null);
+              if (entering && e.dataLines.length > 0 && cx !== undefined && cy !== undefined) {
+                if (tooltipClearTimer.current !== null) {
+                  clearTimeout(tooltipClearTimer.current);
+                  tooltipClearTimer.current = null;
+                }
+                setEdgeTooltip({ edgeId: e.id, x: cx, y: cy });
+              } else if (!entering) {
+                tooltipClearTimer.current = setTimeout(() => {
+                  setEdgeTooltip(null);
+                  tooltipClearTimer.current = null;
+                }, 80);
+              }
+            }}
           />
         ))}
 
@@ -1563,11 +1622,42 @@ export function FlowDiagramSvg({
                 opacity={edgeOpacity(e.id)}
                 c={c}
                 onPointerDown={ev => onChipPointerDown(ev, e.id, e.points)}
-                onHoverChange={h => setHover(h ? { kind: 'edge', id: e.id } : null)}
+                onHoverChange={(entering, cx, cy) => {
+                  setHover(entering ? { kind: 'edge', id: e.id } : null);
+                  if (entering && e.dataLines.length > 0 && cx !== undefined && cy !== undefined) {
+                    if (tooltipClearTimer.current !== null) {
+                      clearTimeout(tooltipClearTimer.current);
+                      tooltipClearTimer.current = null;
+                    }
+                    setEdgeTooltip({ edgeId: e.id, x: cx, y: cy });
+                  } else if (!entering) {
+                    tooltipClearTimer.current = setTimeout(() => {
+                      setEdgeTooltip(null);
+                      tooltipClearTimer.current = null;
+                    }, 80);
+                  }
+                }}
               />
             : null
         ))}
       </g>
     </svg>
+    {tooltipEdge !== undefined && tooltipLeft !== undefined && tooltipTop !== undefined && (
+      <div
+        data-ignatius="flow-edge-tooltip"
+        className="flow-edge-tooltip"
+        style={{ left: tooltipLeft, top: tooltipTop }}
+      >
+        <div className="flow-edge-tooltip__header">
+          {tooltipEdge.sourceLabel} → {tooltipEdge.targetLabel}
+        </div>
+        <ul className="flow-edge-tooltip__list">
+          {tooltipEdge.dataLines.map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      </div>
+    )}
+    </>
   );
 }

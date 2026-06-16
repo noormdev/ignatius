@@ -138,6 +138,8 @@ The child diagram must be *balanced* with its parent: the data crossing the sub-
 
 `ignatius validate` checks flows whenever a `flows/` directory exists, with eleven `flow.*` rules covering unknown references, column contracts, connection shape, numbering, and decomposition balance. See [Validation and findings](validation.md#flow-rules) for the catalog. One rule is configurable: direct process-to-process flows warn by default and can be silenced with `flow_rules: { process_to_process: false }` in `ignatius.yml`.
 
+Hovering a data flow edge that carries data (the arrow between two nodes) reveals a styled tooltip listing the full data carried across it, under a `source → target` header. This includes the complete contents of `db:` column lists that are otherwise abbreviated on the canvas when they exceed the inline-label length limit. The tooltip is positioned fixed to the viewport and remains legible at any zoom level. Long data labels (more than 22 characters) show a truncated `…` preview on the canvas — the first ~22 characters followed by `…` — so you can always see at a glance which edges carry hidden data; the full contents are revealed on hover.
+
 
 ## Authoring with the skill
 
