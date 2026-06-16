@@ -151,6 +151,7 @@ Paths are relative to `docs/design/`, `docs/spec/`, `docs/guides/`, and `skills/
 | Dict navigation + polish | dict-navigation | dict-navigation, dict-polish | — | — |
 | DD browse lens: spotlight grid (entity + flow-node cards, hover/pin spotlight; solid FK predicate lines + dashed cross-domain data-flow lines; hover-reveal labels; off-screen chips; facing-edge anchoring; focus/isolate mode for scale) | dd-spotlight-grid | dd-spotlight-grid | — | — |
 | Graph viewer FAB UX | viewer-fab-ux | viewer-fab-ux | — | — |
+| Keyboard navigation shortcuts (g/d/f view switch, l DG layout, b DD lens; pure resolver + global hook; editable/modifier guards) | keyboard-nav-shortcuts | keyboard-nav-shortcuts | commands | — |
 | Graph node position persistence (drag-to-save, reset) | graph-position-persistence | graph-position-persistence | — | — |
 | Business-narrative body + existence/cascade rules | markdown-driven-erd | noorm-modeling-skill | modeling-skill | entity-flow E9, templates (body sections) |
 | Entity body wiki-links `[[Entity]]` | wiki-entity-links | wiki-entity-links, schema-lint-and-error-ux | folder-format | entity-flow E9 (body authoring) |

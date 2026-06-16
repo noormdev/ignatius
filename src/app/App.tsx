@@ -22,12 +22,14 @@ import { LegendModal } from './views/flow/LegendModal';
 import { FlowsView } from './views/flow/FlowsView';
 import type { FlowsViewHandle } from './views/flow/FlowsView';
 import { DictionaryView } from './views/dict/DictionaryView';
+import type { DictionaryViewHandle } from './views/dict/DictionaryView';
 import { GraphView } from './views/graph/GraphView';
 import type { GraphViewHandle, LayoutMode } from './views/graph/GraphView';
 import { FabMenu } from './components/ui/FabMenu';
 import { useModelData } from './hooks/useModelData';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useThemeMode } from './hooks/useThemeMode';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 export function App() {
   const graphRef = useRef<HTMLDivElement>(null);
@@ -59,6 +61,8 @@ export function App() {
 
   // Handle to FlowsView — provides selectDiagramById, resetLayout, zoom ops, openFlowToken.
   const flowsViewRef = useRef<FlowsViewHandle>(null);
+  // Handle to DictionaryView — provides toggleLens for keyboard shortcut.
+  const dictViewRef = useRef<DictionaryViewHandle>(null);
 
   const { view, setView } = useHashRoute({
     onRestoreDfd: (dfdId) => flowsViewRef.current?.selectDiagramById(dfdId),
@@ -156,6 +160,24 @@ export function App() {
     localStorage.setItem('ignatius-minimap', String(next));
     setMinimapOpen(next);
   }
+
+  // Shared layout-mode toggle — used by BOTH the FAB button and the keyboard shortcut (l).
+  // Extracted so both paths invoke exactly the same logic with no duplication.
+  function handleToggleLayoutMode() {
+    const next = layoutMode === 'organic' ? 'hierarchical' : 'organic';
+    setLayoutMode(next);
+    localStorage.setItem('ignatius-layout-mode', next);
+    graphViewRef.current?.applyLayoutMode(next);
+  }
+
+  // Global keyboard shortcut handler — single window keydown listener.
+  // Reads current `view`/callbacks via a ref inside the hook (no stale closures).
+  useKeyboardShortcuts({
+    view,
+    onView: setView,
+    onToggleLayout: handleToggleLayoutMode,
+    onToggleLens: () => dictViewRef.current?.toggleLens(),
+  });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been
   // moved into src/app/views/graph/GraphView.tsx (P2a-2). The shell interacts with the
@@ -295,6 +317,7 @@ export function App() {
       {model ? (
         <div style={{ display: view === 'dict' ? 'block' : 'none' }}>
           <DictionaryView
+            ref={dictViewRef}
             model={model}
             modelIndex={modelIndex}
             findings={findings}
@@ -377,12 +400,7 @@ export function App() {
         onShowLegend={() => setShowLegend(true)}
         onShowGroups={() => setShowGroups(true)}
         onToggleMinimap={toggleMinimapOpen}
-        onToggleLayoutMode={() => {
-          const next = layoutMode === 'organic' ? 'hierarchical' : 'organic';
-          setLayoutMode(next);
-          localStorage.setItem('ignatius-layout-mode', next);
-          graphViewRef.current?.applyLayoutMode(next);
-        }}
+        onToggleLayoutMode={handleToggleLayoutMode}
         onResetLayout={() => {
           if (view === 'graph') graphViewRef.current?.resetLayout();
           else if (view === 'flow') flowsViewRef.current?.resetLayout();

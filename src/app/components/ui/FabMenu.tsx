@@ -103,7 +103,7 @@ export function FabMenu({
               role="menuitem"
               onClick={() => { setMenuOpen(false); onSetView('graph'); }}
             >
-              Data Graph
+              Data Graph <kbd className="kbd-hint">G</kbd>
             </button>
           )}
           {view !== 'dict' && (
@@ -112,7 +112,7 @@ export function FabMenu({
               role="menuitem"
               onClick={() => { setMenuOpen(false); onSetView('dict'); }}
             >
-              Dictionary
+              Dictionary <kbd className="kbd-hint">D</kbd>
             </button>
           )}
           {view !== 'flow' && hasFlows && (
@@ -121,7 +121,7 @@ export function FabMenu({
               role="menuitem"
               onClick={() => { setMenuOpen(false); onSetView('flow'); }}
             >
-              Data Flows
+              Data Flows <kbd className="kbd-hint">F</kbd>
             </button>
           )}
           {/* Legend — graph and flow only; Dictionary has no node iconography to explain */}
@@ -158,7 +158,7 @@ export function FabMenu({
                 role="menuitem"
                 onClick={() => { setMenuOpen(false); onToggleLayoutMode(); }}
               >
-                {layoutMode === 'organic' ? 'Hierarchical layout' : 'Organic layout'}
+                {layoutMode === 'organic' ? 'Hierarchical layout' : 'Organic layout'} <kbd className="kbd-hint">L</kbd>
               </button>
               <button
                 className="fab-menu-item"

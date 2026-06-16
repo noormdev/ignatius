@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, forwardRef } from 'react';
 import type { Model, ModelNode } from '../../../model/parse';
 import type {
   FlowDiagram,
@@ -38,19 +38,20 @@ function readStoredLens(): 'read' | 'browse' {
   return 'read';
 }
 
-function DictionaryView({
-  model,
-  modelIndex,
-  findings,
-  flowDiagrams,
-  flowFindings,
-  searchText,
-  onSearchChange,
-  dictNavOpen,
-  onToggleNav,
-  onOpenEntity,
-  themeMode,
-}: {
+// ---------------------------------------------------------------------------
+// DictionaryViewHandle — shell↔view typed contract.
+// ---------------------------------------------------------------------------
+
+/**
+ * Imperative handle exposed by DictionaryView to the shell (App). The shell
+ * calls into the view for actions that originate outside the dict surface:
+ * - `toggleLens`: keyboard shortcut `b` → flip read↔browse lens.
+ */
+export interface DictionaryViewHandle {
+  toggleLens(): void;
+}
+
+interface DictionaryViewProps {
   model: Model;
   modelIndex: ModelIndex | null;
   findings: { globalErrors: GlobalError[]; entityErrors: EntityError[] };
@@ -62,7 +63,22 @@ function DictionaryView({
   onToggleNav: () => void;
   onOpenEntity: (id: string) => void;
   themeMode: 'dark' | 'light';
-}) {
+}
+
+const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
+  function DictionaryView({
+  model,
+  modelIndex,
+  findings,
+  flowDiagrams,
+  flowFindings,
+  searchText,
+  onSearchChange,
+  dictNavOpen,
+  onToggleNav,
+  onOpenEntity,
+  themeMode,
+}, ref) {
   const { globalErrors, entityErrors } = findings;
 
   // Lens state: 'read' = full document view (default); 'browse' = compact grid.
@@ -96,6 +112,14 @@ function DictionaryView({
     setFocusId(null);
     setLens(next);
   }
+
+  // Expose imperative toggleLens for the keyboard shortcut hook (via shell's dictViewRef).
+  // Deps include `lens` and `switchLens` so the handle always reads the CURRENT lens.
+  useImperativeHandle(ref, () => ({
+    toggleLens() {
+      switchLens(lens === 'read' ? 'browse' : 'read');
+    },
+  }), [lens]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Spotlight active id — may be a bare entity id or a "<kind>:<name>" flow-node token.
   // Detection: flow-node tokens always contain ":" (entity ids are PascalCase, no colon).
@@ -855,6 +879,7 @@ function DictionaryView({
                 Browse
               </button>
             </div>
+            <kbd className="kbd-hint" aria-label="Keyboard shortcut: B">B</kbd>
           </div>
         </div>
       </div>
@@ -1356,6 +1381,8 @@ function DictionaryView({
       )}
     </>
   );
-}
+});
+
+DictionaryView.displayName = 'DictionaryView';
 
 export { DictionaryView };

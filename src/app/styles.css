@@ -216,6 +216,24 @@ a {
   outline: none;
 }
 
+/* Keyboard shortcut hint — subtle keycap badge used inside FAB menu items and lens controls */
+.kbd-hint {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0 0.3rem;
+  font-family: inherit;
+  font-size: 0.7em;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  vertical-align: middle;
+  user-select: none;
+}
+
 /* Copy link toast — floats above FAB, outside menu guard */
 .fab-copy-toast {
   position: fixed;
