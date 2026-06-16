@@ -79,6 +79,8 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 - CP3 — `kbd-hint` discoverability badges on FAB (G/D/F/L) + DD lens (B), `.kbd-hint` themed via existing vars, feature-map row, commands guide (`ca1ac15`). Reviewer PASS; 2 🔵 markdown-blank-line nits were false positives (blanks already present, awk-confirmed).
 - Verify: `build:cli` clean; `bun run test` exit 0 (604 PASS incl. live browser check 9/9); 0 new typecheck errors in shipped code; `ignatius validate` clean.
 
+**Squashed to aacc155 — 2026-06-16.** Per-iteration SHAs above are historical (unreachable from any branch).
+
 ## Change log
 
 <!-- empty on creation -->
