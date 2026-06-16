@@ -70,6 +70,8 @@ on the edge element rather than the lossy joined label.
 - CP4 — inline truncated `…` preview for long labels, reversing the dfd-overhaul off-canvas suppression: long labels render `[truncateLabel(label, 22)]` (first ~21 chars + `…`), short unchanged, `hasHiddenLabel`/`data-contract` intact; updated the `test-cp2-edge-label-strategy.ts` gate unit test (suppression → truncated-preview, non-tautological) and `test-cp2-dfd-edge-labels.ts` C5/C13; flows-guide note (`80462d2` spec, `66692f2` code). Added at the ship gate per user feedback. Reviewer VERDICT: PASS, 0 findings. Screenshot verified (truncated chips on canvas + full data on hover).
 - Verify: `build:cli` clean; `bun run test` exit 0 (973 PASS, 0 FAIL — incl. live hover browser check + gate unit test); tsc 456 total (= baseline, ZERO in touched files); `ignatius validate` clean on the proving model (38 entities) and key-inherited (24 entities).
 
+**Squashed to 12a188c — 2026-06-16.** Per-iteration SHAs above are historical (unreachable from any branch).
+
 ## Change log
 
 ### 2026-06-16 — inline truncated `…` preview for long labels
