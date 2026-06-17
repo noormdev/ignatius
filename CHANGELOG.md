@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0](https://github.com/noormdev/ignatius/compare/v0.10.0...v0.11.0) (2026-06-17)
+
+
+### Features
+
+* **flows:** reveal full edge data on DFD hover ([0802736](https://github.com/noormdev/ignatius/commit/0802736386b799b14956aec6b3785792ca5bcd69)), closes [#14](https://github.com/noormdev/ignatius/issues/14)
+* **model:** adopt data/ + flows/ folder model ([#16](https://github.com/noormdev/ignatius/issues/16)) ([8213a50](https://github.com/noormdev/ignatius/commit/8213a50baf21b9abdae62c3ce2779198f26686a3))
+* **shortcuts:** keyboard navigation for views and modes ([#13](https://github.com/noormdev/ignatius/issues/13)) ([2f8ad98](https://github.com/noormdev/ignatius/commit/2f8ad98d27763664ad42ef9bedbec1d4b32f38c1))
+
+
+### Bug Fixes
+
+* **flows:** preserve full dotted-number depth in nested DFDs ([f7a09b4](https://github.com/noormdev/ignatius/commit/f7a09b46fe98a0946a352b4efded85dce0fe3a00)), closes [#15](https://github.com/noormdev/ignatius/issues/15)
+
 ## [0.10.0](https://github.com/noormdev/ignatius/compare/v0.9.0...v0.10.0) (2026-06-15)
 
 
