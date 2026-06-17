@@ -1,0 +1,3 @@
+name: Flows Leveling Demo
+version: "1.0"
+description: Minimal fixture for testing arbitrary DFD nesting depth and dotted-number derivation.

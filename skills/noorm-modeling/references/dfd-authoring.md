@@ -213,6 +213,13 @@ same data through both levels** — the data flowing in and out of the parent pr
 data that crosses the boundary of its child diagram. Keep the labels identical so the levels
 reconcile; nothing should appear or vanish between them.
 
+**This step is recursive — there is no depth cap.** Any child process authored inside a sub-DFD
+can itself be decomposed the same way: create a same-named folder next to the child's file and
+apply F2–F8 to its grandchild processes. Repeat for as many layers as the model warrants. Dotted
+process numbers compose automatically at every level — a process three layers deep reads something
+like `1.4.2`, and one four layers deep reads `1.4.2.1`. The balancing constraint (`flow.unbalanced_decomposition`) applies at each level independently: every sub-DFD must balance with its
+immediate parent, not with the root diagram.
+
 ### Step F9 — Write the files and verify
 
 Lay the files out under the model root:
@@ -225,6 +232,8 @@ flows/
     _stores/<slug>.md             # non-db stores for this diagram
     <Process-Name>/               # sub-DFD folder (only if F8 decomposed it)
       <Child-Process>.md
+      <Child-Process>/            # grandchild sub-DFD (F8 applied again, one level deeper)
+        <Grandchild-Process>.md
 ```
 
 Write each file using the templates in `references/flow-templates.md`, then run the verification

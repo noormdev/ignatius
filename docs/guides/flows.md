@@ -126,7 +126,7 @@ Store kinds also drive each node's color in the diagram — theme-aware and over
 ## Sub-DFDs
 
 
-A process decomposes by placing a folder with the process's exact file name next to its file. The folder holds the child diagram — its own process files, numbered locally, with full dotted numbers (`1.1`, `1.2`) composed from the nesting. Decomposition recurses as deep as it needs to.
+A process decomposes by placing a folder with the process's exact file name next to its file. The folder holds the child diagram — its own process files, numbered locally, with full dotted numbers (`1.1`, `1.2`) composed from the nesting. Decomposition recurses as deep as it needs to — there is no depth cap. Dotted numbers compose to full depth at every level: a process four layers down reads something like `1.4.2.1`, with the full ancestor chain preserved automatically.
 
 The child diagram must be *balanced* with its parent: the data crossing the sub-DFD's boundary has to match the parent process's declared `inputs:` and `outputs:`, column for column on `db:` flows. The `flow.unbalanced_decomposition` rule checks this at every level. In the viewer, a process with a sub-DFD renders with a stacked-shadow affordance; clicking through drills down, and a breadcrumb trail leads back up.
 

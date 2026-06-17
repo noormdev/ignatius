@@ -79,13 +79,15 @@ const reserveStock = subDfd.processes[0]!;
 assert(reserveStock.id === 'Reserve-Stock', `sub-process id should be 'Reserve-Stock', got '${reserveStock.id}'`);
 assert(reserveStock.label === 'Reserve Stock', `sub-process label should be 'Reserve Stock', got '${reserveStock.label}'`);
 assert(reserveStock.number === 1, `sub-process number should be 1, got ${reserveStock.number}`);
-// Reserve-Stock is in the sub-DFD of Place-Order; renumberLeaf only renumbers
-// the leaf's top-level processes (N.x), not deeper sub-DFD children.
-// Reserve-Stock retains its original relative number '1.1' from the parser.
-assert(reserveStock.dottedNumber === '1.1', `sub-process dottedNumber should be '1.1' (original, sub-DFD not re-prefixed), got '${reserveStock.dottedNumber}'`);
+// Reserve-Stock is in the sub-DFD of Place-Order. After the renumberLeaf fix,
+// the entire subDfd subtree is renumbered recursively. The parser gives
+// Reserve-Stock a relative dottedNumber of '1.1' (parentDottedNumbers=[1] for
+// Place-Order, plus local number 1 → [1,1]). With prefix '1.' from the L1
+// parent, that becomes '1.1.1'.
+assert(reserveStock.dottedNumber === '1.1.1', `sub-process dottedNumber should be '1.1.1' (recursive renumbering), got '${reserveStock.dottedNumber}'`);
 assert(reserveStock.hasSubDfd === false, 'Reserve-Stock should have hasSubDfd=false');
 assert(subDfd.subDfds.length === 0, `sub-DFD should have no further subDfds, got ${subDfd.subDfds.length}`);
-console.log('PASS: recursive sub-DFD: Reserve-Stock in Place-Order/, dottedNumber=1.1');
+console.log('PASS: recursive sub-DFD: Reserve-Stock in Place-Order/, dottedNumber=1.1.1');
 
 // ---------------------------------------------------------------------------
 // Externals

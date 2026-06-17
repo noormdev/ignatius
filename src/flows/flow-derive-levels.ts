@@ -99,28 +99,36 @@ function ep(kind: FlowEndpoint['kind'], name: string): FlowEndpoint {
 }
 
 /**
- * Renumber a single leaf diagram's processes with the dotted prefix N.
- * Returns a shallow copy of the diagram with processes renumbered; the
- * sub-DFD tree is carried over unchanged (sub-DFDs inside a leaf are already
- * numbered correctly by the parser — their dotted numbers are relative to
- * themselves and do not need a cross-level prefix in this implementation).
+ * Renumber a leaf diagram and its entire subDfd subtree with the dotted prefix N.
  *
- * Renumbering rule: each process's dottedNumber is replaced with `N.<local>`
- * where <local> is the numeric suffix from the original dottedNumber.
- * If the original has no numeric component, folder-order position (1-indexed) is used.
+ * The parser threads the full ancestor chain into every process's dottedNumber
+ * (e.g. VerifyToken inside Login inside Authenticate gets "1.1.1" relative to
+ * the leaf root). `renumberDiagram` prefixes `N.` to that full relative number,
+ * producing the correct absolute dotted number at any nesting depth.
+ *
+ * Renumbering rule: each process's dottedNumber becomes `${parentN}.${dottedNumber}`.
+ * Fallback: if the existing dottedNumber has no numeric component (shouldn't happen —
+ * the parser always composes a numeric dotted path — but guards against empty/NaN),
+ * folder-order position (1-indexed) is used as the local suffix instead.
+ *
+ * Returns new diagram objects (shallow copies); the input is never mutated.
  */
-function renumberLeaf(leaf: FlowDiagram, parentN: number): FlowDiagram {
-    const renumberedProcesses = leaf.processes.map((proc, idx) => {
-        // Derive local number: rightmost numeric component of existing dottedNumber,
-        // or folder-order fallback (idx+1).
-        const parts = proc.dottedNumber.split('.');
-        const lastPart = parts[parts.length - 1];
-        const localNum = lastPart !== undefined && /^\d+$/.test(lastPart)
-            ? parseInt(lastPart, 10)
-            : idx + 1;
-        return { ...proc, dottedNumber: `${parentN}.${localNum}` };
+function renumberDiagram(diagram: FlowDiagram, parentN: number): FlowDiagram {
+    const renumberedProcesses = diagram.processes.map((proc, idx) => {
+        // Use the full relative dottedNumber from the parser as-is, unless it
+        // is empty or non-numeric — in which case fall back to folder-order.
+        const isNumericDotted = proc.dottedNumber.length > 0
+            && proc.dottedNumber.split('.').every(seg => /^\d+$/.test(seg));
+        const localPath = isNumericDotted ? proc.dottedNumber : String(idx + 1);
+        return { ...proc, dottedNumber: `${parentN}.${localPath}` };
     });
-    return { ...leaf, processes: renumberedProcesses };
+    const renumberedSubDfds = diagram.subDfds.map(sub => renumberDiagram(sub, parentN));
+    return { ...diagram, processes: renumberedProcesses, subDfds: renumberedSubDfds };
+}
+
+/** Alias used by deriveL1 — renumbers the top-level leaf and its whole subDfd tree. */
+function renumberLeaf(leaf: FlowDiagram, parentN: number): FlowDiagram {
+    return renumberDiagram(leaf, parentN);
 }
 
 // ---------------------------------------------------------------------------
