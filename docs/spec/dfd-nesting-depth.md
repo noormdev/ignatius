@@ -58,6 +58,8 @@ number.
 - CP3 — skill `dfd-authoring.md` F8 made explicitly recursive (no depth cap; full-depth numbering; per-level balancing), folder-layout sketch shows a grandchild sub-DFD; CLAUDE.md feature-map row + `docs/guides/flows.md` full-depth note (`f71a769`). Reviewer PASS, 0 findings (numbering examples + per-level-balancing claim verified against `flow-derive-levels.ts`/`flow-validate.ts`).
 - Verify: `build:cli` clean; `bun run test` exit 0 (981 PASS, 0 FAIL); tsc zero new errors in any tracked file (2 new errors are in gitignored `tmp/trash/`); `ignatius validate` clean on key-inherited (24 entities), llm-memory-db-mssql (38 entities), and flows-leveling (2 pre-existing `flow.process_to_process` warnings only).
 
+**Squashed to 367b0ea — 2026-06-16.** Per-iteration SHAs above are historical (unreachable from any branch).
+
 ## Change log
 
 ### 2026-06-16 — use existing `flows-leveling` fixture
