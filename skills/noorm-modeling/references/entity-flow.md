@@ -15,23 +15,23 @@ The id is free-form — the parser enforces no casing. PascalCase (`SalesOrder`)
 
 ### Step E2 — Group
 
-Ask: "Which group? (existing group names: `<list from _groups/*.md>`)"
+Ask: "Which group? (existing group names: `<list from groups/*.md>`)"
 
-If the group doesn't exist in `_groups/`, ask: "Group `<name>` not found. Create it now or
+If the group doesn't exist in `groups/`, ask: "Group `<name>` not found. Create it now or
 choose an existing group?"
 - If create: run the group-creation sub-flow (Step E2a) before continuing.
 
-After the group is known, check: file `<group>/<EntityName>.md` must not already exist in the model root.
+After the group is known, check: file `data/<group>/<EntityName>.md` must not already exist.
 If it exists, ask: "That entity already exists. Overwrite, pick a different name, or abort?"
 
 #### Step E2a — Create group (sub-flow)
 Ask:
-1. Group slug (becomes the filename and `group:` value — match the style of existing `_groups/` slugs; snake_case is the default for the first one)
+1. Group slug (becomes the filename and `group:` value — match the style of existing `groups/` slugs; snake_case is the default for the first one)
 2. Label (human-readable, e.g. "Sales & Orders")
 3. Color (hex, e.g. `#2ea043`)
 4. Optional one-line description
 
-Write `_groups/<slug>.md`:
+Write `groups/<slug>.md`:
 ```markdown
 ---
 label: <label>
@@ -41,7 +41,7 @@ color: "<color>"
 <description or blank>
 ```
 
-Create directory `<slug>/` if it doesn't exist.
+Create directory `data/<slug>/` if it doesn't exist.
 
 ### Step E3 — Convention (derived default, not a mode)
 
@@ -234,7 +234,7 @@ Write what you gather into the entity body under clear headings (see the templat
 
 ### Step E10 — Write the file
 
-Construct and write `<group>/<EntityName>.md` using the entity template below.
+Construct and write `data/<group>/<EntityName>.md` using the entity template below.
 
 Then run the verification loop in `references/verification.md`.
 

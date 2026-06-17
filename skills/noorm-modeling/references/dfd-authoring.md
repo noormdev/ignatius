@@ -48,7 +48,7 @@ If no model root is evident from context, ask:
 If no `ignatius.yml` exists anywhere, run `model` mode first (`references/model-flow.md`) to
 bootstrap one — flows live inside a model.
 
-Then read the existing entities (the `<group>/*.md` files) and any existing `flows/`. You need
+Then read the existing entities (the `data/<group>/*.md` files) and any existing `flows/`. You need
 the entity ids and their columns so `db:` stores and flow data-labels resolve against real
 columns. Infer; don't ask the user to list entities you can read.
 
@@ -90,9 +90,9 @@ Ask: "Where does this step get data from outside the system, and what does it se
 For each external the process talks to:
 
 - Use the token `ext:<Name>` in the process's `inputs:`/`outputs:`.
-- Externals are defined once at `flows/_externals/<Name>.md` and shared across every diagram at
-  any depth. Before creating one, check whether it already exists — reuse the shared definition
-  (the demo's `Customer` is defined once and referenced everywhere).
+- Externals are defined once at `externals/<Name>.md` (model-root level) and shared across every
+  diagram at any depth. Before creating one, check whether it already exists — reuse the shared
+  definition (the demo's `Customer` is defined once and referenced everywhere).
 - If the external is new, you will author its file at Step F7 (it needs a rich body — see the
   business-context requirements there).
 
@@ -123,7 +123,7 @@ the token falls through to process-name resolution and fails validation with a m
 
 A business record is a `db:` store; a supporting resting place is one of the other kinds,
 referenced as `<kind>:<slug>` (e.g. `file:gateway-log`, `queue:fulfilment-queue`) — you will
-author `flows/<diagram>/_stores/<slug>.md` at Step F7.
+author `stores/<slug>.md` (model-root level) at Step F7.
 
 **If the data is a business record but no entity exists for it yet**, stop and author the
 entity first (run the entity steps in `references/entity-flow.md`), then come back and use
@@ -225,11 +225,11 @@ immediate parent, not with the root diagram.
 Lay the files out under the model root:
 
 ```
+externals/<Name>.md               # shared externals, defined once at model root
+stores/<slug>.md                  # shared non-db stores, defined once at model root
 flows/
-  _externals/<Name>.md            # shared externals, defined once
   <diagram-slug>/
     <Process-Name>.md             # one file per process
-    _stores/<slug>.md             # non-db stores for this diagram
     <Process-Name>/               # sub-DFD folder (only if F8 decomposed it)
       <Child-Process>.md
       <Child-Process>/            # grandchild sub-DFD (F8 applied again, one level deeper)

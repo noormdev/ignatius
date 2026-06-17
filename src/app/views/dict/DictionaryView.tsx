@@ -505,7 +505,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   const allNonDbStores = Object.values(storeByName).filter(s => s.bodyHtml !== undefined);
 
   // CP18: Full set of non-db stores for the browse lens — includes every store referenced
-  // by any flow edge, even those without a _stores/*.md doc file (e.g. queue:OrderIntake).
+  // by any flow edge, even those without a stores/*.md doc file (e.g. queue:OrderIntake).
   // The read lens and ddNonDbStoreNames stay on allNonDbStores (bodyHtml-filtered) — correct.
   const allBrowseStores = Object.values(storeByName);
 

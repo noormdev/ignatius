@@ -104,8 +104,8 @@ function makeDiagram(
     return { id, title: id, processes, externals, storeRefs, edges, subDfds };
 }
 
-function makeFlowModel(diagrams: FlowDiagram[]): FlowModel {
-    return { diagrams, modelDir: '/test' };
+function makeFlowModel(diagrams: FlowDiagram[], externals: FlowExternal[] = []): FlowModel {
+    return { diagrams, modelDir: '/test', externals };
 }
 
 function hasRule(errors: FlowError[], ruleId: string): boolean {
@@ -395,7 +395,9 @@ for (const ruleId of parseableRules) {
             makeEdge('proc', 'DoIt', 'db', 'Party', ['party_id'], 'clean'),
         ],
     );
-    const cleanModel = makeFlowModel([diagram]);
+    // Pass the global external registry so the validator can confirm ext:Customer is defined.
+    const globalExternals: FlowExternal[] = [{ id: 'Customer', label: 'Customer', body: '', bodyHtml: '', flowId: '' }];
+    const cleanModel = makeFlowModel([diagram], globalExternals);
     const cleanEntityModel = baseEntityModel([
         baseNode('Party', ['party_id', 'type']),
     ]);

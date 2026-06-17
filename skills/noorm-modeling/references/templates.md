@@ -374,7 +374,7 @@ the surrogate key verbatim, never introducing a renamed `<base>_id` column._
 
 </example>
 
-### `_groups/<slug>.md` template
+### `groups/<slug>.md` template
 
 ```markdown
 ---

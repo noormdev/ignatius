@@ -84,10 +84,10 @@ Now read the *behavior* — the code and procedures that move the data:
    data contract — the same demand-list the `flow.unknown_attribute` rule checks.
 3. **Stores.** A table the code touches → a `db:<Entity>` store (the entity from Phase R1). A
    cache/queue/file/log the code touches → the matching `kind:` store (`cache`/`queue`/`file`/
-   `doc`/`manual`); author its `_stores/<slug>.md` with the reason it exists.
+   `doc`/`manual`); author its `stores/<slug>.md` (model root) with the reason it exists.
 4. **Externals.** A caller outside the system — an end user, a third-party API, an upstream
-   service — is an external entity. Author its `_externals/<Name>.md` with the rich body
-   (role + what it does + expectations).
+   service — is an external entity. Author its `externals/<Name>.md` (model root) with the rich
+   body (role + what it does + expectations).
 
 Write the flow files (`references/dfd-authoring.md` steps + `references/flow-templates.md`)
 after the entities they reference exist.

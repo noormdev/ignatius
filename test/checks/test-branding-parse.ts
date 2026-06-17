@@ -19,9 +19,8 @@ columns:
 function makeFixtureDir(name: string): string {
   const dir = `${BASE_TMP}/${name}`;
   rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
-  mkdirSync(`${dir}/_groups`, { recursive: true });
-  writeFileSync(`${dir}/widget.md`, MINIMAL_ENTITY);
+  mkdirSync(`${dir}/data`, { recursive: true });
+  writeFileSync(`${dir}/data/widget.md`, MINIMAL_ENTITY);
   return dir;
 }
 

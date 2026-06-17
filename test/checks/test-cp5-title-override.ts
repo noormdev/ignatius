@@ -40,11 +40,13 @@ const DFD_DIR = `${FIXTURE}/flows/sample-dfd`;
 
 // Build the fixture fresh: an external, process, and cache store that each
 // carry a `title:` override distinct from their slug.
+// Externals and stores are declared at the model root (not per-DFD).
 rmSync(FIXTURE, { recursive: true, force: true });
-mkdirSync(`${DFD_DIR}/_externals`, { recursive: true });
-mkdirSync(`${DFD_DIR}/_stores`, { recursive: true });
+mkdirSync(`${DFD_DIR}`, { recursive: true });
+mkdirSync(`${FIXTURE}/externals`, { recursive: true });
+mkdirSync(`${FIXTURE}/stores`, { recursive: true });
 
-writeFileSync(`${DFD_DIR}/_externals/Buyer.md`, `---
+writeFileSync(`${FIXTURE}/externals/Buyer.md`, `---
 external: Buyer
 title: End Buyer
 ---
@@ -52,7 +54,7 @@ title: End Buyer
 The customer who places orders in the system.
 `);
 
-writeFileSync(`${DFD_DIR}/_stores/hot-cache.md`, `---
+writeFileSync(`${FIXTURE}/stores/hot-cache.md`, `---
 kind: cache
 title: Hot Cache
 ---

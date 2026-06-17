@@ -207,7 +207,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   }
 
   const groups: Record<string, GroupConfig> = {};
-  const groupsDir = `${dir}/_groups`;
+  const groupsDir = `${dir}/groups`;
   const groupGlob = new Bun.Glob('*.md');
   if (existsSync(groupsDir)) for await (const path of groupGlob.scan(groupsDir)) {
     const name = path.replace(/\.md$/, '');
@@ -226,6 +226,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   }
 
   const glob = new Bun.Glob('**/*.md');
+  const dataDir = `${dir}/data`;
   // Intermediate: partial node without derived classification; classifier signal
   // from frontmatter. Holds the raw body — bodyHtml/bodyLinks are rendered in a
   // second pass once every entity id is known (so `[[…]]` links can be resolved
@@ -247,11 +248,8 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   const subtypeClusters: SubtypeCluster[] = [];
   const globalErrors: GlobalError[] = [];
 
-  for await (const path of glob.scan(dir)) {
-    if (path.split('/').some(seg => seg.startsWith('_'))) continue;
-    // Exclude any file under <modelDir>/flows/ — those are DFD files, not entity files
-    if (path.startsWith('flows/')) continue;
-    const filePath = `${dir}/${path}`;
+  if (existsSync(dataDir)) for await (const path of glob.scan(dataDir)) {
+    const filePath = `${dataDir}/${path}`;
 
     let frontmatter: Frontmatter;
     let body: string;

@@ -28,14 +28,13 @@ function assert(cond: boolean, msg: string): asserts cond {
 // ---------------------------------------------------------------------------
 
 if (existsSync(TMP)) rmSync(TMP, { recursive: true });
-mkdirSync(TMP, { recursive: true });
-mkdirSync(`${TMP}/_groups`, { recursive: true });
+mkdirSync(`${TMP}/data`, { recursive: true });
 
 // ignatius.yml — minimal
 await Bun.write(`${TMP}/ignatius.yml`, 'name: test-parse-examples\n');
 
 // Entity WITH examples: two rows
-await Bun.write(`${TMP}/product.md`, `---
+await Bun.write(`${TMP}/data/product.md`, `---
 entity: Product
 pk:
   - product_id
@@ -57,7 +56,7 @@ examples:
 `);
 
 // Entity WITHOUT examples
-await Bun.write(`${TMP}/category.md`, `---
+await Bun.write(`${TMP}/data/category.md`, `---
 entity: Category
 pk:
   - category_id

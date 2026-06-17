@@ -117,7 +117,7 @@ Stable rule IDs. The class is encoded in the type (`EntityError` → A, `GlobalE
 | `entity.classification_mismatch_dependent` | Declared `independent`/`kernel` but PK contains an FK column. Should be dependent. |
 | `entity.classification_mismatch_independent` | Declared `dependent` but no PK column is also an FK. |
 | `entity.unknown_classification` | `classification` not in the canonical lowercase set. Renders unstyled. |
-| `entity.unknown_group` | `group` ref has no `_groups/<group>.md`. Renders without color band. |
+| `entity.unknown_group` | `group` ref has no `groups/<group>.md`. Renders without color band. |
 | `entity.naming_not_pascal_case` | Entity id does not match `^[A-Z][a-zA-Z0-9]*$`. |
 | `entity.column_not_snake_case` | Column key does not match `^[a-z][a-z0-9_]*$`. |
 

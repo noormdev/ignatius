@@ -15,7 +15,7 @@ Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, s
 
 - Hard balancing *enforcement* — decomposition mismatch is a soft warning only (the comparison is data-level, but it never blocks).
 - The current-physical → logical → required SSADM progression and logicalisation.
-- Schema validation on non-`db:` stores (cache/queue/file/doc/manual have no schema here; `_stores/<name>.md` adds an optional *description*, not a schema).
+- Schema validation on non-`db:` stores (cache/queue/file/doc/manual have no schema here; `stores/<name>.md` at the model root adds an optional *description*, not a schema).
 - Queue/message payload shape validation — non-`db:` flows carry opaque labels in v1; validating a `queue:` payload against a declared shape is out of scope.
 - Auto-promotion of discovered attributes into entities — `flow.unknown_attribute` surfaces a gap; closing it (editing the entity) is the author's job, not the tool's.
 - Perfect auto-layout — drag-to-save covers the gap.
@@ -28,7 +28,7 @@ Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, s
 
 
 - **`db:` flow data is always checked.** On a `db:` endpoint, `data` is always columns — a string is one column, an array is several — and every column is validated against the entity. The YAML type (`string` vs `string[]`) carries no meaning on a `db:` endpoint; the endpoint *kind* decides. A string is an opaque label only on a non-`db:` endpoint (`ext:`, `cache:`, `queue:`, `file:`, `doc:`, `manual:`), where there is no schema to check.
-- **Non-`db:` stores are inline-by-first-use, optionally described.** A `cache:Sessions` store exists because something references it — the `kind:name` pair is the declaration; no file is required. An optional `_stores/<name>.md` file (parallel to `_externals/<name>.md`) attaches a `kind:` + narrative body to a non-`db:` store when the author wants to describe it.
+- **Non-`db:` stores are inline-by-first-use, optionally described.** A `cache:Sessions` store exists because something references it — the `kind:name` pair is the declaration; no file is required. An optional `stores/<name>.md` file at the model root attaches a `kind:` + narrative body to a non-`db:` store when the author wants to describe it.
 - **Full-tree decomposition.** A process file paired with a same-named folder is its sub-DFD; that folder's processes may themselves pair with same-named folders, recursively, to the leaves. Every process box is drillable into its own DFD. Decomposition is not capped at one level.
 - **Balancing is data-level, at every seam.** At each process/sub-DFD boundary, the *columns* crossing out of the children (excluding sibling-to-sibling internal flows) must equal the columns on the parent process's own inputs/outputs, compared as a set of columns per outside connection. Checked at every boundary down the tree, not just the top.
 - **Process numbering is local-authored, tree-composed.** Each process declares a single local `number:` (its rank among its siblings). When `number:` is absent, the local rank falls back to the process's folder-order position among its siblings (so a diagram with no authored numbers still composes). The tool composes the full dotted SSADM number (`1.2.1`) by walking the folder path. The dotted prefix is derived, so it cannot be authored wrong; validation guards only sibling-local uniqueness (`flow.duplicate_number`), which fires only on authored collisions — folder-order fallbacks are distinct by construction.
@@ -52,7 +52,7 @@ Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, s
 - `validateFlows` emits `flow.process_to_process` (Class A) for direct process→process flows by default; the finding is silenceable via a `flow_rules.process_to_process: false` key in `ignatius.yml`.
 - `validateFlows` emits `flow.ambiguous_endpoint` (Class A) when a bare endpoint name collides across namespaces; no guess is made.
 - `validateFlows` emits `flow.duplicate_number` (Class A) when two sibling processes in the same diagram declare the same local `number:`.
-- A non-`db:` store with an optional `_stores/<name>.md` file carries that file's rendered body on its `FlowStoreRef`; a non-`db:` store without one still resolves (inline-by-first-use) and renders with no body.
+- A non-`db:` store with an optional `stores/<name>.md` file at the model root carries that file's rendered body on its `FlowStoreRef`; a non-`db:` store without one still resolves (inline-by-first-use) and renders with no body.
 - Decomposition recurses to the leaves: `Authenticate/Login/CreateSession` is parsed as three nested levels; the flow viewer renders a drill-down affordance on every parent process at every level, not just the top.
 - Numbering composes from the tree: a process with local `number: 2` sitting under a parent that composes to `1` renders as `1.2`; its child with local `number: 1` renders as `1.2.1`.
 - `flow.unbalanced_decomposition` (Class A) fires when the set of columns crossing a sub-DFD's boundary differs from the columns on the parent process's inputs/outputs, at any level of the tree; it does not fire when the column sets match. Sibling-to-sibling internal flows are excluded from the boundary set.
@@ -71,13 +71,13 @@ Add SSADM data flow diagrams to ignatius: file-per-process markdown authoring, s
 
 | # | Checkpoint | Files / areas | Agent | Est. files | Verifies |
 |---|------------|---------------|-------|-----------|----------|
-| 1 | `FlowModel` types + `parseFlows` + recursive folder discovery + `_externals/` + optional `_stores/` + local→dotted numbering + entity-file exclusion | `src/flow-parse.ts` (new), `src/parse.ts` (path exclusion), `test/checks/test-parse-flows.ts` (new), `test/fixtures/flows/` (new) | atomic-builder | 4 | `parseFlows` returns `FlowModel` with processes, externals, flow edges, store refs; same-named folders nest recursively to leaves; optional `_stores/<name>.md` body attaches to its `FlowStoreRef`; `dottedNumber` composes from local `number:` along the folder path; no flow process file appears in `parseModels` entity nodes; typecheck clean |
+| 1 | `FlowModel` types + `parseFlows` + recursive folder discovery + `externals/` + optional `stores/` + local→dotted numbering + entity-file exclusion | `src/flow-parse.ts` (new), `src/parse.ts` (path exclusion), `test/checks/test-parse-flows.ts` (new), `test/fixtures/flows/` (new) | atomic-builder | 4 | `parseFlows` returns `FlowModel` with processes, externals, flow edges, store refs; same-named folders nest recursively to leaves; optional `stores/<name>.md` body (model root) attaches to its `FlowStoreRef`; `dottedNumber` composes from local `number:` along the folder path; no flow process file appears in `parseModels` entity nodes; typecheck clean |
 | 2 | `validateFlows` + all 11 `flow.*` rules in `RULES` registry | `src/validate.ts` (extend), `src/flow-validate.ts` (new), `test/checks/test-validate-flows.ts` (new), `test/fixtures/broken-flow/` (new) | atomic-builder | 5 | All 11 `flow.*` rules fire on the broken fixture; all are absent on a clean fixture; `RULES` compiles (Record completeness enforced by TypeScript); Class B rules strip edges from `cleanedFlowModel`; `flow.unknown_attribute` fires on both string and array `data` on a `db:` endpoint |
 | 3 | Endpoint resolution + ambiguity | `src/flow-parse.ts` (resolution logic), `test/checks/test-flow-endpoints.ts` (new) | atomic-builder | 2 | Bare name resolves when unique across three namespaces; collision emits `flow.ambiguous_endpoint`; qualified names (`ext:`, `db:`, `proc:`, `cache:`, …) always resolve without ambiguity check; unknown qualified `db:` endpoint emits `flow.unknown_store`; unknown qualified `ext:` emits `flow.unknown_external` |
 | 4a | `generateFlowGraph` static HTML injection *(injection partly superseded by R1: single `__FLOW_LAYOUT_KEY__` → `__FLOW_LAYOUT_KEYS__` map; single diagram → `FlowModel`)* | `src/generators/flow-graph.ts` (new) | atomic-builder | 1 | Static `flow-<name>.html` is written with correct `window.__IGNATIUS_SURFACE__`, `window.__FLOW_MODEL__`, `window.__FLOW_LAYOUT_KEY__`, `window.__IGNATIUS_MODE__ = "static"`; no App.tsx change; verifiable by parsing the emitted script tags |
 | 4b | App.tsx flow render path — `initFlowGraph` + separate flow stylesheet + DFD shapes | `src/App.tsx` (flow render path via `initFlowGraph` + own stylesheet builder), `test/visual/screenshot-flow-graph.ts` (new) | atomic-builder | 2 | Static `flow.html` renders: external = rectangle, process = rounded rectangle with composed-number badge, db-store = barrel shape, generic store = cut-rectangle; flow shapes come from a dedicated flow stylesheet builder, NOT appended to the ERD `buildStyles`; ERD selectors untouched; Playwright screenshot taken and inspected |
 | 5 | `ignatius flow` CLI subcommand + `validate` integration *(CLI shape superseded by R2: `flow <name>` → path-first `flow [path] -o`; the `validate` integration here still stands)* | `src/cli.ts` (new `flowCmd`, register in `main`), `src/flow-validate.ts` (consumed by validate cmd), `test/checks/test-flow-cli.ts` (new) | atomic-builder | 3 | `ignatius flow <name> [path]` writes `flow-<name>.html` and exits 0 (exits 1 on Class B findings); `ignatius validate` includes flow findings in stderr and exit code; a missing/unknown DFD name exits 1 with a message |
-| 6 | `generateFlowDict` process dictionary | `src/generators/flow-dict.ts` (new), `test/checks/test-flow-dict.ts` (new) | atomic-builder | 3 | Static `flow-dict-<name>.html` lists each process with its inputs/outputs table, attribute list for `db:` flows, optional `_stores/` description for generic stores, body narrative, and findings panel; layout mirrors `generateDict` structure |
+| 6 | `generateFlowDict` process dictionary | `src/generators/flow-dict.ts` (new), `test/checks/test-flow-dict.ts` (new) | atomic-builder | 3 | Static `flow-dict-<name>.html` lists each process with its inputs/outputs table, attribute list for `db:` flows, optional `stores/` description for generic stores, body narrative, and findings panel; layout mirrors `generateDict` structure |
 | 7 | Leveling: recursive client-side drill-down + data-level `flow.unbalanced_decomposition` | `src/flow-validate.ts` (recursive decomposition rule + harden the boundary picker), `src/App.tsx` (`initFlowGraph` client-side sub-DFD swap + back affordance), `test/checks/test-flow-leveling.ts` (new) | atomic-builder | 4 | `flow.unbalanced_decomposition` fires when the boundary *column* sets differ at ANY seam down the tree and is silent when they match (sibling-internal flows excluded); a process with `hasSubDfd` renders a drill affordance that swaps the rendered diagram to its sub-DFD client-side, with a back affordance |
 | 8 | Flow layout fingerprint + drag-save reuse with separate storage key *(injection superseded by R1: single `__FLOW_LAYOUT_KEY__` → `__FLOW_LAYOUT_KEYS__` map; the fingerprint fn + separate-key persistence still stand)* | `src/flow-fingerprint.ts` (new), `src/generators/flow-graph.ts` (inject `__FLOW_LAYOUT_KEY__`), `src/App.tsx` (flow-mode store integration under a distinct key), `test/checks/test-flow-fingerprint.ts` (new) | atomic-builder | 4 | `layoutFlowFingerprint` is topology-only (node ids + edge source>target pairs); changes on structural edits, stable on label/body/column-list/local-number edits; static HTML carries `window.__FLOW_LAYOUT_KEY__`; saved positions restore on reload; flow positions persist under a `localStorage` key distinct from the ERD's |
 
@@ -155,8 +155,8 @@ FlowExternal = {
 FlowStoreRef = {
   kind: 'db' | 'cache' | 'queue' | 'file' | 'doc' | 'manual';
   name: string;           // resolved id
-  body?: string;          // raw markdown from optional _stores/<name>.md (non-db only)
-  bodyHtml?: string;      // rendered HTML from optional _stores/<name>.md
+  body?: string;          // raw markdown from optional stores/<name>.md at model root (non-db only)
+  bodyHtml?: string;      // rendered HTML from optional stores/<name>.md at model root
   flowId: string;
 }
 
@@ -182,7 +182,7 @@ FlowParseResult = {
 
 **Functions exported:**
 
-- `parseFlows(modelDir: string): Promise<FlowParseResult>` — discovers `flows/*/` under `modelDir`; reads each DFD folder recursively (a process file plus a same-named folder is a sub-DFD, and that recursion continues to the leaves); tracks the visited folder path during recursion and refuses to re-enter an ancestor, so a malformed/cyclic folder structure cannot loop the parser; reads optional `_externals/*.md` and `_stores/*.md` description files; composes each process's `dottedNumber` from its local `number:` (or folder-order fallback) along the nesting path; builds `FlowModel`. Errors in individual files are caught per-file and appended to `globalErrors` with `parse.*` ruleIds (same posture as `parseModels`).
+- `parseFlows(modelDir: string): Promise<FlowParseResult>` — discovers `flows/*/` under `modelDir`; reads each DFD folder recursively (a process file plus a same-named folder is a sub-DFD, and that recursion continues to the leaves); tracks the visited folder path during recursion and refuses to re-enter an ancestor, so a malformed/cyclic folder structure cannot loop the parser; reads optional `externals/*.md` and `stores/*.md` description files from the model root; composes each process's `dottedNumber` from its local `number:` (or folder-order fallback) along the nesting path; builds `FlowModel`. Errors in individual files are caught per-file and appended to `globalErrors` with `parse.*` ruleIds (same posture as `parseModels`).
 - `resolveEndpoint(raw: string, context: EndpointContext): FlowEndpoint | null` — pure; splits on `:` prefix to determine `kind`; when prefix absent, checks uniqueness across all namespaces in context. Returns `null` on ambiguity or total absence (caller records the appropriate `flow.*` finding). Resolution compares against the resolved `kind:name` form — spelling variants that resolve to the same `kind:name` pair are treated identically.
 
 **Frontmatter contract for process files:**
@@ -211,29 +211,21 @@ examples:                     # optional in/out data examples rendered as tables
 
 **Process `examples:` rendering contract:** in the process dialog (`FlowNodeModal`), after the markdown body and the existing IO table, render one `<details class="modal-examples">` per `in` entry and one per `out` entry. Table caption = direction (`in`/`out`) + counterpart token + label, joined with ` · `. Columns = union of keys across all rows in that entry; blank cell (`–`) when a row lacks a key. When `examples:` is absent the section is not rendered — no empty header. Validation of example tokens against the process's declared inputs/outputs is out of scope (non-goal, see below).
 
-**Frontmatter contract for external files (`_externals/*.md`):**
+**Frontmatter contract for external files (`externals/*.md`):**
 
 ```yaml
 external: <human label>       # required
 ```
 
-**Shared externals at `flows/_externals/`.** An external can be declared once at
-the flows root (`flows/_externals/<Name>.md`) and referenced by any DFD at any
-nesting depth — the parser passes the root externals down the recursion and
-merges into each diagram only the ones that diagram actually references
-(`ext:Name` in an edge). A DFD's own `_externals/<Name>.md` overrides the root
-definition for that DFD. This removes the need to re-describe a recurring actor
-(e.g. `Customer`) in every DFD folder; document everything it does once, at root.
-`readExternalsDir` reads both the root and per-DFD folders; `parseFlows` skips
-`_`-prefixed entries under `flows/` so `_externals/` is not parsed as a DFD.
+**Shared externals at `externals/`.** An external is declared once at the model root (`externals/<Name>.md`) and referenced by any DFD at any nesting depth — the parser reads the `externals/` directory once and merges into each diagram only the externals that diagram actually references (`ext:Name` in an edge). There is no per-DFD override capability. This removes the need to re-describe a recurring actor (e.g. `Customer`) in every DFD folder; document everything it does once, at root.
 
-**Frontmatter contract for optional store description files (`_stores/*.md`):**
+**Frontmatter contract for optional store description files (`stores/*.md`):**
 
 ```yaml
 kind: cache                   # one of: cache | queue | file | doc | manual | other (db: stores are entities, described in their own .md)
 ```
 
-The file name (without `.md`) is the store name; the body is the store's narrative. Authoring a `_stores/` file is never required — a non-`db:` store that is referenced but undescribed still resolves inline-by-first-use.
+The file name (without `.md`) is the store name; the body is the store's narrative. These files live at the model root under `stores/`. Authoring a `stores/` file is never required — a non-`db:` store that is referenced but undescribed still resolves inline-by-first-use.
 
 **Entity-file exclusion in `src/parse.ts` (extension, not rewrite):** Entity discovery at `src/parse.ts:215–320` must skip any file whose path resolves under `<modelDir>/flows/`. The behavioral contract: entity discovery skips any file under `<modelDir>/flows/`.
 
@@ -266,7 +258,7 @@ Exports:
 
 Rule implementations (all pure, no I/O):
 
-- `flow.unknown_store` — a `db:` store ref whose `name` is not found in `entityModel.nodes`. Non-`db:` stores are opaque and inline-by-first-use (a store is declared by being referenced with the same `kind:name` in any process, or by an optional `_stores/` file); they are exempt from existence checking. Class B → strip all flow edges touching the unknown `db:` store from `cleanedFlowModel`.
+- `flow.unknown_store` — a `db:` store ref whose `name` is not found in `entityModel.nodes`. Non-`db:` stores are opaque and inline-by-first-use (a store is declared by being referenced with the same `kind:name` in any process, or by an optional `stores/` file at the model root); they are exempt from existence checking. Class B → strip all flow edges touching the unknown `db:` store from `cleanedFlowModel`.
 - `flow.unknown_external` — `ext:Name` not found in the DFD's `FlowExternal[]`. Class B → strip edges.
 - `flow.unknown_process` — `proc:Name` not found in the DFD's `FlowProcess[]`. Class B → strip edges.
 - `flow.unknown_attribute` — a `db:` `FlowEdge` whose `data` (whether a single string or an array) names a column absent from the entity's `pk` (as string names) and `columns` (as keys). On a `db:` endpoint `data` is always columns: a string is one column, an array is several, and each is checked. A string on a non-`db:` endpoint is an opaque label and is never reached by this rule. Class A — process stays in `cleanedFlowModel`, finding recorded.
@@ -348,7 +340,7 @@ Extension points: mode dispatch at `src/App.tsx:1067–1119`, elements construct
 - **Full-bleed canvas, everything floats (supersedes any header-bar / sidebar chrome):** the canvas fills the viewport; the existing `.branding-block` logo sits top-left with the breadcrumb chips floating beside it; the DFD-nav, findings panel, minimap, and FAB (with the legend inside its menu) all float over the canvas — no website-style header bar or structural sidebar.
 - Position restore + drag-save reuse the `createLayoutStore` machinery under a **distinct `localStorage` key** from the ERD's `ignatius-layout-positions`. Each *rendered* diagram persists under its own fingerprint, looked up from `window.__FLOW_LAYOUT_KEYS__[diagramId]` (the injected id→fingerprint map) — so navigating between DFDs (and into sub-DFDs) keeps each one's saved layout independently. ERD and flow pools never share storage; opening flows cannot evict ERD layouts.
 - DFD drill-down (client-side, single HTML): a process node with `data.hasSubDfd === true` renders a small "⤵"/"+" affordance at every level of the tree. Because `window.__FLOW_MODEL__` carries the **full recursive `FlowDiagram` tree** (each process's `subDfds`), clicking the affordance swaps the rendered diagram to that process's sub-DFD entirely client-side — re-running the flow layout on the sub-diagram's elements — with a breadcrumb/back affordance to ascend. No per-sub-DFD HTML files are emitted and no navigation occurs; one `flow-<name>.html` is self-contained and works offline. (Supersedes the earlier "href to `flow-<subname>.html`" approach, which would have required the CLI to emit a file per sub-DFD and produced dangling links when a sub-file was not generated.)
-- **Node documentation dialog (ⓘ badge).** Every flow node — process, external, and store — carries a small ⓘ badge (`data-ignatius="flow-info"`) that opens a documentation dialog rendering that node's markdown. The badge's `pointerdown` stops propagation, so it never starts a node drag or a sub-DFD drill — body-click keeps its drill role; the badge is a dedicated, separate affordance. Content by node kind: a **process** and an **external** render their own `bodyHtml`; a non-`db` **store** renders its `_stores/<name>.md` body; a **`db` store** borrows its entity's business narrative from the ERD model — the same content the data dictionary shows. The resolver reads the ERD model from `window.__MODEL__`: **static** mode injects it on the page (`generateFlowGraph`); **live** mode carries it in the `/api/flow` payload (`entityModel`) and the frontend assigns it to `window.__MODEL__` before building the resolver (so `db`-store docs hot-reload on entity edits). Without it the `db`-store badge would resolve to nothing — process/external badges read their own `bodyHtml` from the diagrams and are unaffected. The dialog reuses the ERD modal chrome (`.modal-backdrop` / `.modal` / `.doc-body`). A token that resolves to nothing is a no-op. Implemented as `FlowSurface` (a stateful wrapper around `FlowDiagramSvg`), `buildFlowDocResolver`, and `FlowDocModal` in `src/App.tsx`; the ⓘ badge + an `onOpenDoc(docToken)` prop in `src/flow-view/FlowDiagramSvg.tsx`. Doc tokens are canonical `proc:<id>` / `ext:<Name>` / `<kind>:<name>`.
+- **Node documentation dialog (ⓘ badge).** Every flow node — process, external, and store — carries a small ⓘ badge (`data-ignatius="flow-info"`) that opens a documentation dialog rendering that node's markdown. The badge's `pointerdown` stops propagation, so it never starts a node drag or a sub-DFD drill — body-click keeps its drill role; the badge is a dedicated, separate affordance. Content by node kind: a **process** and an **external** render their own `bodyHtml`; a non-`db` **store** renders its `stores/<name>.md` body from the model root; a **`db` store** borrows its entity's business narrative from the ERD model — the same content the data dictionary shows. The resolver reads the ERD model from `window.__MODEL__`: **static** mode injects it on the page (`generateFlowGraph`); **live** mode carries it in the `/api/flow` payload (`entityModel`) and the frontend assigns it to `window.__MODEL__` before building the resolver (so `db`-store docs hot-reload on entity edits). Without it the `db`-store badge would resolve to nothing — process/external badges read their own `bodyHtml` from the diagrams and are unaffected. The dialog reuses the ERD modal chrome (`.modal-backdrop` / `.modal` / `.doc-body`). A token that resolves to nothing is a no-op. Implemented as `FlowSurface` (a stateful wrapper around `FlowDiagramSvg`), `buildFlowDocResolver`, and `FlowDocModal` in `src/App.tsx`; the ⓘ badge + an `onOpenDoc(docToken)` prop in `src/flow-view/FlowDiagramSvg.tsx`. Doc tokens are canonical `proc:<id>` / `ext:<Name>` / `<kind>:<name>`.
 - **In-dialog `[[wiki-link]]` routing.** Flow markdown (process / external / store bodies) is parsed with the same `wikiLinkPlugin` as ERD entity bodies (`md.use(wikiLinkPlugin)` in `src/flow-parse.ts`), rendered **optimistically** (no `knownIds`) so every `[[Target]]` becomes a navigable `a.entity-link[data-entity]` anchor. Clicking a link inside the dialog re-resolves the target across **both** flow nodes (processes, externals, stores) **and** ERD entities and swaps the dialog content in place — a process body can link to an entity, a store, or another process. Resolution order for a bare target: entity → process → external → store. Mirrors the wiki-link click delegation at the `src/App.tsx` ERD modal `onClick`. (Supersedes the earlier `db:`-store-click-navigates-to-the-ERD-viewer plan: docs open *in* the flow viewer's dialog, not by navigating away to `graph.html#entity-<id>`.)
 
 
@@ -387,7 +379,7 @@ Structure of generated HTML:
 - A section per DFD; within it, per-process sections with anchor `#process-<id>`, headed by the composed `dottedNumber`.
 - Inputs/outputs table: endpoint | kind marker | data (column list for `db:`, label otherwise) | direction.
 - `db:` attribute rows link to the entity's dict section via `href` (static: `dict.html#entity-<entityId>`; live: `graphHref` equivalent).
-- Generic (non-`db:`) store sections render the optional `_stores/<name>.md` body when present.
+- Generic (non-`db:`) store sections render the optional `stores/<name>.md` body (from the model root) when present.
 - Process body narrative (rendered HTML).
 - Per-process findings disclosure (mirrors dict entity findings).
 - Global findings panel (same structure as `generateDict`'s findings panel).
@@ -420,13 +412,13 @@ All new scripts go under `test/checks/` (raw assertion scripts, run by `bun run 
 
 | File | What it checks |
 |------|----------------|
-| `test/checks/test-parse-flows.ts` | `parseFlows` returns correct `FlowDiagram` shapes from a clean fixture; no `flows/**` file appears in `parseModels` nodes; same-named folders nest recursively (`hasSubDfd` true, `subDfds` populated to the leaves); optional `_stores/<name>.md` body attaches to its `FlowStoreRef`; `dottedNumber` composes from local `number:` along the path |
+| `test/checks/test-parse-flows.ts` | `parseFlows` returns correct `FlowDiagram` shapes from a clean fixture; no `flows/**` file appears in `parseModels` nodes; same-named folders nest recursively (`hasSubDfd` true, `subDfds` populated to the leaves); optional `stores/<name>.md` body (from model root) attaches to its `FlowStoreRef`; `dottedNumber` composes from local `number:` along the path |
 | `test/checks/test-flow-endpoints.ts` | `resolveEndpoint` resolves bare name when unique; returns `null` on collision; qualified `ext:` / `db:` / `proc:` always resolves without ambiguity check; unknown qualified name returns `null` |
 | `test/checks/test-validate-flows.ts` | Each of the 11 `flow.*` rules fires on the `test/fixtures/broken-flow/` fixture; each is absent on the clean fixture; Class B stripping removes the correct edges from `cleanedFlowModel`; `flow.unknown_attribute` fires on both a string and an array `data` on a `db:` endpoint; `flow.process_to_process` is skipped when `config.process_to_process === false`; `flow.duplicate_number` fires on a sibling local-number collision |
 | `test/checks/test-flow-fingerprint.ts` | `layoutFlowFingerprint` changes on node/edge add or remove; stable on label, body, column-list, local-number edits; two endpoint spellings that resolve to the same `kind:name` pair yield the same key |
 | `test/checks/test-flow-leveling.ts` | Recursive sub-DFD detection from nested same-named folders; `flow.unbalanced_decomposition` fires on a boundary *column-set* mismatch at a deep seam; absent on a matched set; sibling-internal flows excluded from the boundary set |
 | `test/checks/test-flow-cli.ts` | `flow [path] -o f.html` (path-first, no DFD name) exits 0 and writes one viewer for a clean model; `-o` omitted → exit 1; Class B finding → exit 1; no-`flows/` model → exit 0 with a note; `ignatius validate` includes flow findings when `flows/` exists |
-| `test/checks/test-flow-dict.ts` | `generateFlowDict` returns an HTML string containing a process section for each `FlowProcess`; `db:` attribute rows present; optional `_stores/` description rendered when present; findings panel present when findings > 0; absent when findings = 0 |
+| `test/checks/test-flow-dict.ts` | `generateFlowDict` returns an HTML string containing a process section for each `FlowProcess`; `db:` attribute rows present; optional `stores/` description (from model root) rendered when present; findings panel present when findings > 0; absent when findings = 0 |
 | `test/checks/test-flow-serve.ts` | `serve` answers `GET /flow` (live viewer, `__IGNATIUS_SURFACE__='flow'`), `GET /api/flow` (`{diagrams, validation, flowLayoutKeys}`), `GET /flow-dict`; a no-`flows/` model returns an empty-state, not a 500 |
 
 **Fixture layout:**
@@ -434,16 +426,17 @@ All new scripts go under `test/checks/` (raw assertion scripts, run by `bun run 
 ```
 test/fixtures/
   flows/
-    clean/                  ← single-DFD clean fixture, with nested decomposition + a _stores/ description
-      _externals/
-        Shopper.md
-      _stores/
-        Sessions.md         ← optional non-db store description (kind: cache)
-      Place-Order.md
-      Place-Order/          ← sub-DFD (recurses)
-        Reserve-Stock.md
+    ignatius.yml            ← model root for the clean fixture
+    externals/
+      Shopper.md            ← shared external
+    stores/
+      Sessions.md           ← optional non-db store description (kind: cache)
+    flows/
+      clean/                ← single-DFD clean fixture, with nested decomposition
+        Place-Order.md
+        Place-Order/        ← sub-DFD (recurses)
+          Reserve-Stock.md
     broken-flow/            ← one violation per flow.* rule (11 rules)
-      _externals/
       ...
 ```
 
@@ -471,6 +464,13 @@ The fixtures use entity ids from `models/key-inherited/` as their `db:` store re
 
 
 ## Change log
+
+
+### 2026-06-17 — Folder model migration (#16): externals/ and stores/ at model root; no per-DFD override
+
+**What changed:** External and store registry locations changed to model-root `externals/` and `stores/` (no underscore, no per-DFD nesting). The per-DFD `_externals/` override capability is removed — there is one global definition per external name. `parseFlows` reads `externals/*.md` and `stores/*.md` once from the model root. Resolved decisions, success criteria, `parseFlows` description, frontmatter contracts, validator rule descriptions, node-doc dialog description, and fixture layout all updated.
+
+**Superseded:** Externals were declared at `flows/_externals/<Name>.md` (shared root) with the option to override per-DFD via a local `_externals/` folder. Non-`db` store descriptions lived in per-DFD `_stores/<name>.md` files. Both are replaced by single model-root registries with no per-DFD override.
 
 
 ### 2026-06-09 — Correction: store `kind:` enum includes `other`

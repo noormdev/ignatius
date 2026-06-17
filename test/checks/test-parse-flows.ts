@@ -4,7 +4,7 @@
  * Covers:
  *  - parseFlows returns FlowModel with correct diagram shape (processes, externals, storeRefs, edges)
  *  - Recursive sub-DFD detection: hasSubDfd, subDfds populated to leaves
- *  - Optional _stores/<name>.md body attached to its FlowStoreRef
+ *  - Optional stores/<name>.md body attached to its FlowStoreRef (read from model-root stores/)
  *  - dottedNumber composed from local number: along the folder path
  *  - Entity-file exclusion: no flow process file appears as a ModelNode in parseModels
  */
@@ -93,7 +93,15 @@ console.log('PASS: recursive sub-DFD: Reserve-Stock in Place-Order/, dottedNumbe
 // Externals
 // ---------------------------------------------------------------------------
 
-assert(diagram.externals.length === 1, `expected 1 external, got ${diagram.externals.length}`);
+// The clean fixture has TWO externals in the registry (Shopper + UnusedActor), but
+// only Shopper is referenced by any edge. diagram.externals must be the
+// REFERENCED-AND-DEFINED set — UnusedActor must NOT appear here even though it
+// has an externals/UnusedActor.md definition.
+assert(diagram.externals.length === 1, `expected exactly 1 external (referenced-and-defined), got ${diagram.externals.length}: ${diagram.externals.map(e => e.id).join(', ')}`);
+const unusedPresent = diagram.externals.some(e => e.id === 'UnusedActor');
+assert(!unusedPresent, `diagram.externals must NOT include UnusedActor (defined-but-unreferenced)`);
+console.log('PASS: diagram.externals = referenced-and-defined only (UnusedActor absent)');
+
 const shopper = diagram.externals[0]!;
 assert(shopper.id === 'Shopper', `external id should be 'Shopper', got '${shopper.id}'`);
 assert(shopper.label === 'Shopper', `external label should be 'Shopper', got '${shopper.label}'`);
@@ -146,18 +154,18 @@ assert(sessionsStore !== undefined, 'storeRef cache:Sessions not found');
 console.log('PASS: storeRefs contain db:Party and cache:Sessions');
 
 // ---------------------------------------------------------------------------
-// _stores/Sessions.md body attached to cache:Sessions FlowStoreRef
+// stores/Sessions.md body attached to cache:Sessions FlowStoreRef
 // ---------------------------------------------------------------------------
 
 assert(sessionsStore !== undefined, 'Sessions storeRef missing');
-assert(typeof sessionsStore!.body === 'string' && sessionsStore!.body.length > 0, '_stores/Sessions.md body not attached to storeRef');
-assert(typeof sessionsStore!.bodyHtml === 'string' && sessionsStore!.bodyHtml.length > 0, '_stores/Sessions.md bodyHtml not rendered');
+assert(typeof sessionsStore!.body === 'string' && sessionsStore!.body.length > 0, 'stores/Sessions.md body not attached to storeRef');
+assert(typeof sessionsStore!.bodyHtml === 'string' && sessionsStore!.bodyHtml.length > 0, 'stores/Sessions.md bodyHtml not rendered');
 assert(sessionsStore!.body.includes('session tokens'), `Sessions body should mention session tokens, got: ${sessionsStore!.body}`);
-console.log('PASS: _stores/Sessions.md body attached to cache:Sessions storeRef');
+console.log('PASS: stores/Sessions.md body attached to cache:Sessions storeRef');
 
-// db: storeRef (Party) has no body (no _stores/Party.md — db: stores are entities described in their own .md)
+// db: storeRef (Party) has no body (no stores/Party.md — db: stores are entities described in their own .md)
 assert(partyStore!.body === undefined, `db:Party storeRef should have no body (got: ${partyStore!.body})`);
-console.log('PASS: db:Party storeRef has no body (inline entity, not a _stores/ file)');
+console.log('PASS: db:Party storeRef has no body (inline entity, not a stores/ file)');
 
 // ---------------------------------------------------------------------------
 // modelDir

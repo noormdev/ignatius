@@ -157,7 +157,7 @@ function deriveContext(
     const edges: FlowEdge[] = [];
 
     for (const leaf of leaves) {
-        // Only include externals that are declared in this leaf's _externals/ directory.
+        // Only include externals that are declared in the model-root externals/ registry.
         // Undeclared externals (bare ext: references without a description file) are
         // unknowns that the validator will flag — do not promote them to context level.
         const knownLeafExtIds = new Set(leaf.externals.map(e => e.id));

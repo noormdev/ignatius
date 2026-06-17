@@ -2,9 +2,14 @@
  * flow-parse.ts — SSADM data flow diagram parser.
  *
  * Discovers flows/*\/  under modelDir; reads process files (*.md with process:
- * frontmatter), _externals/*.md, optional _stores/*.md; builds FlowModel
- * with recursive sub-DFDs (a process file paired with a same-named folder)
- * and composed dotted SSADM numbers.
+ * frontmatter), shared externals from <modelDir>/externals/*.md, and shared
+ * stores from <modelDir>/stores/*.md; builds FlowModel with recursive sub-DFDs
+ * (a process file paired with a same-named folder) and composed dotted SSADM
+ * numbers.
+ *
+ * Externals and stores are declared ONCE at the model root (externals/,
+ * stores/) and are shared across all diagrams and sub-DFDs. There is no
+ * per-DFD externals or stores override.
  *
  * No Node I/O beyond Bun.file / Bun.Glob. Output is FlowParseResult.
  * Not bundled into the React bundle — only called from cli.ts and server.ts.
@@ -88,7 +93,7 @@ export type FlowStoreRef = {
     /** Slug / identifier — used as the identity key (e.g. from `cache:orders-cache`). */
     name: string;
     /** Human-readable display label. Resolved as: title: frontmatter → titlelize(name).
-     *  Falls back to `name` when no _stores/*.md description is present. */
+     *  Falls back to `name` when no stores/*.md description is present. */
     displayName: string;
     body?: string;
     bodyHtml?: string;
@@ -110,6 +115,11 @@ export type FlowDiagram = {
 export type FlowModel = {
     diagrams: FlowDiagram[];
     modelDir: string;
+    /** The complete root external registry (all defined externals/ entries).
+     *  Used by the validator's global-namespace checks (ambiguous_endpoint,
+     *  unknown_external) so they see ALL defined externals, not just the
+     *  referenced ones included in each diagram's externals array. */
+    externals: FlowExternal[];
 };
 
 export type FlowParseResult = {
@@ -135,7 +145,7 @@ function isFlowKind(s: string): s is FlowEndpoint['kind'] {
     return VALID_KINDS.has(s);
 }
 
-// Known kinds that may appear in _stores/*.md frontmatter (excludes 'db' and 'proc').
+// Known kinds that may appear in stores/*.md frontmatter (excludes 'db' and 'proc').
 type KnownStoreKind = Exclude<FlowStoreRef['kind'], 'db'>;
 const KNOWN_STORE_KIND_SET = new Set<string>(['cache', 'queue', 'file', 'doc', 'manual', 'other']);
 
@@ -353,7 +363,7 @@ function collectStoreRefsFromEdges(
             const ref: FlowStoreRef = {
                 kind: ep.kind,
                 name: ep.name,
-                // Display name: from _stores/ description (with title: override) or titlelize(slug)
+                // Display name: from stores/ description (with title: override) or titlelize(slug)
                 displayName: stored?.displayName ?? titlelize(ep.name),
                 flowId,
                 ...(stored !== undefined ? { body: stored.body, bodyHtml: stored.bodyHtml } : {}),
@@ -371,10 +381,9 @@ function collectStoreRefsFromEdges(
 type ExternalDef = { label: string; kind?: FlowStoreRef['kind']; body: string; bodyHtml: string };
 
 /**
- * Read an `_externals/*.md` folder into a map of `extId → {label, body, html}`.
- * Used for both a DFD's own `_externals/` and the shared `flows/_externals/`
- * (so a recurring external like Customer is documented once and reused anywhere,
- * however deeply nested). Missing folder → empty map.
+ * Read an `externals/*.md` folder into a map of `extId → {label, body, html}`.
+ * Reads from the model-root `externals/` directory; shared across all diagrams.
+ * Missing folder → empty map.
  */
 async function readExternalsDir(
     dir: string,
@@ -435,6 +444,7 @@ async function parseDiagramFolder(
     parentDottedNumbers: number[],
     visitedPaths: Set<string>,
     rootExternals: Map<string, ExternalDef>,
+    rootStoreBodyByKindName: Map<string, { displayName: string; body: string; bodyHtml: string }>,
     globalErrors: GlobalError[],
 ): Promise<FlowDiagram> {
     // Cycle guard: refuse to re-enter an ancestor folder
@@ -455,45 +465,6 @@ async function parseDiagramFolder(
     nextVisited.add(resolved);
 
     const flowId = diagramId;
-
-    // --- Read optional _stores/*.md description files ---
-    const storeBodyByKindName = new Map<string, { displayName: string; body: string; bodyHtml: string }>();
-    const storesDir = `${folderPath}/_stores`;
-    const storeGlob = new Bun.Glob('*.md');
-    try {
-        for await (const storePath of storeGlob.scan(storesDir)) {
-            const storeFilePath = `${storesDir}/${storePath}`;
-            try {
-                const content = await Bun.file(storeFilePath).text();
-                const { frontmatter, body } = parseFrontmatter(content);
-                const rawKind = frontmatter['kind'];
-                // Accept recognised kinds; anything else (absent / unrecognised) → 'other'.
-                const kind: FlowStoreRef['kind'] = isKnownStoreKind(rawKind) ? rawKind : 'other';
-                const storeName = storePath.replace(/\.md$/, '');
-                const key = `${kind}:${storeName}`;
-                // Resolve display name: title: (explicit) → titlelize(slug)
-                const storeTitleOverride = frontmatter['title'];
-                const resolvedDisplayName =
-                    typeof storeTitleOverride === 'string' && storeTitleOverride.trim()
-                        ? storeTitleOverride.trim()
-                        : titlelize(storeName);
-                storeBodyByKindName.set(key, { displayName: resolvedDisplayName, body, bodyHtml: md.render(body) });
-            } catch (err) {
-                globalErrors.push({
-                    ruleId: 'parse.invalid_yaml',
-                    severity: 'error',
-                    omitted: { kind: 'file', id: storeFilePath },
-                    reason: `Cannot parse "${storeFilePath}": ${err instanceof Error ? err.message : String(err)}`,
-                });
-            }
-        }
-    } catch {
-        // _stores/ directory does not exist — skip
-    }
-
-    // --- Read this DFD's own _externals/*.md (descriptions). Root-level shared
-    //     externals are merged in after edges are known (see below). ---
-    const localExtMap = await readExternalsDir(`${folderPath}/_externals`, globalErrors);
 
     // --- Discover process .md files and sub-DFD folders at this level ---
     // List all direct children (non-underscore files and directories)
@@ -644,35 +615,33 @@ async function parseDiagramFolder(
                 dottedParts,
                 nextVisited,
                 rootExternals,
+                rootStoreBodyByKindName,
                 globalErrors,
             );
             subDfds.push(subDiagram);
         }
     }
 
-    // Externals = this DFD's own definitions + any root-level shared external it
-    // actually references. A local definition wins over the root one (override).
-    const referencedExt = new Set<string>();
+    // Externals: only externals that are BOTH referenced by this diagram's edges
+    // AND defined in the root registry. This is the RENDERED set — what the viewer
+    // shows as actors. Defined-but-unreferenced externals are intentionally absent
+    // so a model with 20 registered externals but 3 used in flows only renders 3.
+    // The validator's global-namespace checks (ambiguous_endpoint, unknown_external)
+    // use FlowModel.externals (the full root registry) instead of this per-diagram set.
+    const referencedExtNames = new Set<string>();
     for (const e of allEdges) {
-        if (e.from.kind === 'ext') referencedExt.add(e.from.name);
-        if (e.to.kind === 'ext') referencedExt.add(e.to.name);
+        if (e.from.kind === 'ext') referencedExtNames.add(e.from.name);
+        if (e.to.kind === 'ext') referencedExtNames.add(e.to.name);
     }
     const externals: FlowExternal[] = [];
-    const includedExt = new Set<string>();
-    for (const [extId, def] of localExtMap) {
-        externals.push({ id: extId, label: def.label, kind: def.kind, body: def.body, bodyHtml: def.bodyHtml, flowId });
-        includedExt.add(extId);
-    }
-    for (const name of referencedExt) {
-        if (includedExt.has(name)) continue;
+    for (const name of referencedExtNames) {
         const def = rootExternals.get(name);
-        if (!def) continue; // not local, not root → flow.unknown_external flags it
+        if (!def) continue; // referenced but not defined → validator flags unknown_external
         externals.push({ id: name, label: def.label, kind: def.kind, body: def.body, bodyHtml: def.bodyHtml, flowId });
-        includedExt.add(name);
     }
 
-    // Build deduplicated store refs from all collected edges
-    const storeRefs = collectStoreRefsFromEdges(allEdges, flowId, storeBodyByKindName);
+    // Build deduplicated store refs from all collected edges using the shared root store registry
+    const storeRefs = collectStoreRefsFromEdges(allEdges, flowId, rootStoreBodyByKindName);
 
     return {
         id: diagramId,
@@ -702,24 +671,58 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
     try {
         for await (const entry of topLevelGlob.scan({ cwd: flowsRoot, onlyFiles: false })) {
             // Collect all entries; the isDirectory probe below filters to real
-            // folders. Skip underscore-prefixed dirs (_externals, _stores) — they
-            // are shared-resource folders, not DFDs.
-            if (entry.startsWith('_') || entry.startsWith('.')) continue;
+            // folders. Skip dot-prefixed entries (e.g. .DS_Store).
+            if (entry.startsWith('.')) continue;
             diagramFolders.push(entry);
         }
     } catch {
         // flows/ directory does not exist — return empty model
         return {
-            flowModel: { diagrams: [], modelDir },
+            flowModel: { diagrams: [], modelDir, externals: [] },
             globalErrors,
         };
     }
 
     diagramFolders.sort();
 
-    // Shared externals declared once at flows/_externals/ — usable by any DFD at
-    // any depth (passed down the recursion).
-    const rootExternals = await readExternalsDir(`${flowsRoot}/_externals`, globalErrors);
+    // Shared externals declared once at <modelDir>/externals/ — usable by any DFD
+    // at any depth (passed down the recursion).
+    const rootExternals = await readExternalsDir(`${modelDir}/externals`, globalErrors);
+
+    // Shared stores declared once at <modelDir>/stores/ — usable by any DFD.
+    const rootStoreBodyByKindName = new Map<string, { displayName: string; body: string; bodyHtml: string }>();
+    const storeGlob = new Bun.Glob('*.md');
+    const storesDir = `${modelDir}/stores`;
+    try {
+        for await (const storePath of storeGlob.scan(storesDir)) {
+            const storeFilePath = `${storesDir}/${storePath}`;
+            try {
+                const content = await Bun.file(storeFilePath).text();
+                const { frontmatter, body } = parseFrontmatter(content);
+                const rawKind = frontmatter['kind'];
+                // Accept recognised kinds; anything else (absent / unrecognised) → 'other'.
+                const kind: FlowStoreRef['kind'] = isKnownStoreKind(rawKind) ? rawKind : 'other';
+                const storeName = storePath.replace(/\.md$/, '');
+                const key = `${kind}:${storeName}`;
+                // Resolve display name: title: (explicit) → titlelize(slug)
+                const storeTitleOverride = frontmatter['title'];
+                const resolvedDisplayName =
+                    typeof storeTitleOverride === 'string' && storeTitleOverride.trim()
+                        ? storeTitleOverride.trim()
+                        : titlelize(storeName);
+                rootStoreBodyByKindName.set(key, { displayName: resolvedDisplayName, body, bodyHtml: md.render(body) });
+            } catch (err) {
+                globalErrors.push({
+                    ruleId: 'parse.invalid_yaml',
+                    severity: 'error',
+                    omitted: { kind: 'file', id: storeFilePath },
+                    reason: `Cannot parse "${storeFilePath}": ${err instanceof Error ? err.message : String(err)}`,
+                });
+            }
+        }
+    } catch {
+        // stores/ directory does not exist — skip
+    }
 
     for (const diagramName of diagramFolders) {
         const diagramPath = `${flowsRoot}/${diagramName}`;
@@ -744,12 +747,21 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
             [],
             new Set<string>([flowsRoot]),
             rootExternals,
+            rootStoreBodyByKindName,
             globalErrors,
         );
         diagrams.push(diagram);
     }
 
-    const rawFlowModel: FlowModel = { diagrams, modelDir };
+    // Build the full root external registry list — used by the validator's global
+    // namespace checks (unknown_external, ambiguous_endpoint) so they can see ALL
+    // defined externals regardless of which ones each diagram references.
+    const rootExternalsList: FlowExternal[] = [];
+    for (const [name, def] of rootExternals) {
+        rootExternalsList.push({ id: name, label: def.label, kind: def.kind, body: def.body, bodyHtml: def.bodyHtml, flowId: '' });
+    }
+
+    const rawFlowModel: FlowModel = { diagrams, modelDir, externals: rootExternalsList };
     const flowModel = deriveLevels(rawFlowModel);
 
     return {

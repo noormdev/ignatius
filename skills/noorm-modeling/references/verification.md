@@ -21,7 +21,7 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 | `entity.missing_pk` | warn | A | Missing primary key | Add `pk:` array with at least one column name |
 | `entity.missing_columns` | warn | A | No columns defined | Add `columns:` map with at least the PK column types |
 | `entity.invalid_field_type` | warn | A | Invalid field shape | `pk` must be an array of strings, `columns` must be a map — fix the field shape |
-| `entity.unknown_group` | warn | A | Unknown group | Create `_groups/<name>.md` or correct the `group:` value |
+| `entity.unknown_group` | warn | A | Unknown group | Create `groups/<name>.md` or correct the `group:` value |
 | `body.unknown_link` | warn | A | Body `[[wiki-link]]` target not in model | Fix the entity id inside `[[…]]` or author the target entity (only `[[…]]` links are checked — author body links as wiki-links, never `[X](X.md)`) |
 | `edge.unknown_target` | error | B | Edge target not in model | Add the missing entity file or correct the `target:` name |
 | `edge.dangling_fk_column` | warn | A | FK column not on source entity | Add the column to the entity's `columns` map or fix the `on:` mapping |
@@ -35,7 +35,7 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 | ruleId | Severity | Class | Title | Fix hint |
 |--------|----------|-------|-------|----------|
 | `flow.unknown_store` | error | B | `db:` store not an entity | The `db:<Entity>` name must match an existing entity id — fix the name or author the entity first (Step F4) |
-| `flow.unknown_external` | error | B | `ext:` not defined | Add `flows/_externals/<Name>.md` or correct the `ext:<Name>` token (Step F3) |
+| `flow.unknown_external` | error | B | `ext:` not defined | Add `externals/<Name>.md` at the model root or correct the `ext:<Name>` token (Step F3) |
 | `flow.unknown_process` | error | B | `proc:` target not found | The referenced process has no file in this diagram — fix the name or author the process (Step F2) |
 | `flow.illegal_connection` | error | B | Neither endpoint is a process | Every flow connects through a process — re-route the data via the process that moves it (see "How the pieces connect") |
 | `flow.unknown_attribute` | warn | A | `db:` flow column not on entity | Each name in a `db:` flow's `data:` list must be in the entity's `pk ∪ columns` — fix the column name or add it to the entity (Step F5) |

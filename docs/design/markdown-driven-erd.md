@@ -14,37 +14,39 @@ A tool for authoring and exploring IDEF1X-style relational data models where:
 
 ### Directory structure
 
-Entities are organized into folders by group. A `_groups/` folder at the root holds group definitions as markdown files. Paths prefixed with `_` are reserved for meta-content and skipped during entity scanning.
+Entities live under a `data/` folder at the model root. Group definitions live in an optional `groups/` folder at the root. Five top-level folders are recognized: `data/`, `flows/`, `groups/`, `externals/`, `stores/`. Everything else at the root is free-form and ignored by the parser.
 
 ```
 models/
-  _groups/
+  ignatius.yml
+  data/
+    identity/
+      Party.md
+      Person.md
+      Business.md
+      Identity.md
+      License.md
+      Passport.md
+      SSN.md
+      ITIN.md
+    transactional/
+      SalesOrder.md
+      SO_Line.md
+      ...
+    catalog/
+      Product.md
+      Subscription.md
+    reference/
+      PartyType.md
+      ...
+  groups/
     identity.md
     transactional.md
     catalog.md
     reference.md
-  identity/
-    Party.md
-    Person.md
-    Business.md
-    Identity.md
-    License.md
-    Passport.md
-    SSN.md
-    ITIN.md
-  transactional/
-    SalesOrder.md
-    SO_Line.md
-    ...
-  catalog/
-    Product.md
-    Subscription.md
-  reference/
-    PartyType.md
-    ...
 ```
 
-The parser scans `**/*.md` recursively, skipping any path segment that starts with `_`.
+The parser scans `data/**/*.md` only. Files outside `data/` are never parsed as entities.
 
 ### Entity file structure
 
@@ -95,7 +97,7 @@ No attributes table here — that's generated from the frontmatter.
 
 ### Group file structure
 
-Each group is a markdown file in `models/_groups/` with YAML frontmatter for label and color, and a prose body describing what the group encapsulates.
+Each group is a markdown file in `groups/` at the model root with YAML frontmatter for label and color, and a prose body describing what the group encapsulates.
 
 ```markdown
 ---
@@ -153,7 +155,7 @@ An entity can be both Independent and host subtypes (e.g., Party). An entity can
 
 ### Groups are color-only, not spatial
 
-Groups assign border color and pastel background fill to nodes. They do not influence layout proximity. Defined as markdown files in `_groups/`, referenced by `group:` in each entity's frontmatter. Entities without a group fall back to neutral gray (#6e7681).
+Groups assign border color and pastel background fill to nodes. They do not influence layout proximity. Defined as markdown files in `groups/` at the model root, referenced by `group:` in each entity's frontmatter. Entities without a group fall back to neutral gray (#6e7681).
 
 ### Subtype clusters use diamond joiners
 
@@ -210,7 +212,7 @@ Markers are drawn on top of the edge line at a 10px offset from the node edge. C
 
 ### Node colors
 
-- Border color: group color from `_groups/*.md`
+- Border color: group color from `groups/*.md`
 - Background fill: pastel (30% mix of group color with dark background #0e1116)
 - Default (no group): neutral gray (#6e7681)
 
@@ -240,7 +242,7 @@ Bottom-right corner. Shows a 2×2 grid of group color dots. Click to open the gr
 
 ### Groups modal
 
-Lists each group with its color swatch, label, and rendered markdown description from `_groups/*.md`.
+Lists each group with its color swatch, label, and rendered markdown description from `groups/*.md`.
 
 ### Entity modal
 
@@ -258,10 +260,10 @@ Click backdrop or × to close. FK links and relationship links navigate between 
 
 ```
 models/
-  _groups/*.md             Group definitions (frontmatter + prose)
-  <group>/*.md             Entity files organized by group
+  groups/*.md              Group definitions (frontmatter + prose)
+  data/<group>/*.md        Entity files organized by group
 
-src/parse.ts               Reads _groups/ and entity files recursively,
+src/parse.ts               Reads groups/ and entity files under data/,
                            parses frontmatter, derives cardinality,
                            builds typed Model (nodes, edges, subtypeClusters, groups)
 src/server.ts              Bun.serve() — serves HTML + /api/model JSON endpoint
@@ -275,9 +277,9 @@ src/styles.css             Layout, modal, FAB, and doc styles
 ### Pipeline
 
 ```
-models/_groups/*.md  ──►  group configs (label, color, desc HTML)
+models/groups/*.md   ──►  group configs (label, color, desc HTML)
                               │
-models/**/*.md       ──►  parse frontmatter + render body
+models/data/**/*.md  ──►  parse frontmatter + render body
                               │
                               ▼
                     Model { nodes, edges, subtypeClusters, groups }
@@ -319,3 +321,13 @@ models/**/*.md       ──►  parse frontmatter + render body
 - Custom edge routing — using ELK's orthogonal routing
 - Multi-file YAML or includes
 - Database introspection
+
+
+## Change log
+
+
+### 2026-06-17 — Folder model migration (#16): entities under data/, groups/ at root
+
+**What changed:** Directory structure updated to the five-folder model (#16). Entities now live under `data/<group>/*.md`; group definitions under `groups/` at the model root (optional). The parser scans `data/**/*.md` only. All `_*`-prefix references updated.
+
+**Superseded:** Entities were discovered by globbing `**/*.md` from the model root skipping `_`-prefixed segments. Group definitions lived in `_groups/` at the root. The `_*` convention is gone; free-form files at the root are safe without any prefix.

@@ -136,6 +136,7 @@ Paths are relative to `docs/design/`, `docs/spec/`, `docs/guides/`, and `skills/
 
 | Feature | Design | Spec | Guide | Skill |
 |---------|--------|------|-------|-------|
+| Folder model (`data/` entities + `flows/` DFDs; `groups/` `externals/` `stores/` at root; no `_*`; #16) | folder-model | folder-model | folder-format, flows | entity-flow + model-flow + dfd-authoring |
 | Markdown entity / folder format | markdown-driven-erd | — | folder-format | entity-flow E1/E2/E7/E10, templates |
 | Classification + cardinality derivation | markdown-driven-erd | derive-classification | derivation | conventions (derivation tables) |
 | Two-path convention (key-inherited vs orm) | noorm-modeling-skill | noorm-modeling-skill | derivation, modeling-skill | SKILL core rules, entity-flow E3 + E5 nudge, model-flow M3 |

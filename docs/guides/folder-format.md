@@ -1,22 +1,29 @@
 # The folder format
 
 
-Entities are grouped into folders. A folder is a model root when it contains an `ignatius.yml` file. A `_groups/` folder at the root defines the groups. Any path segment that starts with an underscore is treated as meta-content and skipped during entity scanning.
+A folder is a model root when it contains an `ignatius.yml` file. Five top-level folders are recognized — `data/`, `flows/`, `groups/`, `externals/`, and `stores/`. Everything else at the root is free-form: notes, scratch files, or any other markdown you keep nearby are never scanned.
 
 ```
 models/
   ignatius.yml
-  _groups/
+  data/
+    identity/
+      Party.md
+      Person.md
+      Business.md
+    transactional/
+      SalesOrder.md
+      SO_Line.md
+  groups/
     identity.md
     transactional.md
-  identity/
-    Party.md
-    Person.md
-    Business.md
-  transactional/
-    SalesOrder.md
-    SO_Line.md
+  externals/          # optional — shared external definitions for DFDs
+  stores/             # optional — shared non-db store definitions for DFDs
+  flows/              # optional — data flow diagrams
+  notes/              # free-form; ignored by the parser
 ```
+
+Entities live under `data/<group>/<Entity>.md`. The group name comes from the entity's `group:` frontmatter field — the subdirectory path under `data/` is just a convenience for organization; the parser uses the frontmatter value, not the folder name. `groups/` is optional: a model with no `groups/` directory parses with zero groups and no error. `externals/` and `stores/` are the global registries for DFD authoring (see [Process flows](flows.md)).
 
 
 ## ignatius.yml
@@ -132,7 +139,7 @@ The rows render as a collapsible table in the entity dialog and the dictionary. 
 ## A group file
 
 
-Each group is a markdown file in `_groups/` with a label and a color in frontmatter and a prose description in the body. Groups set the border color and a pastel fill for their entities. They do not affect layout.
+Each group is a markdown file in `groups/` with a label and a color in frontmatter and a prose description in the body. Groups set the border color and a pastel fill for their entities. They do not affect layout.
 
 ```markdown
 ---
@@ -143,7 +150,7 @@ color: "#2ea043"
 Party identity, classifications, and ID documents.
 ```
 
-An entity whose `group` references a name with no matching `_groups/<name>.md` file renders without a color band and is flagged with an `entity.unknown_group` warning.
+An entity whose `group` references a name with no matching `groups/<name>.md` file renders without a color band and is flagged with an `entity.unknown_group` warning.
 
 
 ## The flows folder

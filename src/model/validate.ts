@@ -131,7 +131,7 @@ export const RULES: Record<RuleId, RuleEntry> = {
   },
   'entity.unknown_group': {
     title: 'Unknown group',
-    explanation: 'The entity references a group that has no corresponding `_groups/<name>.md` file. The entity will render without a group color band. Create the group file or correct the group name.',
+    explanation: 'The entity references a group that has no corresponding `groups/<name>.md` file. The entity will render without a group color band. Create the group file or correct the group name.',
     class: 'A',
   },
   'entity.ak_unknown_column': {
@@ -198,7 +198,7 @@ export const RULES: Record<RuleId, RuleEntry> = {
   },
   'flow.unknown_external': {
     title: 'Flow references unknown external',
-    explanation: 'A `ext:` endpoint names an external that has no `_externals/<name>.md` file in this DFD. The flow edges touching this external are stripped. Add the external file or correct the name.',
+    explanation: 'A `ext:` endpoint names an external that has no `externals/<name>.md` file at the model root. The flow edges touching this external are stripped. Add the external file or correct the name.',
     class: 'B',
   },
   'flow.unknown_process': {
@@ -347,7 +347,7 @@ function checkUnknownGroup(node: ModelNode, groups: Record<string, unknown>): En
     ruleId: 'entity.unknown_group',
     entityId: node.id,
     severity: 'warning',
-    message: `Entity '${node.id}' references group '${node.group}' which has no corresponding _groups file.`,
+    message: `Entity '${node.id}' references group '${node.group}' which has no corresponding groups file.`,
   }];
 }
 

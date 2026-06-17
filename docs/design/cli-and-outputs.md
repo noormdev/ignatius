@@ -78,7 +78,7 @@ Letting ELK run client-side on file open costs ~3MB of bundle but eliminates the
 
 ### User-configurable theme
 
-Colors and spacings should not be hardcoded. A `_theme.yaml` at the models root defines visual properties — the same pattern as `_groups/`. The parser reads it and passes it through to the renderer.
+Colors and spacings should not be hardcoded. A `_theme.yaml` at the models root defines visual properties — the same pattern as `groups/`. The parser reads it and passes it through to the renderer.
 
 ```yaml
 dark:

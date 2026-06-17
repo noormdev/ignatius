@@ -14,7 +14,7 @@ import { resolve } from 'path';
 
 const PORT = 3299;
 const MODELS_DIR = resolve(import.meta.dir, '../../models/key-inherited');
-const TEST_FILE = resolve(MODELS_DIR, 'identity/Party.md');
+const TEST_FILE = resolve(MODELS_DIR, 'data/identity/Party.md');
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));

@@ -7,7 +7,7 @@ Authoring an ignatius entity file today means:
 
 1. Hand-write the YAML frontmatter without IDE help (no schema, no completion).
 2. Remember the IDEF1X classification rules (independent vs dependent vs subtype — including the FK-in-PK = dependent rule that even seasoned users get wrong).
-3. Know that group color, sort_key, and theme must live in `_groups/*.md` and `ignatius.yml`, not on the entity itself.
+3. Know that group color, sort_key, and theme must live in `groups/*.md` and `ignatius.yml`, not on the entity itself.
 4. Run `ignatius dict` afterwards to discover mistakes — by which point the lint surface is reactive, not preventive.
 
 The result: every new contributor's first entity is a half-broken file that produces lint warnings on first run. Reviewers spend cycles on mechanical issues. The skill is the antidote — a guided authoring loop that produces a properly-formed file the first time and verifies it by invoking the CLI.
@@ -18,7 +18,7 @@ The result: every new contributor's first entity is a half-broken file that prod
 - **Goals**
     - One skill (`/noorm-modeling`) with two modes selected by a positional arg:
         - **`entity`** — author a single entity .md file given an existing `models/` root.
-        - **`model`** — bootstrap a complete `models/` skeleton (`_groups/`, a single `ignatius.yml` carrying optional theme + branding, one or two reference entities).
+        - **`model`** — bootstrap a complete `models/` skeleton (`groups/`, a single `ignatius.yml` carrying optional theme + branding, one or two reference entities).
     - The skill knows the IDEF1X rules — it asks the right questions in the right order so the resulting file satisfies the linter on first run.
     - After writing, the skill runs `ignatius validate <models>` and reports any lint findings. If findings appear, the skill prompts the user to fix them iteratively.
     - The skill is invoked via the standard Claude Code skill mechanism: `/noorm-modeling entity` or `/noorm-modeling model`. Bare `/noorm-modeling` asks the user to pick.
@@ -78,7 +78,7 @@ flowchart TD
     Q3 --> Q4[Ask: theme<br/>default Noorm / custom?]
     Q4 --> Q5[Ask: group names + colors<br/>at least 1]
     Q5 --> Q6[Optional: bootstrap one<br/>reference entity to demo]
-    Q6 --> Write[Write _groups/*.md,<br/>ignatius.yml with theme + branding,<br/>optionally one entity]
+    Q6 --> Write[Write groups/*.md,<br/>ignatius.yml with theme + branding,<br/>optionally one entity]
     Write --> Lint[Run ignatius dict on new dir]
     Lint --> Success
 ```
@@ -106,7 +106,7 @@ The single `SKILL.md` must encode:
     - `key-inherited` + PK that omits parent PK columns → prompt to include them or switch convention.
     - `orm-oriented` + FK column in the PK → prompt to drop it or switch convention.
 - The IDEF1X *intuition* behind the conventions (so the user understands what derivation will produce), but **never as a question the user has to answer**. Classification follows from key shape.
-- The `_groups/*.md` schema (label, color, optional sort_key, optional desc).
+- The `groups/*.md` schema (label, color, optional sort_key, optional desc).
 - The `ignatius.yml` schema (`name`, `version`, `description`, `updated`, `theme:`, `branding:` blocks — single config file per `docs/spec/ignatius-project-config.md`).
 - Pointers to the linter rule catalog so the skill's questions map 1:1 with what the linter would flag.
 
@@ -139,3 +139,13 @@ The verification step depends on the linter's structured stderr — `src/validat
 | Skill that writes through a templating library (Mustache, EJS) | Overkill. Skills are markdown + LLM judgment; templates would add a dep without buying much. |
 | Skill that bypasses the linter and trusts its own checks | Would diverge over time. Skill DEPENDS on the linter; doesn't reimplement it. |
 | Skill that doesn't verify (just writes the file) | Fails the goal — the whole point is "lint-clean on first run". Verify is non-optional. |
+
+
+## Change log
+
+
+### 2026-06-17 — Folder model migration (#16): groups/ path and entity location
+
+**What changed:** All references to the group definition directory updated from `_groups/` to `groups/`. The model bootstrap and entity authoring steps now write group definitions under `groups/` at the model root; entity files go under `data/<group>/`.
+
+**Superseded:** Group definitions were described as living in `_groups/*.md`. Entity files were globbed from the model root without a `data/` container.

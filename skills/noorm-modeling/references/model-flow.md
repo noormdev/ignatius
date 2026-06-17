@@ -76,8 +76,8 @@ If yes, run the entity flow (E1–E10) within the new model context.
 
 Write:
 1. `ignatius.yml` using the ignatius.yml template below
-2. `_groups/<slug>.md` for each group
-3. `<slug>/` directory for each group
+2. `groups/<slug>.md` for each group
+3. `data/<slug>/` directory for each group (entities live under `data/`)
 4. Entity file if requested in M7
 
 Then run the verification loop in `references/verification.md`.

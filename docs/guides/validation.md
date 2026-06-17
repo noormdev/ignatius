@@ -50,7 +50,7 @@ All Class A: the entity renders, flagged with a warning.
 | `entity.missing_pk` | `pk` is absent or empty. Cardinality falls back to dependent. |
 | `entity.missing_columns` | `columns` is absent or empty. The attribute table renders empty. |
 | `entity.invalid_field_type` | A field has the wrong shape (e.g. `pk` is a string, not an array). Coerced to a safe default. |
-| `entity.unknown_group` | `group` references a name with no `_groups/<name>.md`. Renders without a color band. |
+| `entity.unknown_group` | `group` references a name with no `groups/<name>.md`. Renders without a color band. |
 | `entity.example_unknown_column` | An `examples:` row has a key that is not in `pk` or `columns`. **Live server only** — `ignatius validate` never prints this rule; the warning appears in the running app. |
 
 

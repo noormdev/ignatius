@@ -34,8 +34,8 @@ async function makeTmpDir(): Promise<string> {
     // Ensure tmp/ exists (gitignored)
     await Bun.write(join(base, '.gitkeep'), '');
     const dir = await mkdtemp(join(base, 'parse-globals-'));
-    // _groups/ must exist for the groups glob scan to succeed
-    await Bun.write(join(dir, '_groups', '.gitkeep'), '');
+    // data/ holds entity files; groups/ is optional (absence is fine)
+    await Bun.write(join(dir, 'data', '.gitkeep'), '');
     return dir;
 }
 
@@ -51,7 +51,7 @@ async function cleanup(dir: string): Promise<void> {
     // Baseline: valid directory returns the correct shape with zero globalErrors
     const dir = await makeTmpDir();
     try {
-        await Bun.write(join(dir, 'GoodEntity.md'), VALID_ENTITY);
+        await Bun.write(join(dir, 'data', 'GoodEntity.md'), VALID_ENTITY);
         const result = await parseModels(dir);
 
         // Must have both keys
@@ -82,8 +82,8 @@ Body.
 `;
     const dir = await makeTmpDir();
     try {
-        await Bun.write(join(dir, 'GoodEntity.md'), VALID_ENTITY);
-        await Bun.write(join(dir, 'BadYaml.md'), invalidYaml);
+        await Bun.write(join(dir, 'data', 'GoodEntity.md'), VALID_ENTITY);
+        await Bun.write(join(dir, 'data', 'BadYaml.md'), invalidYaml);
 
         const { model, globalErrors } = await parseModels(dir);
 
@@ -121,8 +121,8 @@ Body.
 `;
     const dir = await makeTmpDir();
     try {
-        await Bun.write(join(dir, 'GoodEntity.md'), VALID_ENTITY);
-        await Bun.write(join(dir, 'NoId.md'), missingId);
+        await Bun.write(join(dir, 'data', 'GoodEntity.md'), VALID_ENTITY);
+        await Bun.write(join(dir, 'data', 'NoId.md'), missingId);
 
         const { model, globalErrors } = await parseModels(dir);
 
@@ -152,8 +152,8 @@ Body.
 `;
     const dir = await makeTmpDir();
     try {
-        await Bun.write(join(dir, 'GoodEntity.md'), VALID_ENTITY);
-        await Bun.write(join(dir, 'EmptyFm.md'), emptyFrontmatter);
+        await Bun.write(join(dir, 'data', 'GoodEntity.md'), VALID_ENTITY);
+        await Bun.write(join(dir, 'data', 'EmptyFm.md'), emptyFrontmatter);
 
         const { model, globalErrors } = await parseModels(dir);
 
@@ -181,7 +181,7 @@ Body.
 `;
     const dir = await makeTmpDir();
     try {
-        await Bun.write(join(dir, 'Minimal.md'), noPkNoColumns);
+        await Bun.write(join(dir, 'data', 'Minimal.md'), noPkNoColumns);
         const { model, globalErrors } = await parseModels(dir);
 
         console.assert(globalErrors.length === 0, `FAIL: pk/columns defaults — unexpected globalErrors: ${JSON.stringify(globalErrors)}`);
@@ -215,7 +215,7 @@ columns:
 `;
     const dir = await makeTmpDir();
     try {
-        await Bun.write(join(dir, 'MyEntity.md'), pascalCaseClassification);
+        await Bun.write(join(dir, 'data', 'MyEntity.md'), pascalCaseClassification);
         const { model } = await parseModels(dir);
 
         // An entity with a single-column pk and no identifying parents derives to
@@ -237,9 +237,9 @@ columns:
 {
     const dir = await makeTmpDir();
     try {
-        await Bun.write(join(dir, 'GoodEntity.md'), VALID_ENTITY);
-        await Bun.write(join(dir, 'EmptyFm.md'), `---\n\n---\nBody.\n`);
-        await Bun.write(join(dir, 'NoId.md'), `---\nclassification: independent\npk:\n  - id\n---\n`);
+        await Bun.write(join(dir, 'data', 'GoodEntity.md'), VALID_ENTITY);
+        await Bun.write(join(dir, 'data', 'EmptyFm.md'), `---\n\n---\nBody.\n`);
+        await Bun.write(join(dir, 'data', 'NoId.md'), `---\nclassification: independent\npk:\n  - id\n---\n`);
 
         const { model, globalErrors } = await parseModels(dir);
 

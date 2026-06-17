@@ -5,7 +5,7 @@
 
 The `noorm-modeling` skill authors ERD entities (`entity` mode) and bootstraps models (`model` mode). It has **no mode for authoring SSADM data flow diagrams** — the flows feature ships parsing, validation, and an in-app viewer, but a user writes flow markdown by hand against `docs/spec/process-flows.md`. Two distinct gaps:
 
-1. **No structured flow-authoring path.** A user who already knows their processes still hand-writes `process:`/`inputs:`/`outputs:`/`examples:` frontmatter, the `_externals/` and `_stores/` folder layout, and the `db:`/`kind:` store taxonomy — with no guide and no first-run verification.
+1. **No structured flow-authoring path.** A user who already knows their processes still hand-writes `process:`/`inputs:`/`outputs:`/`examples:` frontmatter, the `externals/` and `stores/` folder layout at the model root, and the `db:`/`kind:` store taxonomy — with no guide and no first-run verification.
 
 2. **No discovery path.** A user who knows *what their business does* but has not decomposed it into processes, entities, and stores has nothing. The hardest modeling work — turning a business description into precise, justified, evidence-backed entities and flows — is exactly the work the skill does not help with. `/pressure-test` challenges an existing design; nothing helps *generate* one.
 
@@ -167,3 +167,13 @@ Evidence: existing skill scaffold (`skills/noorm-modeling/SKILL.md` + `reference
 ## Open questions
 
 - None blocking. The format reconciliation above is the one piece of adjacent debt, deliberately deferred.
+
+
+## Change log
+
+
+### 2026-06-17 — Folder model migration (#16): externals/ and stores/ paths updated
+
+**What changed:** The problem statement updated to reference the new `externals/` and `stores/` folder names at the model root (replacing `_externals/` and `_stores/`).
+
+**Superseded:** `_externals/` and `_stores/` as the folder layout users must hand-write.

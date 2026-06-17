@@ -2,7 +2,7 @@
  * Synthetic model generator for perf testing.
  *
  * Writes a valid ignatius model into tmp/synthetic-model-<n>/ with:
- *   - ignatius.yml + a few _groups/*.md
+ *   - ignatius.yml + a few groups/*.md
  *   - ~n entity files spread across groups (realistic IDEF1X structure)
  *   - FK relationships wiring entities into a connected graph (~1.4–1.8× edges per node)
  *   - ≥2 subtype clusters (basetype + members) to exercise compound-parent layout
@@ -405,19 +405,20 @@ function buildEntityGraph(n: number): EntitySpec[] {
 // ── Writer ────────────────────────────────────────────────────────────────────
 
 function generate(targetDir: string, entityCount: number): void {
-  mkdirSync(join(targetDir, '_groups'), { recursive: true });
+  mkdirSync(join(targetDir, 'groups'), { recursive: true });
+  mkdirSync(join(targetDir, 'data'), { recursive: true });
 
   writeIgnatiusYml(targetDir);
 
   for (const g of GROUPS) {
-    writeGroupFile(join(targetDir, '_groups'), g);
-    mkdirSync(join(targetDir, g.id), { recursive: true });
+    writeGroupFile(join(targetDir, 'groups'), g);
+    mkdirSync(join(targetDir, 'data', g.id), { recursive: true });
   }
 
   const specs = buildEntityGraph(entityCount);
 
   for (const spec of specs) {
-    writeEntityFile(join(targetDir, spec.group), spec);
+    writeEntityFile(join(targetDir, 'data', spec.group), spec);
   }
 
   const edgeCount = specs.reduce((sum, s) => sum + s.relationships.length, 0);

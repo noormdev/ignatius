@@ -14,10 +14,13 @@ Flows live in a `flows/` folder at the model root. Each diagram is a folder; eac
 ```
 models/
   ignatius.yml
-  identity/ ...               # entity files, as usual
+  data/
+    identity/ ...             # entity files live under data/
+  externals/
+    Customer.md               # shared external, usable by every diagram
+  stores/
+    gateway-log.md            # optional description of a non-entity store
   flows/
-    _externals/
-      Customer.md             # shared external, usable by every diagram
     order-to-cash/
       Create-Sales-Order.md   # process 1
       Create-Sales-Order/     # same-named folder = sub-DFD of process 1
@@ -25,8 +28,6 @@ models/
         Record-Order.md
       Issue-Invoice.md        # process 2
       Collect-Payment.md      # process 3
-      _stores/
-        gateway-log.md        # optional description of a non-entity store
     refund/
       Process-Return.md
 ```
@@ -102,13 +103,13 @@ This prefix set is closed. A store that fits none of the named kinds is authored
 ### Externals
 
 
-An external is described once in an `_externals/<Name>.md` file with an `external:` label in frontmatter and a body covering its role, what it does, and what it expects back. Declare it at `flows/_externals/` and every diagram at any nesting depth can reference `ext:<Name>`; a diagram's own `_externals/` folder overrides the shared definition for that diagram only.
+An external is described once in `externals/<Name>.md` at the model root with an `external:` label in frontmatter and a body covering its role, what it does, and what it expects back. Every diagram at any nesting depth can reference `ext:<Name>` — there is no per-DFD override.
 
 
 ### Stores
 
 
-A `db:` store needs no extra file — it *is* the entity, documented in the entity's own `.md`. A non-`db` store exists simply by being referenced; an optional `_stores/<name>.md` file adds a `kind:`, an optional `title:` display override, and a body explaining why the store exists:
+A `db:` store needs no extra file — it *is* the entity, documented in the entity's own `.md`. A non-`db` store exists simply by being referenced; an optional `stores/<name>.md` file at the model root adds a `kind:`, an optional `title:` display override, and a body explaining why the store exists:
 
 ```markdown
 ---

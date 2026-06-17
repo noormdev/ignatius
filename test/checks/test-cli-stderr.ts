@@ -106,13 +106,13 @@ function assert(condition: boolean, label: string, detail?: string): void {
 {
   const fixtureDir = join(TMP, 'test-fixtures/cli-stderr-globals');
   rmSync(fixtureDir, { recursive: true, force: true });
-  // parseModels scans _groups/ dir — must exist or it throws before reaching the entity files.
-  mkdirSync(join(fixtureDir, '_groups'), { recursive: true });
+  // data/ holds entity files; groups/ is optional under the new folder model.
+  mkdirSync(join(fixtureDir, 'data'), { recursive: true });
   // ignatius.yml marks this as a discoverable model root post-master-reconcile.
   writeFileSync(join(fixtureDir, 'ignatius.yml'), 'name: cli-stderr-globals-fixture\n');
 
   // Valid entity so parseModels doesn't return an empty model
-  writeFileSync(join(fixtureDir, 'ValidEntity.md'), [
+  writeFileSync(join(fixtureDir, 'data', 'ValidEntity.md'), [
     '---',
     'entity: ValidEntity',
     'pk: [id]',
@@ -124,7 +124,7 @@ function assert(condition: boolean, label: string, detail?: string): void {
   ].join('\n'));
 
   // Malformed YAML — will produce parse.invalid_yaml GlobalError
-  writeFileSync(join(fixtureDir, 'BadEntity.md'), [
+  writeFileSync(join(fixtureDir, 'data', 'BadEntity.md'), [
     '---',
     'entity: BadEntity',
     'pk: [id',   // unclosed bracket — invalid YAML

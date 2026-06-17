@@ -24,7 +24,7 @@ The skill takes one positional argument selecting the mode:
 | Invocation | Mode | Output |
 |------------|------|--------|
 | `/noorm-modeling entity` | New entity | Single entity `.md` file written under an existing `models/` tree |
-| `/noorm-modeling model` | New model | Skeleton `models/` tree (`_groups/`, `ignatius.yml` for theme/branding/meta, optional one reference entity) |
+| `/noorm-modeling model` | New model | Skeleton `models/` tree (`groups/`, `data/`, `ignatius.yml` for theme/branding/meta, optional one reference entity) |
 | `/noorm-modeling` (no arg) | Ask | Skill prompts the user to pick `entity` or `model` before continuing |
 
 ## Authoring convention axis
@@ -44,7 +44,7 @@ The convention is picked once per model: in `model` mode the user selects at boo
 ## Success criteria
 
 - `/noorm-modeling entity` produces a `.md` entity file with zero lint findings on first run for the happy-path inputs the skill was designed to handle (verified by parsing the structured stderr from `ignatius validate`).
-- `/noorm-modeling model` produces a minimal skeleton (`_groups/*.md`, single `ignatius.yml`, optional one entity) with zero lint findings on first run.
+- `/noorm-modeling model` produces a minimal skeleton (`groups/*.md`, `data/`, single `ignatius.yml`, optional one entity) with zero lint findings on first run.
 - Both modes ask about the models dir when not determinable from context.
 - The skill never asks for `classification` or per-edge `identifying` — both are derived by the parser from key/relationship shape (`docs/spec/derive-classification.md`). The Q&A asks for keys, relationships (with `on` mapping), and an optional `reference: true` flag for classifier/lookup tables.
 - When the user picks the `key-inherited` convention and then declares a PK that does not include the parent's PK columns, the skill prompts to either include the parent PK columns (key-inherited) or switch the convention to `orm-oriented` BEFORE writing the file.
@@ -67,7 +67,7 @@ Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring
 | # | Checkpoint | Deliverable | Verifies |
 |---|------------|-------------|----------|
 | CP-1 | Skill scaffold + entity flow | `skills/noorm-modeling/SKILL.md` containing skill frontmatter, mode-arg parsing + dispatch, and the entity Q&A flow. Q&A asks: entity id, group, convention (`key-inherited` \| `orm-oriented`), PK columns (with convention-specific guidance), relationships (with `on` mapping), optional alternate keys, columns, optional `reference: true`, optional body description. No `classification` or per-edge `identifying` prompt. Template emits the per-entity markdown frontmatter format documented in `docs/design/markdown-driven-erd.md`. | Invoking `/noorm-modeling entity` walks the entity Q&A, writes a well-formed entity `.md` file, and `ignatius dict <dir>` exits 0 against the output; convention contradiction (key-inherited convention + PK that omits parent PK cols, OR orm-oriented convention + FK-in-PK) is caught during the flow, not post-write. |
-| CP-2 | Model bootstrap flow | Same `SKILL.md` extended with the model-bootstrap Q&A (encoded `_groups/*.md` schema and a single `ignatius.yml` covering `name`, optional `theme`, optional `branding`, optional `_meta` fields + file write step). User picks the model's default convention at bootstrap; the choice is recorded in `ignatius.yml` as a comment for the skill to inherit on subsequent `entity` runs against this root. | Invoking `/noorm-modeling model` walks the bootstrap Q&A, writes the skeleton, and `ignatius dict <dir>` exits 0 against it. |
+| CP-2 | Model bootstrap flow | Same `SKILL.md` extended with the model-bootstrap Q&A (encoded `groups/*.md` schema and a single `ignatius.yml` covering `name`, optional `theme`, optional `branding`, optional `_meta` fields + file write step). User picks the model's default convention at bootstrap; the choice is recorded in `ignatius.yml` as a comment for the skill to inherit on subsequent `entity` runs against this root. | Invoking `/noorm-modeling model` walks the bootstrap Q&A, writes the skeleton, and `ignatius validate <dir>` exits 0 against it. |
 | CP-3 | Verification loop | `SKILL.md` post-write block runs `ignatius dict <dir>`, parses the structured stderr emitted by `src/validate.ts:formatFindingsForStderr` (one line per finding, `<sev>  <ruleId>  <location>  <message>`), reports findings with fix hints (keyed off `RULES[ruleId]` titles), and re-loops (max 5 attempts). | After writing a file with a deliberate lint violation (e.g. missing pk → `entity.missing_pk`), the skill surfaces the finding, offers to revise, and the corrected file passes on the next run; the parsing handles both `error` and `warn` severities. |
 | CP-4 | README update | `README.md` amended with a "Modeling skill" section announcing `/noorm-modeling`, both modes, the convention axis, prerequisites (Claude Code, `ignatius` binary in PATH), and one example invocation per mode | Section is present and accurate; no broken links. |
 
@@ -81,7 +81,7 @@ Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring
 | Convention contradiction detection requires LLM judgment on ambiguous user answers | Medium | Skill encodes the two specific rules (key-inherited convention requires parent PK in child PK; orm-oriented convention forbids FK in PK) as deterministic checks with an explicit re-ask; for ambiguous cases it explains the rule and re-prompts rather than guessing. |
 | Mode arg ambiguous or absent | Low | Skill detects missing / unknown arg and prompts the user with the two valid choices before proceeding. |
 | `model`-mode skeleton accepted by `parseModels()` but silently wrong | Low | CP-2 Verifies uses `ignatius dict` exit code as the observable signal; any silent parse failures surface as a non-zero exit. |
-| Target entity / `_groups` file already exists at the chosen path | Medium | Skill checks for existence before writing; prompts the user to overwrite, choose a different id, or abort. |
+| Target entity / `groups/` file already exists at the chosen path | Medium | Skill checks for existence before writing; prompts the user to overwrite, choose a different id, or abort. |
 | Five-attempt verification loop insufficient for deeply nested lint violations | Low | Five attempts covers the common cases; if exceeded, the skill surfaces all remaining findings and exits, leaving the user to fix manually. |
 
 
@@ -149,6 +149,13 @@ Implement a single `SKILL.md` file that encodes both Q&A flows (entity authoring
 **Why:** A new validate-only subcommand was added to the CLI for exactly this purpose — a fast quality gate that parses + validates without generating HTML or writing a file. Using it removes the throwaway `/tmp` HTML artifact the loop previously produced purely to lint, and removes the unused `-o` requirement.
 
 **Superseded:** the gate command `ignatius dict <dir> -o /tmp/ignatius-skill-check.html` is replaced by `ignatius validate <dir>`.
+
+### 2026-06-17 — Folder model migration (#16): groups/ path and entity location
+
+**What changed:** All path references updated to the five-folder model (#16). The `model` mode skeleton now writes `groups/` (not `_groups/`) and entities under `data/<group>/`. Success criteria and checkpoint rows updated accordingly.
+
+**Superseded:** `_groups/` as the group definition directory; entity files placed at the model root grouped by folder name without a `data/` container.
+
 
 ### 2026-05-31 — Add always-on E7b examples step to entity flow
 

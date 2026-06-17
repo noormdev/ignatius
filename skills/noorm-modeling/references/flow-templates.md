@@ -6,10 +6,10 @@ Frontmatter keys and endpoint tokens match the shipped flow format (`docs/spec/p
 Endpoint tokens used in `inputs:`/`outputs:`/`examples:`:
 
 - `db:<Entity>` — an existing ERD entity acting as a data store. Its `data:` is the entity's columns.
-- `ext:<Name>` — an external entity defined at `flows/_externals/<Name>.md`.
+- `ext:<Name>` — an external entity defined at `externals/<Name>.md` (model root).
 - `<kind>:<slug>` — a non-`db` store (`cache`/`queue`/`file`/`doc`/`manual`/`other`), defined at
-  `flows/<diagram>/_stores/<slug>.md`. The token's prefix is the store's `kind:`. This prefix
-  set is closed — a kind outside it is authored as `kind: other` with a `title:`.
+  `stores/<slug>.md` (model root). The token's prefix is the store's `kind:`. This prefix set is
+  closed — a kind outside it is authored as `kind: other` with a `title:`.
 
 ### Process `.md` template
 
@@ -97,7 +97,7 @@ must be positive), and returns a receipt to the [[Customer]].
 
 ### External entity `.md` template
 
-Lives at `flows/_externals/<Name>.md`. Defined once; referenced by `ext:<Name>` from any
+Lives at `externals/<Name>.md` (model root). Defined once; referenced by `ext:<Name>` from any
 diagram at any depth. The body is required and should be rich — paint the actor's full
 relationship with the business.
 
@@ -147,7 +147,7 @@ data store that *records* who they are.
 
 ### Non-`db` data store `.md` template
 
-Lives at `flows/<diagram>/_stores/<slug>.md`. The `kind:` sets the store's color and marker.
+Lives at `stores/<slug>.md` (model root). The `kind:` sets the store's color and marker.
 Body is required: state why the store exists and show sample values.
 
 ```markdown

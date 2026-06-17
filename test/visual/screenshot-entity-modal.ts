@@ -26,18 +26,19 @@ const TMP = join(ROOT, 'tmp');
 mkdirSync(TMP, { recursive: true });
 
 // Build fixture inline
-mkdirSync(join(FIXTURE, '_groups'), { recursive: true });
+mkdirSync(join(FIXTURE, 'data'), { recursive: true });
+mkdirSync(join(FIXTURE, 'groups'), { recursive: true });
 writeFileSync(join(FIXTURE, 'ignatius.yml'), `name: CP-4 Fixture
 version: "1.0"
 description: Minimal fixture for entity-modal visual test
 `);
-writeFileSync(join(FIXTURE, '_groups', 'core.md'), `---
+writeFileSync(join(FIXTURE, 'groups', 'core.md'), `---
 group: core
 label: Core
 color: "#4f86c6"
 ---
 `);
-writeFileSync(join(FIXTURE, 'Customer.md'), `---
+writeFileSync(join(FIXTURE, 'data', 'Customer.md'), `---
 entity: Customer
 group: core
 pk:

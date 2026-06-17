@@ -63,32 +63,33 @@ flowchart LR
 ## Folder and file format
 
 
-A model gains a `flows/` directory; each child folder is one DFD, assembled from process files plus an `_externals/` folder. Entities in the parent model are the shared `db:` catalog and are not duplicated here.
+A model gains a `flows/` directory; each child folder is one DFD, assembled from process files. External and store definitions are declared once as global registries at the model root. Entities in the parent model are the shared `db:` catalog and are not duplicated here.
 
 ```
 models/shop/
   ignatius.yml
-  Customer.md            ← entity (D-store, shared)
-  Order.md               ← entity (D-store, shared)
+  data/
+    Customer.md            ← entity (D-store, shared)
+    Order.md               ← entity (D-store, shared)
+  externals/
+    Shopper.md             ← external entity (actor), shared across all DFDs
+  stores/
+    Sessions.md            ← optional description of a non-db store (kind: cache)
   flows/
-    checkout/            ← one DFD
-      _externals/
-        Shopper.md       ← external entity (actor)
-      _stores/
-        Sessions.md      ← optional description of a non-db store (kind: cache)
-      Place-Order.md     ← process
-      Place-Order/       ← sub-DFD (decomposition)
+    checkout/              ← one DFD
+      Place-Order.md       ← process
+      Place-Order/         ← sub-DFD (decomposition)
         Reserve-Stock.md
         Charge-Card.md
-        Charge-Card/     ← sub-DFD recurses to the leaves
+        Charge-Card/       ← sub-DFD recurses to the leaves
           Authorize.md
-    refund/              ← another DFD
+    refund/                ← another DFD
       ...
 ```
 
 Decomposition recurses: a process file paired with a same-named folder is its sub-DFD, and that folder's processes may pair with their own folders, all the way to the leaves. Every process box is drillable into its own DFD.
 
-A process file declares its inputs and outputs in frontmatter; the body is business narrative, exactly like an entity body. Endpoints are typed (`ext:` / `<storekind>:` / `proc:`); every flow uses one `data:` key. On a `db:` endpoint the value is always columns — a string is one column, an array is several, all validated against the entity. On a non-`db:` endpoint the value is an opaque label (no schema to check). Non-`db:` stores are inline-by-first-use; an optional `_stores/<name>.md` file attaches a narrative description to one.
+A process file declares its inputs and outputs in frontmatter; the body is business narrative, exactly like an entity body. Endpoints are typed (`ext:` / `<storekind>:` / `proc:`); every flow uses one `data:` key. On a `db:` endpoint the value is always columns — a string is one column, an array is several, all validated against the entity. On a non-`db:` endpoint the value is an opaque label (no schema to check). Non-`db:` stores are inline-by-first-use; an optional `stores/<name>.md` file at the model root attaches a narrative description to one.
 
 ```yaml
 ---
@@ -194,14 +195,24 @@ flowchart TD
 ## Open questions
 
 
-Resolved during spec authoring and the `/pressure-test` pass — see `docs/spec/process-flows.md` → *Resolved decisions*: `db:` flow data is always column-checked (string = one column); non-`db:` stores are inline-by-first-use with an optional `_stores/<name>.md` description; decomposition recurses to the leaves; balancing is data-level at every seam; process numbering is local-authored / tree-composed with `flow.duplicate_number` guarding sibling uniqueness; render is one bundle with separate flow stylesheet + `initFlowGraph`; flow positions use a distinct `localStorage` key; `manual:`/`M` is IN; `db`-node cross-nav uses a static `href` to `graph.html#entity-<id>` (live: route swap); the surface is discriminated by `window.__IGNATIUS_SURFACE__` (`erd` / `flow`).
+Resolved during spec authoring and the `/pressure-test` pass — see `docs/spec/process-flows.md` → *Resolved decisions*: `db:` flow data is always column-checked (string = one column); non-`db:` stores are inline-by-first-use with an optional `stores/<name>.md` description at the model root; decomposition recurses to the leaves; balancing is data-level at every seam; process numbering is local-authored / tree-composed with `flow.duplicate_number` guarding sibling uniqueness; render is one bundle with separate flow stylesheet + `initFlowGraph`; flow positions use a distinct `localStorage` key; `manual:`/`M` is IN; `db`-node cross-nav uses a static `href` to `graph.html#entity-<id>` (live: route swap); the surface is discriminated by `window.__IGNATIUS_SURFACE__` (`erd` / `flow`).
 
 **Flows are a first-class surface (resolved 2026-06-06).** `flow` is path-first like `graph`/`dict`/`validate`; a DFD is chosen by in-app navigation, not a CLI argument — the conceptual parallel is *DFD : flow viewer :: entity : ERD*. You don't pass `--entity` to `graph`, so you don't pass a DFD name to `flow`. One viewer holds all of a model's DFDs and navigates between them (reusing the drill-down swap). `serve` exposes flows live (`/flow`, `/flow-dict`, `/api/flow`) with FAB cross-nav and SSE hot-reload, alongside the ERD and dict. This superseded the original name-first CLI + static-only path, which broke convention and made live iteration impossible.
 
 Genuinely still open:
 
 
-- **Queue/message payload validation.** v1 treats every non-`db:` flow as an opaque label. A `queue:` message often has a known payload shape worth checking — validating it against a declared schema is a separate, larger feature than `_stores/` descriptions. Out of scope for v1; decide if/when it's wanted.
+- **Queue/message payload validation.** v1 treats every non-`db:` flow as an opaque label. A `queue:` message often has a known payload shape worth checking — validating it against a declared schema is a separate, larger feature than `stores/` descriptions. Out of scope for v1; decide if/when it's wanted.
 - **Numbering gaps.** Sibling-local uniqueness is enforced (`flow.duplicate_number`); whether a gap (`1, 2, 4`) should also warn is undecided. Left silent for now.
-- **Usage index (deferred).** A derived back-reference — for any store or entity, every flow/process that reads or writes it (the reverse of the demand list). Filed as a `kind: plan` follow-up (`.claude/project/followups/usage-index-back-reference.md`); deliberately not specced so it isn't half-built as a side effect of `_stores/`.
+- **Usage index (deferred).** A derived back-reference — for any store or entity, every flow/process that reads or writes it (the reverse of the demand list). Filed as a `kind: plan` follow-up (`.claude/project/followups/usage-index-back-reference.md`); deliberately not specced so it isn't half-built as a side effect of `stores/`.
 - **Surfaces to update on landing.** New signals domain, a `Feature ↔ documentation ↔ skill map` row, and likely a `noorm-modeling` skill mode for authoring flows.
+
+
+## Change log
+
+
+### 2026-06-17 — Folder model migration (#16): externals/ and stores/ at model root
+
+**What changed:** External and store definitions moved from per-DFD `_externals/` and `_stores/` subdirectories to shared model-root registries `externals/` and `stores/`. The folder and file format section updated with the new tree. Entity files now live under `data/` at the model root.
+
+**Superseded:** Externals were declared in `_externals/` folders either per-DFD or at `flows/_externals/` (shared but override-able per DFD). Non-`db` store descriptions lived in per-DFD `_stores/<name>.md` files. Both are replaced by single model-root `externals/` and `stores/` registries with no per-DFD nesting or override capability.

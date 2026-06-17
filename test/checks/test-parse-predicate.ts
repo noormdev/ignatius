@@ -71,14 +71,13 @@ function assert(cond: boolean, msg: string): asserts cond {
 
 // Build fixture dir
 if (existsSync(TMP)) rmSync(TMP, { recursive: true });
-mkdirSync(TMP, { recursive: true });
-mkdirSync(`${TMP}/_groups`, { recursive: true });
+mkdirSync(`${TMP}/data`, { recursive: true });
 
 // ignatius.yml — minimal
 await Bun.write(`${TMP}/ignatius.yml`, 'name: test-parse-predicate\n');
 
 // Parent entity: Party
-await Bun.write(`${TMP}/party.md`, `---
+await Bun.write(`${TMP}/data/party.md`, `---
 entity: Party
 pk:
   - party_id
@@ -89,7 +88,7 @@ columns:
 `);
 
 // Child entity: Order — three relationships to Party with different predicate forms
-await Bun.write(`${TMP}/order.md`, `---
+await Bun.write(`${TMP}/data/order.md`, `---
 entity: Order
 pk:
   - order_id

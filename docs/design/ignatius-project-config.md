@@ -70,7 +70,7 @@ flowchart TD
 
 - **Walk-up** handles "I'm in a model subdir" (`cd models/key-inherited/identity; ignatius dict`).
 - **Search-down** handles containers (`ignatius dict models` → 3 found → pick).
-- The marker file makes `_groups/` and other non-root dirs invisible to discovery (they have no `ignatius.yml`).
+- The marker file makes `groups/`, `data/`, and other named subdirs invisible to discovery (they have no `ignatius.yml`).
 
 
 ## Approaches
@@ -95,3 +95,13 @@ Evidence: probe (`tmp/probe-cli.ts`, compiled via `bun build --compile`) confirm
 ## Open questions
 
 - **Interactive prompt render in a real TTY** — the compiled-binary `select` UI can only be eyeballed in an actual terminal (the probe ran non-TTY). Low risk (clack compiled + bundled cleanly; non-TTY path proven safe), but CP-3 must include one manual TTY run captured in the impl log. *(The earlier Bun `prompt()` unknown is resolved — superseded by citty + clack, probe-verified.)*
+
+
+## Change log
+
+
+### 2026-06-17 — Discovery wording updated for five-folder model (#16)
+
+**What changed:** The discovery explanation updated to reflect that `groups/`, `data/`, and other named subdirectories are invisible to discovery (they carry no `ignatius.yml`). Previously named `_groups/` as the example non-root dir.
+
+**Superseded:** Reference to `_groups/` as the example of a non-root dir that is invisible to discovery.

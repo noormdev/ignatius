@@ -69,6 +69,7 @@ const stubModel: Model = {
 const emptyFlowModel: FlowModel = {
     diagrams: [],
     modelDir: ROOT,
+    externals: [],
 };
 
 // ── Test: zero-diagrams flowModel behaves like null (no flow globals injected) ──

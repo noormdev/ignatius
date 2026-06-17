@@ -143,7 +143,7 @@ Built across 3 checkpoints via the autopilot subagent loop, commit-only on `flow
   discover" skill feature in the same repo. Left entirely untouched; all round-4 commits stage only their own
   files by explicit path, so nothing crossed over.
 - **CP25 — OrderIntake stays plain in the DD card.** A doc-less transient queue store (`queue:OrderIntake`,
-  no `_stores/OrderIntake.md`) has no DD section to scroll to, so it correctly renders as plain text (no dead
+  no `stores/OrderIntake.md`) has no DD section to scroll to, so it correctly renders as plain text (no dead
   link), while Customer (which has an external section) links. In the process DIALOG all three endpoints link
   (the flow resolver uses the full node graph, not DD sections). Open question surfaced to the user: should
   referenced doc-less stores get a DD section so they're navigable everywhere?

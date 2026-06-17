@@ -125,14 +125,17 @@ function checkUnknownStore(
 
 /**
  * flow.unknown_external (Class B)
- * An ext: endpoint whose name has no corresponding FlowExternal in the diagram.
+ * An ext: endpoint whose name has no corresponding FlowExternal in the global
+ * root registry. Uses the full registry (not just per-diagram referenced externals)
+ * so that a bare `ext:Nobody` still fires even if the diagram's rendered externals
+ * list happened to omit it.
  * Strips all edges touching the unknown external.
  */
 function checkUnknownExternal(
     diagram: FlowDiagram,
     strippedEdgeIds: Set<number>,
+    globalExternalIds: Set<string>,
 ): { errors: FlowError[]; newStripped: Set<number> } {
-    const externalIds = new Set(diagram.externals.map(e => e.id));
     const errors: FlowError[] = [];
     const newStripped = new Set<number>(strippedEdgeIds);
 
@@ -140,12 +143,12 @@ function checkUnknownExternal(
         if (strippedEdgeIds.has(idx)) return;
         for (const ep of [edge.from, edge.to]) {
             if (ep.kind !== 'ext') continue;
-            if (externalIds.has(ep.name)) continue;
+            if (globalExternalIds.has(ep.name)) continue;
             errors.push({
                 ruleId: 'flow.unknown_external',
                 flowId: diagram.id,
                 severity: 'error',
-                message: `ext: '${ep.name}' not found in _externals/ for DFD '${diagram.id}'.`,
+                message: `ext: '${ep.name}' not found in the model-root externals/ registry.`,
             });
             newStripped.add(idx);
         }
@@ -268,8 +271,8 @@ function checkUnknownAttributes(
 function checkAmbiguousEndpoints(
     diagram: FlowDiagram,
     activeEdges: FlowEdge[],
+    globalExternalIds: Set<string>,
 ): FlowError[] {
-    const externalIds = new Set(diagram.externals.map(e => e.id));
     const processIds = new Set(diagram.processes.map(p => p.id));
     const storeNames = new Set(diagram.storeRefs.map(s => s.name));
 
@@ -285,7 +288,7 @@ function checkAmbiguousEndpoints(
             if (reported.has(name)) continue;
 
             const namespaceCount =
-                (externalIds.has(name) ? 1 : 0) +
+                (globalExternalIds.has(name) ? 1 : 0) +
                 (storeNames.has(name) ? 1 : 0) +
                 (processIds.has(name) ? 1 : 0);
 
@@ -569,13 +572,14 @@ function validateDiagram(
     entityModel: Model,
     config: FlowRulesConfig,
     allErrors: FlowError[],
+    globalExternalIds: Set<string>,
 ): FlowDiagram {
     // CP4: synthesised context and L1 diagrams are not user-authored. Skip all
     // rule checks on them — only recurse into their sub-DFDs (the real leaves).
     if (diagram.id === CONTEXT_DIAGRAM_ID || diagram.id === SYSTEM_PROCESS_ID) {
         const cleanedSubDfds: FlowDiagram[] = [];
         for (const subDfd of diagram.subDfds) {
-            const cleanedSub = validateDiagram(subDfd, entityModel, config, allErrors);
+            const cleanedSub = validateDiagram(subDfd, entityModel, config, allErrors, globalExternalIds);
             cleanedSubDfds.push(cleanedSub);
         }
         return { ...diagram, subDfds: cleanedSubDfds };
@@ -587,7 +591,7 @@ function validateDiagram(
     allErrors.push(...storeErrors);
 
     const { errors: extErrors, newStripped: stripped2 } =
-        checkUnknownExternal(diagram, stripped1);
+        checkUnknownExternal(diagram, stripped1, globalExternalIds);
     allErrors.push(...extErrors);
 
     const { errors: procErrors, newStripped: stripped3 } =
@@ -603,7 +607,7 @@ function validateDiagram(
 
     // Phase 2: Class A checks on active edges
     allErrors.push(...checkUnknownAttributes(diagram, entityModel, activeEdges));
-    allErrors.push(...checkAmbiguousEndpoints(diagram, activeEdges));
+    allErrors.push(...checkAmbiguousEndpoints(diagram, activeEdges, globalExternalIds));
     allErrors.push(...checkProcessToProcess(diagram, activeEdges, config));
     allErrors.push(...checkProcessIsolation(diagram, activeEdges));
     allErrors.push(...checkDuplicateNumbers(diagram));
@@ -620,7 +624,7 @@ function validateDiagram(
             allErrors.push(...checkUnbalancedDecomposition(diagram, parentProcess, subDfd));
         }
         // Recurse
-        const cleanedSub = validateDiagram(subDfd, entityModel, config, allErrors);
+        const cleanedSub = validateDiagram(subDfd, entityModel, config, allErrors, globalExternalIds);
         cleanedSubDfds.push(cleanedSub);
     }
 
@@ -699,11 +703,16 @@ export function validateFlows(
     const allErrors: FlowError[] = [];
     const cleanedDiagrams: FlowDiagram[] = [];
 
+    // Build global external id set once from the model-root registry.
+    // Both unknown_external and ambiguous_endpoint checks need the FULL defined set,
+    // not the per-diagram referenced subset, so the set lives here and is threaded down.
+    const globalExternalIds = new Set(flowModel.externals.map(e => e.id));
+
     // CP4: check naming collisions across the entire tree before per-diagram validation
     allErrors.push(...checkStoreNamingCollisions(flowModel));
 
     for (const diagram of flowModel.diagrams) {
-        const cleaned = validateDiagram(diagram, entityModel, config, allErrors);
+        const cleaned = validateDiagram(diagram, entityModel, config, allErrors, globalExternalIds);
         cleanedDiagrams.push(cleaned);
     }
 
