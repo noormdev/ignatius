@@ -15,7 +15,7 @@ layout. Implements #16. See `docs/design/folder-model.md`.
   prompt covers the user's own models; already written, gitignored, not a checkpoint).
 - Renaming `flows/` to `processes/` (name kept).
 - A major version bump — ships as a minor (`feat`, no `!`, no `BREAKING CHANGE:`
-  footer, so release-please cuts 0.9.0 not 1.0.0).
+  footer, so release-please cuts the next minor (0.10.0) not a major (1.0.0)).
 - `ignatius.yml` schema changes (none required).
 - Auto-deriving / detecting an old layout to warn on it (would reintroduce `_*`
   awareness; out of scope).
@@ -97,7 +97,7 @@ layout. Implements #16. See `docs/design/folder-model.md`.
 - CP4 — `folder-format` + `flows` guides rewritten to the five-folder model; live design/spec contracts (markdown-driven-erd, ignatius-project-config, process-flows, noorm-modeling-skill, noorm-flow-discovery) amended with change-log entries; incidental path refs fixed; CLAUDE.md feature-map row added (`38eacc0`). Reviewer PASS, 0 findings.
 - Verify (on `main` after squash): `bun run test` → 577 PASS, 0 FAIL, exit 0; `build:cli` clean; `ignatius validate` clean on key-inherited (24), orm-pure (24), orm-hybrid (24), llm-memory-db-mssql (38); broken-demo exits 1 as intended. Zero NEW `tsc` errors in touched files (only the systemic Bun-types/`markdown-it` declaration gap). Grep gates: `src/` zero, `skills/` zero, `docs/` only the migration doc + change-log history.
 
-**Squashed to d024c43 — 2026-06-17.** Per-iteration SHAs above are historical (unreachable from any branch). Ships as a minor (0.9.0) per the user's version policy.
+**Squashed to d024c43 — 2026-06-17.** Per-iteration SHAs above are historical (unreachable from any branch). Ships as a minor (`0.10.0`; 0.9.0 already released via #11) per the user version policy.
 
 ## Change log
 
