@@ -56,7 +56,7 @@ ignored.*
 parser reads only the new layout. Old `_*`/nested models stop parsing. Rationale:
 the user is currently the sole consumer, so a clean break costs nobody; a hard-cut
 leaves zero `_*` code paths (a fallback would keep alive the exact thing #16
-removes). Version: **minor** (`0.10.0` — 0.9.0 already shipped via #11) — the user explicitly accepts a breaking
+removes). Version: **minor** (`0.11.0` — 0.9.0 and 0.10.0 shipped before this work) — the user explicitly accepts a breaking
 change under a minor pre-1.0 bump and will reserve 1.0.0 for when they are ready.
 Implication for the ship step: the commit is `feat(...)` with **no** `!` and **no**
 `BREAKING CHANGE:` footer, so release-please cuts a minor, not a major; the
