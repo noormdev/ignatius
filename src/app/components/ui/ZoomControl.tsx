@@ -3,7 +3,10 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
 // View-agnostic zoom control: receives a zoom percentage + four handlers.
 // No cytoscape or SVG internals inside — each view supplies its own adapter.
-// 100% = the fit-to-view baseline (not cytoscape's internal zoom===1).
+// 100% = native 1:1 — one diagram unit renders as one CSS pixel, independent of
+// model size (#3 viewer-ux-polish). The readout shows the true scale, so the
+// initial fit-to-screen view reads its real percent (e.g. ~42% on a large
+// model). The reset/⌂ button still fits-to-screen.
 
 export interface ZoomControlProps {
   percent: number;
@@ -60,7 +63,7 @@ export function ZoomControl({ percent, onZoomIn, onZoomOut, onSetPercent, onRese
         </button>
       )}
       <button className="zoom-control-btn" onClick={onZoomIn} title="Zoom in (+10%)" aria-label="Zoom in">+</button>
-      <button className="zoom-control-reset" onClick={onReset} title="Reset to fit view (100%)" aria-label="Reset zoom">⌂</button>
+      <button className="zoom-control-reset" onClick={onReset} title="Fit to screen" aria-label="Fit to screen">⌂</button>
     </div>
   );
 }

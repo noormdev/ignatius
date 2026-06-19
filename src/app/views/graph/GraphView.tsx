@@ -156,9 +156,6 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
     // Layout mode — seeded from initialLayoutMode; only mutated internally.
     const layoutModeRef = useRef<LayoutMode>(initialLayoutMode);
 
-    // Zoom baseline: cy.zoom() at last cy.fit(); anchors 100% to fit, not cy==1.
-    const zoomBaselineRef = useRef<number>(1);
-
     // Refs wired inside cy-init so the handle can call them outside the closure.
     const navigateToEntityRef = useRef<(id: string) => void>(() => {});
     const panelNavigateRef = useRef<(id: string) => void>(() => {});
@@ -560,8 +557,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cy.forceRender();
         requestAnimationFrame(redrawMarkers);
 
-        zoomBaselineRef.current = cy.zoom();
-        onZoomPercentChange(100);
+        // #3 (viewer-ux-polish): the readout is the TRUE scale — cytoscape
+        // zoom===1 → 100%. The initial view still fits-to-screen; on a large
+        // model that reports a sub-100% percent, not a forced 100.
+        onZoomPercentChange(Math.round(cy.zoom() * 100));
 
         window.__IGNATIUS_PERF__ = {
           layoutStopAt: performance.now(),
@@ -588,10 +587,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       });
 
       cy.on('zoom', () => {
-        const baseline = zoomBaselineRef.current;
-        if (baseline > 0) {
-          onZoomPercentChange(Math.round(cy.zoom() / baseline * 100));
-        }
+        // True scale: cytoscape zoom===1 is native 1:1 → 100%.
+        onZoomPercentChange(Math.round(cy.zoom() * 100));
       });
 
       const getViewportCenter = () => {
@@ -615,15 +612,16 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       };
 
       cySetPercentRef.current = (pct: number) => {
-        const target = zoomBaselineRef.current * (pct / 100);
+        // 100% = native 1:1 (cytoscape zoom===1). setPercent(100) → zoom 1.
+        const target = pct / 100;
         const clamped = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), target));
         cy.zoom({ level: clamped, renderedPosition: getViewportCenter() });
       };
 
       cyZoomResetRef.current = () => {
+        // Home still fits-to-screen; the readout shows the real fit percent
+        // (driven by the 'zoom' event), not a forced 100.
         cy.fit(undefined, 30);
-        zoomBaselineRef.current = cy.zoom();
-        onZoomPercentChange(100);
       };
 
       cy.on('position', redrawMarkers);
@@ -669,8 +667,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           }
           cy.fit(undefined, 30);
           redrawMarkers();
-          zoomBaselineRef.current = cy.zoom();
-          onZoomPercentChange(100);
+          // fit fires a 'zoom' event → readout updates to the real percent.
         });
         lo.run();
       };
@@ -684,8 +681,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           }
           cy.fit(undefined, 30);
           redrawMarkers();
-          zoomBaselineRef.current = cy.zoom();
-          onZoomPercentChange(100);
+          // fit fires a 'zoom' event → readout updates to the real percent.
         });
         lo.run();
       };

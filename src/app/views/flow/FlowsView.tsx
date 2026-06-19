@@ -17,6 +17,7 @@ import { splitDocToken } from '../../logic/doc-resolver';
 import type { FlowDoc, FlowDocResult } from '../../logic/doc-resolver';
 import { buildFlowNodeUsageIndex } from '../../../flows/flow-usage-index';
 import { computeElkLayout } from '../../../flow-view/elk-flow-layout';
+import { screenScaleToPercent, percentToScreenScale } from '../../../flow-view/zoom-scale';
 import type { ElkPositionMap } from '../../../flow-view/FlowDiagramSvg';
 import { parseHash, serializeHash } from '../../hash-router';
 import type { HashState } from '../../hash-router';
@@ -70,10 +71,12 @@ export interface FlowChromeCallbacks {
    */
   onActiveDiagramChange?: (id: string) => void;
   /**
-   * Called whenever the SVG scale changes (wheel, zoom control, reset).
-   * Drives the flow ZoomControl readout (scale 1 = 100% = fit baseline).
+   * Called whenever the SVG scale changes (wheel, zoom control, reset) or the
+   * container resizes. `scale` is the inner-<g> factor (1 = fit); `fitScale` is
+   * the viewBox→container ratio. The true zoom = scale × fitScale, so the readout
+   * shows native-1:1-relative percent (#3 viewer-ux-polish), not a fit baseline.
    */
-  onZoomChange?: (scale: number) => void;
+  onZoomChange?: (scale: number, fitScale: number) => void;
   /**
    * Called once on each diagram render with the imperative zoom operations,
    * and with null when the diagram is torn down. Wired to the flow ZoomControl.
@@ -398,8 +401,8 @@ export function initFlowGraphCore(
             onRegisterPanTo: (fn: ((worldX: number, worldY: number) => void) | null) => {
               chromeCallbacks?.onRegisterPanTo?.(fn);
             },
-            onZoomChange: (s: number) => {
-              chromeCallbacks?.onZoomChange?.(s);
+            onZoomChange: (s: number, fitScale: number) => {
+              chromeCallbacks?.onZoomChange?.(s, fitScale);
             },
             onRegisterZoomControl: (ctrl) => {
               chromeCallbacks?.onRegisterZoomControl?.(ctrl);
@@ -626,6 +629,9 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     const flowResetFitRef = useRef<(() => void) | null>(null);
     // Live-scale mirror so zoom operations always read the current scale, not a stale closure value.
     const flowScaleRef = useRef(1);
+    // Live fitScale mirror (viewBox→container ratio). Drives percent↔scale
+    // conversion so the readout shows true zoom and setPercent(100) → 1:1.
+    const flowFitScaleRef = useRef(1);
     // In-flow open dispatcher — registered by FlowSurface on mount. The shell uses
     // this to route process-usage link clicks in a flow-opened entity modal in-place.
     const flowOpenRef = useRef<((token: string) => void) | null>(null);
@@ -639,17 +645,20 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         flowResetLayoutRef.current?.();
       },
       zoomIn() {
+        // Relative step on the internal scale; the SVG clamps to MIN/MAX_SCALE.
+        // True percent steps proportionally since true = scale × fitScale.
         const ctrl = flowZoomToRef.current;
-        if (ctrl) ctrl(Math.min(4, flowScaleRef.current * 1.1));
+        if (ctrl) ctrl(flowScaleRef.current * 1.1);
       },
       zoomOut() {
         const ctrl = flowZoomToRef.current;
-        if (ctrl) ctrl(Math.max(0.2, flowScaleRef.current / 1.1));
+        if (ctrl) ctrl(flowScaleRef.current / 1.1);
       },
       setPercent(pct: number) {
+        // pct is the TRUE on-screen zoom; convert to the internal scale that
+        // yields it (setPercent(100) → 1/fitScale → native 1:1). The SVG clamps.
         const ctrl = flowZoomToRef.current;
-        const clamped = Math.max(20, Math.min(400, pct));
-        if (ctrl) ctrl(clamped / 100);
+        if (ctrl) ctrl(percentToScreenScale(pct, flowFitScaleRef.current));
       },
       resetZoom() {
         flowResetFitRef.current?.();
@@ -719,20 +728,20 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
           initialActivationDone = true;
           onActiveDiagramChange?.(id, isInitial);
         },
-        onZoomChange: (s) => {
+        onZoomChange: (s, fitScale) => {
           flowScaleRef.current = s;
-          const pct = Math.round(s * 100);
+          flowFitScaleRef.current = fitScale;
+          // True on-screen zoom: 100% = native 1:1. At fit (s===1) this is
+          // fitScale×100 (e.g. ~42% on a large model), not a forced 100.
+          const pct = screenScaleToPercent(s, fitScale);
           setFlowZoomPercent(pct);
           onZoomPercentChange(pct);
         },
         onRegisterZoomControl: (ctrl) => {
           flowZoomToRef.current = ctrl ? ctrl.zoomTo : null;
           flowResetFitRef.current = ctrl ? ctrl.resetFit : null;
-          // Reset readout to 100% when a new diagram mounts (scale starts at 1 = fit).
-          if (ctrl) {
-            setFlowZoomPercent(100);
-            onZoomPercentChange(100);
-          }
+          // The diagram mounts at fit (scale 1). The real readout is reported by
+          // onZoomChange once the SVG measures its container; no forced 100 here.
         },
       };
 

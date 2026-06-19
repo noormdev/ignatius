@@ -34,6 +34,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { buildFlowData } from './flow-layout';
 import { isInlineLabel } from './elk-flow-layout';
+import { computeFitScale } from './zoom-scale';
 import type { FlowDiagram } from '../flows/flow-parse';
 import type { NodePos, FlowElementData } from './flow-layout';
 import type { PositionMap } from '../app/views/graph/layout-store';
@@ -149,9 +150,14 @@ const CHIP_MAX_CHARS = 22; // truncate a single long data line to keep chips com
 
 const PADDING = 80; // canvas padding around content
 
-// Interaction constants
-const MIN_SCALE = 0.2;
-const MAX_SCALE = 4.0;
+// Interaction constants.
+// Bounds are on the inner-<g> transform scale, where 1 = fit-to-container. The
+// true on-screen zoom = scale × fitScale, so on a large model (fitScale ~0.4)
+// native 1:1 needs scale ~2.5 and 400% needs ~10 — hence the wide MAX. The low
+// MIN lets setPercent reach small true-percents on small models (fitScale > 1)
+// without the clamp swallowing them; fit itself is scale===1 (never clamped).
+const MIN_SCALE = 0.05;
+const MAX_SCALE = 10.0;
 // Pointer move < this viewBox-unit threshold on pointerdown → treated as click, not drag
 const DRAG_THRESHOLD_VB = 4;
 
@@ -803,9 +809,14 @@ export type FlowDiagramSvgProps = {
   /**
    * Called whenever the scale changes (wheel, zoom-control buttons, reset).
    * Used by the app-level ZoomControl readout to stay in sync.
-   * The value is the raw SVG scale factor (1 = fit baseline).
+   *
+   * `scale` is the inner-<g> transform factor (1 = fit-to-container, since the
+   * viewBox = world content box). `fitScale` is the on-screen pixels-per-world-
+   * unit at scale===1 — i.e. the viewBox→container ratio (#3 viewer-ux-polish).
+   * The true on-screen zoom is `scale × fitScale`; the readout reports that so
+   * 100% = native 1:1 regardless of model size. `setPercent` inverts via fitScale.
    */
-  onZoomChange?: (scale: number) => void;
+  onZoomChange?: (scale: number, fitScale: number) => void;
   /**
    * Called once on mount with zoom-control imperative operations, and with null
    * on unmount. Allows app-level ZoomControl handlers to drive the SVG zoom
@@ -984,11 +995,33 @@ export function FlowDiagramSvg({
 
   // ── Zoom control registration ─────────────────────────────────────────────
 
+  // On-screen pixels-per-world-unit at internal scale 1 (the viewBox→container
+  // ratio under the default xMidYMid-meet). The true zoom percent reported to
+  // the readout is `scale × fitScale` (#3 viewer-ux-polish: 100% = native 1:1).
+  const currentFitScale = useCallback(() => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return 1;
+    return computeFitScale({ w: vbW, h: vbH }, { width: rect.width, height: rect.height });
+  }, [vbW, vbH]);
+
   // Notify the app-level ZoomControl readout whenever scale changes.
   // This fires on wheel, pinch, button-driven zoom, and reset.
   useEffect(() => {
-    onZoomChange?.(scale);
-  }, [scale, onZoomChange]);
+    onZoomChange?.(scale, currentFitScale());
+  }, [scale, onZoomChange, currentFitScale]);
+
+  // Re-report the readout on container resize: fitScale changes even when the
+  // internal scale does not (e.g. window/panel resize), so the true percent and
+  // the percent→scale inverse used by setPercent stay correct.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      onZoomChange?.(scaleRef.current, currentFitScale());
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); };
+  }, [onZoomChange, currentFitScale]);
 
   // Expose imperative zoom operations so the app-level ZoomControl buttons can
   // drive the SVG zoom without the control knowing about SVG internals.

@@ -1,15 +1,25 @@
 /**
- * Visual verification: CP22 — Tamed graph wheel zoom + ZoomControl on the Graph view.
+ * Visual verification: CP22 / CP3 (viewer-ux-polish #3) — Tamed graph wheel zoom +
+ * ZoomControl on the Graph view under native-1:1 zoom semantics.
+ *
+ * Native-1:1 contract (the #3 fix): the readout shows the TRUE on-screen scale —
+ * for the graph that is `Math.round(cy.zoom() × 100)`, so `100%` means cy.zoom() === 1
+ * (one model unit → one CSS pixel), independent of model size. The initial view and
+ * Home/reset still fit-to-screen via `cy.fit()`, so the readout reports the real fit
+ * percent (sub-100 on a large model, >100 on a small one) — NOT a forced 100.
  *
  * Proves:
- *  A. The zoom control renders on the Graph view with a live % readout.
+ *  A. The zoom control renders on the Graph view with a live % readout that is a
+ *     valid positive percent (the true fit percent, whatever it is — not forced 100).
  *  B. Clicking + raises the readout ~10% and cy.zoom() changes.
  *  C. Clicking − lowers the readout.
- *  D. Typing a % in the input and committing sets the zoom to that level.
- *  E. Clicking reset returns the readout to 100%.
- *  F. wheelSensitivity is 0.2 (calmer than default).
- *  G. Light mode: control renders and works.
- *  H. Control does NOT overlap minimap (bottom-left) or FAB (bottom-right at 24px).
+ *  D. Typing a % in the input and committing sets the zoom to that true level.
+ *  E. Clicking reset (Home/fit) returns the readout to the SAME initial fit percent
+ *     (not a forced 100).
+ *  F. CP3 native 1:1 — typing 100 makes cy.zoom() ≈ 1.0.
+ *  G. wheelSensitivity is 0.2 (calmer than default).
+ *  H. Light mode: control renders and works.
+ *  I. Control does NOT overlap minimap (bottom-left) or FAB (bottom-right at 24px).
  *     — The zoom control is at bottom:84px right:24px (above FAB).
  *
  * NOT run by `bun run test` — manual visual check only.
@@ -122,17 +132,16 @@ try {
   await waitForZoomControl();
   note('OK: ZoomControl found in DOM');
 
+  // CP3: the initial view fits-to-screen (cy.fit()) and the readout reports the
+  // TRUE percent = round(cy.zoom() × 100) — NOT a forced 100. Capture it; reset
+  // must return to this same value.
   const readoutInitial = await getReadoutPercent();
-  note(`Initial readout: ${readoutInitial}%`);
+  const initialCyZoom = await getCyZoom();
+  note(`Initial readout: ${readoutInitial}% (cy.zoom()=${initialCyZoom.toFixed(4)})`);
   if (isNaN(readoutInitial) || readoutInitial <= 0) {
     fail(`Initial readout is not a valid positive number: "${await getReadoutText()}"`);
   }
-  // After layout + fit, readout should be 100%.
-  if (readoutInitial !== 100) {
-    note(`WARN: Expected 100% after fit, got ${readoutInitial}% — acceptable if hash restored a different zoom`);
-  } else {
-    note('OK: Initial readout is 100% (fit baseline)');
-  }
+  note(`OK: initial fit readout is a valid positive percent (${readoutInitial}%) — the true fit scale, not a forced 100`);
 
   const shot01 = join(TMP, '01-dark-initial.png');
   await page.screenshot({ path: shot01 });
@@ -227,23 +236,59 @@ try {
   await page.screenshot({ path: shot04 });
   note(`Screenshot: ${shot04}`);
 
-  // ── E. Reset returns to 100% ─────────────────────────────────────────────
-  note('\n── 5. Reset returns to 100% (dark) ────────────────────────────────────');
+  // ── E. Reset (Home/fit) returns to the SAME initial fit percent (CP3) ──────
+  note('\n── 5. Reset returns to the initial fit percent (dark) ──────────────────');
   const resetBtn = page.locator('[data-testid="zoom-control"] .zoom-control-reset');
   await resetBtn.click();
   await page.waitForTimeout(600);
 
   const percentAfterReset = await getReadoutPercent();
-  note(`After reset: readout=${percentAfterReset}%`);
+  note(`After reset: readout=${percentAfterReset}% (initial fit was ${readoutInitial}%)`);
 
-  if (percentAfterReset !== 100) {
-    fail(`Reset did not return to 100%: got ${percentAfterReset}%`);
+  // CP3: Home/reset fits-to-screen, so the readout returns to the same fit
+  // percent it started at — NOT a forced 100. Allow ±1% for round jitter.
+  if (Math.abs(percentAfterReset - readoutInitial) > 1) {
+    fail(`Reset did not return to the initial fit percent: got ${percentAfterReset}%, expected ~${readoutInitial}%`);
   }
-  note('OK: reset returned to 100%');
+  note(`OK: reset returned to the initial fit percent (${percentAfterReset}%)`);
 
   const shot05 = join(TMP, '05-dark-after-reset.png');
   await page.screenshot({ path: shot05 });
   note(`Screenshot: ${shot05}`);
+
+  // ── F. CP3 native 1:1 — typing 100 yields cy.zoom() ≈ 1.0 ─────────────────
+  note('\n── 5b. CP3: type 100 → native 1:1 (cy.zoom() ≈ 1.0) (dark) ─────────────');
+  const readoutBtnNative = page.locator('[data-testid="zoom-control"] .zoom-control-readout');
+  await readoutBtnNative.click();
+  await page.waitForTimeout(200);
+  const inputFieldNative = page.locator('[data-testid="zoom-control"] .zoom-control-input');
+  const nativeInputVisible = await inputFieldNative.isVisible().catch(() => false);
+  if (!nativeInputVisible) fail('Type-in input not visible after clicking readout (native 1:1 step)');
+  await inputFieldNative.fill('100');
+  await inputFieldNative.press('Enter');
+  await page.waitForTimeout(300);
+
+  const nativeReadout = await getReadoutPercent();
+  const nativeCyZoom = await getCyZoom();
+  note(`After type 100: readout=${nativeReadout}% cy.zoom()=${nativeCyZoom.toFixed(4)}`);
+
+  if (Math.abs(nativeReadout - 100) > 3) {
+    fail(`Native 1:1: expected readout ~100%, got ${nativeReadout}%`);
+  }
+  // The defining invariant for the graph: 100% ⇒ cy.zoom() === 1 (native 1:1).
+  if (Math.abs(nativeCyZoom - 1.0) > 0.03) {
+    fail(`Native 1:1: cy.zoom() should be ~1.0 at 100%, got ${nativeCyZoom.toFixed(4)}`);
+  }
+  // When the fit percent ≠ 100, native 1:1 must have moved cy.zoom() away from
+  // the fit zoom — confirms the readout is true scale, not a fit baseline.
+  if (Math.abs(readoutInitial - 100) > 2 && Math.abs(nativeCyZoom - initialCyZoom) < 0.01) {
+    fail(`Native 1:1: fit was non-100% (${readoutInitial}%) but cy.zoom() did not change from the fit zoom`);
+  }
+  note(`OK: native 1:1 verified — cy.zoom() ${nativeCyZoom.toFixed(4)} ≈ 1.0 at 100% readout`);
+
+  const shot05b = join(TMP, '05b-dark-native-1to1.png');
+  await page.screenshot({ path: shot05b });
+  note(`Screenshot: ${shot05b}`);
 
   // ── F. wheelSensitivity is 0.2 ──────────────────────────────────────────
   note('\n── 6. Assert wheelSensitivity = 0.2 ───────────────────────────────────');
@@ -324,18 +369,19 @@ try {
   await page.screenshot({ path: shot07 });
   note(`Screenshot: ${shot07}`);
 
-  // ── Light mode reset ─────────────────────────────────────────────────────
+  // ── Light mode reset (CP3 — returns to the fit percent, not forced 100) ────
   note('\n── 11. Reset in light mode ─────────────────────────────────────────────');
   const resetBtnLight = page.locator('[data-testid="zoom-control"] .zoom-control-reset');
   await resetBtnLight.click();
   await page.waitForTimeout(600);
 
   const percentAfterResetLight = await getReadoutPercent();
-  note(`After reset (light): readout=${percentAfterResetLight}%`);
-  if (percentAfterResetLight !== 100) {
-    fail(`Reset (light) did not return to 100%: got ${percentAfterResetLight}%`);
+  note(`After reset (light): readout=${percentAfterResetLight}% (initial fit was ${readoutInitial}%)`);
+  // Same model + viewport, so reset returns to the same fit percent.
+  if (Math.abs(percentAfterResetLight - readoutInitial) > 1) {
+    fail(`Reset (light) did not return to the fit percent: got ${percentAfterResetLight}%, expected ~${readoutInitial}%`);
   }
-  note('OK: reset returned to 100% in light mode');
+  note(`OK: reset returned to the fit percent (${percentAfterResetLight}%) in light mode`);
 
   const shot08 = join(TMP, '08-light-after-reset.png');
   await page.screenshot({ path: shot08 });
@@ -343,7 +389,7 @@ try {
 
   // ── Screenshot size sanity check ─────────────────────────────────────────
   note('\n── Screenshot size check ───────────────────────────────────────────────');
-  const shots = [shot01, shot02, shot03, shot04, shot05, shot06, shot07, shot08];
+  const shots = [shot01, shot02, shot03, shot04, shot05, shot05b, shot06, shot07, shot08];
   for (const s of shots) {
     const f = Bun.file(s);
     const name = s.split('/').pop() ?? s;

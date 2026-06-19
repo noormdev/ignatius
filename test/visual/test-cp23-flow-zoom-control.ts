@@ -1,15 +1,30 @@
 /**
- * Visual verification: CP23 — ZoomControl on the Flows view + tamed SVG wheel zoom.
+ * Visual verification: CP23 / CP3 (viewer-ux-polish #3) — ZoomControl on the
+ * Flows view under native-1:1 zoom semantics + tamed SVG wheel zoom.
+ *
+ * Native-1:1 contract (the #3 fix): `100%` means one diagram (world) unit renders
+ * as one CSS pixel, independent of model size — NOT the fit-to-screen baseline.
+ * The DFD `<svg>` keeps its viewBox = world content box, so the on-screen scale =
+ * `internalScale × fitScale` (where `internalScale` is the inner `<g>` transform's
+ * scale and `fitScale` is the viewBox→container ratio). The readout reports that
+ * true on-screen ratio: `Math.round(internalScale × fitScale × 100)`. Initial view
+ * and Home/reset still fit-to-screen — at fit `internalScale === 1`, so the readout
+ * shows `Math.round(fitScale × 100)` (sub-100 on a large model, >100 on a small one),
+ * NOT a forced 100.
  *
  * Proves:
- *  A. The zoom control renders on the Flows view with a live % readout.
- *  B. Clicking + raises the readout ~10% and the DFD SVG scale changes.
+ *  A. The zoom control renders on the Flows view with a live % readout that is a
+ *     valid positive percent (the true fit percent, whatever it is — not forced 100).
+ *  B. Clicking + raises the readout ~10% and the DFD internalScale changes.
  *  C. Clicking − lowers the readout.
- *  D. Typing a % in the input and committing sets the zoom to that level.
- *  E. Clicking reset returns the readout to 100%.
- *  F. Light mode: control renders and works.
- *  G. Control does NOT overlap the flow minimap (bottom-left) or FAB (bottom-right).
- *  H. Quick regression: graph ZoomControl still works on the Graph view.
+ *  D. Typing a % in the input and committing sets the zoom to that true level.
+ *  E. Clicking reset returns the readout to the SAME initial fit percent (not 100).
+ *  F. CP3 native 1:1 — typing 100 makes the on-screen scale (internalScale × fitScale)
+ *     ≈ 1.0, i.e. internalScale ≈ 1/fitScale (so when fit ≠ 100%, typing 100 moves
+ *     internalScale away from 1).
+ *  G. Light mode: control renders and works.
+ *  H. Control does NOT overlap the flow minimap (bottom-left) or FAB (bottom-right).
+ *  I. Quick regression: graph ZoomControl still works on the Graph view.
  *
  * NOT run by `bun run test` — manual visual check only.
  */
@@ -96,7 +111,7 @@ async function getReadoutPercent(): Promise<number> {
   return parseInt(text.replace('%', ''), 10);
 }
 
-/** Read the SVG scale transform from the inner DFD group. */
+/** Read the inner-<g> transform scale (the `internalScale`; 1 = fit-to-container). */
 async function getFlowScale(): Promise<number> {
   return page.evaluate(() => {
     const g = document.querySelector('[data-ignatius="flow-svg"] g');
@@ -107,6 +122,34 @@ async function getFlowScale(): Promise<number> {
     if (!m) return 0;
     return parseFloat(m[1]);
   });
+}
+
+/**
+ * Derive `fitScale` (viewBox→container ratio under xMidYMid-meet) directly from
+ * the DFD <svg> in the browser: the smaller of width/vbW and height/vbH. This is
+ * the on-screen pixels-per-world-unit when internalScale === 1, so the true
+ * on-screen scale is `internalScale × fitScale`. Returns 0 if the SVG is absent.
+ */
+async function getFlowFitScale(): Promise<number> {
+  return page.evaluate(() => {
+    const svg = document.querySelector('[data-ignatius="flow-svg"]');
+    if (!svg) return 0;
+    const vb = svg.getAttribute('viewBox') ?? '';
+    const parts = vb.trim().split(/\s+/).map(Number);
+    if (parts.length !== 4) return 0;
+    const vbW = parts[2] ?? 0;
+    const vbH = parts[3] ?? 0;
+    const rect = svg.getBoundingClientRect();
+    if (vbW <= 0 || vbH <= 0 || rect.width <= 0 || rect.height <= 0) return 0;
+    return Math.min(rect.width / vbW, rect.height / vbH);
+  });
+}
+
+/** On-screen pixels-per-world-unit = internalScale × fitScale (1.0 = native 1:1). */
+async function getFlowScreenScale(): Promise<number> {
+  const internal = await getFlowScale();
+  const fit = await getFlowFitScale();
+  return internal * fit;
 }
 
 async function toggleTheme(): Promise<void> {
@@ -147,26 +190,31 @@ try {
   await waitForZoomControl();
   note('OK: ZoomControl found in DOM');
 
+  // CP3: initial view fits-to-screen but the readout shows the TRUE percent
+  // (Math.round(fitScale × 100)) — NOT a forced 100. Capture it; reset must
+  // return to this same value.
   const readoutInitial = await getReadoutPercent();
-  note(`Initial readout: ${readoutInitial}%`);
+  const initialInternalScale = await getFlowScale();
+  const initialFitScale = await getFlowFitScale();
+  note(`Initial readout: ${readoutInitial}% (internalScale=${initialInternalScale.toFixed(4)} fitScale=${initialFitScale.toFixed(4)})`);
   if (isNaN(readoutInitial) || readoutInitial <= 0) {
     fail(`Initial readout is not valid: "${await getReadoutText()}"`);
   }
-  if (readoutInitial !== 100) {
-    note(`WARN: Expected 100% at flow baseline (scale=1), got ${readoutInitial}%`);
-  } else {
-    note('OK: Initial readout is 100% (fit baseline)');
-  }
+  note(`OK: initial fit readout is a valid positive percent (${readoutInitial}%) — fit is internalScale=1, so this is round(fitScale×100), not a forced 100`);
 
   const shot01 = join(TMP, '01-dark-initial.png');
   await page.screenshot({ path: shot01 });
   note(`Screenshot: ${shot01}`);
 
-  // ── B. "+" raises readout ~10% and DFD scale changes ────────────────────
-  note('\n── 2. Click + raises readout ~10% (dark) ──────────────────────────────');
+  // ── B. "+" raises readout ~10% (relative) and DFD internalScale changes ──
+  // Under native-1:1 the true percent = internalScale × fitScale × 100. The +
+  // button bumps internalScale by ~10% (×1.1), so the readout grows by ~10%
+  // RELATIVELY (ratio ≈ 1.1), independent of fitScale — a fixed percentage-point
+  // band would be wrong on a model whose fit ≠ 100%.
+  note('\n── 2. Click + raises readout ~10% relatively (dark) ───────────────────');
   const scaleBefore = await getFlowScale();
   const percentBefore = await getReadoutPercent();
-  note(`Before +: readout=${percentBefore}% scale=${scaleBefore.toFixed(4)}`);
+  note(`Before +: readout=${percentBefore}% internalScale=${scaleBefore.toFixed(4)}`);
 
   const plusBtn = page.locator('[data-testid="zoom-control"] .zoom-control-btn').last();
   await plusBtn.click();
@@ -174,18 +222,18 @@ try {
 
   const scaleAfterPlus = await getFlowScale();
   const percentAfterPlus = await getReadoutPercent();
-  note(`After +: readout=${percentAfterPlus}% scale=${scaleAfterPlus.toFixed(4)}`);
+  note(`After +: readout=${percentAfterPlus}% internalScale=${scaleAfterPlus.toFixed(4)}`);
 
   if (scaleAfterPlus <= scaleBefore) {
-    fail(`SVG scale did not increase after +: before=${scaleBefore.toFixed(4)} after=${scaleAfterPlus.toFixed(4)}`);
+    fail(`internalScale did not increase after +: before=${scaleBefore.toFixed(4)} after=${scaleAfterPlus.toFixed(4)}`);
   }
-  note('OK: SVG scale increased');
+  note('OK: internalScale increased');
 
-  const delta = percentAfterPlus - percentBefore;
-  if (delta < 5 || delta > 15) {
-    fail(`Readout delta after + is ${delta}% — expected ~10% (5–15%)`);
+  const plusRatio = percentAfterPlus / percentBefore;
+  if (plusRatio < 1.05 || plusRatio > 1.15) {
+    fail(`Readout ratio after + is ${plusRatio.toFixed(3)} — expected ~1.1 (×1.1 internal step)`);
   }
-  note(`OK: readout increased by ${delta}% (expected ~10%)`);
+  note(`OK: readout grew ${percentBefore}% → ${percentAfterPlus}% (ratio ${plusRatio.toFixed(3)} ≈ 1.1)`);
 
   const shot02 = join(TMP, '02-dark-after-plus.png');
   await page.screenshot({ path: shot02 });
@@ -249,27 +297,70 @@ try {
   await page.screenshot({ path: shot04 });
   note(`Screenshot: ${shot04}`);
 
-  // ── E. Reset returns to 100% ─────────────────────────────────────────────
-  note('\n── 5. Reset returns to 100% (dark) ────────────────────────────────────');
+  // ── E. Reset returns to the SAME initial fit percent (CP3 — not forced 100) ─
+  note('\n── 5. Reset returns to the initial fit percent (dark) ──────────────────');
   const resetBtn = page.locator('[data-testid="zoom-control"] .zoom-control-reset');
   await resetBtn.click();
   await page.waitForTimeout(400);
 
   const percentAfterReset = await getReadoutPercent();
   const scaleAfterReset = await getFlowScale();
-  note(`After reset: readout=${percentAfterReset}% scale=${scaleAfterReset.toFixed(4)}`);
+  note(`After reset: readout=${percentAfterReset}% internalScale=${scaleAfterReset.toFixed(4)} (initial fit was ${readoutInitial}%)`);
 
-  if (percentAfterReset !== 100) {
-    fail(`Reset did not return to 100%: got ${percentAfterReset}%`);
+  // CP3: Home/reset fits-to-screen, so the readout returns to the SAME initial
+  // fit percent — NOT a forced 100. Allow ±1% for layout/round jitter.
+  if (Math.abs(percentAfterReset - readoutInitial) > 1) {
+    fail(`Reset did not return to the initial fit percent: got ${percentAfterReset}%, expected ~${readoutInitial}%`);
   }
+  // At fit the inner-<g> internalScale is 1 (the viewBox = world box convention).
   if (Math.abs(scaleAfterReset - 1.0) > 0.01) {
-    fail(`SVG scale after reset should be ~1.0, got ${scaleAfterReset.toFixed(4)}`);
+    fail(`internalScale after fit-reset should be ~1.0, got ${scaleAfterReset.toFixed(4)}`);
   }
-  note('OK: reset returned to 100% (scale=1.0)');
+  note(`OK: reset returned to the initial fit percent (${percentAfterReset}%, internalScale=1.0)`);
 
   const shot05 = join(TMP, '05-dark-after-reset.png');
   await page.screenshot({ path: shot05 });
   note(`Screenshot: ${shot05}`);
+
+  // ── F. CP3 native 1:1 — typing 100 yields on-screen scale ≈ 1.0 ───────────
+  note('\n── 5b. CP3: type 100 → native 1:1 (on-screen scale ≈ 1.0) (dark) ───────');
+  const readoutBtnNative = page.locator('[data-testid="zoom-control"] .zoom-control-readout');
+  await readoutBtnNative.click();
+  await page.waitForTimeout(200);
+  const inputFieldNative = page.locator('[data-testid="zoom-control"] .zoom-control-input');
+  const nativeInputVisible = await inputFieldNative.isVisible().catch(() => false);
+  if (!nativeInputVisible) fail('Type-in input not visible after clicking readout (native 1:1 step)');
+  await inputFieldNative.fill('100');
+  await inputFieldNative.press('Enter');
+  await page.waitForTimeout(300);
+
+  const nativeReadout = await getReadoutPercent();
+  const nativeInternalScale = await getFlowScale();
+  const nativeFitScale = await getFlowFitScale();
+  const nativeScreenScale = await getFlowScreenScale();
+  note(`After type 100: readout=${nativeReadout}% internalScale=${nativeInternalScale.toFixed(4)} fitScale=${nativeFitScale.toFixed(4)} on-screen(scale×fit)=${nativeScreenScale.toFixed(4)}`);
+
+  // The readout at native 1:1 should report ~100% (true on-screen scale).
+  if (Math.abs(nativeReadout - 100) > 3) {
+    fail(`Native 1:1: expected readout ~100%, got ${nativeReadout}%`);
+  }
+  // The defining invariant: on-screen pixels-per-world-unit ≈ 1.0.
+  if (Math.abs(nativeScreenScale - 1.0) > 0.05) {
+    fail(`Native 1:1: on-screen scale (internalScale × fitScale) should be ~1.0, got ${nativeScreenScale.toFixed(4)}`);
+  }
+  // internalScale ≈ 1/fitScale (so when fit ≠ 100%, internalScale ≠ 1).
+  const expectedInternalNative = 1 / nativeFitScale;
+  if (Math.abs(nativeInternalScale - expectedInternalNative) > 0.05 * Math.max(1, expectedInternalNative)) {
+    fail(`Native 1:1: internalScale should be ~1/fitScale (${expectedInternalNative.toFixed(4)}), got ${nativeInternalScale.toFixed(4)}`);
+  }
+  if (Math.abs(initialFitScale - 1.0) > 0.02 && Math.abs(nativeInternalScale - 1.0) <= 0.02) {
+    fail(`Native 1:1: fit was non-100% (fitScale=${initialFitScale.toFixed(4)}) but internalScale stayed ~1 — native 1:1 should have moved it away from 1`);
+  }
+  note(`OK: native 1:1 verified — on-screen scale ${nativeScreenScale.toFixed(4)} ≈ 1.0; internalScale ${nativeInternalScale.toFixed(4)} ≈ 1/fitScale ${expectedInternalNative.toFixed(4)}`);
+
+  const shot05b = join(TMP, '05b-dark-native-1to1.png');
+  await page.screenshot({ path: shot05b });
+  note(`Screenshot: ${shot05b}`);
 
   // ── G. Placement — no overlap with minimap or FAB ────────────────────────
   note('\n── 6. Placement — zoom control does not overlap minimap or FAB (dark) ──');
@@ -328,33 +419,35 @@ try {
 
   const scaleAfterLight = await getFlowScale();
   const percentAfterLight = await getReadoutPercent();
-  note(`After + (light): readout=${percentAfterLight}% scale=${scaleAfterLight.toFixed(4)}`);
+  note(`After + (light): readout=${percentAfterLight}% internalScale=${scaleAfterLight.toFixed(4)}`);
 
   if (scaleAfterLight <= scaleBeforeLight) {
-    fail(`SVG scale did not increase after + (light): before=${scaleBeforeLight.toFixed(4)} after=${scaleAfterLight.toFixed(4)}`);
+    fail(`internalScale did not increase after + (light): before=${scaleBeforeLight.toFixed(4)} after=${scaleAfterLight.toFixed(4)}`);
   }
-  const lightDelta = percentAfterLight - percentBeforeLight;
-  if (lightDelta < 5 || lightDelta > 15) {
-    fail(`Readout delta after + (light) is ${lightDelta}% — expected ~10%`);
+  // Relative ~10% growth (×1.1 internal step), independent of fitScale.
+  const lightRatio = percentAfterLight / percentBeforeLight;
+  if (lightRatio < 1.05 || lightRatio > 1.15) {
+    fail(`Readout ratio after + (light) is ${lightRatio.toFixed(3)} — expected ~1.1`);
   }
-  note(`OK: readout increased by ${lightDelta}% in light mode`);
+  note(`OK: readout grew ${percentBeforeLight}% → ${percentAfterLight}% (ratio ${lightRatio.toFixed(3)} ≈ 1.1) in light mode`);
 
   const shot07 = join(TMP, '07-light-after-plus.png');
   await page.screenshot({ path: shot07 });
   note(`Screenshot: ${shot07}`);
 
-  // ── Light mode reset ─────────────────────────────────────────────────────
+  // ── Light mode reset (CP3 — returns to the fit percent, not forced 100) ────
   note('\n── 9. Reset in light mode ──────────────────────────────────────────────');
   const resetBtnLight = page.locator('[data-testid="zoom-control"] .zoom-control-reset');
   await resetBtnLight.click();
   await page.waitForTimeout(400);
 
   const percentAfterResetLight = await getReadoutPercent();
-  note(`After reset (light): readout=${percentAfterResetLight}%`);
-  if (percentAfterResetLight !== 100) {
-    fail(`Reset (light) did not return to 100%: got ${percentAfterResetLight}%`);
+  note(`After reset (light): readout=${percentAfterResetLight}% (same diagram fit was ${readoutInitial}%)`);
+  // Same diagram + viewport as dark mode, so reset returns to the same fit percent.
+  if (Math.abs(percentAfterResetLight - readoutInitial) > 1) {
+    fail(`Reset (light) did not return to the fit percent: got ${percentAfterResetLight}%, expected ~${readoutInitial}%`);
   }
-  note('OK: reset returned to 100% in light mode');
+  note(`OK: reset returned to the fit percent (${percentAfterResetLight}%) in light mode`);
 
   const shot08 = join(TMP, '08-light-after-reset.png');
   await page.screenshot({ path: shot08 });
@@ -387,7 +480,7 @@ try {
 
   // ── Screenshot size sanity check ─────────────────────────────────────────
   note('\n── Screenshot size check ───────────────────────────────────────────────');
-  const shots = [shot01, shot02, shot03, shot04, shot05, shot06, shot07, shot08, shot09];
+  const shots = [shot01, shot02, shot03, shot04, shot05, shot05b, shot06, shot07, shot08, shot09];
   for (const s of shots) {
     const f = Bun.file(s);
     const name = s.split('/').pop() ?? s;

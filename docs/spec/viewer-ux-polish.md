@@ -25,7 +25,7 @@ See `docs/design/viewer-ux-polish.md`.
 
 - [ ] #1 — A served/exported model named `Foo` produces `document.title` `Foo` (live tab and static-export HTML `<title>`); a nameless model falls back to `Ignatius`. A check asserts the static-export `<title>`.
 - [ ] #2 — When a spotlit DD card has a bidirectional (`both`) or multi-edge connection to another card, the overlay draws ≥2 distinct `<path>` elements with distinct connection points (no shared endpoint) — not one path with arrowheads at both ends. A unit test on the splitting/geometry helper proves separation; a visual screenshot confirms.
-- [ ] #3 — The readout shows true scale: at Cytoscape `zoom===1` / SVG `scale===1` it reads `100%`, regardless of model size. The initial view fits and reports its real (non-100%) percentage on a large model. Home/reset fits-to-screen. `setPercent(100)` yields 1:1.
+- [x] #3 — The readout shows true scale: at Cytoscape `zoom===1` / SVG `scale===1` it reads `100%`, regardless of model size. The initial view fits and reports its real (non-100%) percentage on a large model. Home/reset fits-to-screen. `setPercent(100)` yields 1:1.
 - [ ] #4 — Trackpad pinch (`ctrl`+wheel) and Cmd/Ctrl `+`/`-`/`0` zoom the canvas and never the browser page, on both DG and DFD. A unit test covers the resolver's new zoom actions; the page does not zoom (`preventDefault`).
 - [ ] #5 — A process named `Confirm OTP And Create Individual` renders fully inside its box (no overflow); the box grows to fit and ELK spacing reflects the measured size. A unit test pins the sizing helper; a visual screenshot confirms.
 - [x] #6/#8 — Opening an entity modal pushes a history entry carrying `entity=<id>`; browser Back returns to the previous modal/state; closing the modal removes `entity=` from the URL.
@@ -84,5 +84,20 @@ writes `entity=`.
 - Back vs close: Back walks the modal back-stack (B→A→none) via the popstate reconcile (no push); close clears the URL via replaceState and shows no modal.
 
 Tests: [`test/checks/test-hash-router.ts`](../../test/checks/test-hash-router.ts) extended with `entity=` presence/absence round-trip; [`test/checks/test-modal-history.ts`](../../test/checks/test-modal-history.ts) (new, CI-runnable, skip-if-`dist/static`-absent Playwright) proves open→`entity=`, FK hop A→B pushes again, Back→A, Back→none, close clears. `bun run test` exits 0; no new `tsc --noEmit` errors vs baseline.
+
+### CP3 — Zoom 100% = native 1:1 (#3)
+
+
+`100%` now means native 1:1 — one diagram unit renders as one CSS pixel,
+independent of model size. The initial view and the Home/reset button still
+fit-to-screen, but the readout shows the TRUE scale (sub-100% on large models,
+>100% on small ones).
+
+- New pure helper [`src/flow-view/zoom-scale.ts`](../../src/flow-view/zoom-scale.ts) (`computeFitScale`, `screenScaleToPercent`, `percentToScreenScale`): the DFD SVG keeps its viewBox = world content box, so on-screen scale = `internalScale × fitScale`; the readout reports that true ratio and `setPercent(100)` sets `internalScale = 1 / fitScale` (native 1:1). Keeping the viewBox = world box leaves clientToWorld / pan / drag / minimap math untouched.
+- Graph ([`GraphView.tsx`](../../src/app/views/graph/GraphView.tsx)): readout = `Math.round(cy.zoom()*100)`; `setPercent(pct)` → `cy.zoom(pct/100)`; Reset/Home still `cy.fit()` then reports the real percent via the `zoom` event (no forced 100). `zoomBaselineRef` normalization removed.
+- Flow ([`FlowsView.tsx`](../../src/app/views/flow/FlowsView.tsx) + [`FlowDiagramSvg.tsx`](../../src/flow-view/FlowDiagramSvg.tsx)): `fitScale` threaded into the readout + `setPercent` inverse, re-read on container resize; MIN/MAX internal scale widened to 0.05/10 so a large model's fit and native 1:1 both stay reachable.
+- [`ZoomControl.tsx`](../../src/app/components/ui/ZoomControl.tsx): comment/title updated to 1:1 semantics; Home tooltip stays "fit to screen".
+
+Tests: [`test/checks/test-zoom-scale.ts`](../../test/checks/test-zoom-scale.ts) pins the pure helper (large→<1, small→>1, meet-axis, padding, degenerate guard, `setPercent(100)`=`1/fitScale`, round-trip). Visual: [`test/visual/test-cp22-zoom-control.ts`](../../test/visual/test-cp22-zoom-control.ts) + [`test/visual/test-cp23-flow-zoom-control.ts`](../../test/visual/test-cp23-flow-zoom-control.ts) updated to native-1:1 semantics (reset returns to the fit percent, not a forced 100). `bun run test` exits 0; no new `tsc` errors vs baseline (CP3 removed 3).
 
 <!-- appended per checkpoint -->
