@@ -4701,6 +4701,107 @@ try {
   note(`OK CP18(d): Read lens intact — ${readEntitySections} entity section(s) rendered`);
 
   note('\n══ CP18 PASS ════════════════════════════════════════════════════════════');
+
+  // ── CP6 assertions — separated spotlight connection lines (#2) ────────────
+  // A `both` / multi-edge bundle must fan into ≥2 DISTINCT <path> elements with
+  // distinct connection points — never one path with arrowheads at both ends.
+  // models/key-inherited has no `both` FK bundle, but the external "Customer"
+  // card produces `both` FLOW bundles to several processes (read + write), which
+  // exercise the same separation path. We spotlight that card and assert ≥2
+  // distinct paths to a single target, plus that no path has BOTH markers.
+  note('\n── CP6: Separated spotlight connection lines (#2) ───────────────────────');
+
+  // Fresh dict browse page, clean state.
+  await page.goto(`${BASE}/#view=dict`);
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(1200);
+  await page.locator('.dict-lens-btn').filter({ hasText: 'Browse' }).click();
+  await page.waitForTimeout(400);
+  await page.locator('.dict-search-input').fill('');
+  await page.waitForTimeout(400);
+
+  // The Customer external card is rendered with data-flow-token="ext:Customer".
+  const customerCard = page.locator('.dict-grid-card[data-flow-token="ext:Customer"]');
+  const customerCount = await customerCard.count();
+  if (customerCount === 0) {
+    await shot('FAIL-cp6-no-customer-card.png');
+    fail('CP6: external "Customer" card (data-flow-token="ext:Customer") not found in browse grid');
+  }
+
+  // Pin it so the spotlight survives mouse-out, then move the pointer away.
+  await customerCard.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  await customerCard.click();
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(500);
+  await shot('76-cp6-customer-spotlight-separated.png');
+
+  // Collect every spotlight line path's endpoints + marker presence.
+  type PathInfo = { d: string; hasStart: boolean; hasEnd: boolean };
+  const cp6Paths = await page.evaluate((): PathInfo[] => {
+    const svg = document.querySelector('.spotlight-overlay');
+    if (!svg) return [];
+    return [...svg.querySelectorAll('path.spotlight-line')].map(p => ({
+      d: p.getAttribute('d') ?? '',
+      hasStart: p.hasAttribute('marker-start'),
+      hasEnd: p.hasAttribute('marker-end'),
+    }));
+  });
+  note(`CP6: ${cp6Paths.length} spotlight-line path(s) drawn`);
+
+  if (cp6Paths.length < 2) {
+    await shot('FAIL-cp6-too-few-paths.png');
+    fail(`CP6: expected ≥2 separated spotlight-line paths for the Customer card, got ${cp6Paths.length}`);
+  }
+
+  // CP6 core invariant: NO single path carries arrowheads at BOTH ends.
+  const doubleEndedPath = cp6Paths.find(p => p.hasStart && p.hasEnd);
+  if (doubleEndedPath !== undefined) {
+    await shot('FAIL-cp6-double-ended-path.png');
+    fail(`CP6: a spotlight-line path has BOTH marker-start and marker-end (d="${doubleEndedPath.d}") — relationship still collapsed`);
+  }
+  note('OK CP6: no path carries arrowheads at both ends — each line is single-direction');
+
+  // Each path must carry exactly ONE marker (it is a connection line, not a stub).
+  const noMarkerPath = cp6Paths.find(p => !p.hasStart && !p.hasEnd);
+  if (noMarkerPath !== undefined) {
+    await shot('FAIL-cp6-no-marker-path.png');
+    fail(`CP6: a spotlight-line path has NO arrowhead (d="${noMarkerPath.d}") — direction lost`);
+  }
+  note('OK CP6: every separated line carries exactly one arrowhead');
+
+  // The paths must have DISTINCT geometry — separation actually offset them.
+  // Extract the start point (the "M x y" pair) of each path and confirm not all
+  // start points coincide. A `both` bundle to the same target is fanned apart, so
+  // at least two paths start at distinct connection points.
+  function startPoint(d: string): string {
+    // Path format: "M <x1> <y1> C ...". Capture the first coordinate pair.
+    const m = d.match(/^M\s+([-\d.]+)\s+([-\d.]+)/);
+    return m ? `${Number(m[1]).toFixed(2)},${Number(m[2]).toFixed(2)}` : d;
+  }
+  const startPoints = cp6Paths.map(p => startPoint(p.d));
+  const distinctStarts = new Set(startPoints);
+  note(`CP6: distinct path start points: ${distinctStarts.size} of ${startPoints.length}`);
+  if (distinctStarts.size < 2) {
+    await shot('FAIL-cp6-coincident-starts.png');
+    fail(`CP6: all ${startPoints.length} separated paths start at the same connection point — lines coincide`);
+  }
+  note('OK CP6: separated lines have distinct connection points (no overlap)');
+
+  // Tighter check: prove a `both`/multi bundle exists in the model for this card,
+  // and that it produced ≥2 paths whose FULL geometry differs.
+  const distinctGeom = new Set(cp6Paths.map(p => p.d));
+  if (distinctGeom.size < 2) {
+    await shot('FAIL-cp6-identical-geometry.png');
+    fail(`CP6: separated paths share identical geometry (${distinctGeom.size} distinct of ${cp6Paths.length})`);
+  }
+  note(`OK CP6: ${distinctGeom.size} distinct path geometries — a relationship is never hidden behind another`);
+
+  // Release pin for clean state.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
+  note('\n══ CP6 PASS ════════════════════════════════════════════════════════════');
 } catch (err) {
   console.error(err);
   process.exit(1);

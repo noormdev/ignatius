@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { SpotlightConnection } from '../../logic/spotlight';
 import type { FlowSpotlightConnection } from '../../logic/flow-spotlight';
+import { separateSpotlightLines, type LineDirection } from '../../logic/spotlight-lines';
 
 /**
  * SpotlightOverlay — leader-line SVG overlay + off-screen chips for the Dictionary browse lens.
@@ -655,51 +656,66 @@ export function SpotlightOverlay({
 
       svg.appendChild(defs);
 
-      // Draw FK (solid) lines. CP14: pills rendered only for the hovered connected card.
+      // Draw FK (solid) lines. CP6 (#2): a `both` or multi-edge bundle is fanned
+      // apart into SEPARATE paths — one per edge/direction with offset connection
+      // points — so neither the lines nor their arrowheads coincide. A single-edge
+      // out/in connection stays one un-offset line. CP14: pills are a second pass.
       for (const line of lines) {
-        const isOut = line.direction === 'out' || line.direction === 'both';
-        const isIn = line.direction === 'in' || line.direction === 'both';
-        const colorVar = line.direction === 'in' ? '--spotlight-line-in' : '--spotlight-line-out';
+        const directions: LineDirection[] = line.connection.edges.map(e => e.direction);
+        const specs = separateSpotlightLines(
+          { x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2, anchor: line.anchor },
+          directions,
+        );
 
-        const d = buildPathD(line.x1, line.y1, line.x2, line.y2, line.anchor);
+        for (const spec of specs) {
+          const colorVar = spec.direction === 'in' ? '--spotlight-line-in' : '--spotlight-line-out';
+          const d = buildPathD(spec.x1, spec.y1, spec.x2, spec.y2, line.anchor);
 
-        const pathEl = document.createElementNS(NS, 'path');
-        pathEl.setAttribute('class', 'spotlight-line');
-        pathEl.setAttribute('d', d);
-        pathEl.setAttribute('fill', 'none');
-        pathEl.setAttribute('stroke', `var(${colorVar}, #888)`);
-        pathEl.setAttribute('stroke-width', '1.5');
-        pathEl.setAttribute('stroke-opacity', '0.75');
-        if (isOut) pathEl.setAttribute('marker-end', 'url(#arrow-out-end)');
-        if (isIn) pathEl.setAttribute('marker-start', 'url(#arrow-in-start)');
-        svg.appendChild(pathEl);
+          const pathEl = document.createElementNS(NS, 'path');
+          pathEl.setAttribute('class', 'spotlight-line');
+          pathEl.setAttribute('d', d);
+          pathEl.setAttribute('fill', 'none');
+          pathEl.setAttribute('stroke', `var(${colorVar}, #888)`);
+          pathEl.setAttribute('stroke-width', '1.5');
+          pathEl.setAttribute('stroke-opacity', '0.75');
+          // Single direction per path → a single arrowhead. Never both ends.
+          if (spec.direction === 'out') pathEl.setAttribute('marker-end', 'url(#arrow-out-end)');
+          else pathEl.setAttribute('marker-start', 'url(#arrow-in-start)');
+          svg.appendChild(pathEl);
+        }
         // Pills are rendered in a second pass below (after all paths) to apply
         // collision-avoidance nudging across all pills for the hovered card.
       }
 
-      // Draw flow (dashed) lines. CP14: pills rendered only for hovered card (second pass).
+      // Draw flow (dashed) lines. CP6 (#2): same separation as FK lines — flow
+      // bundles overlap identically, so a `both`/multi-edge bundle fans into one
+      // dashed path per edge/direction. CP14: pills rendered only for hovered card.
       for (const flowLine of flowLines) {
-        const isOut = flowLine.direction === 'out' || flowLine.direction === 'both';
-        const isIn = flowLine.direction === 'in' || flowLine.direction === 'both';
+        const directions: LineDirection[] = flowLine.connection.edges.map(e => e.direction);
+        const specs = separateSpotlightLines(
+          { x1: flowLine.x1, y1: flowLine.y1, x2: flowLine.x2, y2: flowLine.y2, anchor: flowLine.anchor },
+          directions,
+        );
 
-        const d = buildPathD(flowLine.x1, flowLine.y1, flowLine.x2, flowLine.y2, flowLine.anchor);
+        for (const spec of specs) {
+          const d = buildPathD(spec.x1, spec.y1, spec.x2, spec.y2, flowLine.anchor);
 
-        const pathEl = document.createElementNS(NS, 'path');
-        // Both spotlight-line (counted by tests) and spotlight-line--flow (distinguished from FK).
-        pathEl.setAttribute('class', 'spotlight-line spotlight-line--flow');
-        pathEl.setAttribute('data-kind', 'flow');
-        pathEl.setAttribute('d', d);
-        pathEl.setAttribute('fill', 'none');
-        pathEl.setAttribute('stroke', 'var(--spotlight-line-flow, #a78bfa)');
-        pathEl.setAttribute('stroke-width', '1.5');
-        pathEl.setAttribute('stroke-opacity', '0.80');
-        pathEl.setAttribute('stroke-dasharray', '6 3');
-        // Direction: out = active is source → arrowhead at far end (target = sink).
-        //            in  = active is sink → arrowhead at near end (start of path).
-        //            both = both ends.
-        if (isOut) pathEl.setAttribute('marker-end', 'url(#arrow-flow-end)');
-        if (isIn) pathEl.setAttribute('marker-start', 'url(#arrow-flow-start)');
-        svg.appendChild(pathEl);
+          const pathEl = document.createElementNS(NS, 'path');
+          // Both spotlight-line (counted by tests) and spotlight-line--flow (distinguished from FK).
+          pathEl.setAttribute('class', 'spotlight-line spotlight-line--flow');
+          pathEl.setAttribute('data-kind', 'flow');
+          pathEl.setAttribute('d', d);
+          pathEl.setAttribute('fill', 'none');
+          pathEl.setAttribute('stroke', 'var(--spotlight-line-flow, #a78bfa)');
+          pathEl.setAttribute('stroke-width', '1.5');
+          pathEl.setAttribute('stroke-opacity', '0.80');
+          pathEl.setAttribute('stroke-dasharray', '6 3');
+          // Direction: out = active is source → arrowhead at far end (target = sink).
+          //            in  = active is sink → arrowhead at near end (start of path).
+          if (spec.direction === 'out') pathEl.setAttribute('marker-end', 'url(#arrow-flow-end)');
+          else pathEl.setAttribute('marker-start', 'url(#arrow-flow-start)');
+          svg.appendChild(pathEl);
+        }
       }
 
       // CP14: Pill rendering — second pass, only for labelHoverCardId.
