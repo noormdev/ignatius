@@ -44,6 +44,19 @@ function escapeScriptClose(s: string): string {
 }
 
 /**
+ * Escape a string for use as HTML text content (e.g. inside <title>…</title>).
+ * A model name can contain &, <, >, so it must be escaped to avoid breaking the
+ * document or injecting markup. This is distinct from escapeScriptClose, which
+ * only neutralizes </script in script bodies.
+ */
+function escapeHtmlText(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
  * Generate a fully self-contained unified-app HTML file.
  *
  * Writes ONE file. Opened from file:// with no server:
@@ -116,6 +129,15 @@ export async function generateApp(
   // must remove it. The pattern matches both the old form (mode only) and the new
   // form (mode + surface) for robustness across bundle rebuilds.
   html = html.replace(/<script>window\.__IGNATIUS_MODE__ = 'live';[\s\S]*?<\/script>/g, '');
+
+  // Set the document <title> from the model display name, falling back to the
+  // hardcoded "Ignatius" when the model has no name. The name is HTML text
+  // content, so escape &, <, > to keep the document well-formed.
+  const docTitle = model._meta?.name ?? 'Ignatius';
+  html = html.replace(
+    /<title>[\s\S]*?<\/title>/,
+    () => `<title>${escapeHtmlText(docTitle)}</title>`,
+  );
 
   return html;
 }

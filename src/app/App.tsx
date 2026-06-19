@@ -155,6 +155,14 @@ export function App() {
     graphViewRef.current?.retheme(themeMode, model, findings.entityErrors);
   }, [themeMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Document title reflects the model display name in both live and static modes.
+  // Live: re-runs on every model-change SSE refetch. Static: runs once the
+  // injected model is read. Falls back to the constant when the model is
+  // unloaded or unnamed.
+  useEffect(() => {
+    document.title = model?._meta?.name ?? 'Ignatius';
+  }, [model]);
+
   function toggleMinimapOpen() {
     const next = !minimapOpen;
     localStorage.setItem('ignatius-minimap', String(next));
