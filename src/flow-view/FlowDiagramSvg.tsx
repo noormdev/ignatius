@@ -32,7 +32,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { buildFlowData } from './flow-layout';
+import { buildFlowData, processNodeSize, PROC_LINE_H } from './flow-layout';
 import { isInlineLabel } from './elk-flow-layout';
 import { computeFitScale } from './zoom-scale';
 import type { FlowDiagram } from '../flows/flow-parse';
@@ -118,9 +118,10 @@ const EDGE_HIGHLIGHT = 'var(--flow-edge-highlight, #f0883e)';
 // Opacity applied to everything outside the hovered element's connected set.
 const DIM_OPACITY = 0.3;
 
-// Node geometry constants
-const PROC_W = 120;
-const PROC_H = 68;
+// Node geometry constants.
+// Process width/height are no longer fixed — they come from processNodeSize(label)
+// (flow-layout.ts), the same helper that feeds ELK's nodeSize, so the rect drawn
+// matches the box ELK laid out (#5). Only the corner radius + badge radius stay fixed.
 const PROC_RX = 10;
 const BADGE_R = 10;
 
@@ -190,23 +191,33 @@ function storeWidth(name: string): number {
   return STORE_CAP_W + bodyW;
 }
 
+type FlowNode = Extract<FlowElementData, { kind: 'node' }>;
+type FlowEdge = Extract<FlowElementData, { kind: 'edge' }>;
+
 /**
- * Split a label into at most 2 lines for the process box.
- * Keeps the last word(s) together on line 2 if the label has 3+ words.
+ * The label a node needs for size estimation (#5):
+ *   - process → its label (wrapped + measured via processNodeSize)
+ *   - store   → its display name (storeWidth)
+ *   - external → undefined (fixed EXT_W/EXT_H)
+ * Single derivation, reused at every nodeBounds call site so edge anchoring /
+ * viewBox / minimap all agree on a process's grown box.
  */
-function splitProcessLabel(label: string): [string, string | undefined] {
-  const words = label.split(' ');
-  if (words.length <= 2) return [words[0] ?? label, words[1]];
-  // 3+ words: put first word on line 1, rest on line 2
-  return [words[0] ?? label, words.slice(1).join(' ')];
+function sizingLabel(node: FlowNode): string | undefined {
+  if (node.nodeType === 'process') return node.label;
+  if (node.nodeType === 'store') return node.label ?? node.storeName ?? '';
+  return undefined;
 }
 
-/** Bounds of a node — used for edge attachment point calculation. */
-function nodeBounds(pos: NodePos, nodeType: string, storeName?: string): {
+/**
+ * Bounds of a node — used for edge attachment point calculation. `label` sizes
+ * the box: a process's box is derived from its wrapped label (processNodeSize),
+ * a store's from its display name; an external's is fixed (label ignored).
+ */
+function nodeBounds(pos: NodePos, nodeType: string, label?: string): {
   x: number; y: number; w: number; h: number; cx: number; cy: number;
 } {
   if (nodeType === 'process') {
-    const w = PROC_W; const h = PROC_H;
+    const { width: w, height: h } = processNodeSize(label ?? '');
     return { x: pos.x - w / 2, y: pos.y - h / 2, w, h, cx: pos.x, cy: pos.y };
   }
   if (nodeType === 'external') {
@@ -214,12 +225,9 @@ function nodeBounds(pos: NodePos, nodeType: string, storeName?: string): {
     return { x: pos.x - w / 2, y: pos.y - h / 2, w, h, cx: pos.x, cy: pos.y };
   }
   // store — center x is at middle of entire store width
-  const sw = storeWidth(storeName ?? '');
+  const sw = storeWidth(label ?? '');
   return { x: pos.x - sw / 2, y: pos.y - STORE_H / 2, w: sw, h: STORE_H, cx: pos.x, cy: pos.y };
 }
-
-type FlowNode = Extract<FlowElementData, { kind: 'node' }>;
-type FlowEdge = Extract<FlowElementData, { kind: 'edge' }>;
 
 /** Per-edge horizontal attachment points after fan-out (world x). */
 type EdgeAnchors = { fromX: number; toX: number };
@@ -290,8 +298,7 @@ function computeEdgeAnchors(
     const node = nodeById.get(nodeId);
     const pos = positions.get(nodeId);
     if (!node || !pos) continue;
-    const storeName = node.nodeType === 'store' ? (node.label ?? node.storeName ?? '') : undefined;
-    const { cx } = nodeBounds(pos, node.nodeType, storeName);
+    const { cx } = nodeBounds(pos, node.nodeType, sizingLabel(node));
     slots.sort((a, b) => a.otherX - b.otherX);
     const k = slots.length;
     const span = FANOUT_GAP * (k - 1);
@@ -397,12 +404,12 @@ function edgeChannelY(fy: number, toSide: 'top' | 'bottom', toBoundary: number):
  * path `d` string.
  */
 function orthogonalPath(
-  fromPos: NodePos, fromType: string, fromStoreName: string | undefined,
-  toPos: NodePos, toType: string, toStoreName: string | undefined,
+  fromPos: NodePos, fromType: string, fromLabel: string | undefined,
+  toPos: NodePos, toType: string, toLabel: string | undefined,
   fromX: number, toX: number,
 ): Pt[] {
-  const fb = nodeBounds(fromPos, fromType, fromStoreName);
-  const tb = nodeBounds(toPos, toType, toStoreName);
+  const fb = nodeBounds(fromPos, fromType, fromLabel);
+  const tb = nodeBounds(toPos, toType, toLabel);
 
   const fromSide = endpointSide(fromType, 'from', fromPos.y, toPos.y);
   const toSide = endpointSide(toType, 'to', toPos.y, fromPos.y);
@@ -425,12 +432,12 @@ function orthogonalPath(
  * the way they would at a process that carries many edges.
  */
 function chipAnchor(
-  fromPos: NodePos, fromType: string, fromStoreName: string | undefined,
-  toPos: NodePos, toType: string, toStoreName: string | undefined,
+  fromPos: NodePos, fromType: string, fromLabel: string | undefined,
+  toPos: NodePos, toType: string, toLabel: string | undefined,
   fromX: number, toX: number,
 ): NodePos {
-  const fb = nodeBounds(fromPos, fromType, fromStoreName);
-  const tb = nodeBounds(toPos, toType, toStoreName);
+  const fb = nodeBounds(fromPos, fromType, fromLabel);
+  const tb = nodeBounds(toPos, toType, toLabel);
   const fromSide = endpointSide(fromType, 'from', fromPos.y, toPos.y);
   const toSide = endpointSide(toType, 'to', toPos.y, fromPos.y);
   const fy = fromSide === 'bottom' ? fb.y + fb.h : fb.y;
@@ -495,19 +502,24 @@ function ProcessNode({
   id: string; label: string; pos: NodePos; num: string;
   hasSubDfd: boolean; c: FlowPalette; onOpenDoc?: () => void;
 }) {
-  const x = pos.x - PROC_W / 2;
-  const y = pos.y - PROC_H / 2;
+  // #5: the box sizes to the wrapped label via the shared pure helper. The same
+  // helper drives ELK's nodeSize, so the rect drawn here is exactly the box ELK
+  // laid out — short names floor at PROC_MIN (unchanged look), long names grow.
+  const { lines, width: w, height: h } = processNodeSize(label);
+  const x = pos.x - w / 2;
+  const y = pos.y - h / 2;
 
   const badgeCx = x + BADGE_R + 10;
   const badgeCy = y + BADGE_R + 10;
 
+  // Text sits in the area right of the badge, horizontally centered there.
   const textAreaX = badgeCx + BADGE_R + 4;
-  const textAreaW = (x + PROC_W) - textAreaX;
+  const textAreaW = (x + w) - textAreaX;
   const textCenterX = textAreaX + textAreaW / 2;
 
-  const [line1, line2] = splitProcessLabel(label);
-  const lineH = 15;
-  const totalTextH = line2 ? lineH * 2 : lineH;
+  // Vertically center the line block in the box.
+  const lineH = PROC_LINE_H;
+  const totalTextH = lines.length * lineH;
   const textStartY = pos.y - totalTextH / 2 + lineH / 2;
 
   return (
@@ -519,54 +531,45 @@ function ProcessNode({
     >
       {/* Stacked-card elevation: two offset rects behind the main shape signal
           drill-down. Rendered before the main rect so they sit under it. The
-          offsets are purely decorative — nodeBounds() still uses the unshifted
-          PROC_W/PROC_H, so edge anchoring is unaffected (CP6 invariant). */}
+          offsets are purely decorative — nodeBounds() uses the same processNodeSize
+          box this rect draws, so edge anchoring stays in sync (CP6 invariant). */}
       {hasSubDfd && (
         <>
           <rect
-            x={x + 8} y={y + 8} width={PROC_W} height={PROC_H} rx={PROC_RX}
+            x={x + 8} y={y + 8} width={w} height={h} rx={PROC_RX}
             fill={c.procElevation} stroke={c.procBorder} strokeWidth={1}
             opacity={0.6}
           />
           <rect
-            x={x + 4} y={y + 4} width={PROC_W} height={PROC_H} rx={PROC_RX}
+            x={x + 4} y={y + 4} width={w} height={h} rx={PROC_RX}
             fill={c.procElevation} stroke={c.procBorder} strokeWidth={1.2}
             opacity={0.8}
           />
         </>
       )}
       <rect
-        x={x} y={y} width={PROC_W} height={PROC_H} rx={PROC_RX}
+        x={x} y={y} width={w} height={h} rx={PROC_RX}
         fill={c.procFill} stroke={c.procBorder} strokeWidth={1.6}
       />
       <circle cx={badgeCx} cy={badgeCy} r={BADGE_R} fill={c.canvas} stroke={c.procBorder} strokeWidth={1.3} />
       <text x={badgeCx} y={badgeCy + 4} fill={c.procText} fontSize={11} fontWeight={700} textAnchor="middle">{num}</text>
-      <text
-        x={textCenterX}
-        y={textStartY}
-        fill={c.procText}
-        fontSize={11.5}
-        fontWeight={600}
-        textAnchor="middle"
-      >
-        {line1}
-      </text>
-      {line2 && (
+      {lines.map((line, i) => (
         <text
+          key={i}
           x={textCenterX}
-          y={textStartY + lineH}
+          y={textStartY + i * lineH}
           fill={c.procText}
           fontSize={11.5}
           fontWeight={600}
           textAnchor="middle"
         >
-          {line2}
+          {line}
         </text>
-      )}
+      ))}
       {hasSubDfd && (
-        <text x={x + PROC_W - 10} y={y + PROC_H - 6} fill={c.procBorder} fontSize={12} textAnchor="middle">⤵</text>
+        <text x={x + w - 10} y={y + h - 6} fill={c.procBorder} fontSize={12} textAnchor="middle">⤵</text>
       )}
-      <InfoBadge cx={x + PROC_W - INFO_R - 5} cy={y + INFO_R + 5} color={c.procBorder} c={c} onOpen={onOpenDoc} />
+      <InfoBadge cx={x + w - INFO_R - 5} cy={y + INFO_R + 5} color={c.procBorder} c={c} onOpen={onOpenDoc} />
     </g>
   );
 }
@@ -917,8 +920,7 @@ export function FlowDiagramSvg({
   for (const [id, pos] of positions) {
     const node = nodeById.get(id);
     if (!node) continue;
-    const storeName = node.nodeType === 'store' ? (node.label ?? node.storeName ?? '') : undefined;
-    const bounds = nodeBounds(pos, node.nodeType, storeName);
+    const bounds = nodeBounds(pos, node.nodeType, sizingLabel(node));
     minX = Math.min(minX, bounds.x);
     minY = Math.min(minY, bounds.y);
     maxX = Math.max(maxX, bounds.x + bounds.w);
@@ -945,8 +947,7 @@ export function FlowDiagramSvg({
     for (const [id, pos] of positions) {
       const node = nodeById.get(id);
       if (!node) continue;
-      const storeName = node.nodeType === 'store' ? (node.label ?? node.storeName ?? '') : undefined;
-      const b = nodeBounds(pos, node.nodeType, storeName);
+      const b = nodeBounds(pos, node.nodeType, sizingLabel(node));
       nodeBoxes.push({ x: b.x, y: b.y, w: b.w, h: b.h, type: node.nodeType });
     }
 
@@ -1328,8 +1329,7 @@ export function FlowDiagramSvg({
   for (const n of nodes) {
     const p = positions.get(n.id);
     if (!p) continue;
-    const sn = n.nodeType === 'store' ? (n.label ?? n.storeName ?? '') : undefined;
-    const b = nodeBounds(p, n.nodeType, sn);
+    const b = nodeBounds(p, n.nodeType, sizingLabel(n));
     nodeBoxes.push({ x: b.x, y: b.y, w: b.w, h: b.h });
   }
 
@@ -1357,8 +1357,10 @@ export function FlowDiagramSvg({
     const fromPos = positions.get(edge.source);
     const toPos = positions.get(edge.target);
     if (!fromNode || !toNode || !fromPos || !toPos) return [];
-    const fromStoreName = fromNode.nodeType === 'store' ? (fromNode.label ?? fromNode.storeName) : undefined;
-    const toStoreName = toNode.nodeType === 'store' ? (toNode.label ?? toNode.storeName) : undefined;
+    // Sizing label: store name or process label (#5 — a grown process box must
+    // anchor its edges to the true top/bottom). External → undefined (fixed box).
+    const fromLabel = sizingLabel(fromNode);
+    const toLabel = sizingLabel(toNode);
 
     // CP4b: use ELK's routed geometry when available and neither endpoint has
     // been dragged off its ELK base position. "Moved" = current position differs
@@ -1386,7 +1388,7 @@ export function FlowDiagramSvg({
       points = elkPts;
     } else {
       const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
-      points = orthogonalPath(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+      points = orthogonalPath(fromPos, fromNode.nodeType, fromLabel, toPos, toNode.nodeType, toLabel, a.fromX, a.toX);
     }
 
     // A dragged label slides along the path: snap its saved point onto the
@@ -1402,10 +1404,8 @@ export function FlowDiagramSvg({
       // the channel point lands between them.
       //
       // 1. Determine the upper and lower node boxes.
-      const fromSn = fromNode.nodeType === 'store' ? (fromNode.label ?? fromNode.storeName) : undefined;
-      const toSn = toNode.nodeType === 'store' ? (toNode.label ?? toNode.storeName) : undefined;
-      const fb = nodeBounds(fromPos, fromNode.nodeType, fromSn);
-      const tb = nodeBounds(toPos, toNode.nodeType, toSn);
+      const fb = nodeBounds(fromPos, fromNode.nodeType, fromLabel);
+      const tb = nodeBounds(toPos, toNode.nodeType, toLabel);
       // upper = whichever box has the smaller center-y; lower = the other.
       const upperBottom = fb.cy <= tb.cy ? fb.y + fb.h : tb.y + tb.h;
       const lowerTop    = fb.cy <= tb.cy ? tb.y : fb.y;
@@ -1445,7 +1445,7 @@ export function FlowDiagramSvg({
       chip = { x: channelX, y: channelY };
     } else {
       const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
-      chip = chipAnchor(fromPos, fromNode.nodeType, fromStoreName, toPos, toNode.nodeType, toStoreName, a.fromX, a.toX);
+      chip = chipAnchor(fromPos, fromNode.nodeType, fromLabel, toPos, toNode.nodeType, toLabel, a.fromX, a.toX);
     }
 
     // CP4a length gate: short labels (≤ SHORT_LABEL_MAX) render full inline,

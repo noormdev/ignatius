@@ -59,6 +59,128 @@ export function normalizeEdgeData(data: string | string[] | undefined): string[]
   return data.split(', ');
 }
 
+// ── Process node sizing ────────────────────────────────────────────────────────
+
+/**
+ * Process-node sizing constants (#5). The floor matches the historical look so
+ * short names render identically; only long labels grow the box.
+ *
+ * Geometry mirrors the renderer (FlowDiagramSvg.ProcessNode):
+ *   - PROC_MIN_W / PROC_MIN_H — the historical fixed rect (the floor).
+ *   - PROC_TEXT_LEFT — left reserve for the circular number badge + gap. The
+ *     renderer docks the badge at `x + BADGE_R + 10` (BADGE_R = 10) and starts
+ *     the text area at `badgeCx + BADGE_R + 4` = `x + 34`.
+ *   - PROC_TEXT_RIGHT_PAD — symmetric right padding so the label never touches
+ *     the rounded corner or the ⓘ / ⤵ affordances.
+ *   - PROC_LINE_H — vertical pitch per wrapped line (matches the renderer).
+ *   - PROC_TEXT_PAD_Y — top+bottom vertical padding inside the box.
+ *   - PROC_FONT — label font size; PROC_CHAR_PX — per-character width estimate.
+ *
+ * No DOM/React/Bun — headless ELK and Bun tests have no measureText, so width is
+ * estimated from character count (the same approach externals/stores use).
+ */
+export const PROC_MIN_W = 120;
+export const PROC_MIN_H = 68;
+export const PROC_TEXT_LEFT = 34;
+export const PROC_TEXT_RIGHT_PAD = 14;
+export const PROC_LINE_H = 15;
+/**
+ * Vertical padding inside the box (top + bottom combined). Tuned so the floor
+ * height (PROC_MIN_H = 68) holds up to 2 lines — the historical maximum the
+ * renderer drew — while a 3rd line grows the box: 2·15 + 38 = 68 (floor),
+ * 3·15 + 38 = 83 (grows). The extra padding also clears the top-left number
+ * badge so text never collides with it.
+ */
+export const PROC_TEXT_PAD_Y = 38;
+const PROC_FONT = 11.5;
+/** Per-character width estimate for the process label font (system-ui ~0.55·fontSize). */
+const PROC_CHAR_PX = PROC_FONT * 0.55;
+/**
+ * Hard cap on box width before a too-long single word is broken instead of
+ * widening further. Keeps a pathological name from blowing out the diagram.
+ */
+const PROC_MAX_W = 320;
+
+/** Estimated rendered pixel width of one process-label line. Pure; exported for tests. */
+export function estProcessLineWidth(line: string): number {
+  return line.length * PROC_CHAR_PX;
+}
+
+/** Max characters that fit on one line for a given inner text width. */
+function maxCharsForWidth(innerWidth: number): number {
+  return Math.max(1, Math.floor(innerWidth / PROC_CHAR_PX));
+}
+
+/** Break a word longer than `maxChars` into hard-wrapped chunks. */
+function breakLongWord(word: string, maxChars: number): string[] {
+  const chunks: string[] = [];
+  for (let i = 0; i < word.length; i += maxChars) {
+    chunks.push(word.slice(i, i + maxChars));
+  }
+  return chunks;
+}
+
+/**
+ * Greedy word-wrap into lines no wider than `innerWidth`. A single word wider
+ * than the line is hard-broken so it never overflows.
+ */
+function wrapLabelToWidth(label: string, innerWidth: number): string[] {
+  const maxChars = maxCharsForWidth(innerWidth);
+  const words = label.split(/\s+/).filter(w => w.length > 0);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const pieces = word.length > maxChars ? breakLongWord(word, maxChars) : [word];
+    for (const piece of pieces) {
+      if (current === '') {
+        current = piece;
+      } else if (estProcessLineWidth(`${current} ${piece}`) <= innerWidth) {
+        current = `${current} ${piece}`;
+      } else {
+        lines.push(current);
+        current = piece;
+      }
+    }
+  }
+  if (current !== '') lines.push(current);
+  return lines.length > 0 ? lines : [''];
+}
+
+/**
+ * processNodeSize — pure sizing helper for a DFD process node (#5).
+ *
+ * Given a process label, returns the wrapped lines and the box {width, height}.
+ * Width fits the longest wrapped line PLUS the number-badge reserve PLUS right
+ * padding; height fits the line count PLUS vertical padding. A MIN floor
+ * (PROC_MIN_W × PROC_MIN_H) preserves the historical look for short names — only
+ * long names grow the box.
+ *
+ * Single source of truth: consumed by elk-flow-layout.ts `nodeSize` (so ELK lays
+ * out with the true size) AND by FlowDiagramSvg (so the rect drawn is the same
+ * box). Pure — no DOM/React/Bun. Width is char-count estimated (no measureText).
+ */
+export function processNodeSize(label: string): { lines: string[]; width: number; height: number } {
+  // First wrap against the floor's inner width; if any line overflows, the box
+  // widens to fit the longest line, then we re-wrap at the wider inner width so
+  // the layout is consistent with the final width.
+  const floorInner = PROC_MIN_W - PROC_TEXT_LEFT - PROC_TEXT_RIGHT_PAD;
+  let lines = wrapLabelToWidth(label, floorInner);
+
+  const widest = lines.reduce((max, l) => Math.max(max, estProcessLineWidth(l)), 0);
+  let width = PROC_MIN_W;
+  if (widest > floorInner) {
+    const needed = Math.ceil(widest + PROC_TEXT_LEFT + PROC_TEXT_RIGHT_PAD);
+    width = Math.min(PROC_MAX_W, Math.max(PROC_MIN_W, needed));
+    // Re-wrap at the final inner width so each line truly fits (a hard-broken
+    // long word may now fit fewer/more chars per line).
+    const finalInner = width - PROC_TEXT_LEFT - PROC_TEXT_RIGHT_PAD;
+    lines = wrapLabelToWidth(label, finalInner);
+  }
+
+  const height = Math.max(PROC_MIN_H, Math.ceil(lines.length * PROC_LINE_H + PROC_TEXT_PAD_Y));
+  return { lines, width, height };
+}
+
 /** Endpoint kinds that denote a data store (everything except `ext` and `proc`). */
 const STORE_KINDS: Record<string, true> = { db: true, cache: true, queue: true, file: true, doc: true, manual: true };
 

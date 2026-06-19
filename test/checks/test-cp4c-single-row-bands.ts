@@ -17,6 +17,15 @@
  * Diagrams under test: memory-lifecycle and tag-administration from
  * models/llm-memory-db-mssql (the two dense leaves that exposed the multi-row
  * band defect).
+ *
+ * Single-row criterion (updated for viewer-ux-polish #5): process nodes now size
+ * to their wrapped label, so a band's nodes no longer share one EXACT center-y —
+ * a 3-line process is taller than a 2-line one, and ELK staggers their centers by
+ * a few px. "Single row" is therefore checked as a structural property: every
+ * node in a band must vertically overlap a COMMON horizontal strip (there exists
+ * a y inside every node's [top, bottom] extent), AND no band's strip bleeds into
+ * an adjacent band's. This proves the band is one ELK layer (the C16 intent — no
+ * label-dummy sub-layer split) without assuming uniform node heights.
  */
 
 import { createRequire } from 'node:module';
@@ -84,15 +93,14 @@ for (const targetId of DIAGRAMS) {
   // internals — the srcSet is derived from edge sources).
   const srcSet = new Set(edges.map(e => e.source));
 
-  // Group nodes by their band index, then check that each band's node positions
-  // share a single distinct rounded y (the center-y of the ELK position + half
-  // the node height, which is the node center in ELK's top-left coordinate system).
-  //
-  // ELK returns the top-left corner of each node. The "y row" of a node in a
-  // band is the rounded top-left y (not center-y): all nodes in the same ELK
-  // layer share the same top-left y since they're placed in the same partition row.
-  const bandYs = new Map<number, Set<number>>();
-  const bandNodeIds = new Map<number, string[]>();
+  // Group nodes by band, recording each node's vertical extent [top, bottom].
+  // result.positions[id].y is the node CENTER (ELK top-left + height/2, per
+  // computeElkLayout's center convention), so top = cy - h/2, bottom = cy + h/2.
+  // A band is one row iff there is a y inside EVERY node's extent — i.e.
+  // max(top) < min(bottom). With variable process heights (#5) the centers no
+  // longer coincide, but a true single layer still overlaps a common strip.
+  type Extent = { id: string; top: number; bottom: number };
+  const bandExtents = new Map<number, Extent[]>();
 
   for (const node of nodes) {
     const elkPos = result.positions[node.id];
@@ -102,29 +110,32 @@ for (const targetId of DIAGRAMS) {
     }
 
     const band = bandOf(node, srcSet);
-    const ry = roundY(elkPos.y);
+    const { height } = nodeSize(node);
+    const top = elkPos.y - height / 2;
+    const bottom = elkPos.y + height / 2;
 
-    let ySet = bandYs.get(band);
-    if (ySet === undefined) { ySet = new Set(); bandYs.set(band, ySet); }
-    ySet.add(ry);
-
-    let ids = bandNodeIds.get(band);
-    if (ids === undefined) { ids = []; bandNodeIds.set(band, ids); }
-    ids.push(node.id);
+    const list = bandExtents.get(band);
+    if (list === undefined) bandExtents.set(band, [{ id: node.id, top, bottom }]);
+    else list.push({ id: node.id, top, bottom });
   }
 
+  // Common strip per band: [maxTop, minBottom]. Valid (single row) iff maxTop < minBottom.
+  type Strip = { band: number; maxTop: number; minBottom: number; ids: string[] };
+  const strips: Strip[] = [];
   let allSingleRow = true;
-  for (const [band, ySet] of bandYs) {
-    const ids = bandNodeIds.get(band) ?? [];
-    if (ySet.size !== 1) {
+  for (const [band, extents] of [...bandExtents.entries()].sort((a, b) => a[0] - b[0])) {
+    const maxTop = Math.max(...extents.map(e => e.top));
+    const minBottom = Math.min(...extents.map(e => e.bottom));
+    const ids = extents.map(e => e.id);
+    strips.push({ band, maxTop, minBottom, ids });
+    if (maxTop >= minBottom) {
       allSingleRow = false;
       console.error(
-        `FAIL [${targetId}]: band ${band} has ${ySet.size} distinct y values ` +
-        `[${[...ySet].join(', ')}] across nodes: ${ids.join(', ')}`,
+        `FAIL [${targetId}]: band ${band} nodes do not share a common horizontal strip ` +
+        `(maxTop=${roundY(maxTop)} ≥ minBottom=${roundY(minBottom)}) across nodes: ${ids.join(', ')}`,
       );
     } else {
-      const [y] = ySet;
-      console.log(`  PASS band ${band}: ${ids.length} node(s) all at y≈${y}`);
+      console.log(`  PASS band ${band}: ${ids.length} node(s) share a strip y∈[${roundY(maxTop)}, ${roundY(minBottom)}]`);
     }
   }
 
@@ -133,9 +144,23 @@ for (const targetId of DIAGRAMS) {
     `[${targetId}] Not all bands are single-row — see FAIL lines above (C16)`,
   );
 
-  // Print node+size summary for traceability
-  console.log(`  Band y-sets: ${[...bandYs.entries()].map(([b, ys]) => `band${b}={${[...ys].join(',')}}`).join(' ')}`);
-  console.log(`PASS C16 [${targetId}]: each occupied band has exactly one distinct y`);
+  // Bands must not bleed into each other: each band's strip sits strictly below
+  // the previous band's (top edge of band N below the bottom edge of band N-1's
+  // tallest overlap). Checks the 5-band vertical separation survives variable heights.
+  for (let i = 1; i < strips.length; i++) {
+    const prev = strips[i - 1]!;
+    const cur = strips[i]!;
+    if (cur.maxTop <= prev.minBottom) {
+      console.error(
+        `FAIL [${targetId}]: band ${cur.band} strip top (${roundY(cur.maxTop)}) ` +
+        `overlaps band ${prev.band} strip bottom (${roundY(prev.minBottom)}) — bands bleed together`,
+      );
+      process.exit(1);
+    }
+  }
+
+  console.log(`  Band strips: ${strips.map(s => `band${s.band}=[${roundY(s.maxTop)},${roundY(s.minBottom)}]`).join(' ')}`);
+  console.log(`PASS C16 [${targetId}]: each occupied band is one row (common strip) and bands stay separated`);
 }
 
 console.log('\nAll C16 assertions passed.');

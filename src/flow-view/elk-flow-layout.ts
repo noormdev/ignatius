@@ -34,7 +34,7 @@
 import ELK from 'elkjs';
 import type { ELKConstructorArguments, ElkNode, ElkPoint } from 'elkjs/lib/elk-api.js';
 import type { FlowDiagram } from '../flows/flow-parse';
-import { buildFlowData } from './flow-layout';
+import { buildFlowData, processNodeSize } from './flow-layout';
 import type { FlowElementData } from './flow-layout';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -76,7 +76,15 @@ const estW = (text: string, px = 6.6, pad = 24, min = 80) =>
  * consistent with the actual layout.
  */
 export function nodeSize(n: NodeElement): { width: number; height: number } {
-  if (n.nodeType === 'process') return { width: 130, height: 64 };
+  if (n.nodeType === 'process') {
+    // #5: size the process to its wrapped label via the shared pure helper so
+    // ELK lays out with the TRUE box (long names grow, short names floor) and
+    // band spacing/edge routing reflect the rendered size. Same helper drives
+    // the renderer (FlowDiagramSvg.ProcessNode) — one source of truth, no more
+    // 130×64-vs-120×68 mismatch.
+    const { width, height } = processNodeSize(n.label);
+    return { width, height };
+  }
   if (n.nodeType === 'external') return { width: estW(n.label, 6.6, 28, 110), height: 52 };
   // store — prefix with D# if present
   const label = `D${n.storeNum ?? ''} ${n.label}`;
