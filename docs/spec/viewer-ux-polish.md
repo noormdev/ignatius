@@ -28,7 +28,7 @@ See `docs/design/viewer-ux-polish.md`.
 - [ ] #3 — The readout shows true scale: at Cytoscape `zoom===1` / SVG `scale===1` it reads `100%`, regardless of model size. The initial view fits and reports its real (non-100%) percentage on a large model. Home/reset fits-to-screen. `setPercent(100)` yields 1:1.
 - [ ] #4 — Trackpad pinch (`ctrl`+wheel) and Cmd/Ctrl `+`/`-`/`0` zoom the canvas and never the browser page, on both DG and DFD. A unit test covers the resolver's new zoom actions; the page does not zoom (`preventDefault`).
 - [ ] #5 — A process named `Confirm OTP And Create Individual` renders fully inside its box (no overflow); the box grows to fit and ELK spacing reflects the measured size. A unit test pins the sizing helper; a visual screenshot confirms.
-- [ ] #6/#8 — Opening an entity modal pushes a history entry carrying `entity=<id>`; browser Back returns to the previous modal/state; closing the modal removes `entity=` from the URL.
+- [x] #6/#8 — Opening an entity modal pushes a history entry carrying `entity=<id>`; browser Back returns to the previous modal/state; closing the modal removes `entity=` from the URL.
 - [ ] No new `tsc --noEmit` errors vs baseline; `bun run test` exits 0; `bun run build:cli` succeeds.
 
 
@@ -70,5 +70,19 @@ Docs per CP: update the CLAUDE.md feature↔doc map and any touched guide
 
 ## Implementation log
 
+
+### CP2 — Entity-modal history + URL sync (#6/#8)
+
+
+`entity=<id>` in the URL hash is the single source of truth for "which entity
+modal is open." The shell (`App.tsx`) is the single writer; GraphView no longer
+writes `entity=`.
+
+- `useHashRoute` ([`src/app/hooks/useHashRoute.ts`](../../src/app/hooks/useHashRoute.ts)) gained `openEntity(id)` (pushState carrying `entity=`, dedups when the hash already holds that id), `closeEntity()` (replaceState dropping `entity` — clean URL, no Back step), and an `onEntityChange(id | null)` popstate reconcile that opens/switches/closes the modal to MATCH the hash WITHOUT pushing.
+- `App.tsx` routes every open surface through the single writer: graph tap (`onSelectEntity`), dict click, FK/`[[wiki]]` hop (`onNavigate`), flow `db:` store (`openEntityById`), and findings-panel row (`onPanelSelect`) all call `openEntity`. Modal close (`×`/Esc) and graph background tap (`onDeselectEntity`) call `closeEntity`. A one-shot mount effect opens the modal for an initial `entity=` deep-link (works on any view, not just graph).
+- `GraphView.tsx` stopped writing `entity=`: tap → `onSelectEntity` only; bg tap → `onDeselectEntity` only; `navigateToEntity`/`panelNavigate` do cy select+center only. `applyHashState` restores cy viewport+selection but never opens the modal (the shell owns that). `scheduleHashWrite` re-merges the live `entity=` at flush time so a debounced viewport (zoom/pan) write never clobbers a shell-pushed `entity=`.
+- Back vs close: Back walks the modal back-stack (B→A→none) via the popstate reconcile (no push); close clears the URL via replaceState and shows no modal.
+
+Tests: [`test/checks/test-hash-router.ts`](../../test/checks/test-hash-router.ts) extended with `entity=` presence/absence round-trip; [`test/checks/test-modal-history.ts`](../../test/checks/test-modal-history.ts) (new, CI-runnable, skip-if-`dist/static`-absent Playwright) proves open→`entity=`, FK hop A→B pushes again, Back→A, Back→none, close clears. `bun run test` exits 0; no new `tsc --noEmit` errors vs baseline.
 
 <!-- appended per checkpoint -->

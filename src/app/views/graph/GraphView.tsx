@@ -482,12 +482,25 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (writeTimer !== null) clearTimeout(writeTimer);
         writeTimer = setTimeout(() => {
           writeTimer = null;
-          const serialized = serializeHash(next);
+          // Re-merge the LIVE entity= at flush time. entity= is owned by the shell
+          // (modal opener/closer); a viewport write scheduled by cy.center()/pan
+          // captures a snapshot eagerly, but the shell may push entity= in the
+          // gap before this 200ms timer fires. Reading the hash here ensures the
+          // debounced viewport write never clobbers a shell-pushed entity=.
+          const liveEntity = parseHash(location.hash).entity;
+          const merged: HashState = { ...next };
+          if (liveEntity !== undefined) merged.entity = liveEntity;
+          else delete merged.entity;
+          const serialized = serializeHash(merged);
           lastWrittenHash = serialized;
           history.replaceState({}, '', serialized ? '#' + serialized : location.pathname);
         }, 200);
       }
 
+      // Viewport (zoom/pan) writer. entity= is owned by the shell (the modal
+      // opener/closer is the single writer). This carries only view/zoom/pan;
+      // scheduleHashWrite re-merges the live entity= at flush time so the
+      // debounced write never clobbers a shell-pushed entity=.
       function viewportState(): HashState {
         const zoom = cy.zoom();
         const pan = cy.pan();
@@ -498,15 +511,14 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         };
       }
 
-      function currentHashState(): HashState {
-        const state = viewportState();
-        const sel = cy.$('node:selected').first();
-        if (sel.length > 0 && !String(sel.id()).startsWith('_')) {
-          state.entity = sel.id();
-        }
-        return state;
-      }
-
+      // Apply a hash state to the cy VIEWPORT + SELECTION only. Used on initial
+      // deep-link (layoutstop) and on hashchange (Back/Forward).
+      //
+      // It deliberately does NOT open the entity modal. The shell is the single
+      // owner of modal state: a mount effect opens the modal for an initial
+      // entity= deep-link, and the useHashRoute popstate reconcile (onEntityChange)
+      // opens/closes it on Back/Forward. Opening from here too would push a
+      // duplicate history entry and corrupt the back-stack (the #6/#8 fight).
       function applyHashState(state: HashState) {
         if (state.zoom !== undefined) cy.zoom(state.zoom);
         if (state.pan !== undefined) cy.pan(state.pan);
@@ -516,10 +528,6 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             cy.elements().unselect();
             target.select();
             if (state.pan === undefined) cy.center(target);
-            const node = state.entity !== undefined
-              ? modelIndexRef.current?.nodeById.get(state.entity)
-              : undefined;
-            if (node) onSelectEntity(node);
           }
         }
       }
@@ -564,6 +572,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
         const initialState = parseHash(location.hash);
         if (Object.keys(initialState).length > 0) {
+          // Initial deep-link: restore cy viewport + node selection. The modal
+          // itself is opened by the shell's mount effect (single owner).
           applyHashState(initialState);
         }
       });
@@ -574,7 +584,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
       cy.on('viewport', () => {
         redrawMarkers();
-        scheduleHashWrite(currentHashState());
+        scheduleHashWrite(viewportState());
       });
 
       cy.on('zoom', () => {
@@ -622,20 +632,28 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         const nodeId = evt.target.id();
         const node = modelIndexRef.current?.nodeById.get(nodeId);
         if (node) {
+          // Shell's onSelectEntity is the single writer of entity= (pushes one
+          // history entry). GraphView does not write entity= on tap.
           onSelectEntity(node);
-          scheduleHashWrite({ ...viewportState(), entity: nodeId });
         }
       });
 
       cy.on('tap', (evt) => {
         if (evt.target === cy) {
+          // Shell's onDeselectEntity clears entity= (replaceState). GraphView
+          // does not write the hash here — the shell owns entity= lifecycle.
           onDeselectEntity();
-          scheduleHashWrite(viewportState());
         }
       });
 
+      // Pan+select for an entity link/navigation. The shell pushes entity= via
+      // openEntity before calling this; GraphView only moves the viewport.
       navigateToEntityRef.current = (id: string) => {
-        scheduleHashWrite({ ...viewportState(), entity: id });
+        const target = cy.$(`#${CSS.escape(id)}`);
+        if (target.length === 0) return;
+        cy.elements().unselect();
+        target.select();
+        cy.center(target);
       };
 
       let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -680,7 +698,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cy.center(target);
         const node = modelIndexRef.current?.nodeById.get(id);
         if (node) onPanelSelect(node);
-        scheduleHashWrite({ ...viewportState(), entity: id });
+        // Panel-navigate selects+centers but does NOT open the modal, so it must
+        // not set entity= (which means "modal open"). viewportState preserves any
+        // entity= already in the hash; the center() above triggers a viewport
+        // write of its own, so no explicit hash write is needed here.
       };
 
       function onHashChange() {

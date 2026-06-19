@@ -119,6 +119,29 @@ function deepEqual(a: unknown, b: unknown): boolean {
   assert(result.includes('entity=Party'), "serialize with view + entity contains entity=Party");
 }
 
+// --- entity= as the single source of truth for "modal open" (CP2) ---
+// The opener writes entity=<id>; the closer drops it. These pin the exact
+// presence/absence contract the modal-history wiring depends on.
+
+{
+  // Opening a modal: state carries entity= → serialized string contains it.
+  const result = serializeHash({ view: 'dict', entity: 'Order' });
+  assert(result.includes('entity=Order'), "open-modal: serialize({view,entity}) contains entity=Order");
+}
+
+{
+  // Closing a modal: state WITHOUT entity → no entity= token at all.
+  const result = serializeHash({ view: 'dict' });
+  assert(!result.includes('entity='), "close-modal: serialize({view}) has NO entity= token");
+}
+
+{
+  // Round-trip: parsing the closed string back yields no entity field.
+  const closed = serializeHash({ view: 'flow', zoom: 1.5 });
+  const parsed = parseHash('#' + closed);
+  assert(parsed.entity === undefined, "close-modal: re-parsed closed state has entity === undefined");
+}
+
 // --- dfd field ---
 
 {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { semanticColors, resolveFlowKindPalette, type FlowKindKey, type FlowKindEntry } from '../theme/theme-defaults';
-import type { ViewName } from './hash-router';
+import { parseHash } from './hash-router';
 import { RULES } from '../model/validate';
 import type { EntityError } from '../model/validate';
 import type {
@@ -64,8 +64,22 @@ export function App() {
   // Handle to DictionaryView — provides toggleLens for keyboard shortcut.
   const dictViewRef = useRef<DictionaryViewHandle>(null);
 
-  const { view, setView } = useHashRoute({
+  const { view, setView, openEntity, closeEntity } = useHashRoute({
     onRestoreDfd: (dfdId) => flowsViewRef.current?.selectDiagramById(dfdId),
+    // popstate reconcile: open/switch/close the modal to MATCH the hash. Sets
+    // React state ONLY — never pushes history (we are responding to Back/Forward).
+    onEntityChange: (id) => {
+      if (id === null) {
+        setShowEntityModal(false);
+        setEntityModalOpenedFromFlow(false);
+        return;
+      }
+      const node = modelIndexRef.current?.nodeById.get(id);
+      if (node) {
+        setSelected(node);
+        setShowEntityModal(true);
+      }
+    },
   });
 
   const { themeMode, toggleTheme } = useThemeMode(model?.theme, model);
@@ -95,12 +109,19 @@ export function App() {
   //
   // `fromFlow` marks the context: when true, the modal's FK/body/process-usage links
   // navigate in-place via the FlowsView handle instead of switching views.
+  //
+  // entity= in the URL hash is the single source of truth for "which modal is
+  // open". Opening from ANY surface (graph tap, dict click, FK/[[wiki]] hop, flow
+  // db: store) pushes ONE history entry via openEntity (it dedups when the hash
+  // already carries this same entity). The popstate reconcile (onEntityChange)
+  // mirrors React state back when the user navigates Back/Forward.
   function openEntityById(id: string, fromFlow = false) {
     const node = modelIndexRef.current?.nodeById.get(id);
     if (node) {
       setEntityModalOpenedFromFlow(fromFlow);
       setSelected(node);
       setShowEntityModal(true);
+      openEntity(id);
     }
   }
   // Ref so the flow effect closure always calls the LIVE opener + reads the LIVE
@@ -233,6 +254,27 @@ export function App() {
     [model],
   );
 
+  // Deep-link modal restore: a URL loaded with entity=<id> opens that modal once
+  // the model (and its index) is available. One-shot — guarded by a ref so an
+  // SSE model refetch does not re-open a modal the user already closed. Works
+  // for any initial view (the shell owns modal state, not GraphView).
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkHandledRef.current) return;
+    if (!modelIndex) return;
+    deepLinkHandledRef.current = true;
+    const initialEntity = parseHash(location.hash).entity;
+    if (initialEntity === undefined) return;
+    const node = modelIndex.nodeById.get(initialEntity);
+    if (node) {
+      // Do NOT call openEntityById here — the hash already carries entity=, so
+      // openEntity would dedup anyway, but going straight to state-set keeps the
+      // history entry the user landed on intact (no replace/push churn).
+      setSelected(node);
+      setShowEntityModal(true);
+    }
+  }, [modelIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // In static mode, liveOnly errors (e.g. example_unknown_column) must be hidden
   // because those validations only run when the server has filesystem access.
   // In live mode all entity errors are shown as-is.
@@ -309,15 +351,27 @@ export function App() {
         onLayoutModeChange={setLayoutMode}
         onCyInitError={setCyInitError}
         onSelectEntity={(node) => {
+          // Route graph node-tap through the shared opener so it pushes ONE
+          // history entry (entity=). GraphView no longer writes entity= itself.
           setSelected(node);
           setShowEntityModal(true);
+          openEntity(node.id);
         }}
         onPanelSelect={(node) => {
+          // Findings-panel row click: pan+select in cy (done by GraphView) AND
+          // open the entity modal so the row's issue is visible. Routes through
+          // the single writer so entity= is pushed once and the URL stays truthful
+          // (entity= ⟺ modal open).
           setSelected(node);
+          setShowEntityModal(true);
+          openEntity(node.id);
         }}
         onDeselectEntity={() => {
+          // Background tap closes the modal and clears entity= from the URL
+          // (replaceState — clean URL, not a Back step).
           setSelected(null);
           setShowEntityModal(false);
+          closeEntity();
         }}
       />
 
@@ -438,16 +492,21 @@ export function App() {
           nodeById={modelIndex?.nodeById}
           nodeIdSet={modelIndex?.nodeIdSet}
           entityErrors={appErrorsByEntityId.get(selected.id) ?? []}
-          onClose={() => { setShowEntityModal(false); setEntityModalOpenedFromFlow(false); }}
+          onClose={() => { setShowEntityModal(false); setEntityModalOpenedFromFlow(false); closeEntity(); }}
           onNavigate={(id) => {
             if (entityModalOpenedFromFlow) {
               // Flow context: open the target entity in-place (no graph pan).
               // Preserve the fromFlow flag so chained navigations stay in-place.
+              // openEntityById pushes ONE history entry, so an FK hop A→B stacks
+              // …→A→B and Back returns to A.
               openEntityById(id, true);
             } else {
               const target = modelIndexRef.current?.nodeById.get(id);
               if (target) {
+                // Push the history entry for the modal switch (single writer),
+                // then pan+select in cy. GraphView no longer writes entity=.
                 setSelected(target);
+                openEntity(id);
                 graphViewRef.current?.navigateToEntity(id);
               }
             }
@@ -459,9 +518,11 @@ export function App() {
               // Close entity modal first so only one dialog is visible at a time.
               setShowEntityModal(false);
               setEntityModalOpenedFromFlow(false);
+              closeEntity();
               flowsViewRef.current.openFlowToken(`proc:${processId}`);
             } else {
               setShowEntityModal(false);
+              closeEntity();
               // Record the target before setView so the dict-view useEffect picks it
               // up after React commits the view switch and the DOM is ready.
               pendingScrollProcessIdRef.current = processId;
