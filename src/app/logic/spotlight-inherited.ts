@@ -5,38 +5,59 @@
  * unit-testable with plain Model literals + a ModelIndex. Same discipline as
  * `spotlight.ts`.
  *
- * Why this exists: a 1:1 KEY-INHERITED subtype shares its basetype's primary key
- * — the child IS the parent — so it transitively participates in the basetype's
- * relationships and relates to its sibling subtypes. The direct-FK spotlight
- * (`buildSpotlightConnections`) walks only the active entity's OWN edges, so a
- * subtype looks unrelated to its parent's relationships and to its siblings.
- * This helper surfaces those INHERITED connections so the spotlight can render
- * them visually distinct from direct edges.
+ * Why this exists: a 1:1 KEY-INHERITED entity shares identity with its parent
+ * — the child IS the parent — so it transitively participates in the parent's
+ * relationships and relates to other members of the same identity group. The
+ * direct-FK spotlight (`buildSpotlightConnections`) walks only the active
+ * entity's OWN edges, so a key-inherited entity looks unrelated to its
+ * group-mates' relationships. This helper surfaces those INHERITED connections
+ * so the spotlight can render them visually distinct from direct edges.
  *
- * Scope (v1): subtype clusters only — the model's canonical 1:1 key-inheritance
- * primitive (the owner's example: Business/Individual as subtypes of Party).
- * General identifying-1:1 dependent extension tables are an explicit non-goal
- * for CP7 (a natural future extension, but not inferred here — only
- * shared-identity subtype-cluster membership qualifies, else the spotlight
- * would over-connect through arbitrary FKs).
+ * Two kinds of 1:1 key-inheritance edge:
+ *
+ * (a) Subtype membership — a subtype cluster's basetype ↔ each member.
+ *     Both ends of the relationship share identity regardless of direction.
+ *
+ * (b) Dependent identifying-1:1 — a ModelEdge from child Cn to parent P where:
+ *     - edge.identifying === true
+ *     - edge.cardinality.parent === '1' AND edge.cardinality.child === '1'
+ *     - Object.keys(edge.on) sorted === index.pkByNode.get(Cn) sorted
+ *       (the FK columns are EXACTLY the child's full PK — no subset, no superset)
+ *     The cardinality 1:1 guard cleanly excludes subtype edges (which derive
+ *     child='0..1'), so the two kinds never double-count.
+ *
+ * Identity group of entityId = transitive closure over BOTH kinds of edge in
+ * BOTH directions, with a visited Set so cycles terminate.
+ *
+ * Inferred connections (the return value):
+ *   - De-dup baseline: the active entity's OWN direct connections
+ *     (`buildSpotlightConnections(index, entityId)`). ALL inherited
+ *     connections — identity links and transitive relationships — are
+ *     de-duplicated against this set.
+ *   - For every OTHER member M in the group: emit M as an identity link
+ *     (via = INHERITED_IDENTITY, direction = 'both'), UNLESS M is already
+ *     a direct connection of the active (de-duped).
+ *   - For every OTHER member M in the group: for each connection C of
+ *     `buildSpotlightConnections(index, M)` where C.otherId is NOT in the
+ *     identity group: emit C.otherId as inherited (via = M id, direction =
+ *     C.direction), UNLESS C.otherId is already a direct connection of the
+ *     active (de-duped) OR already bundled (first-seen wins).
+ *   - Result sorted ascending by otherId.
+ *   - Active in no identity group (group size 1, no neighbors) → [].
+ *
+ * `via` rule:
+ *   - Identity links (to a group member) → INHERITED_IDENTITY ('identity').
+ *   - Inherited relationships → the group-member id M through which the
+ *     relationship was reached (nearest hop). This is a single entity id, not
+ *     a chain, so the existing SpotlightOverlay label "via <M>" stays clean.
  *
  * Invariants:
- * - Active is a subtype member → surface the basetype + each sibling member as
- *   identity links, AND the basetype's direct FK connections.
- * - Active is a basetype → surface each member + each member's direct FK
- *   connections.
- * - De-duplicate against the active entity's OWN direct connections
- *   (`buildSpotlightConnections(index, activeId)`): never emit ANY inherited
- *   connection — identity links included — to an otherId the active connects to
- *   directly, and never emit a connection to the active itself. In the
- *   key-inherited convention a subtype has a direct identifying FK to its
- *   basetype, so the basetype renders ONCE as that solid direct line, not also
- *   as a dotted inherited identity line; siblings + the basetype's OTHER
- *   relationships still surface as inherited.
- * - Bundle duplicates: one inherited connection per otherId (first-seen `via`
- *   and direction win).
- * - Result sorted ascending by otherId.
- * - Active in no cluster, or unknown id → [].
+ * - Never emits the active entity itself.
+ * - De-dup against direct edges is applied to ALL inherited connections,
+ *   identity links included (a subtype's direct FK to its basetype renders
+ *   once as the solid direct line, not also as a dotted inherited line).
+ * - Bundle duplicates: one inherited connection per otherId (first-seen wins).
+ * - Active entity in no identity group → [].
  */
 
 import type { ModelIndex } from '../../model/model-index';
@@ -48,28 +69,129 @@ import { buildSpotlightConnections } from './spotlight';
 
 /**
  * `via` provenance marker on an inherited connection:
- * - `'identity'` — the connection is a shared-key identity link (to the basetype
- *   or to a sibling/member of the same cluster), not a transitive relationship.
- * - any other string — the basetype id the relationship was inherited through.
+ * - `'identity'` — the connection is a shared-key identity link (to another
+ *   member of the same identity group), not a transitive relationship.
+ * - any other string — the group-member id the relationship was inherited
+ *   through (the nearest hop from the active entity).
  */
 export const INHERITED_IDENTITY = 'identity';
 
 export type InheritedConnection = {
   otherId: string;
   /**
-   * Direction relative to the entity the relationship was inherited THROUGH
-   * (the basetype for a member, the member for a basetype). `'both'` when the
-   * underlying bundle carries edges in both directions. Identity links carry
-   * `'both'` (a shared-key relationship has no inherent direction).
+   * Direction relative to the entity the relationship was inherited THROUGH.
+   * `'both'` when the underlying bundle carries edges in both directions.
+   * Identity links carry `'both'` (shared-key relationship has no inherent direction).
    */
   direction: 'out' | 'in' | 'both';
   /**
-   * Provenance: `INHERITED_IDENTITY` for the basetype/sibling/member identity
-   * link, else the basetype id the FK relationship was inherited through (so the
-   * renderer can label "via <basetype>").
+   * Provenance: `INHERITED_IDENTITY` for identity links (another group member),
+   * else the group-member id the FK relationship was inherited through (so the
+   * renderer can label "via <member>").
    */
   via: string;
 };
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when the edge from `childId` to `parentId` qualifies as a
+ * dependent identifying-1:1 — i.e., the FK columns are exactly the child's
+ * full PK. This guard distinguishes dep-1:1 extension tables from regular
+ * identifying FKs whose child cardinality is '0..1' (subtypes) or 'many'.
+ */
+function isDepIdentifying11(
+  index: ModelIndex,
+  edge: { source: string; target: string; identifying: boolean; on: Record<string, string>; cardinality: { parent: string; child: string } },
+): boolean {
+  if (!edge.identifying) return false;
+  if (edge.cardinality.parent !== '1') return false;
+  if (edge.cardinality.child !== '1') return false;
+
+  const childPk = index.pkByNode.get(edge.source);
+  if (childPk === undefined || childPk.length === 0) return false;
+
+  const fkCols = Object.keys(edge.on).sort();
+  const pkCols = [...childPk].sort();
+
+  if (fkCols.length !== pkCols.length) return false;
+  for (let i = 0; i < fkCols.length; i++) {
+    if (fkCols[i] !== pkCols[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Find all identity-group neighbors of `nodeId` in one step:
+ * - Subtype cluster membership (basetype ↔ each member)
+ * - Qualifying outgoing dep-1:1 edges (child → parent)
+ * - Qualifying incoming dep-1:1 edges (another child → nodeId as parent)
+ */
+function identityNeighbors(index: ModelIndex, nodeId: string): string[] {
+  const neighbors: string[] = [];
+
+  // (a) Subtype cluster links
+  const asMember = index.subtypeMemberToCluster.get(nodeId);
+  if (asMember !== undefined) {
+    neighbors.push(asMember.basetype);
+    for (const m of asMember.members) {
+      if (m !== nodeId) neighbors.push(m);
+    }
+  }
+  const asBasetype = index.basetypeClusterById.get(nodeId);
+  if (asBasetype !== undefined) {
+    for (const m of asBasetype.members) {
+      neighbors.push(m);
+    }
+  }
+
+  // (b) Qualifying outgoing dep-1:1 edges (nodeId is the child)
+  const outEdges = index.edgesBySource.get(nodeId);
+  if (outEdges !== undefined) {
+    for (const edge of outEdges) {
+      if (isDepIdentifying11(index, edge)) {
+        neighbors.push(edge.target);
+      }
+    }
+  }
+
+  // (c) Qualifying incoming dep-1:1 edges (nodeId is the parent, edge.source is child)
+  const inEdges = index.edgesByTarget.get(nodeId);
+  if (inEdges !== undefined) {
+    for (const edge of inEdges) {
+      if (isDepIdentifying11(index, edge)) {
+        neighbors.push(edge.source);
+      }
+    }
+  }
+
+  return neighbors;
+}
+
+/**
+ * Compute the transitive identity group of `entityId` via BFS.
+ * Returns the visited Set (includes entityId). Size 1 → no identity neighbors.
+ */
+function buildIdentityGroup(index: ModelIndex, entityId: string): Set<string> {
+  const visited = new Set<string>();
+  const worklist: string[] = [entityId];
+  visited.add(entityId);
+
+  while (worklist.length > 0) {
+    const current = worklist.pop();
+    if (current === undefined) break;
+    for (const neighbor of identityNeighbors(index, current)) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        worklist.push(neighbor);
+      }
+    }
+  }
+
+  return visited;
+}
 
 // ---------------------------------------------------------------------------
 // buildInheritedConnections
@@ -79,13 +201,11 @@ export function buildInheritedConnections(
   index: ModelIndex,
   entityId: string,
 ): InheritedConnection[] {
-  // Resolve the cluster role of the active entity. A member belongs to (at
-  // most, for v1) one cluster via subtypeMemberToCluster; a basetype is keyed
-  // in basetypeClusterById.
-  const asMember = index.subtypeMemberToCluster.get(entityId);
-  const asBasetype = index.basetypeClusterById.get(entityId);
+  // Build the transitive identity group.
+  const group = buildIdentityGroup(index, entityId);
 
-  if (asMember === undefined && asBasetype === undefined) return [];
+  // Group size 1 means no identity neighbors — nothing to inherit.
+  if (group.size <= 1) return [];
 
   // The active entity's OWN direct connections — the de-dup baseline.
   const directOtherIds = new Set<string>();
@@ -98,57 +218,31 @@ export function buildInheritedConnections(
 
   /**
    * Add an inherited connection.
-   *
-   * ALL inherited connections — identity links (basetype/sibling/member) AND
-   * transitive relationships (the basetype's / members' FK connections) — de-dup
-   * against the active's OWN direct edges: an otherId the active already connects
-   * to directly is never redrawn as a dotted inherited line. In the key-inherited
-   * convention a subtype has a direct identifying FK edge to its basetype, so the
-   * basetype renders ONCE as that solid direct FK line and is NOT also emitted as
-   * an inherited identity line. Siblings and the basetype's OTHER relationships
-   * (which are not direct edges of the active) still surface as inherited.
+   * Guards: never the active entity itself; never a direct edge (de-dup);
+   * first-seen wins (one bundle per otherId).
    */
   const add = (
     otherId: string,
     direction: 'out' | 'in' | 'both',
     via: string,
   ) => {
-    if (otherId === entityId) return; // never the active entity itself
-    if (directOtherIds.has(otherId)) return; // direct edge wins — never duplicate a direct edge
-    if (bundles.has(otherId)) return; // first-seen wins (bundle duplicates)
+    if (otherId === entityId) return;
+    if (directOtherIds.has(otherId)) return;
+    if (bundles.has(otherId)) return;
     bundles.set(otherId, { otherId, direction, via });
   };
 
-  if (asMember !== undefined) {
-    const basetypeId = asMember.basetype;
+  // For every other member M in the group:
+  for (const memberId of group) {
+    if (memberId === entityId) continue;
 
-    // (a) Identity links: the basetype + each sibling member. The basetype is
-    //     dropped here when it is a direct FK of the active (the common
-    //     key-inherited case) — it renders once as the solid direct line.
-    add(basetypeId, 'both', INHERITED_IDENTITY);
-    for (const memberId of asMember.members) {
-      add(memberId, 'both', INHERITED_IDENTITY);
-    }
+    // (1) The member itself as an identity link.
+    add(memberId, 'both', INHERITED_IDENTITY);
 
-    // (b) The basetype's direct FK connections — relationships inherited via the
-    //     shared key. `via` = the basetype id.
-    for (const c of buildSpotlightConnections(index, basetypeId)) {
-      add(c.otherId, c.direction, basetypeId);
-    }
-  } else if (asBasetype !== undefined) {
-    // (a) Identity links: each member. A member already a direct in-edge of the
-    //     basetype (the key-inherited subtype→basetype FK) is dropped here — it
-    //     renders once as the solid direct line.
-    for (const memberId of asBasetype.members) {
-      add(memberId, 'both', INHERITED_IDENTITY);
-    }
-
-    // (b) Each member's direct FK connections — inherited up to the basetype.
-    //     `via` = the member id the relationship was inherited through.
-    for (const memberId of asBasetype.members) {
-      for (const c of buildSpotlightConnections(index, memberId)) {
-        add(c.otherId, c.direction, memberId);
-      }
+    // (2) The member's external connections (those NOT in the identity group).
+    for (const c of buildSpotlightConnections(index, memberId)) {
+      if (group.has(c.otherId)) continue; // skip within-group edges
+      add(c.otherId, c.direction, memberId);
     }
   }
 

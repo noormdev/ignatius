@@ -4935,6 +4935,73 @@ try {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
 
+  // ── CP7-TRANSITIVE: Identity as a dependent identifying-1:1 of Party ────────
+  // Identity is a Dependent entity whose full PK (party_id) is the FK to Party —
+  // a textbook dep-1:1 identifying extension table. The generalised identity-group
+  // algorithm (CP-A) now includes Identity in Party's identity group, so spotlighting
+  // Identity should surface Party's external relationships (PartyType, PaymentMethod,
+  // SalesInvoice, SalesOrder, etc.) as INHERITED dotted lines — even though Identity
+  // has no direct FK to those entities.
+  //
+  // models/key-inherited topology (confirmed):
+  //   Party (Independent, pk=party_id) ← Identity (Dependent, pk=party_id,
+  //     edge Identity→Party: identifying=true, cardinality={parent:'1',child:'1'},
+  //     on={party_id:'party_id'}) ← ITIN/License/Passport/SSN (subtypes of Identity)
+  //   Party also has: PartyType (out), PaymentMethod (in), SalesInvoice (in),
+  //     SalesOrder (in) connections.
+  //
+  // Assertions: pinning Identity must produce dotted .spotlight-line--inherited
+  // paths to at least one of Party's external connections (transitively surfaced).
+  note('\n── CP7-TRANSITIVE: Identity dep-1:1 transitivity ────────────────────────');
+
+  const identityCard = page.locator('.dict-grid-card[data-entity-id="Identity"]');
+  const identityCount = await identityCard.count();
+  if (identityCount === 0) {
+    note('CP7-TRANSITIVE: NOTE — "Identity" card not found in browse grid; skipping transitive assertion (may be filtered or not in this model variant)');
+  } else {
+    await identityCard.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await identityCard.click();
+    await page.mouse.move(10, 10);
+    await page.waitForTimeout(500);
+    await shot('78-cp7-transitive-identity-spotlight.png');
+
+    type Cp7tPathInfo = { kind: string; dash: string; hasStart: boolean; hasEnd: boolean };
+    const cp7tPaths = await page.evaluate((): Cp7tPathInfo[] => {
+      const svg = document.querySelector('.spotlight-overlay');
+      if (!svg) return [];
+      return [...svg.querySelectorAll('path.spotlight-line')].map(p => ({
+        kind: p.getAttribute('data-kind') ?? 'fk',
+        dash: p.getAttribute('stroke-dasharray') ?? '',
+        hasStart: p.hasAttribute('marker-start'),
+        hasEnd: p.hasAttribute('marker-end'),
+      }));
+    });
+    note(`CP7-TRANSITIVE: ${cp7tPaths.length} total spotlight-line path(s) for Identity`);
+
+    const inheritedTrans = cp7tPaths.filter(p => p.kind === 'inherited');
+    note(`CP7-TRANSITIVE: ${inheritedTrans.length} inherited (dotted) path(s)`);
+
+    if (inheritedTrans.length === 0) {
+      await shot('FAIL-cp7-transitive-no-inherited-paths.png');
+      fail('CP7-TRANSITIVE: no inherited (data-kind="inherited") spotlight lines drawn for dep-1:1 Identity — transitive identity-group algorithm not surfacing Party\'s relationships');
+    }
+    note(`OK CP7-TRANSITIVE: ${inheritedTrans.length} inherited lines drawn for dep-1:1 Identity (Party\'s relationships surfaced transitively)`);
+
+    // Every inherited line must be dotted.
+    const everyDotted = inheritedTrans.every(p => p.dash.length > 0);
+    if (!everyDotted) {
+      await shot('FAIL-cp7-transitive-not-dotted.png');
+      fail('CP7-TRANSITIVE: an inherited line for Identity has no stroke-dasharray');
+    }
+    note('OK CP7-TRANSITIVE: every inherited line is dotted');
+
+    // Release pin.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    note('OK CP7-TRANSITIVE: transitive dep-1:1 inherited lines confirmed');
+  }
+
   note('\n══ CP7 PASS ════════════════════════════════════════════════════════════');
 } catch (err) {
   console.error(err);

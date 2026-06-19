@@ -58,10 +58,61 @@ generalizes the CP7 row — note the supersession.
 ## Change log
 
 
-<!-- empty on creation -->
+- 2026-06-19 — CP-A landed. No contract changes; the spec's CP-A row and success
+  criteria #1/#2/#3 are realized as written. The `via` provenance on an inherited
+  relationship carries the single nearest-hop group-member id (not a chain string),
+  so `SpotlightOverlay`'s existing "via &lt;id&gt;" / "shared key" label needs no
+  change — recorded here as the chosen reading of "or the chain" in the criteria.
 
 
 ## Implementation log
 
 
-<!-- appended per checkpoint -->
+### CP-A — Transitive identity-group helper + DD (2026-06-19)
+
+
+Generalized `src/app/logic/spotlight-inherited.ts` `buildInheritedConnections`
+from subtype-cluster-only/single-level to the transitive **identity-group** model.
+Export name, `InheritedConnection` shape (`{ otherId, direction, via }`), and
+`INHERITED_IDENTITY = 'identity'` unchanged — `DictionaryView.tsx` /
+`SpotlightOverlay.tsx` needed no edit.
+
+**Algorithm.** A 1:1 key-inheritance edge is one of two kinds: (a) subtype-cluster
+membership (basetype ↔ member, via the `ModelIndex` cluster maps); (b) dependent
+identifying-1:1 — an edge with `identifying === true`, `cardinality.parent === '1'`,
+`cardinality.child === '1'`, AND `Object.keys(edge.on)` sorted equal to the child's
+full PK (`pkByNode.get(source)`) sorted. The 1:1-child cardinality cleanly excludes
+subtype edges (which derive `child = '0..1'` per `parse.ts` `deriveCardinality`), so
+the two kinds never double-count. The **identity group** is the BFS transitive closure
+of `entityId` over both edge kinds in both directions, with a visited Set (cycle-safe).
+Inferred connections: for each OTHER group member `M`, emit `M` as an identity link
+(`via = 'identity'`), plus each of `M`'s direct connections to an entity OUTSIDE the
+group (`via = M`); all de-duplicated against `entityId`'s OWN direct connections
+(`buildSpotlightConnections`) — a direct edge is never also inferred. Bundle one per
+otherId (first-seen wins); sort by otherId; group size ≤ 1 → `[]`.
+
+**Verified on `models/key-inherited`** (probe, removed to `tmp/trash/`): `ITIN`
+(subtype of `Identity`, which is a dependent-1:1 of `Party`) inherits the full
+transitive set — `Party` as an identity link + `Party`'s relationships (`PartyType`,
+`PaymentMethod`, `SalesInvoice`, `SalesOrder`) via `Party` + the rest of the group
+(`Business`/`Person`/`License`/`Passport`/`SSN`) — while its direct edge `Identity`
+is de-duped out. `Identity` inherits `Party`'s relationships (`Party` itself de-duped,
+direct). `Business` inherits `Party`'s relationships transitively. This is the
+multi-hop `ITIN → Identity → Party` chain the shipped CP7 could not reach.
+
+**Tests.** `test/checks/test-spotlight-inherited.ts` extended (T1–T6 unchanged and
+still green under the generalized semantics; T7 transitive ITIN, T8 transitive
+Identity, T9 dep-1:1 negative — 1:1 identifying FK that is NOT the full PK does not
+qualify, T10 dep-1:1 positive, T11 cycle-safety). `test/visual/test-dd-spotlight-grid.ts`
+CP7 block extended with a CP7-TRANSITIVE block that spotlights `Identity` and asserts
+dotted `.spotlight-line--inherited` lines surface `Party`'s relationships.
+
+**Gates.** `bun test/checks/test-spotlight-inherited.ts` → 11/11 PASS.
+`bun test/checks/test-spotlight-connections.ts` → unchanged, PASS. `bun run test`
+→ exit 0, zero failures. `bunx tsc --noEmit` → 473 errors, identical to baseline
+(stash-measured); zero in any touched file. SPA bundle rebuilt (`build:bundle` +
+`build:stable-names`).
+
+**Files.** `src/app/logic/spotlight-inherited.ts`,
+`test/checks/test-spotlight-inherited.ts`, `test/visual/test-dd-spotlight-grid.ts`.
+CP-B (DG dotted inferred-upstream lines) remains.
