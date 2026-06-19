@@ -189,3 +189,5 @@ draw/clear lines — no NEW error type, zero errors in the new typed code
 `src/app/dom/theme-css-vars.ts`, `test/checks/test-inherited-edges-no-leak.ts`,
 `test/checks/test-graph-inherited-edges.ts`, `test/visual/test-graph-inherited-lines.ts`.
 Feature complete (CP-A + CP-B).
+
+**Merged into main (fast-forward) as e2dd8a1 — 2026-06-19.** Ships in 0.12.0 alongside viewer-ux-polish.
