@@ -2162,12 +2162,15 @@ a.dict-link-missing:hover {
   --spotlight-line-out: #f59e0b;
   --spotlight-line-in: #38bdf8;
   --spotlight-line-flow: #a78bfa;
+  /* CP7 (#9): inherited 1:1 key-inheritance lines — distinct green, drawn dotted. */
+  --spotlight-line-inherited: #34d399;
 }
 
 .theme-light {
   --spotlight-line-out: #d97706;
   --spotlight-line-in: #0284c7;
   --spotlight-line-flow: #7c3aed;
+  --spotlight-line-inherited: #059669;
 }
 
 .spotlight-overlay {
@@ -2221,6 +2224,25 @@ a.dict-link-missing:hover {
   background: var(--color-surface-alt);
   color: var(--color-text);
   border-color: var(--spotlight-line-out, #f59e0b);
+}
+
+/* CP7 (#9): inherited-connection chips read in the inherited green + dashed border. */
+.spotlight-chip--inherited {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--spotlight-line-inherited, #34d399) 50%, var(--color-border));
+}
+
+.spotlight-chip--inherited:hover {
+  border-color: var(--spotlight-line-inherited, #34d399);
+}
+
+.spotlight-chip--inherited .spotlight-chip-arrow {
+  color: var(--spotlight-line-inherited, #34d399);
+}
+
+.spotlight-chip--inherited .spotlight-chip-pred {
+  font-style: italic;
+  color: var(--spotlight-line-inherited, #34d399);
 }
 
 .spotlight-chip-arrow {

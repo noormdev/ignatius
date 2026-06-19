@@ -16,6 +16,7 @@ import { sortGroupNodes, nodeMatchesSearch, processMatchesSearch, externalMatche
 import { resolveBodyClick, upgradeMissingLinksInContainer } from '../../dom/body-links';
 import { buildSpotlightConnections } from '../../logic/spotlight';
 import { buildFlowSpotlightConnections } from '../../logic/flow-spotlight';
+import { buildInheritedConnections } from '../../logic/spotlight-inherited';
 import { buildFlowDocResolver } from '../../logic/doc-resolver';
 import type { FlowDocResult } from '../../logic/doc-resolver';
 import { SpotlightOverlay } from '../../components/entity/SpotlightOverlay';
@@ -130,6 +131,15 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   const spotlightConnections = useMemo(() => {
     if (activeId === null || !activeIsEntity || modelIndex === null) return [];
     return buildSpotlightConnections(modelIndex, activeId);
+  }, [activeId, modelIndex]);
+
+  // CP7 (#9): inherited 1:1 key-inheritance connections — entity only. A subtype
+  // member surfaces its basetype + siblings + the basetype's relationships; a
+  // basetype surfaces its members + their relationships. De-duped against the
+  // active's direct edges inside the helper. [] for non-cluster entities.
+  const inheritedConnections = useMemo(() => {
+    if (activeId === null || !activeIsEntity || modelIndex === null) return [];
+    return buildInheritedConnections(modelIndex, activeId);
   }, [activeId, modelIndex]);
 
   // Flow-lookup token for the active card:
@@ -537,8 +547,10 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     ids.add(activeId);
     for (const c of spotlightConnections) ids.add(c.otherId);
     for (const c of flowSpotlightConnections) ids.add(c.otherCardId);
+    // CP7: inherited cards light up too — they ARE related via the shared key.
+    for (const c of inheritedConnections) ids.add(c.otherId);
     return ids;
-  }, [activeId, spotlightConnections, flowSpotlightConnections]);
+  }, [activeId, spotlightConnections, flowSpotlightConnections, inheritedConnections]);
 
   // CP15: focus set — {focusId} ∪ connected-card-set(focusId).
   // Computed from the same spotlight logic so cross-domain connections are included.
@@ -551,6 +563,8 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     const focusIsEntity = !focusId.includes(':');
     if (focusIsEntity && modelIndex !== null) {
       for (const c of buildSpotlightConnections(modelIndex, focusId)) ids.add(c.otherId);
+      // CP7: inherited cards belong to the focus set too.
+      for (const c of buildInheritedConnections(modelIndex, focusId)) ids.add(c.otherId);
     }
     // Flow connections (all card types).
     if (allDiagrams.length > 0) {
@@ -1375,6 +1389,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
           activeId={activeId}
           connections={spotlightConnections}
           flowConnections={flowSpotlightConnections}
+          inheritedConnections={inheritedConnections}
           labelHoverCardId={labelHoverCardId}
           gridContainerRef={browseLensRef}
         />

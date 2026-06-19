@@ -97,6 +97,36 @@ top entry is a modal we pushed, else clears `entity=` via `replaceState`;
 existing `entity=` hash-write so the two don't double-write.
 
 
+### #9 inherited 1:1 key-inheritance connections (CP7)
+
+
+In the DD spotlight, a subtype member shares its basetype's primary key (1:1 key
+inheritance — the child IS the parent), so it transitively participates in the
+basetype's relationships and relates to its sibling subtypes. Today the spotlight
+walks only the active entity's DIRECT FK edges, so a subtype looks unrelated to
+its parent's other relationships and to its siblings — misleading, since the
+shared key makes the relationship inferable.
+
+Decision: surface INHERITED connections in the spotlight, derived from
+subtype-cluster identity (the model's `subtypeClusters` are the canonical 1:1
+key-inheritance primitive):
+
+- Active = subtype member → inherit the basetype's direct connections + the sibling members (the basetype's other subtypes).
+- Active = basetype → inherit each member's direct connections.
+- De-duplicate against the active's own direct connections; never duplicate a direct edge.
+
+Render inherited connections visually distinct from direct FK lines (a separate
+dotted style + "via &lt;basetype&gt;" label) so direct vs. inferred is
+unambiguous, and apply the CP6 line-separation so they don't overlap.
+
+Scope: subtype clusters are the v1 signal (the clearest, well-modeled 1:1
+key-inheritance case, and the owner's example — Business/Individual as subtypes of
+Party). General identifying-1:1 dependent extension tables (a child whose full PK
+is inherited via an identifying 1:1 edge) are a natural extension, noted but not
+required for CP7. Rejected: inferring through any FK — only shared-identity (1:1
+key inheritance) qualifies, else the spotlight would over-connect.
+
+
 ## Open questions
 
 

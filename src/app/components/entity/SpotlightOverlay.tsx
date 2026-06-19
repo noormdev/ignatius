@@ -1,7 +1,28 @@
 import { useEffect, useRef } from 'react';
 import type { SpotlightConnection } from '../../logic/spotlight';
 import type { FlowSpotlightConnection } from '../../logic/flow-spotlight';
+import { INHERITED_IDENTITY, type InheritedConnection } from '../../logic/spotlight-inherited';
 import { separateSpotlightLines, type LineDirection } from '../../logic/spotlight-lines';
+
+/**
+ * Map an inherited connection's bundle direction to the per-line direction set
+ * that `separateSpotlightLines` consumes. A `both` connection fans into one
+ * out + one in line; a single-direction connection is one line. Identity links
+ * carry `both`, so they fan into two faint lines (the shared-key relationship
+ * has no inherent direction).
+ */
+function inheritedDirections(direction: 'out' | 'in' | 'both'): LineDirection[] {
+  if (direction === 'both') return ['out', 'in'];
+  return [direction];
+}
+
+/**
+ * Human label for an inherited connection's provenance pill: identity links
+ * read "shared key"; transitive relationships read "via <basetype>".
+ */
+function inheritedViaLabel(via: string): string {
+  return via === INHERITED_IDENTITY ? 'shared key' : `via ${via}`;
+}
 
 /**
  * SpotlightOverlay — leader-line SVG overlay + off-screen chips for the Dictionary browse lens.
@@ -60,6 +81,23 @@ type FlowLine = {
   y2: number;
   direction: 'out' | 'in' | 'both';
   connection: FlowSpotlightConnection;
+  anchor: 'horizontal' | 'vertical';
+  midX: number;
+  midY: number;
+};
+
+/**
+ * An inherited line (CP7, #9) carries an InheritedConnection and a `via`
+ * provenance marker. Drawn DOTTED in --spotlight-line-inherited, distinct from
+ * direct FK (solid) and flow (dashed) lines.
+ */
+type InheritedLine = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  direction: 'out' | 'in' | 'both';
+  connection: InheritedConnection;
   anchor: 'horizontal' | 'vertical';
   midX: number;
   midY: number;
@@ -223,6 +261,55 @@ function computeFlowLines(
   return result;
 }
 
+/**
+ * Compute inherited lines for the active card's inherited connections (CP7, #9).
+ * Inherited connections only apply to entity cards (a subtype member / basetype
+ * is an ERD entity); the other card is always an entity too.
+ */
+function computeInheritedLines(
+  activeId: string,
+  inheritedConnections: InheritedConnection[],
+  scrollportRect: DOMRect,
+): InheritedLine[] {
+  const activeEl = document.querySelector<HTMLElement>(
+    `.dict-grid-card[data-entity-id="${CSS.escape(activeId)}"]`,
+  );
+  if (activeEl === null) return [];
+
+  const activeRect = activeEl.getBoundingClientRect();
+  const result: InheritedLine[] = [];
+
+  for (const conn of inheritedConnections) {
+    const otherEl = document.querySelector<HTMLElement>(
+      `.dict-grid-card[data-entity-id="${CSS.escape(conn.otherId)}"]`,
+    );
+    if (otherEl === null) continue;
+
+    const otherRect = otherEl.getBoundingClientRect();
+
+    // Skip if the connected card's rect doesn't intersect the scrollport.
+    if (
+      otherRect.bottom < scrollportRect.top ||
+      otherRect.top > scrollportRect.bottom ||
+      otherRect.right < scrollportRect.left ||
+      otherRect.left > scrollportRect.right
+    ) {
+      continue;
+    }
+
+    const geom = computeAnchor(activeRect, otherRect);
+    if (geom === null) continue;
+
+    const { x1, y1, x2, y2, anchor } = geom;
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+
+    result.push({ x1, y1, x2, y2, direction: conn.direction, connection: conn, anchor, midX, midY });
+  }
+
+  return result;
+}
+
 /** Chip data for a single off-screen FK connection. */
 type ChipData = {
   kind: 'fk';
@@ -330,10 +417,49 @@ function computeFlowChips(
   return chips;
 }
 
+/** Chip data for a single off-screen inherited connection (CP7). */
+type InheritedChipData = {
+  kind: 'inherited';
+  conn: InheritedConnection;
+  arrow: '↑' | '↓';
+  /** Entity name of the connected node. */
+  name: string;
+  /** Provenance label: "shared key" or "via <basetype>". */
+  via: string;
+};
+
+/** Compute chip data for inherited connections not represented as on-screen lines (CP7). */
+function computeInheritedChips(
+  inheritedConnections: InheritedConnection[],
+  onScreenInheritedIds: ReadonlySet<string>,
+  scrollportRect: DOMRect,
+): InheritedChipData[] {
+  const chips: InheritedChipData[] = [];
+  for (const conn of inheritedConnections) {
+    if (onScreenInheritedIds.has(conn.otherId)) continue;
+
+    const el = document.querySelector<HTMLElement>(
+      `.dict-grid-card[data-entity-id="${CSS.escape(conn.otherId)}"]`,
+    );
+    // Absent-card guard: never render a chip for a card not in the grid DOM.
+    if (el === null) continue;
+
+    const rect = el.getBoundingClientRect();
+
+    const cardCenterY = rect.top + rect.height / 2;
+    const scrollportCenterY = scrollportRect.top + scrollportRect.height / 2;
+    const arrow: '↑' | '↓' = cardCenterY < scrollportCenterY ? '↑' : '↓';
+
+    chips.push({ kind: 'inherited', conn, arrow, name: conn.otherId, via: inheritedViaLabel(conn.via) });
+  }
+  return chips;
+}
+
 export function SpotlightOverlay({
   activeId,
   connections,
   flowConnections,
+  inheritedConnections,
   labelHoverCardId,
   gridContainerRef,
 }: {
@@ -342,6 +468,8 @@ export function SpotlightOverlay({
   activeId: string;
   connections: SpotlightConnection[];
   flowConnections: FlowSpotlightConnection[];
+  /** CP7 (#9): inherited 1:1 key-inheritance connections — drawn dotted, distinct. */
+  inheritedConnections: InheritedConnection[];
   /**
    * CP14: The card id currently hovered by the pointer among connected (lit) cards.
    * Null = no connected card is hovered → NO pills rendered (lines only).
@@ -484,10 +612,60 @@ export function SpotlightOverlay({
       });
     }
 
+    /**
+     * Render a provenance pill for an inherited line (CP7) — a single-row pill
+     * carrying "shared key" (identity link) or "via <basetype>" in the inherited
+     * green, with a dotted border to match the dotted line.
+     */
+    function renderInheritedPill(svg: SVGSVGElement, inheritedLine: InheritedLine) {
+      const { connection, midX, midY } = inheritedLine;
+      const colorVar = '--spotlight-line-inherited';
+      const label = inheritedViaLabel(connection.via);
+      if (label.length === 0) return;
+
+      const CHAR_W = 7;
+      const LINE_H = 18;
+      const PILL_PAD_X = 10;
+      const PILL_PAD_Y = 4;
+
+      const pillW = label.length * CHAR_W + PILL_PAD_X * 2;
+      const pillH = LINE_H + PILL_PAD_Y * 2;
+
+      const pillX = midX - pillW / 2;
+      const pillY = midY - pillH / 2;
+
+      const bgRect = document.createElementNS(NS, 'rect');
+      bgRect.setAttribute('x', String(pillX));
+      bgRect.setAttribute('y', String(pillY));
+      bgRect.setAttribute('width', String(pillW));
+      bgRect.setAttribute('height', String(pillH));
+      bgRect.setAttribute('rx', '4');
+      bgRect.setAttribute('ry', '4');
+      bgRect.setAttribute('fill', 'var(--color-surface, #1a1a2e)');
+      bgRect.setAttribute('stroke', `var(${colorVar}, #34d399)`);
+      bgRect.setAttribute('stroke-width', '1');
+      bgRect.setAttribute('stroke-opacity', '0.6');
+      // Dotted border on the pill to match the dotted line style.
+      bgRect.setAttribute('stroke-dasharray', '2 3');
+      svg.appendChild(bgRect);
+
+      const txt = document.createElementNS(NS, 'text');
+      txt.setAttribute('x', String(pillX + PILL_PAD_X));
+      txt.setAttribute('y', String(pillY + PILL_PAD_Y + LINE_H * 0.7));
+      txt.setAttribute('font-size', '10');
+      txt.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif');
+      txt.setAttribute('fill', `var(${colorVar}, #34d399)`);
+      txt.setAttribute('font-weight', '600');
+      txt.setAttribute('font-style', 'italic');
+      txt.textContent = label;
+      svg.appendChild(txt);
+    }
+
     function redrawChips(
       scrollportRect: DOMRect,
       onScreenOtherIds: ReadonlySet<string>,
       onScreenFlowIds: ReadonlySet<string>,
+      onScreenInheritedIds: ReadonlySet<string>,
     ) {
       const container = chipsRef.current;
       if (container === null) return;
@@ -496,7 +674,8 @@ export function SpotlightOverlay({
 
       const fkChips = computeChips(connections, onScreenOtherIds, scrollportRect);
       const flowChips = computeFlowChips(flowConnections, onScreenFlowIds, scrollportRect);
-      const allChips = [...fkChips, ...flowChips];
+      const inheritedChips = computeInheritedChips(inheritedConnections, onScreenInheritedIds, scrollportRect);
+      const allChips = [...fkChips, ...flowChips, ...inheritedChips];
 
       if (allChips.length === 0) {
         container.style.display = 'none';
@@ -531,9 +710,14 @@ export function SpotlightOverlay({
 
       for (const chip of allChips) {
         const btn = document.createElement('button');
-        btn.className = 'spotlight-chip';
+        // Inherited chips carry an extra modifier class + data-kind so they read
+        // distinct from FK/flow chips (CP7).
+        btn.className = chip.kind === 'inherited'
+          ? 'spotlight-chip spotlight-chip--inherited'
+          : 'spotlight-chip';
+        btn.setAttribute('data-kind', chip.kind);
 
-        const targetId = chip.kind === 'fk' ? chip.conn.otherId : chip.conn.otherCardId;
+        const targetId = chip.kind === 'flow' ? chip.conn.otherCardId : chip.conn.otherId;
         btn.setAttribute('data-chip-target', targetId);
         btn.title = `Scroll to ${chip.name}`;
 
@@ -551,7 +735,10 @@ export function SpotlightOverlay({
 
         const predSpan = document.createElement('span');
         predSpan.className = 'spotlight-chip-pred';
-        predSpan.textContent = chip.kind === 'fk' ? chip.predicate : chip.payload;
+        predSpan.textContent =
+          chip.kind === 'fk' ? chip.predicate
+          : chip.kind === 'flow' ? chip.payload
+          : chip.via;
 
         btn.appendChild(arrowSpan);
         btn.appendChild(nameSpan);
@@ -590,7 +777,8 @@ export function SpotlightOverlay({
       const svg = svgRef.current;
       if (svg === null) return;
 
-      const hasAnyConnections = connections.length > 0 || flowConnections.length > 0;
+      const hasAnyConnections =
+        connections.length > 0 || flowConnections.length > 0 || inheritedConnections.length > 0;
       if (!hasAnyConnections) {
         svg.style.display = 'none';
         const chips = chipsRef.current;
@@ -609,14 +797,16 @@ export function SpotlightOverlay({
       const scrollportRect = scrollport.getBoundingClientRect();
       const lines = computeLines(activeId, connections, scrollportRect);
       const flowLines = computeFlowLines(activeId, flowConnections, scrollportRect);
+      const inheritedLines = computeInheritedLines(activeId, inheritedConnections, scrollportRect);
 
       // Collect on-screen ids for chip exclusion.
       const onScreenOtherIds = new Set(lines.map(l => l.connection.otherId));
       const onScreenFlowIds = new Set(flowLines.map(l => l.connection.otherCardId));
+      const onScreenInheritedIds = new Set(inheritedLines.map(l => l.connection.otherId));
 
-      redrawChips(scrollportRect, onScreenOtherIds, onScreenFlowIds);
+      redrawChips(scrollportRect, onScreenOtherIds, onScreenFlowIds, onScreenInheritedIds);
 
-      if (lines.length === 0 && flowLines.length === 0) {
+      if (lines.length === 0 && flowLines.length === 0 && inheritedLines.length === 0) {
         svg.style.display = 'none';
         return;
       }
@@ -653,6 +843,11 @@ export function SpotlightOverlay({
       // in = arrowhead at near end (active card is sink, so start of path).
       defs.appendChild(makeMarker('arrow-flow-end', '--spotlight-line-flow', 9, 'auto'));
       defs.appendChild(makeMarker('arrow-flow-start', '--spotlight-line-flow', 1, 'auto-start-reverse'));
+
+      // Inherited markers (dotted, green — CP7). Direction relative to the
+      // entity the relationship was inherited through.
+      defs.appendChild(makeMarker('arrow-inherited-end', '--spotlight-line-inherited', 9, 'auto'));
+      defs.appendChild(makeMarker('arrow-inherited-start', '--spotlight-line-inherited', 1, 'auto-start-reverse'));
 
       svg.appendChild(defs);
 
@@ -718,16 +913,49 @@ export function SpotlightOverlay({
         }
       }
 
+      // Draw inherited (dotted, green) lines. CP7 (#9): a connection inherited
+      // via 1:1 key-inheritance (shared key). Drawn DOTTED in a distinct green so
+      // it never reads as a direct FK (solid) or flow (dashed) line. A `both`
+      // connection (identity links + bidirectional inherited rels) fans into two
+      // lines via the CP6 separation so they don't overlap.
+      for (const inheritedLine of inheritedLines) {
+        const directions: LineDirection[] = inheritedDirections(inheritedLine.direction);
+        const specs = separateSpotlightLines(
+          { x1: inheritedLine.x1, y1: inheritedLine.y1, x2: inheritedLine.x2, y2: inheritedLine.y2, anchor: inheritedLine.anchor },
+          directions,
+        );
+
+        for (const spec of specs) {
+          const d = buildPathD(spec.x1, spec.y1, spec.x2, spec.y2, inheritedLine.anchor);
+
+          const pathEl = document.createElementNS(NS, 'path');
+          // spotlight-line (counted by existing tests) + spotlight-line--inherited (distinguished).
+          pathEl.setAttribute('class', 'spotlight-line spotlight-line--inherited');
+          pathEl.setAttribute('data-kind', 'inherited');
+          pathEl.setAttribute('d', d);
+          pathEl.setAttribute('fill', 'none');
+          pathEl.setAttribute('stroke', 'var(--spotlight-line-inherited, #34d399)');
+          pathEl.setAttribute('stroke-width', '1.5');
+          pathEl.setAttribute('stroke-opacity', '0.70');
+          // Dotted — distinct from solid FK and dashed flow.
+          pathEl.setAttribute('stroke-dasharray', '2 4');
+          if (spec.direction === 'out') pathEl.setAttribute('marker-end', 'url(#arrow-inherited-end)');
+          else pathEl.setAttribute('marker-start', 'url(#arrow-inherited-start)');
+          svg.appendChild(pathEl);
+        }
+      }
+
       // CP14: Pill rendering — second pass, only for labelHoverCardId.
       // Collect all pills (FK + flow) for the hovered card, then apply a vertical
       // collision-avoidance nudge so bounding boxes don't overlap when multiple
       // pills land at the same midpoint (e.g. a process that reads and writes the
       // same store, or a bundle with both out and in FK edges).
       if (labelHoverCardId !== null) {
-        // Gather candidate FK pills.
+        // Gather candidate FK / flow / inherited pills.
         type PillSpec =
           | { kind: 'fk'; line: ComputedLine; colorVar: string }
-          | { kind: 'flow'; flowLine: FlowLine };
+          | { kind: 'flow'; flowLine: FlowLine }
+          | { kind: 'inherited'; inheritedLine: InheritedLine };
 
         const pillSpecs: PillSpec[] = [];
 
@@ -742,11 +970,17 @@ export function SpotlightOverlay({
             pillSpecs.push({ kind: 'flow', flowLine });
           }
         }
+        for (const inheritedLine of inheritedLines) {
+          if (inheritedLine.connection.otherId === labelHoverCardId) {
+            pillSpecs.push({ kind: 'inherited', inheritedLine });
+          }
+        }
 
         if (pillSpecs.length > 0) {
           // Estimate pill heights for collision nudging.
           // FK pill: LINE_H per edge + 2*PILL_PAD_Y.
           // Flow pill: LINE_H per unique payload label + 2*PILL_PAD_Y.
+          // Inherited pill: single row (LINE_H + 2*PILL_PAD_Y).
           const LINE_H = 18;
           const PILL_PAD_Y = 4;
           const NUDGE_MARGIN = 4; // extra vertical gap between pills
@@ -757,12 +991,15 @@ export function SpotlightOverlay({
             if (spec.kind === 'fk') {
               const estHeight = spec.line.connection.edges.length * LINE_H + PILL_PAD_Y * 2;
               return { spec, baseMidY: spec.line.midY, estHeight };
-            } else {
+            } else if (spec.kind === 'flow') {
               // Count unique payloads.
               const seen = new Set<string>();
               for (const edge of spec.flowLine.connection.edges) seen.add(edge.data);
               const estHeight = seen.size * LINE_H + PILL_PAD_Y * 2;
               return { spec, baseMidY: spec.flowLine.midY, estHeight };
+            } else {
+              const estHeight = LINE_H + PILL_PAD_Y * 2;
+              return { spec, baseMidY: spec.inheritedLine.midY, estHeight };
             }
           });
 
@@ -786,9 +1023,12 @@ export function SpotlightOverlay({
             if (pill.spec.kind === 'fk') {
               const nudgedLine: ComputedLine = { ...pill.spec.line, midY: nudgedY };
               renderPredicatePill(svg, nudgedLine, pill.spec.colorVar);
-            } else {
+            } else if (pill.spec.kind === 'flow') {
               const nudgedFlowLine: FlowLine = { ...pill.spec.flowLine, midY: nudgedY };
               renderFlowPill(svg, nudgedFlowLine);
+            } else {
+              const nudgedInheritedLine: InheritedLine = { ...pill.spec.inheritedLine, midY: nudgedY };
+              renderInheritedPill(svg, nudgedInheritedLine);
             }
           });
         }
@@ -805,7 +1045,8 @@ export function SpotlightOverlay({
 
     scheduleRedraw();
 
-    const hasAnyConnections = connections.length > 0 || flowConnections.length > 0;
+    const hasAnyConnections =
+      connections.length > 0 || flowConnections.length > 0 || inheritedConnections.length > 0;
     if (!hasAnyConnections) return;
 
     const container = gridContainerRef.current;
@@ -833,7 +1074,7 @@ export function SpotlightOverlay({
         rafRef.current = null;
       }
     };
-  }, [activeId, connections, flowConnections, labelHoverCardId, gridContainerRef]);
+  }, [activeId, connections, flowConnections, inheritedConnections, labelHoverCardId, gridContainerRef]);
 
   return (
     <>

@@ -23,13 +23,14 @@ See `docs/design/viewer-ux-polish.md`.
 ## Success criteria
 
 
-- [ ] #1 — A served/exported model named `Foo` produces `document.title` `Foo` (live tab and static-export HTML `<title>`); a nameless model falls back to `Ignatius`. A check asserts the static-export `<title>`.
+- [x] #1 — A served/exported model named `Foo` produces `document.title` `Foo` (live tab and static-export HTML `<title>`); a nameless model falls back to `Ignatius`. A check asserts the static-export `<title>`.
 - [x] #2 — When a spotlit DD card has a bidirectional (`both`) or multi-edge connection to another card, the overlay draws ≥2 distinct `<path>` elements with distinct connection points (no shared endpoint) — not one path with arrowheads at both ends. A unit test on the splitting/geometry helper proves separation; a visual screenshot confirms.
 - [x] #3 — The readout shows true scale: at Cytoscape `zoom===1` / SVG `scale===1` it reads `100%`, regardless of model size. The initial view fits and reports its real (non-100%) percentage on a large model. Home/reset fits-to-screen. `setPercent(100)` yields 1:1.
 - [x] #4 — Trackpad pinch (`ctrl`+wheel) and Cmd/Ctrl `+`/`-`/`0` zoom the canvas and never the browser page, on both DG and DFD. A unit test covers the resolver's new zoom actions; the page does not zoom (`preventDefault`).
 - [x] #5 — A process named `Confirm OTP And Create Individual` renders fully inside its box (no overflow); the box grows to fit and ELK spacing reflects the measured size. A unit test pins the sizing helper; a visual screenshot confirms.
 - [x] #6/#8 — Opening an entity modal pushes a history entry carrying `entity=<id>`; browser Back returns to the previous modal/state; closing the modal removes `entity=` from the URL.
-- [ ] No new `tsc --noEmit` errors vs baseline; `bun run test` exits 0; `bun run build:cli` succeeds.
+- [x] #9 — Spotlighting a subtype member in the DD browse lens also surfaces the basetype's relationships and its sibling subtypes as visually-distinct INHERITED connections (and a basetype surfaces its members' connections); inherited connections are de-duplicated against the active entity's direct edges and never duplicate a direct edge. A unit test pins the inheritance helper; a visual screenshot confirms.
+- [x] No new `tsc --noEmit` errors vs baseline; `bun run test` exits 0; `bun run build:cli` succeeds.
 
 
 ## Checkpoints
@@ -43,6 +44,7 @@ See `docs/design/viewer-ux-polish.md`.
 | 4 | Pinch + Cmd/Ctrl zoom → canvas | `src/app/views/graph/GraphView.tsx`, `src/flow-view/FlowDiagramSvg.tsx`, `src/app/logic/shortcuts.ts`, `src/app/hooks/useKeyboardShortcuts.ts`, `src/app/App.tsx`, `test/checks/test-shortcuts.ts` | feature | ~6 | resolver zoom actions; no page zoom on either view |
 | 5 | DFD process node sizes to text | `src/flow-view/elk-flow-layout.ts`, `src/flow-view/FlowDiagramSvg.tsx`, `test/checks/` | feature | ~3 | long name fits; ELK `nodeSize` reflects measured box |
 | 6 | DD spotlight separate lines | `src/app/logic/spotlight-lines.ts` (new pure helper), `src/app/components/entity/SpotlightOverlay.tsx`, `test/checks/test-spotlight-lines.ts`, `test/visual/test-dd-spotlight-grid.ts` | feature | ~3 | ≥2 distinct paths/points for `both`/multi-edge |
+| 7 | DD spotlight inherits 1:1 key-inheritance rels (#9) | new pure helper (e.g. `src/app/logic/spotlight-inherited.ts`), `src/app/components/entity/SpotlightOverlay.tsx`, `src/app/views/dict/DictionaryView.tsx`, `test/checks/`, `test/visual/test-dd-spotlight-grid.ts` | feature | ~4 | subtype member's spotlight surfaces basetype + sibling connections in a distinct style |
 
 
 Docs per CP: update the CLAUDE.md feature↔doc map and any touched guide
@@ -65,7 +67,19 @@ Docs per CP: update the CLAUDE.md feature↔doc map and any touched guide
 ## Change log
 
 
-<!-- empty on creation -->
+### 2026-06-19 — CP7 added (#9 inherited 1:1 key-inheritance connections)
+
+
+**What changed:** Added CP7 — the DD spotlight surfaces connections inherited via
+subtype-cluster identity (a 1:1 key-inherited subtype shares its basetype's
+relationships and its sibling subtypes), rendered visually distinct from direct FK
+lines. Adds the #9 success criterion and the CP7 checkpoint row.
+
+**Why:** The owner observed mid-run (item #9) that spotlighting a subtype showed
+none of its parent's relationships or its siblings, wrongly implying no
+relationship despite the shared key. Folded into this batch per the owner's
+explicit choice ("Fold into this batch as CP7") over a deferred ticket. See the
+design doc's "#9 inherited 1:1 key-inheritance connections" decision.
 
 
 ## Implementation log
@@ -143,5 +157,22 @@ stays one un-offset line, preserving today's look exactly.
 - Why the same single line stays unchanged: `count === 1` short-circuits before any offset math, returning the base anchor verbatim — the common single-FK look is bit-identical to before.
 
 Tests: [`test/checks/test-spotlight-lines.ts`](../../test/checks/test-spotlight-lines.ts) (new) pins the pure helper — a `both` bundle (1 out + 1 in) → 2 specs with DISTINCT endpoints, one `marker-end`-only and one `marker-start`-only; a 2-out bundle → 2 distinct specs; a single edge → 1 spec with endpoints equal to the base (no offset); HORIZONTAL anchor offsets y (x fixed on facing edges) and VERTICAL offsets x (y fixed), each symmetric about the base midpoint; empty → `[]`; 3 edges → 3 distinct symmetric specs. A no-op helper returning one line fails the `both` case. [`test/checks/test-spotlight-connections.ts`](../../test/checks/test-spotlight-connections.ts) still passes (bundling contract intact). Visual: [`test/visual/test-dd-spotlight-grid.ts`](../../test/visual/test-dd-spotlight-grid.ts) extended — pins the external "Customer" card in `models/key-inherited` (which produces `both` FLOW bundles; the entity FK graph has no `both` bundle), asserts ≥2 `path.spotlight-line` elements, NO path with both `marker-start`+`marker-end`, every path with exactly one marker, ≥2 distinct start points, and ≥2 distinct geometries. Verified in a real browser (throwaway Playwright probe + screenshot): 7 separated paths, 0 double-ended; a horizontal `both` bundle offset its y by ±7 about the midpoint (678.30 / 692.30 at shared x), a vertical `both` bundle offset its x by ±7 about the midpoint (293.79 / 307.79 at shared y). `bun run test` exits 0 (78 checks); no new `tsc --noEmit` errors vs baseline. (The full `test/visual/test-dd-spotlight-grid.ts` has a PRE-EXISTING, unrelated CP10 failure — process-card count expects the `/api/flow` deep count which now includes synthetic context/L1 diagrams, vs. the browse grid that excludes them via `SYNTHETIC_DIAGRAM_IDS`; this is in a section that runs before the appended CP6 block and is independent of the spotlight-line change. The CP6 assertions were verified in isolation.)
+
+### CP7 — DD spotlight inherits 1:1 key-inheritance relationships (#9)
+
+
+A 1:1 KEY-INHERITED subtype shares its basetype's primary key — the child IS the
+parent — so it transitively participates in the basetype's relationships and
+relates to its sibling subtypes. The spotlight previously walked only the active
+entity's DIRECT FK edges (`buildSpotlightConnections`), so a subtype looked
+unrelated to its parent's relationships and to its siblings. CP7 surfaces those
+INHERITED connections, rendered visually distinct from direct FK lines.
+
+- New pure module [`src/app/logic/spotlight-inherited.ts`](../../src/app/logic/spotlight-inherited.ts) — `buildInheritedConnections(index: ModelIndex, entityId: string): InheritedConnection[]` (no DOM/React/Bun, same discipline as `spotlight.ts`). `InheritedConnection = { otherId, direction: 'out'|'in'|'both', via: string }`; exports `INHERITED_IDENTITY = 'identity'`. Cluster role resolved from the ModelIndex maps (`subtypeMemberToCluster`, `basetypeClusterById`) — no re-scan. **Active = subtype member:** surfaces (a) the basetype + each sibling member as identity links (`via='identity'`), and (b) the basetype's direct FK connections (`buildSpotlightConnections(index, basetypeId)`) with `via=<basetype id>`. **Active = basetype:** surfaces each member as an identity link, plus each member's direct FK connections with `via=<member id>`. **De-dup:** the active's OWN direct connections (`buildSpotlightConnections(index, entityId)`) form a baseline — EVERY inherited connection (identity links included) to an otherId the active already connects to directly is suppressed (direct wins, never duplicate a direct edge — the #9 criterion). In the key-inherited convention a subtype has a direct identifying FK to its basetype, so the basetype renders ONCE as that solid direct FK line, NOT also as a dotted inherited identity line; the sibling subtypes and the basetype's OTHER relationships (which are not direct edges of the active) still surface as inherited. For a basetype-active spotlight this also drops members that are already direct in-edges, leaving only the members' other relationships as inherited. Never points at the active entity itself; bundled (one connection per otherId, first-seen wins); sorted by otherId; non-cluster / unknown id → []. **Scope (v1):** subtype clusters only — general identifying-1:1 dependent extension tables are an explicit non-goal (noted in module header), per the design.
+- [`src/app/components/entity/SpotlightOverlay.tsx`](../../src/app/components/entity/SpotlightOverlay.tsx) — new `inheritedConnections` prop + a THIRD line category. `computeInheritedLines` reuses `computeAnchor` + the scrollport-skip; the draw loop runs each inherited line through the CP6 `separateSpotlightLines` (a `both`/identity connection fans into two so they don't overlap) and emits DOTTED (`stroke-dasharray "2 4"`) paths in `--spotlight-line-inherited` (green), class `spotlight-line spotlight-line--inherited`, `data-kind="inherited"`, one arrowhead each (dedicated `arrow-inherited-*` markers). A `renderInheritedPill` (hover-revealed, joined into the CP14 collision-nudge pass) shows "shared key" (identity) or "via &lt;basetype&gt;" (transitive). Off-screen inherited connections become chips (`spotlight-chip--inherited`, distinguishable from FK/flow chips via `data-kind`).
+- [`src/app/dom/theme-css-vars.ts`](../../src/app/dom/theme-css-vars.ts) sets `--spotlight-line-inherited` (`#34d399` dark / `#059669` light); [`src/app/styles.css`](../../src/app/styles.css) adds the fallback var (`:root` + `.theme-light`) and a `.spotlight-chip--inherited` modifier (dashed green border, italic green provenance text).
+- [`src/app/views/dict/DictionaryView.tsx`](../../src/app/views/dict/DictionaryView.tsx) computes `inheritedConnections = buildInheritedConnections(modelIndex, activeId)` (entity-only useMemo), passes it to `SpotlightOverlay`, and folds inherited otherIds into `spotlitIds` (lit set) and `focusSet` so inherited cards light up and join focus mode — they ARE related via the shared key.
+
+Tests: [`test/checks/test-spotlight-inherited.ts`](../../test/checks/test-spotlight-inherited.ts) (new, 6 assertions) pins the pure helper on a Party/Business/Individual cluster fixture where each member has a direct FK to its basetype — the member spotlight surfaces the sibling + the basetype's OTHER rels (with `via` provenance) as inherited but NOT the basetype itself (it's a direct FK edge of the member, so it renders once as the solid direct line) and NOT its own direct FK; the basetype spotlight surfaces the members' OTHER rels (`via=<member>`) but NOT the members themselves (they are direct in-edges); an otherId that is both direct AND a basetype rel appears only as direct (transitive de-dup); plain entity → []; unknown id → []; one connection per otherId. A no-op returning `[]` fails the subtype case (it must surface the sibling + the basetype's rels). [`test/checks/test-spotlight-connections.ts`](../../test/checks/test-spotlight-connections.ts) still passes (`buildSpotlightConnections` unchanged). Visual: [`test/visual/test-dd-spotlight-grid.ts`](../../test/visual/test-dd-spotlight-grid.ts) extended (CP7 section) — spotlights the `Business` subtype member in `models/key-inherited`, asserts ≥1 dotted `data-kind="inherited"` / `.spotlight-line--inherited` path in `--spotlight-line-inherited`, that every inherited line is dotted while the direct FK line stays solid, and screenshots. Verified in a real browser (throwaway probe): pinning `Business` drew EXACTLY 1 solid direct FK line to `Party` (the basetype, lit but NOT redrawn as a dotted inherited line — the #9 de-dup contract) + dotted green inherited lines to `Person` (sibling, `via=identity`, fanned in two by CP6 for its `both` direction) and to `Identity`/`PartyType`/`PaymentMethod`/`SalesInvoice`/`SalesOrder` (the basetype's OTHER relationships inherited via the shared key, `via=Party`) — 8 spotlight paths total (1 solid + 7 dotted). `bun run test` exits 0; no new `tsc --noEmit` errors vs baseline.
 
 <!-- appended per checkpoint -->

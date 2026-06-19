@@ -4802,6 +4802,126 @@ try {
   await page.waitForTimeout(200);
 
   note('\n══ CP6 PASS ════════════════════════════════════════════════════════════');
+
+  // ── CP7 assertions — inherited 1:1 key-inheritance lines (#9) ─────────────
+  // A 1:1 key-inherited subtype shares its basetype's PK — the child IS the
+  // parent — so it transitively participates in the basetype's relationships and
+  // relates to its sibling subtypes. models/key-inherited has Party (basetype)
+  // with Business + Person subtypes; Business' only DIRECT FK is Business→Party,
+  // while Party carries the rich relationships (PartyType, PaymentMethod,
+  // SalesInvoice, SalesOrder, Identity) + the sibling Person. Spotlighting
+  // Business must surface those as DOTTED inherited lines, distinct from the
+  // solid direct FK line to Party.
+  note('\n── CP7: Inherited 1:1 key-inheritance lines (#9) ────────────────────────');
+
+  // Fresh dict browse page, clean state.
+  await page.goto(`${BASE}/#view=dict`);
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(1200);
+  await page.locator('.dict-lens-btn').filter({ hasText: 'Browse' }).click();
+  await page.waitForTimeout(400);
+  await page.locator('.dict-search-input').fill('');
+  await page.waitForTimeout(400);
+
+  const businessCard = page.locator('.dict-grid-card[data-entity-id="Business"]');
+  const businessCount = await businessCard.count();
+  if (businessCount === 0) {
+    await shot('FAIL-cp7-no-business-card.png');
+    fail('CP7: subtype member "Business" card (data-entity-id="Business") not found in browse grid');
+  }
+
+  // Pin the subtype member so the spotlight survives mouse-out.
+  await businessCard.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  await businessCard.click();
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(500);
+  await shot('77-cp7-business-inherited-spotlight.png');
+
+  // Collect every spotlight line path's class + dasharray + markers.
+  type Cp7PathInfo = { kind: string; dash: string; hasStart: boolean; hasEnd: boolean; d: string };
+  const cp7Paths = await page.evaluate((): Cp7PathInfo[] => {
+    const svg = document.querySelector('.spotlight-overlay');
+    if (!svg) return [];
+    return [...svg.querySelectorAll('path.spotlight-line')].map(p => ({
+      kind: p.getAttribute('data-kind') ?? 'fk',
+      dash: p.getAttribute('stroke-dasharray') ?? '',
+      hasStart: p.hasAttribute('marker-start'),
+      hasEnd: p.hasAttribute('marker-end'),
+      d: p.getAttribute('d') ?? '',
+    }));
+  });
+  note(`CP7: ${cp7Paths.length} total spotlight-line path(s) drawn`);
+
+  // At least one INHERITED (dotted) line must be present.
+  const inheritedPaths = cp7Paths.filter(p => p.kind === 'inherited');
+  note(`CP7: ${inheritedPaths.length} inherited (dotted) path(s)`);
+  if (inheritedPaths.length === 0) {
+    await shot('FAIL-cp7-no-inherited-paths.png');
+    fail('CP7: no inherited (data-kind="inherited") spotlight lines drawn for subtype member Business');
+  }
+  note(`OK CP7: ${inheritedPaths.length} inherited lines drawn for the subtype member`);
+
+  // The inherited paths must carry the --inherited modifier class.
+  const inheritedClassCount = await page.evaluate(() => {
+    const svg = document.querySelector('.spotlight-overlay');
+    if (!svg) return 0;
+    return svg.querySelectorAll('path.spotlight-line--inherited').length;
+  });
+  if (inheritedClassCount === 0) {
+    await shot('FAIL-cp7-no-inherited-class.png');
+    fail('CP7: inherited lines do not carry the .spotlight-line--inherited class');
+  }
+  note(`OK CP7: ${inheritedClassCount} path(s) carry .spotlight-line--inherited`);
+
+  // The inherited stroke color must resolve to the dedicated --spotlight-line-inherited var.
+  const inheritedColor = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--spotlight-line-inherited').trim()
+  );
+  note(`CP7: --spotlight-line-inherited="${inheritedColor}"`);
+  if (inheritedColor.length === 0) {
+    await shot('FAIL-cp7-no-inherited-var.png');
+    fail('CP7: --spotlight-line-inherited CSS var is not set');
+  }
+  note('OK CP7: --spotlight-line-inherited theme var is set');
+
+  // The inherited lines must be visually DISTINCT from direct FK lines: they are
+  // dotted (stroke-dasharray present), whereas direct FK lines are solid (no dash).
+  // (Flow lines are also dashed, but they carry data-kind="flow".)
+  const everyInheritedDotted = inheritedPaths.every(p => p.dash.length > 0);
+  if (!everyInheritedDotted) {
+    await shot('FAIL-cp7-inherited-not-dotted.png');
+    fail('CP7: an inherited line has no stroke-dasharray — not visually distinct from solid direct FK lines');
+  }
+  note('OK CP7: every inherited line is dotted (distinct from solid direct FK lines)');
+
+  // The direct FK line to Party must still be present, solid (no dash), and NOT
+  // marked inherited — direct vs. inherited stays unambiguous.
+  const directFkPaths = cp7Paths.filter(p => p.kind === 'fk');
+  const everyFkSolid = directFkPaths.every(p => p.dash.length === 0);
+  if (directFkPaths.length === 0) {
+    await shot('FAIL-cp7-no-direct-fk.png');
+    fail('CP7: expected at least the direct FK line (Business→Party) to be present');
+  }
+  if (!everyFkSolid) {
+    await shot('FAIL-cp7-fk-dashed.png');
+    fail('CP7: a direct FK line is dashed — direct vs inherited no longer distinguishable');
+  }
+  note(`OK CP7: ${directFkPaths.length} direct FK line(s) remain solid alongside the dotted inherited lines`);
+
+  // Each inherited line carries exactly one arrowhead (a connection line, not a stub).
+  const inheritedNoMarker = inheritedPaths.find(p => !p.hasStart && !p.hasEnd);
+  if (inheritedNoMarker !== undefined) {
+    await shot('FAIL-cp7-inherited-no-marker.png');
+    fail('CP7: an inherited line carries no arrowhead');
+  }
+  note('OK CP7: every inherited line carries an arrowhead');
+
+  // Release pin for clean state.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+
+  note('\n══ CP7 PASS ════════════════════════════════════════════════════════════');
 } catch (err) {
   console.error(err);
   process.exit(1);

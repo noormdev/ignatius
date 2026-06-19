@@ -41,14 +41,18 @@ export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
   // Out: orange-amber to read as "going out to parent".
   // In: teal-blue to read as "incoming children".
   // CP12: Flow lines use a distinct purple so they never read as FK edges on the same canvas.
+  // CP7 (#9): Inherited (1:1 key-inheritance) lines use a distinct green so they
+  // never read as direct FK (amber/teal) or flow (purple) edges. Rendered DOTTED.
   if (mode === 'dark') {
     root.style.setProperty('--spotlight-line-out', '#f59e0b');
     root.style.setProperty('--spotlight-line-in', '#38bdf8');
     root.style.setProperty('--spotlight-line-flow', '#a78bfa');
+    root.style.setProperty('--spotlight-line-inherited', '#34d399');
   } else {
     root.style.setProperty('--spotlight-line-out', '#d97706');
     root.style.setProperty('--spotlight-line-in', '#0284c7');
     root.style.setProperty('--spotlight-line-flow', '#7c3aed');
+    root.style.setProperty('--spotlight-line-inherited', '#059669');
   }
 
   // Status colors (error + warning) — mode-aware so findings UI is legible in both themes.
