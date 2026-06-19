@@ -22,12 +22,12 @@ in BOTH the DD spotlight and the graph (DG). See
 ## Success criteria
 
 
-- [ ] A pure `identity-group` helper computes the transitive closure of an entity over 1:1 key-inheritance edges — **subtype-cluster membership** AND **dependent identifying-1:1** (child PK columns == an identifying 1:1 FK's columns). Unit-tested on `ITIN → Identity → Party` (multi-hop) and `Business → Party` (single-hop).
-- [ ] Inferred connections for `A` = every other group member + each member's external (out-of-group) direct relationships, with `via` provenance, de-duplicated against `A`'s direct relationships (a direct edge is never also inferred). Unit-tested.
-- [ ] DD spotlight uses the generalized helper: spotlighting `Identity` surfaces Party's relationships; spotlighting `ITIN` transitively surfaces Identity's AND Party's relationships + siblings — all dotted. (Replaces CP7's subtype-only behavior; `test-spotlight-inherited.ts` updated.)
-- [ ] DG graph: selecting `Identity` draws DOTTED inferred lines (color `--spotlight-line-inherited`) to Party's relationships (+ siblings), with those nodes kept lit; selecting `ITIN` draws them transitively to Identity's + Party's relationships. Direct edges stay solid. A visual screenshot on `models/key-inherited` confirms.
-- [ ] The DG ephemeral lines never enter the model, the `layoutFingerprint` / saved positions, or the static export; they are removed on deselect / reselect / view-switch. A check asserts no inherited artifact leaks into `layoutFingerprint` / persistence.
-- [ ] No new `tsc --noEmit` errors vs baseline; `bun run test` exits 0; `bun run build:cli` succeeds.
+- [x] A pure `identity-group` helper computes the transitive closure of an entity over 1:1 key-inheritance edges — **subtype-cluster membership** AND **dependent identifying-1:1** (child PK columns == an identifying 1:1 FK's columns). Unit-tested on `ITIN → Identity → Party` (multi-hop) and `Business → Party` (single-hop).
+- [x] Inferred connections for `A` = every other group member + each member's external (out-of-group) direct relationships, with `via` provenance, de-duplicated against `A`'s direct relationships (a direct edge is never also inferred). Unit-tested.
+- [x] DD spotlight uses the generalized helper: spotlighting `Identity` surfaces Party's relationships; spotlighting `ITIN` transitively surfaces Identity's AND Party's relationships + siblings — all dotted. (Replaces CP7's subtype-only behavior; `test-spotlight-inherited.ts` updated.)
+- [x] DG graph: selecting `Identity` draws DOTTED inferred lines (color `--spotlight-line-inherited`) to Party's relationships (+ siblings), with those nodes kept lit; selecting `ITIN` draws them transitively to Identity's + Party's relationships. Direct edges stay solid. A visual screenshot on `models/key-inherited` confirms.
+- [x] The DG ephemeral lines never enter the model, the `layoutFingerprint` / saved positions, or the static export; they are removed on deselect / reselect / view-switch. A check asserts no inherited artifact leaks into `layoutFingerprint` / persistence.
+- [x] No new `tsc --noEmit` errors vs baseline; `bun run test` exits 0; `bun run build:cli` succeeds.
 
 
 ## Checkpoints
@@ -63,6 +63,16 @@ generalizes the CP7 row — note the supersession.
   relationship carries the single nearest-hop group-member id (not a chain string),
   so `SpotlightOverlay`'s existing "via &lt;id&gt;" / "shared key" label needs no
   change — recorded here as the chosen reading of "or the chain" in the criteria.
+- 2026-06-19 — CP-B landed. No contract changes; the DG success criteria #4/#5/#6
+  are realized as written. Two reading-level decisions recorded: (a) `buildStyles`
+  in `src/app/views/graph/styles.ts` takes `(groups, theme, mode)` — NOT
+  `(themeMode, semanticColors)` as the CP-B brief paraphrased; the inherited edge
+  style was added there as written, against the real signature. (b) The inherited
+  green is a SINGLE source of truth: a new `SPOTLIGHT_LINE_INHERITED: Record<ThemeMode,string>`
+  constant exported from `src/app/dom/theme-css-vars.ts`, consumed both by the
+  `--spotlight-line-inherited` CSS var (DD) and by `buildStyles` for the cytoscape
+  edge `line-color` (DG) — chosen over runtime `getComputedStyle` to avoid var-set
+  timing fragility and guarantee the DG matches the DD exactly.
 
 
 ## Implementation log
@@ -116,3 +126,66 @@ dotted `.spotlight-line--inherited` lines surface `Party`'s relationships.
 **Files.** `src/app/logic/spotlight-inherited.ts`,
 `test/checks/test-spotlight-inherited.ts`, `test/visual/test-dd-spotlight-grid.ts`.
 CP-B (DG dotted inferred-upstream lines) remains.
+
+
+### CP-B — DG dotted inferred-upstream lines (2026-06-19)
+
+
+Rendered the CP-A inherited connections in the GRAPH as ephemeral dotted
+"inferred-upstream" edges on entity select. Reuses the CP-A pure helper
+`buildInheritedConnections` (no second inheritance computation).
+
+**Approach.** On entity select, `drawInheritedEdges(selectedId)` (inside the
+GraphView cy-init closure) calls `buildInheritedConnections(modelIndexRef.current,
+selectedId)` and, for each connection whose `otherId` is a node present in cy,
+adds an EPHEMERAL cytoscape edge `selectedId → otherId` with class `inherited`,
+`data({ inherited: true })`, and a collision-free id `_inherited_<sel>__<other>`.
+Style (`src/app/views/graph/styles.ts`, selector `edge.inherited`): `line-style:
+dotted`, `line-color` = the inherited green, arrowless, `width: 1.2`, no casing,
+`opacity: 0.85`, `z-index: 1`. The green is read from the new
+`SPOTLIGHT_LINE_INHERITED[mode]` constant — same source the DD CSS var uses, so
+DG == DD exactly.
+
+**Lit set.** The hover lineage-fade folds `cy.edges('.inherited')` + their endpoint
+nodes into the `keep` set, so hovering never dims the inferred-upstream lines or
+their targets.
+
+**Lifecycle (no ephemeral edge survives).** `clearInheritedEdges()` (`cy.remove('edge.inherited')`)
+runs on: background-tap deselect; before each reselect (inside `drawInheritedEdges`);
+`resetLayout` and `applyLayoutMode` BEFORE ELK runs (never fed to layout); deep-link
+/ Back-Forward restore to a no-entity state; and teardown (before `cy.destroy()`).
+View-switch away drops the whole cy instance (effect dep `isActive` → cleanup).
+
+**No-leak (verified, each path).** (1) `layoutFingerprint(model)` hashes only
+`model.nodes`/`model.edges` — the ephemeral edges live only in cy, never in the
+model. (2) `layout-store` save loops `cy.nodes()` only (edges excluded) and the
+inherited edges introduce zero synthetic nodes, so the position map can never gain
+an entry. (3) Static export reads `window.__MODEL__` (the model), not cy. (4) ELK
+never sees them — added AFTER layout, removed BEFORE any re-layout.
+`test/checks/test-inherited-edges-no-leak.ts` proves the fingerprint is byte-identical
+before/after computing every entity's inherited set, no synthetic id collides with a
+real edge id, and every target is an existing model node.
+
+**Tests.** `test/checks/test-inherited-edges-no-leak.ts` (5 assertions, no-leak unit,
+real `key-inherited` model). `test/checks/test-graph-inherited-edges.ts` (Playwright,
+skip-if-dist-absent): selecting `Identity` draws 6 dotted `edge.inherited` edges
+reaching Party's relationships (PartyType/PaymentMethod/SalesInvoice/SalesOrder),
+targets lit; selecting `ITIN` draws 10 (transitive, strictly more, reselect replaces
+not accumulates); background-tap deselect → 0. `test/visual/test-graph-inherited-lines.ts`
+(visual screenshots, manual): Identity 6 + ITIN 10 dotted green lines + clean deselect
+frame — confirmed visually (dotted green inferred-upstream lines, direct FK edges stay
+solid grey).
+
+**Gates.** `bun test/checks/test-inherited-edges-no-leak.ts` → 5/5 PASS.
+`bun test/checks/test-graph-inherited-edges.ts` → all PASS (Identity 6, ITIN 10,
+deselect 0). `bun run test` → exit 0, zero failures. `bunx tsc --noEmit` → 509
+errors vs 503 baseline (stash-measured); the +6 are all in the documented
+cytoscape `Core`/`ElementDefinition` baseline category from the new GraphView
+draw/clear lines — no NEW error type, zero errors in the new typed code
+(`SPOTLIGHT_LINE_INHERITED`, `theme-css-vars`). SPA bundle rebuilt
+(`build:bundle` + `build:stable-names`).
+
+**Files.** `src/app/views/graph/GraphView.tsx`, `src/app/views/graph/styles.ts`,
+`src/app/dom/theme-css-vars.ts`, `test/checks/test-inherited-edges-no-leak.ts`,
+`test/checks/test-graph-inherited-edges.ts`, `test/visual/test-graph-inherited-lines.ts`.
+Feature complete (CP-A + CP-B).

@@ -1,6 +1,21 @@
 import { semanticColors, type ThemeConfig, type ThemeMode } from '../../theme/theme-defaults';
 import { blendHex } from '../logic/color';
 
+/**
+ * Inherited (1:1 key-inheritance) spotlight line color, per mode. Distinct green
+ * so it never reads as a direct FK (amber/teal) or flow (purple) edge.
+ *
+ * Single source of truth shared by the DD spotlight (rendered via the
+ * `--spotlight-line-inherited` CSS custom property set below) AND the DG graph
+ * (read directly by `buildStyles` for the ephemeral dotted inherited cytoscape
+ * edge — cytoscape styles are JS values, not CSS, so they cannot consume the
+ * CSS var). Keeping one constant guarantees the two surfaces match exactly.
+ */
+export const SPOTLIGHT_LINE_INHERITED: Record<ThemeMode, string> = {
+  dark: '#34d399',
+  light: '#059669',
+};
+
 export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
   const p = mode === 'light' ? theme.light : theme.dark;
   const root = document.documentElement;
@@ -47,13 +62,12 @@ export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
     root.style.setProperty('--spotlight-line-out', '#f59e0b');
     root.style.setProperty('--spotlight-line-in', '#38bdf8');
     root.style.setProperty('--spotlight-line-flow', '#a78bfa');
-    root.style.setProperty('--spotlight-line-inherited', '#34d399');
   } else {
     root.style.setProperty('--spotlight-line-out', '#d97706');
     root.style.setProperty('--spotlight-line-in', '#0284c7');
     root.style.setProperty('--spotlight-line-flow', '#7c3aed');
-    root.style.setProperty('--spotlight-line-inherited', '#059669');
   }
+  root.style.setProperty('--spotlight-line-inherited', SPOTLIGHT_LINE_INHERITED[mode]);
 
   // Status colors (error + warning) — mode-aware so findings UI is legible in both themes.
   // LOUD surfaces (global banner, error-fallback box) use *-strong: saturated red with

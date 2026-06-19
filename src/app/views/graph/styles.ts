@@ -2,6 +2,7 @@ import cytoscape from 'cytoscape';
 import type { ThemeConfig, ThemeMode } from '../../../theme/theme-defaults';
 import type { GroupConfig } from '../../../model/parse';
 import { blendHex, pastel, lighten } from '../../logic/color';
+import { SPOTLIGHT_LINE_INHERITED } from '../../dom/theme-css-vars';
 
 export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mode: ThemeMode): cytoscape.Stylesheet[] {
   const p = mode === 'light' ? theme.light : theme.dark;
@@ -149,6 +150,27 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
   base.push({
     selector: 'node.hover-focus',
     style: { 'border-width': 3 },
+  });
+
+  // Inherited 1:1 key-inheritance lines (key-inheritance-lineage CP-B). These
+  // are EPHEMERAL edges added on entity select, never part of the model — they
+  // mirror the DD spotlight's dotted "inferred-upstream" connections. Dotted,
+  // green (matching the DD's --spotlight-line-inherited exactly), thinner and
+  // arrowless so they never read as a direct FK (solid amber/teal) edge.
+  base.push({
+    selector: 'edge.inherited',
+    style: {
+      'line-style': 'dotted',
+      'line-color': SPOTLIGHT_LINE_INHERITED[mode],
+      'line-outline-width': 0,
+      'width': 1.2,
+      'target-arrow-shape': 'none',
+      'source-arrow-shape': 'none',
+      'curve-style': 'bezier',
+      'label': '',
+      'opacity': 0.85,
+      'z-index': 1,
+    },
   });
 
   return base;

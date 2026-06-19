@@ -27,9 +27,22 @@ import { createLayoutStore } from './layout-store';
 import type { PositionMap } from './layout-store';
 import { parseHash, serializeHash } from '../../hash-router';
 import type { HashState, ViewName } from '../../hash-router';
+import { buildInheritedConnections } from '../../logic/spotlight-inherited';
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../../../model/parse';
 import type { EntityError, GlobalError } from '../../../model/validate';
 import type { ModelIndex } from '../../../model/model-index';
+
+/**
+ * Class + id prefix for the ephemeral dotted "inferred-upstream" edges drawn on
+ * entity select (key-inheritance-lineage CP-B). These edges are NEVER part of
+ * the model: they are added to cy AFTER layout, carry the `inherited` class so
+ * the lineage-fade keeps them lit, and are stripped before any layout
+ * fingerprint / position save and before any re-layout. The id prefix lets us
+ * mint collision-free ids and the `edge.inherited` selector lets us remove them
+ * wholesale.
+ */
+const INHERITED_EDGE_CLASS = 'inherited';
+const INHERITED_EDGE_PREFIX = '_inherited_';
 
 // ---------------------------------------------------------------------------
 // LayoutMode — graph-only concept, exported so App shell can read/display it.
@@ -525,7 +538,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             cy.elements().unselect();
             target.select();
             if (state.pan === undefined) cy.center(target);
+            // Deep-link / Back-Forward restore of a selected entity also draws
+            // its inferred-upstream edges (keeps the DG consistent with a tap).
+            drawInheritedEdges(state.entity);
           }
+        } else {
+          // Back/Forward to a state with no entity= → no modal, no inherited.
+          clearInheritedEdges();
         }
       }
 
@@ -626,12 +645,50 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
       cy.on('position', redrawMarkers);
 
+      // ── Inferred-upstream (inherited) edges (key-inheritance-lineage CP-B) ──
+      // Ephemeral dotted edges from the selected node to each transitive 1:1
+      // key-inheritance connection — the SAME set the DD spotlight shows. Added
+      // AFTER layout, never fed to ELK, stripped before any fingerprint/save or
+      // re-layout. Reuses the CP-A pure helper (no second inheritance compute).
+
+      // Remove every ephemeral inherited edge. Idempotent. Called on deselect,
+      // before each reselect, before any re-layout, and on teardown.
+      function clearInheritedEdges(): void {
+        cy.remove(`edge.${INHERITED_EDGE_CLASS}`);
+      }
+
+      // Draw the inferred-upstream edges for `selectedId`. Clears any prior set
+      // first (reselect). Only connects to nodes that exist in the graph.
+      function drawInheritedEdges(selectedId: string): void {
+        clearInheritedEdges();
+        const index = modelIndexRef.current;
+        if (!index) return;
+        if (cy.$(`#${CSS.escape(selectedId)}`).empty()) return;
+
+        const additions: cytoscape.ElementDefinition[] = [];
+        for (const conn of buildInheritedConnections(index, selectedId)) {
+          // Only connect to nodes actually present in the graph.
+          if (cy.$(`#${CSS.escape(conn.otherId)}`).empty()) continue;
+          additions.push({
+            data: {
+              id: `${INHERITED_EDGE_PREFIX}${selectedId}__${conn.otherId}`,
+              source: selectedId,
+              target: conn.otherId,
+              inherited: true,
+            },
+            classes: INHERITED_EDGE_CLASS,
+          });
+        }
+        if (additions.length > 0) cy.add(additions);
+      }
+
       cy.on('tap', 'node', (evt) => {
         const nodeId = evt.target.id();
         const node = modelIndexRef.current?.nodeById.get(nodeId);
         if (node) {
           // Shell's onSelectEntity is the single writer of entity= (pushes one
           // history entry). GraphView does not write entity= on tap.
+          drawInheritedEdges(nodeId);
           onSelectEntity(node);
         }
       });
@@ -640,6 +697,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (evt.target === cy) {
           // Shell's onDeselectEntity clears entity= (replaceState). GraphView
           // does not write the hash here — the shell owns entity= lifecycle.
+          clearInheritedEdges();
           onDeselectEntity();
         }
       });
@@ -652,12 +710,16 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cy.elements().unselect();
         target.select();
         cy.center(target);
+        drawInheritedEdges(id);
       };
 
       let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
       resetLayoutRef.current = () => {
         if (saveTimer !== null) clearTimeout(saveTimer);
+        // Strip ephemeral inherited edges BEFORE re-layout so ELK never lays
+        // them out and the saved ELK position set never captures them.
+        clearInheritedEdges();
         layoutStore.clear(layoutKeyRef.current);
         const mode = layoutModeRef.current;
         const lo = cy.layout(buildLayoutOpts(mode));
@@ -674,6 +736,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
       applyLayoutModeRef.current = (mode) => {
         if (saveTimer !== null) clearTimeout(saveTimer);
+        // Strip ephemeral inherited edges BEFORE re-layout (never fed to ELK).
+        clearInheritedEdges();
         const lo = cy.layout(buildLayoutOpts(mode));
         lo.one('layoutstop', () => {
           if (mode === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
@@ -692,6 +756,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cy.elements().unselect();
         target.select();
         cy.center(target);
+        drawInheritedEdges(id);
         const node = modelIndexRef.current?.nodeById.get(id);
         if (node) onPanelSelect(node);
         // Panel-navigate selects+centers but does NOT open the modal, so it must
@@ -825,7 +890,17 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         const joiners = direct.nodes('[joiner = "true"]');
         const lineage = collectLineage(n);
         const descendants = collectDescendants(n);
-        const keep = direct.union(joiners.incomers()).union(lineage).union(descendants);
+        // The ephemeral inherited edges (drawn on select) and their endpoint
+        // nodes stay LIT through a hover — fold them into the keep set so the
+        // inferred-upstream lines and their targets never dim out.
+        const inherited = cy.edges(`.${INHERITED_EDGE_CLASS}`);
+        const inheritedEndpoints = inherited.connectedNodes();
+        const keep = direct
+          .union(joiners.incomers())
+          .union(lineage)
+          .union(descendants)
+          .union(inherited)
+          .union(inheritedEndpoints);
         const keepWithAncestors = keep.union(keep.ancestors());
         cy.elements().difference(keepWithAncestors).addClass('faded');
         n.addClass('hover-focus');
@@ -873,6 +948,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cyZoomOutRef.current = null;
         cySetPercentRef.current = null;
         cyZoomResetRef.current = null;
+        // Strip ephemeral inherited edges on teardown / view-switch away. cy.destroy()
+        // below also drops them, but clearing first keeps the no-leak intent explicit.
+        clearInheritedEdges();
         cy.destroy();
         cyRef.current = null;
         window.__IGNATIUS_CY__ = undefined;
