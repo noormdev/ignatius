@@ -13,6 +13,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { SYNTHETIC_DIAGRAM_IDS } from '../../src/flows/flow-derive-levels';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'dd-spotlight-grid');
@@ -2324,10 +2325,15 @@ try {
   type FlowApiBody = { diagrams: FlowDiagramRaw[] };
   const flowApiBody = await flowApiResp.json() as FlowApiBody;
 
+  // Mirror DictionaryView.collectProcessesDeep exactly: the browse grid skips the
+  // synthetic context (__context__) and L1-overview (__system__) diagrams inserted by
+  // deriveLevels — their System bubble and per-leaf activity stubs are not user-authored
+  // and render no process cards. Always recurse into subDfds (including a synthetic
+  // diagram's) to reach the real leaf diagrams nested below the L1 overview.
   function countProcessesDeep(diagrams: FlowDiagramRaw[]): number {
     let n = 0;
     for (const d of diagrams) {
-      n += d.processes.length;
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) n += d.processes.length;
       if (d.subDfds) n += countProcessesDeep(d.subDfds);
     }
     return n;
@@ -2539,11 +2545,15 @@ try {
   let cp11ProcExpectedLitSet: Set<string> = new Set();
   let cp11ProcExpectedEntityIds: string[] = [];
 
-  // Collect all process tokens from the flow API.
+  // Collect all process tokens from the flow API. Skip synthetic context/L1 diagrams
+  // (mirrors the grid's collectProcessesDeep): their System bubble and per-leaf activity
+  // stubs render NO grid card, so a token from them would have no card to pin/assert.
   function collectProcTokens(diagrams: FlowDiagramRaw[]): ProcCard[] {
     const procs: ProcCard[] = [];
     for (const d of diagrams) {
-      for (const p of d.processes) procs.push({ token: `proc:${p.id}`, label: p.label });
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) {
+        for (const p of d.processes) procs.push({ token: `proc:${p.id}`, label: p.label });
+      }
       if (d.subDfds) procs.push(...collectProcTokens(d.subDfds));
     }
     return procs;
@@ -2684,7 +2694,9 @@ try {
     topLevel: FlowDiagramRaw[],
   ): EntityWithProcess | null {
     for (const d of diagrams) {
-      for (const p of d.processes) {
+      // Skip synthetic context/L1 processes — they render no grid card, so a token
+      // from them could not be asserted spotlit below (mirrors the grid).
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) for (const p of d.processes) {
         const procToken = `proc:${p.id}`;
         const edges = collectEdgesForToken(topLevel, procToken);
         for (const edge of edges) {
@@ -2804,7 +2816,9 @@ try {
 
   function findProcWithDbEdge(diagrams: Cp12FlowDiagram[], topLevel: Cp12FlowDiagram[]): Cp12Match | null {
     for (const d of diagrams) {
-      for (const proc of d.processes) {
+      // Skip synthetic context/L1 processes — they render no grid card, so a token
+      // from them has no card to pin below (mirrors the grid).
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id)) for (const proc of d.processes) {
         const token = `proc:${proc.id}`;
         // Collect edges for this process across the full tree.
         const procEdges: Cp12FlowEdge[] = [];
