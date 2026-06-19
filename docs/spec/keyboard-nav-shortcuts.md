@@ -4,8 +4,14 @@
 
 Plain-key keyboard shortcuts in the unified SPA for the three high-frequency
 navigation toggles: jump between Graph/Dictionary/Flows views, toggle the DG
-layout (organic ↔ hierarchical), toggle the DD lens (read ↔ browse). Shortcuts
-never fire while typing or under a modifier chord. Implements issue #13.
+layout (organic ↔ hierarchical), toggle the DD lens (read ↔ browse). Bare-key
+shortcuts never fire while typing or under a modifier chord. Implements issue
+#13.
+
+The resolver also owns **modifier-gated canvas zoom** (viewer-ux-polish #4,
+CP4): `Cmd`/`Ctrl` + `=`/`+` / `-`/`_` / `0` steal the browser's page-zoom
+chord and route it to the active view's canvas zoom instead. These are a
+distinct guard class from the bare keys (see Keymap).
 
 ## Non-goals
 
@@ -16,6 +22,8 @@ never fire while typing or under a modifier chord. Implements issue #13.
 
 ## Keymap (contract)
 
+**Bare keys** (no modifier, not while typing):
+
 | Key | Action | Active when |
 |-----|--------|-------------|
 | `g` | view → `graph` | any view |
@@ -24,10 +32,24 @@ never fire while typing or under a modifier chord. Implements issue #13.
 | `l` | toggle DG layout `organic ↔ hierarchical` | `view === 'graph'` |
 | `b` | toggle DD lens `read ↔ browse` | `view === 'dict'` |
 
-Bail (no action) when: `ctrlKey || metaKey || altKey || shiftKey`, OR focus is an
-editable target (`input` / `textarea` / `select` / `contenteditable` / inside an
-open `.modal`). `l` and `b` resolve to no action when their view is not active.
-View jumps are idempotent.
+Bare keys bail (no action) when: `ctrlKey || metaKey || altKey || shiftKey`, OR
+focus is an editable target (`input` / `textarea` / `select` /
+`contenteditable` / inside an open `.modal`). `l` and `b` resolve to no action
+when their view is not active. View jumps are idempotent.
+
+**Modifier-gated zoom** (CP4) — resolved *before* the bare-key guards, so the
+editable guard does **not** block them (they are not typed characters), and
+they require `ctrl`/`meta` (the opposite of the bare-key modifier guard):
+
+| Chord | Action | Routed to |
+|-------|--------|-----------|
+| `Cmd`/`Ctrl` + `=` or `+` | `zoomIn` | active canvas (graph cy / flow SVG); dict no-op |
+| `Cmd`/`Ctrl` + `-` or `_` | `zoomOut` | active canvas; dict no-op |
+| `Cmd`/`Ctrl` + `0` | `zoomReset` (fit) | active canvas; dict no-op |
+
+Gated on `ctrl`/`meta` only — `alt` or `shift` held disqualifies (→ null). Bare
+`=`/`-`/`0` with no modifier → null (plain keystrokes are never hijacked). The
+hook `preventDefault`s on the matched action so the browser never page-zooms.
 
 ## Success criteria
 
@@ -81,6 +103,8 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 
 **Squashed to aacc155 — 2026-06-16.** Per-iteration SHAs above are historical (unreachable from any branch).
 
+- CP4 (viewer-ux-polish #4) — extended `resolveShortcut` with modifier-gated zoom actions (`zoomIn`/`zoomOut`/`zoomReset` added to the `ShortcutAction` union), resolved before the bare-key editable/modifier guards and gated on `ctrl`/`meta` (not `alt`/`shift`). `useKeyboardShortcuts` gained `onZoomIn`/`onZoomOut`/`onZoomReset` callbacks; shell routes them to the active view handle (graph → `GraphViewHandle`, flow → `FlowsViewHandle`, dict → no-op). `test/checks/test-shortcuts.ts` extended (T11–T15) covering both modifier keys × graph/flow, editable-bypass, alt/shift→null, bare-key→null, exact action shape. The full keyboard-zoom contract is owned by `docs/spec/viewer-ux-polish.md` (CP4); this spec carries the resolver-level keymap.
+
 ## Change log
 
-<!-- empty on creation -->
+- 2026-06-19 — Added the modifier-gated zoom keymap + guard class (CP4, viewer-ux-polish #4). The original bare-key keymap (g/d/f/l/b) is unchanged.

@@ -17,6 +17,12 @@
  *
  * Key matching is done on e.key.toLowerCase() so capslock does not block
  * actions (shift is already guarded, preventing Shift+G etc.).
+ *
+ * Modifier-gated zoom (Cmd/Ctrl + =/+ / -/_ / 0): resolved BEFORE the bare-key
+ * guards, so it works regardless of the editable context and is gated on
+ * ctrl/meta (NOT alt/shift). These map to the browser's own zoom chord, which
+ * we intercept and route to the active canvas instead of the page. Bare =/-/0
+ * with no modifier are NOT hijacked — they fall through to null.
  */
 
 import type { ViewName } from '../hash-router';
@@ -37,7 +43,10 @@ export interface ShortcutKeyEvent {
 export type ShortcutAction =
   | { type: 'view'; view: ViewName }
   | { type: 'toggleLayout' }
-  | { type: 'toggleLens' };
+  | { type: 'toggleLens' }
+  | { type: 'zoomIn' }
+  | { type: 'zoomOut' }
+  | { type: 'zoomReset' };
 
 // ---------------------------------------------------------------------------
 // resolveShortcut
@@ -56,13 +65,27 @@ export function resolveShortcut(
   view: ViewName,
   editable: boolean,
 ): ShortcutAction | null {
-  // Guard 1: typing context
+  const key = e.key.toLowerCase();
+
+  // Modifier-gated zoom: Cmd/Ctrl + =/+ / -/_ / 0. Resolved FIRST so it bypasses
+  // the editable guard (these are not typed characters — they are the browser's
+  // own page-zoom chord, which we steal for the active canvas). Gated on
+  // ctrl/meta ONLY: alt or shift held with these keys → no zoom.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+    switch (key) {
+      case '=':
+      case '+': return { type: 'zoomIn' };
+      case '-':
+      case '_': return { type: 'zoomOut' };
+      case '0': return { type: 'zoomReset' };
+    }
+  }
+
+  // Guard 1: typing context (bare keys only)
   if (editable) return null;
 
-  // Guard 2: modifier chords
+  // Guard 2: modifier chords (bare keys only — any modifier suppresses)
   if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return null;
-
-  const key = e.key.toLowerCase();
 
   switch (key) {
     case 'g': return { type: 'view', view: 'graph' };

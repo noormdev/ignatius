@@ -180,4 +180,99 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
   console.log("PASS T10: uppercase 'G' without shiftKey → graph view action");
 }
 
+// ---------------------------------------------------------------------------
+// T11: Cmd/Ctrl + zoom keys → zoom actions, on graph AND flow views
+//   = / +  → zoomIn   ;   - / _  → zoomOut   ;   0 → zoomReset
+// ---------------------------------------------------------------------------
+{
+  const cases: Array<{ key: string; expected: ShortcutAction['type'] }> = [
+    { key: '=', expected: 'zoomIn' },
+    { key: '+', expected: 'zoomIn' },
+    { key: '-', expected: 'zoomOut' },
+    { key: '_', expected: 'zoomOut' },
+    { key: '0', expected: 'zoomReset' },
+  ];
+  // Both ctrl (Linux/Win) and meta (macOS) trigger; on both graph + flow views.
+  for (const mod of ['ctrlKey', 'metaKey'] as const) {
+    for (const view of ['graph', 'flow'] as ViewName[]) {
+      for (const { key, expected } of cases) {
+        const result = resolveShortcut(ev(key, { [mod]: true }), view, false);
+        assert(
+          result !== null && result.type === expected,
+          `T11: ${mod}+'${key}' on ${view} → { type:'${expected}' }`,
+        );
+        console.log(`PASS T11: ${mod}+'${key}' on view=${view} → { type:'${expected}' }`);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T12: zoom combos resolve EVEN when editable === true (not blocked by the
+//      editable guard — they are not typed characters)
+// ---------------------------------------------------------------------------
+{
+  const cases: Array<{ key: string; expected: ShortcutAction['type'] }> = [
+    { key: '=', expected: 'zoomIn' },
+    { key: '-', expected: 'zoomOut' },
+    { key: '0', expected: 'zoomReset' },
+  ];
+  for (const { key, expected } of cases) {
+    const result = resolveShortcut(ev(key, { metaKey: true }), 'graph', true);
+    assert(
+      result !== null && result.type === expected,
+      `T12: meta+'${key}' with editable=true still → { type:'${expected}' }`,
+    );
+    console.log(`PASS T12: meta+'${key}' editable=true → { type:'${expected}' }`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T13: alt / shift + zoom keys → null (ONLY ctrl/meta trigger zoom)
+// ---------------------------------------------------------------------------
+{
+  for (const key of ['=', '+', '-', '_', '0']) {
+    const alt = resolveShortcut(ev(key, { altKey: true }), 'graph', false);
+    assert(alt === null, `T13: alt+'${key}' → null`);
+    const shift = resolveShortcut(ev(key, { shiftKey: true }), 'graph', false);
+    assert(shift === null, `T13: shift+'${key}' → null`);
+    // ctrl + alt held together → still no zoom (alt disqualifies)
+    const ctrlAlt = resolveShortcut(ev(key, { ctrlKey: true, altKey: true }), 'graph', false);
+    assert(ctrlAlt === null, `T13: ctrl+alt+'${key}' → null`);
+    // meta + shift held together → still no zoom (shift disqualifies)
+    const metaShift = resolveShortcut(ev(key, { metaKey: true, shiftKey: true }), 'graph', false);
+    assert(metaShift === null, `T13: meta+shift+'${key}' → null`);
+    console.log(`PASS T13: alt/shift (and combos) on '${key}' → null`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T14: bare zoom keys (no modifier) → null — do NOT hijack plain keystrokes
+// ---------------------------------------------------------------------------
+{
+  for (const key of ['=', '+', '-', '_', '0']) {
+    for (const view of VIEWS) {
+      const result = resolveShortcut(ev(key), view, false);
+      assert(result === null, `T14: bare '${key}' on ${view} → null`);
+    }
+    console.log(`PASS T14: bare '${key}' (no modifier) → null on all views`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T15: zoom actions carry NO extra payload (exact discriminated shape)
+// ---------------------------------------------------------------------------
+{
+  const zin = resolveShortcut(ev('=', { metaKey: true }), 'graph', false);
+  assert(zin !== null && zin.type === 'zoomIn', 'T15: zoomIn shape');
+  assert(Object.keys(zin).length === 1, "T15: zoomIn has only 'type'");
+  const zout = resolveShortcut(ev('-', { metaKey: true }), 'flow', false);
+  assert(zout !== null && zout.type === 'zoomOut', 'T15: zoomOut shape');
+  assert(Object.keys(zout).length === 1, "T15: zoomOut has only 'type'");
+  const zreset = resolveShortcut(ev('0', { ctrlKey: true }), 'dict', false);
+  assert(zreset !== null && zreset.type === 'zoomReset', 'T15: zoomReset shape');
+  assert(Object.keys(zreset).length === 1, "T15: zoomReset has only 'type'");
+  console.log('PASS T15: zoom action shapes carry only { type }');
+}
+
 console.log('\nAll tests passed.');

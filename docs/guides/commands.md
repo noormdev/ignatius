@@ -126,6 +126,21 @@ The app responds to single-key shortcuts while no text field is focused and no m
 Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held.
 
 
+### Zoom
+
+
+Zoom always acts on the diagram canvas, never the browser page. On both the Data Graph and the Data Flows view:
+
+| Input | Action |
+|-------|--------|
+| `Cmd`/`Ctrl` + `=` (or `+`) | Zoom in |
+| `Cmd`/`Ctrl` + `-` | Zoom out |
+| `Cmd`/`Ctrl` + `0` | Fit the diagram to the screen |
+| Trackpad pinch | Zoom toward the pointer |
+
+These work even while a text field is focused, since they are not typed characters. The Dictionary view has no canvas, so they do nothing there. Unlike the single-key shortcuts above, the zoom chords require `Cmd`/`Ctrl`; pressing `=`, `-`, or `0` on their own types normally.
+
+
 ## Exit codes
 
 

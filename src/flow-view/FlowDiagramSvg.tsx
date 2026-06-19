@@ -1023,6 +1023,24 @@ export function FlowDiagramSvg({
     return () => { ro.disconnect(); };
   }, [onZoomChange, currentFitScale]);
 
+  // ── Pinch-zoom page-zoom guard (viewer-ux-polish #4) ──────────────────────
+  // Trackpad pinch arrives as a wheel event with ctrlKey===true. The browser's
+  // default for ctrl+wheel is to PAGE-zoom, which scrolls the viewer chrome out
+  // of view. The React synthetic onWheel below DOES zoom the canvas, but React
+  // registers wheel listeners as PASSIVE at the root, so its preventDefault is
+  // ignored — the page still zooms. A native NON-PASSIVE listener is required
+  // to actually block the browser default. This guard only calls preventDefault
+  // (the React onWheel still receives the event and performs the zoom).
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    function blockPageZoom(ev: WheelEvent) {
+      if (ev.ctrlKey || ev.metaKey) ev.preventDefault();
+    }
+    el.addEventListener('wheel', blockPageZoom, { passive: false });
+    return () => { el.removeEventListener('wheel', blockPageZoom); };
+  }, []);
+
   // Expose imperative zoom operations so the app-level ZoomControl buttons can
   // drive the SVG zoom without the control knowing about SVG internals.
   // `zoomTo` zooms about the viewport center: adjust tx/ty so the center world
@@ -1220,7 +1238,9 @@ export function FlowDiagramSvg({
   // ── Zoom handler ─────────────────────────────────────────────────────────
 
   function onWheel(e: React.WheelEvent<SVGSVGElement>) {
-    e.preventDefault();
+    // Browser page-zoom (ctrl/meta + wheel) is blocked by the native non-passive
+    // listener registered above — React's synthetic onWheel is passive, so
+    // calling preventDefault here is a no-op (and warns). We only do the zoom.
     if (!svgRef.current) return;
 
     const rect = svgRef.current.getBoundingClientRect();

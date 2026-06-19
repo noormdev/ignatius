@@ -199,6 +199,22 @@ export function App() {
     graphViewRef.current?.applyLayoutMode(next);
   }
 
+  // Keyboard-zoom (Cmd/Ctrl +/-/0) routes to the ACTIVE view's canvas zoom
+  // handle. Graph → GraphView; Flow → FlowsView; Dict has no canvas → no-op.
+  // Shares the same handle methods the ZoomControl buttons use (CP3 semantics).
+  function handleKeyboardZoomIn() {
+    if (view === 'graph') graphViewRef.current?.zoomIn();
+    else if (view === 'flow') flowsViewRef.current?.zoomIn();
+  }
+  function handleKeyboardZoomOut() {
+    if (view === 'graph') graphViewRef.current?.zoomOut();
+    else if (view === 'flow') flowsViewRef.current?.zoomOut();
+  }
+  function handleKeyboardZoomReset() {
+    if (view === 'graph') graphViewRef.current?.resetZoom();
+    else if (view === 'flow') flowsViewRef.current?.resetZoom();
+  }
+
   // Global keyboard shortcut handler — single window keydown listener.
   // Reads current `view`/callbacks via a ref inside the hook (no stale closures).
   useKeyboardShortcuts({
@@ -206,6 +222,9 @@ export function App() {
     onView: setView,
     onToggleLayout: handleToggleLayoutMode,
     onToggleLens: () => dictViewRef.current?.toggleLens(),
+    onZoomIn: handleKeyboardZoomIn,
+    onZoomOut: handleKeyboardZoomOut,
+    onZoomReset: handleKeyboardZoomReset,
   });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been

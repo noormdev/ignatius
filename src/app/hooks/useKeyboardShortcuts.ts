@@ -7,6 +7,12 @@ interface KeyboardShortcutsConfig {
   onView: (v: ViewName) => void;
   onToggleLayout: () => void;
   onToggleLens: () => void;
+  /** Cmd/Ctrl + =/+ — zoom the active canvas in (no-op on dict). */
+  onZoomIn: () => void;
+  /** Cmd/Ctrl + -/_ — zoom the active canvas out (no-op on dict). */
+  onZoomOut: () => void;
+  /** Cmd/Ctrl + 0 — reset/fit the active canvas (no-op on dict). */
+  onZoomReset: () => void;
 }
 
 /**
@@ -25,11 +31,14 @@ export function useKeyboardShortcuts({
   onView,
   onToggleLayout,
   onToggleLens,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
 }: KeyboardShortcutsConfig): void {
   // Latest config ref — updated synchronously on every render so the stable
   // listener closure never reads stale values.
-  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens });
-  configRef.current = { view, onView, onToggleLayout, onToggleLens };
+  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset });
+  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset };
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -48,18 +57,22 @@ export function useKeyboardShortcuts({
         }
       }
 
-      const { view: currentView, onView: currentOnView, onToggleLayout: currentOnToggleLayout, onToggleLens: currentOnToggleLens } = configRef.current;
-      const action = resolveShortcut(e, currentView, editable);
+      const cfg = configRef.current;
+      const action = resolveShortcut(e, cfg.view, editable);
       if (action === null) return;
 
+      // preventDefault for every matched action — critically, this is what
+      // stops the browser from page-zooming on Cmd/Ctrl +/-/0 (the zoom
+      // actions) before we route the zoom to the active canvas instead.
       e.preventDefault();
 
-      if (action.type === 'view') {
-        currentOnView(action.view);
-      } else if (action.type === 'toggleLayout') {
-        currentOnToggleLayout();
-      } else if (action.type === 'toggleLens') {
-        currentOnToggleLens();
+      switch (action.type) {
+        case 'view': cfg.onView(action.view); break;
+        case 'toggleLayout': cfg.onToggleLayout(); break;
+        case 'toggleLens': cfg.onToggleLens(); break;
+        case 'zoomIn': cfg.onZoomIn(); break;
+        case 'zoomOut': cfg.onZoomOut(); break;
+        case 'zoomReset': cfg.onZoomReset(); break;
       }
     }
 

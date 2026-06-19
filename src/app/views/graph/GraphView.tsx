@@ -708,6 +708,23 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       }
       window.addEventListener('hashchange', onHashChange);
 
+      // ── Pinch-zoom page-zoom guard (viewer-ux-polish #4) ──────────────────
+      // Trackpad pinch arrives as a wheel event with ctrlKey===true (and Cmd on
+      // some platforms metaKey). The browser's default for ctrl+wheel is to
+      // PAGE-zoom, which scrolls the viewer chrome out of view. Cytoscape's own
+      // wheel handler zooms the canvas, but it does NOT call preventDefault, so
+      // the page zooms too. A native NON-PASSIVE listener is required: React's
+      // synthetic onWheel is registered passive at the root, so preventDefault
+      // there is ignored. We only block the page-zoom default — cytoscape's
+      // listener still receives the event and zooms the canvas (verified: both
+      // listeners fire; preventDefault stops only the browser default, not
+      // sibling listeners).
+      const wheelContainer = containerRef.current;
+      function blockPageZoom(ev: WheelEvent) {
+        if (ev.ctrlKey || ev.metaKey) ev.preventDefault();
+      }
+      wheelContainer?.addEventListener('wheel', blockPageZoom, { passive: false });
+
       function applyArrow(edge: cytoscape.EdgeSingular, verb: string, dir: 'fwd' | 'rev'): string {
         if (!verb) return '';
         const s = edge.sourceEndpoint();
@@ -846,6 +863,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (writeTimer !== null) clearTimeout(writeTimer);
         if (saveTimer !== null) clearTimeout(saveTimer);
         window.removeEventListener('hashchange', onHashChange);
+        wheelContainer?.removeEventListener('wheel', blockPageZoom);
         navigateToEntityRef.current = () => {};
         panelNavigateRef.current = () => {};
         resetLayoutRef.current = null;
