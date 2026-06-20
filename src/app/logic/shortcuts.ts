@@ -10,10 +10,14 @@
  *   f → view flow    (any view)
  *   l → toggleLayout (view==='graph' only; null otherwise)
  *   b → toggleLens   (view==='dict'  only; null otherwise)
+ *   ? → help         (any view; needs Shift, so resolved before guard 2)
  *
  * Guards checked before the switch:
  *   1. editable === true → null
  *   2. ctrlKey || metaKey || altKey || shiftKey → null
+ *
+ * Exception: '?' (Shift+/) is resolved after guard 1 but before guard 2, since
+ * the character itself requires Shift; it is still suppressed in editable context.
  *
  * Key matching is done on e.key.toLowerCase() so capslock does not block
  * actions (shift is already guarded, preventing Shift+G etc.).
@@ -46,7 +50,8 @@ export type ShortcutAction =
   | { type: 'toggleLens' }
   | { type: 'zoomIn' }
   | { type: 'zoomOut' }
-  | { type: 'zoomReset' };
+  | { type: 'zoomReset' }
+  | { type: 'help' };
 
 // ---------------------------------------------------------------------------
 // resolveShortcut
@@ -83,6 +88,14 @@ export function resolveShortcut(
 
   // Guard 1: typing context (bare keys only)
   if (editable) return null;
+
+  // Help overlay: '?' (Shift+/ on most layouts). Resolved AFTER the editable
+  // guard but BEFORE the modifier guard, because '?' inherently needs Shift —
+  // guard 2 would otherwise swallow it. Gated off ctrl/meta/alt so it never
+  // collides with a browser chord.
+  if (key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    return { type: 'help' };
+  }
 
   // Guard 2: modifier chords (bare keys only — any modifier suppresses)
   if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return null;

@@ -13,6 +13,8 @@ interface KeyboardShortcutsConfig {
   onZoomOut: () => void;
   /** Cmd/Ctrl + 0 — reset/fit the active canvas (no-op on dict). */
   onZoomReset: () => void;
+  /** `?` — open the view-aware help overlay. */
+  onHelp: () => void;
 }
 
 /**
@@ -34,11 +36,12 @@ export function useKeyboardShortcuts({
   onZoomIn,
   onZoomOut,
   onZoomReset,
+  onHelp,
 }: KeyboardShortcutsConfig): void {
   // Latest config ref — updated synchronously on every render so the stable
   // listener closure never reads stale values.
-  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset });
-  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset };
+  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp });
+  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp };
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -73,6 +76,7 @@ export function useKeyboardShortcuts({
         case 'zoomIn': cfg.onZoomIn(); break;
         case 'zoomOut': cfg.onZoomOut(); break;
         case 'zoomReset': cfg.onZoomReset(); break;
+        case 'help': cfg.onHelp(); break;
       }
     }
 

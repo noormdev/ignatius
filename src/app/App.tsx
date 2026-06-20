@@ -15,6 +15,7 @@ import type { ModelIndex } from '../model/model-index';
 import { hexToRgba } from './logic/color';
 import { buildAllFlowNodeIds } from './logic/flow-node-ids';
 import { Modal } from './components/ui/Modal';
+import { HelpModal } from './components/ui/HelpModal';
 import { ZoomControl } from './components/ui/ZoomControl';
 import { EntityModal } from './components/entity/EntityModal';
 import { FindingsPanel } from './components/findings/FindingsPanel';
@@ -91,6 +92,7 @@ export function App() {
   const [showEntityModal, setShowEntityModal] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [minimapOpen, setMinimapOpen] = useState(() => {
     return localStorage.getItem('ignatius-minimap') === 'true';
   });
@@ -225,6 +227,7 @@ export function App() {
     onZoomIn: handleKeyboardZoomIn,
     onZoomOut: handleKeyboardZoomOut,
     onZoomReset: handleKeyboardZoomReset,
+    onHelp: () => setShowHelp(true),
   });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been
@@ -467,7 +470,10 @@ export function App() {
           </div>
         </div>
       )}
-      {/* ── Shared chrome: theme toggle, FAB (all views) ── */}
+      {/* ── Shared chrome: help, theme toggle, FAB (all views) ── */}
+      <button className="help-toggle" onClick={() => setShowHelp(true)} title="What am I looking at? (?)" aria-label="Help">
+        ?
+      </button>
       <button className="theme-toggle" onClick={toggleTheme} title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
         {themeMode === 'dark' ? '☀' : '☾'}
       </button>
@@ -504,6 +510,7 @@ export function App() {
         </Modal>
       )}
       {showLegend && <LegendModal onClose={() => setShowLegend(false)} view={view} themeMode={themeMode} kindPalette={resolveFlowKindPalette(themeMode, model?.theme?.flowKinds)} />}
+      {showHelp && <HelpModal view={view} onClose={() => setShowHelp(false)} />}
       {selected && showEntityModal && (
         <EntityModal
           selected={selected}

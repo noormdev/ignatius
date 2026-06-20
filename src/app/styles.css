@@ -138,6 +138,97 @@ a {
   color: var(--color-text);
 }
 
+/* Help toggle — sits just left of the theme toggle, same pill treatment */
+.help-toggle {
+  position: fixed;
+  top: 16px;
+  right: 60px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.15s, color 0.15s;
+  line-height: 1;
+}
+.help-toggle:hover {
+  border-color: var(--color-link);
+  color: var(--color-text);
+}
+
+/* Help overlay (orientation modal) */
+.help-intro {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0 0 24px 0;
+}
+.help-section {
+  margin-bottom: 22px;
+}
+.help-section:last-of-type {
+  margin-bottom: 0;
+}
+.help-section-title {
+  font-size: 12px;
+  margin: 0 0 8px 0;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.help-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 16px;
+  padding: 6px 0;
+  align-items: baseline;
+}
+.help-term {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.help-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.help-footnote {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  margin: 20px 0 0 0;
+}
+.help-modal kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  line-height: 1.5;
+}
+@media (max-width: 560px) {
+  .help-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
 /* FAB */
 .fab {
   position: fixed;
@@ -2362,6 +2453,7 @@ a.dict-link-missing:hover {
   .dict-nav-panel,
   .findings-panel,
   .theme-toggle,
+  .help-toggle,
   .fab,
   .fab-menu,
   .copy-toast,

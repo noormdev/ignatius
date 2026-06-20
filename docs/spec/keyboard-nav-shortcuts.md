@@ -18,7 +18,7 @@ distinct guard class from the bare keys (see Keymap).
 - Per-node / per-edge keyboard navigation inside a diagram.
 - Remappable / configurable bindings.
 - A theme-toggle shortcut (not one of the issue's three asks).
-- A help / cheat-sheet overlay.
+- The help-overlay component itself (modal, content, top-bar button) — a separate feature owned by `docs/spec/help-overlay.md`. This resolver owns only the `?` key binding that opens it.
 
 ## Keymap (contract)
 
@@ -50,6 +50,18 @@ they require `ctrl`/`meta` (the opposite of the bare-key modifier guard):
 Gated on `ctrl`/`meta` only — `alt` or `shift` held disqualifies (→ null). Bare
 `=`/`-`/`0` with no modifier → null (plain keystrokes are never hijacked). The
 hook `preventDefault`s on the matched action so the browser never page-zooms.
+
+**Help key** — resolved *after* the editable guard but *before* the bare-key
+modifier guard, because the character itself requires Shift:
+
+| Key | Action | Active when |
+|-----|--------|-------------|
+| `?` (Shift+`/`) | `help` (open the view-aware help overlay) | any view, not while typing |
+
+Gated off `ctrl`/`meta`/`alt` (Shift is inherent, so it is not disqualifying).
+Suppressed in editable context (typing a literal `?` in the search box never
+opens the overlay). The overlay content/component is owned by
+`docs/spec/help-overlay.md`; this resolver owns only the key binding.
 
 ## Success criteria
 
@@ -108,3 +120,11 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 ## Change log
 
 - 2026-06-19 — Added the modifier-gated zoom keymap + guard class (CP4, viewer-ux-polish #4). The original bare-key keymap (g/d/f/l/b) is unchanged.
+
+### 2026-06-20 — `?` help key added to the resolver
+
+**What changed:** `resolveShortcut` now returns `{ type: 'help' }` for `?`, and the `ShortcutAction` union + `useKeyboardShortcuts` (`onHelp` callback) carry it. `?` is resolved after the editable guard but before the bare-key modifier guard (its character inherently needs Shift), gated off `ctrl`/`meta`/`alt`. `test-shortcuts.ts` T16 covers it. The overlay it opens is a separate feature (`docs/spec/help-overlay.md`).
+
+**Why:** First-time viewers need an in-app orientation; `?` is the conventional help key.
+
+**Superseded:** the non-goal "A help / cheat-sheet overlay" — the resolver now owns the `?` binding; the overlay itself moved to its own spec.

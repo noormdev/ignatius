@@ -275,4 +275,37 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
   console.log('PASS T15: zoom action shapes carry only { type }');
 }
 
+// ---------------------------------------------------------------------------
+// T16: '?' → help on every view. '?' is Shift+/ on most layouts, so the inherent
+//      shiftKey must NOT suppress it (resolved before the modifier guard). But it
+//      stays suppressed in editable context, and gated off ctrl/meta/alt.
+// ---------------------------------------------------------------------------
+{
+  for (const view of VIEWS) {
+    // With shiftKey (the real-world chord for '?') — must still resolve to help.
+    const result = resolveShortcut(ev('?', { shiftKey: true }), view, false);
+    assert(result !== null && result.type === 'help', `T16: '?' on ${view} → { type:'help' }`);
+    assert(Object.keys(result).length === 1, "T16: help action has only 'type'");
+    console.log(`PASS T16: '?' (shift) on view=${view} → { type:'help' }`);
+  }
+  // Bare '?' without shift (some layouts) still resolves to help.
+  {
+    const result = resolveShortcut(ev('?'), 'graph', false);
+    assert(result !== null && result.type === 'help', "T16: bare '?' → help");
+    console.log("PASS T16: bare '?' → { type:'help' }");
+  }
+  // Editable context suppresses '?' (typing a literal '?' in a search box).
+  {
+    const result = resolveShortcut(ev('?', { shiftKey: true }), 'graph', true);
+    assert(result === null, "T16: '?' with editable=true → null");
+    console.log("PASS T16: '?' editable=true → null");
+  }
+  // ctrl/meta/alt held with '?' → null (never collides with a browser chord).
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey'] as const) {
+    const result = resolveShortcut(ev('?', { [mod]: true }), 'graph', false);
+    assert(result === null, `T16: ${mod}+'?' → null`);
+    console.log(`PASS T16: ${mod}+'?' → null`);
+  }
+}
+
 console.log('\nAll tests passed.');

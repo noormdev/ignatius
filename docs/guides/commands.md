@@ -122,8 +122,15 @@ The app responds to single-key shortcuts while no text field is focused and no m
 | `f` | Switch to the Data Flows |
 | `l` | Toggle graph layout (organic ↔ hierarchical) — Graph view |
 | `b` | Toggle dictionary lens (read ↔ browse) — Dictionary view |
+| `?` | Open the help overlay for the current view |
 
-Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held.
+Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?` is the one exception to the modifier rule — it needs Shift to type, so Shift does not suppress it (but it is still ignored while typing in a field).
+
+
+### Help overlay
+
+
+Every view has a `?` button in the top bar, next to the light/dark toggle. It opens a short, view-aware overview — what you are looking at, how to explore it, and the keys that work here. The Graph explains entity types and key-inheritance lineage; the Dictionary explains its lenses and spotlight; the Flows view explains DFD symbols and drill-down. Press `?` or click the button; press Escape or click outside to close. For the exact diagram symbols, use the **Legend** instead.
 
 
 ### Zoom
