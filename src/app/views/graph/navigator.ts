@@ -8,6 +8,10 @@ cytoscape.use(cytoscapeNavigator);
 export type NavigatorInstance = {
   destroy: () => void;
   _onRenderHandler?: { cancel?: () => void };
+  // Prototype method on the Navigator instance (cytoscape-navigator.js:323) that
+  // removes the cy listeners the navigator added — including the 'resize' listener
+  // (added at :391) and `cy.offRender(this._onRenderHandler)`.
+  _removeCyListeners?: () => void;
 };
 
 export function mountNavigator(cy: cytoscape.Core): NavigatorInstance {
@@ -34,11 +38,16 @@ export function teardownNavigator(nav: NavigatorInstance, container: HTMLElement
   // Cancel the throttled render handler's pending trailing setTimeout BEFORE
   // nav.destroy() — otherwise the tick can fire after cy.destroy() nulls
   // the renderer and throw "Cannot read properties of null (reading 'png')".
-  // nav.destroy() also unsubscribes the navigator's cy 'resize' listener, so it
-  // must run even when the container is already unmounted — otherwise a leaked
-  // navigator boundingBox-es a destroyed core on a trailing resize ('isHeadless'
-  // of null). Hence the container is optional and only used to clear children.
   nav._onRenderHandler?.cancel?.();
+  // Plugin bug: cytoscape-navigator's destroy() (cytoscape-navigator.js:355) only
+  // calls _removeEventsHandling() (overlay + window listeners) — it NEVER calls
+  // _removeCyListeners(), so the navigator's cy 'resize' listener (added at :391)
+  // stays attached after destroy(). A trailing cy 'resize' — including one emitted
+  // while cy.destroy() tears the core down — then fires Navigator.resize →
+  // boundingBox on a core whose _private is null → "Cannot read properties of null
+  // (reading 'isHeadless')". So remove the cy listeners ourselves while the cy is
+  // still alive (GraphView calls cy.destroy() only AFTER teardownNavigator).
+  nav._removeCyListeners?.();
   nav.destroy();
   if (container) while (container.firstChild) container.removeChild(container.firstChild);
 }
