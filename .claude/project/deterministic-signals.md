@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-06-20T03:23:27Z
+generated_at: 2026-06-20T05:12:59Z
 atomic_version: 5.4.1
 ---
 # Deterministic signals
@@ -8,7 +8,7 @@ atomic_version: 5.4.1
 
 ├── .cursor/ (1)
 │   └── rules/ (1)
-│       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (65140da, 179L, 20402ch, 20617B)
+│       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (612439b, 179L, 21096ch, 21313B)
 ├── .github/ (1)
 │   └── workflows/ (2)
 │       ├── ci.yml (8718b72, 56L, 1568ch, 1568B)
@@ -75,7 +75,7 @@ atomic_version: 5.4.1
 │   │   ├── folder-model.md (9221504, 117L, 11731ch, 11793B)
 │   │   ├── graph-position-persistence.md (ae7bdcd, 106L, 8067ch, 8126B)
 │   │   ├── ignatius-project-config.md (9cbf90e, 108L, 9814ch, 9879B)
-│   │   ├── key-inheritance-lineage.md (87bffdc, 330L, 23449ch, 23653B)
+│   │   ├── key-inheritance-lineage.md (d04bc27, 372L, 26421ch, 26657B)
 │   │   ├── keyboard-nav-shortcuts.md (fa5b2e7, 110L, 8598ch, 8663B)
 │   │   ├── noorm-flow-discovery.md (4b7f5a8, 83L, 10554ch, 10666B)
 │   │   ├── noorm-modeling-skill.md (947190e, 204L, 22457ch, 22582B)
@@ -459,7 +459,7 @@ atomic_version: 5.4.1
 │       ├── test-cp8a-flow-redirect.ts (cc77166, 190L, 7762ch, 8072B)
 │       ├── test-cp9-dd-search-highlight.ts (8498b08, 232L, 9605ch, 10825B)
 │       ├── test-cp9a-modal-primitive.ts (9301dbd, 270L, 11018ch, 11400B)
-│       ├── test-dd-spotlight-grid.ts (6579f27, 5012L, 240976ch, 251715B)
+│       ├── test-dd-spotlight-grid.ts (cce6095, 5090L, 245025ch, 255932B)
 │       ├── test-dd-sticky-search.ts (edf16e7, 157L, 6282ch, 6564B)
 │       ├── test-deep-nesting.ts (8b1d8f9, 142L, 5017ch, 5749B)
 │       ├── test-dfd-edge-hover.ts (d60cb93, 168L, 6163ch, 6577B)
@@ -492,7 +492,7 @@ atomic_version: 5.4.1
 ├── .gitignore (6d3972b, 53L, 809ch, 811B)
 ├── .signalsignore (50ea1be, 28L, 1036ch, 1050B)
 ├── CHANGELOG.md (c52b28c, 193L, 15151ch, 15157B)
-├── CLAUDE.md (65140da, 179L, 20402ch, 20617B)
+├── CLAUDE.md (612439b, 179L, 21096ch, 21313B)
 ├── CONTRIBUTING.md (592685f, 53L, 2043ch, 2047B)
 ├── README.md (727982d, 69L, 4028ch, 4036B)
 ├── bun-env.d.ts (4404f36, 16L, 284ch, 284B)
@@ -510,8 +510,8 @@ atomic_version: 5.4.1
 
 ## Languages
 
-- TypeScript: 56679 LOC (69%), 261 files (45%)
-- Markdown: 20039 LOC (24%), 295 files (50%)
+- TypeScript: 56796 LOC (70%), 261 files (45%)
+- Markdown: 20081 LOC (24%), 295 files (50%)
 - CSS: 2672 LOC (3%), 2 files (0%)
 - YAML: 1340 LOC (1%), 14 files (2%)
 - Shell: 116 LOC (0%), 1 file (0%)
