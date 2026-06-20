@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-06-19T22:21:26Z
+generated_at: 2026-06-20T00:50:43Z
 atomic_version: 5.4.1
 ---
 # Deterministic signals
@@ -8,7 +8,7 @@ atomic_version: 5.4.1
 
 ├── .cursor/ (1)
 │   └── rules/ (1)
-│       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (2c1ace8, 179L, 17805ch, 17976B)
+│       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (02e2481, 179L, 18562ch, 18743B)
 ├── .github/ (1)
 │   └── workflows/ (2)
 │       ├── ci.yml (8718b72, 56L, 1568ch, 1568B)
@@ -75,7 +75,7 @@ atomic_version: 5.4.1
 │   │   ├── folder-model.md (9221504, 117L, 11731ch, 11793B)
 │   │   ├── graph-position-persistence.md (ae7bdcd, 106L, 8067ch, 8126B)
 │   │   ├── ignatius-project-config.md (9cbf90e, 108L, 9814ch, 9879B)
-│   │   ├── key-inheritance-lineage.md (a45a79f, 191L, 12706ch, 12800B)
+│   │   ├── key-inheritance-lineage.md (5ecd3d4, 227L, 15481ch, 15603B)
 │   │   ├── keyboard-nav-shortcuts.md (fa5b2e7, 110L, 8598ch, 8663B)
 │   │   ├── noorm-flow-discovery.md (4b7f5a8, 83L, 10554ch, 10666B)
 │   │   ├── noorm-modeling-skill.md (947190e, 204L, 22457ch, 22582B)
@@ -465,7 +465,7 @@ atomic_version: 5.4.1
 │       ├── test-dict-view.ts (d59319f, 223L, 9004ch, 9368B)
 │       ├── test-export-offline.ts (9d1630a, 308L, 14287ch, 15241B)
 │       ├── test-flow-live-reload.ts (b173873, 202L, 7775ch, 8463B)
-│       ├── test-graph-inherited-lines.ts (14d52c5, 119L, 4148ch, 4154B)
+│       ├── test-graph-inherited-lines.ts (270712c, 282L, 11790ch, 11934B)
 │       ├── test-process-node-size.ts (b43170e, 166L, 6641ch, 7051B)
 │       └── test-sse-playwright.ts (636e685, 75L, 2474ch, 2476B)
 ├── trash/ (1)
@@ -491,7 +491,7 @@ atomic_version: 5.4.1
 ├── .gitignore (6d3972b, 53L, 809ch, 811B)
 ├── .signalsignore (50ea1be, 28L, 1036ch, 1050B)
 ├── CHANGELOG.md (c52b28c, 193L, 15151ch, 15157B)
-├── CLAUDE.md (2c1ace8, 179L, 17805ch, 17976B)
+├── CLAUDE.md (02e2481, 179L, 18562ch, 18743B)
 ├── CONTRIBUTING.md (592685f, 53L, 2043ch, 2047B)
 ├── README.md (727982d, 69L, 4028ch, 4036B)
 ├── bun-env.d.ts (4404f36, 16L, 284ch, 284B)
@@ -509,8 +509,8 @@ atomic_version: 5.4.1
 
 ## Languages
 
-- TypeScript: 56362 LOC (70%), 260 files (44%)
-- Markdown: 19840 LOC (24%), 295 files (50%)
+- TypeScript: 56618 LOC (70%), 260 files (44%)
+- Markdown: 19876 LOC (24%), 295 files (50%)
 - CSS: 2672 LOC (3%), 2 files (0%)
 - YAML: 1340 LOC (1%), 14 files (2%)
 - Shell: 116 LOC (0%), 1 file (0%)
