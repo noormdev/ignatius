@@ -1,93 +1,91 @@
 /**
- * spotlight-inherited.ts — pure inherited-connection logic for the DD browse lens (CP7, #9).
+ * spotlight-inherited.ts — pure key-inheritance LINEAGE logic for the DD browse
+ * lens and the DG graph (key-inheritance-lineage).
  *
  * Pure module: no DOM, no React, no Bun/Node imports. Browser-safe and
  * unit-testable with plain Model literals + a ModelIndex. Same discipline as
  * `spotlight.ts`.
  *
- * Why this exists: a 1:1 KEY-INHERITED entity shares identity with its parent
- * — the child IS the parent — so it transitively participates in the parent's
- * relationships and relates to other members of the same identity group. The
- * direct-FK spotlight (`buildSpotlightConnections`) walks only the active
- * entity's OWN edges, so a key-inherited entity looks unrelated to its
- * group-mates' relationships. This helper surfaces those INHERITED connections
- * so the spotlight can render them visually distinct from direct edges.
+ * ── The rule (the whole feature) ────────────────────────────────────────────
  *
- * Two kinds of 1:1 key-inheritance edge:
+ * Lineage follows ONLY KEY-INHERITANCE edges — never a secondary (non-key) FK.
  *
- * (a) Subtype membership — a subtype cluster's basetype ↔ each member.
- *     Both ends of the relationship share identity regardless of direction.
+ * A **key edge** (a.k.a. identifying / PK-FK edge) is an edge whose foreign-key
+ * columns (the child-side columns — the KEYS of `edge.on`) are ALL contained in
+ * the child node's primary key. This is a SUBSET test (FK ⊆ child PK), not
+ * equality:
  *
- * (b) Dependent identifying-1:1 — a ModelEdge from child Cn to parent P where:
- *     - edge.identifying === true
- *     - edge.cardinality.parent === '1' AND edge.cardinality.child === '1'
- *     - Object.keys(edge.on) sorted === index.pkByNode.get(Cn) sorted
- *       (the FK columns are EXACTLY the child's full PK — no subset, no superset)
- *     The cardinality 1:1 guard cleanly excludes subtype edges (which derive
- *     child='0..1'), so the two kinds never double-count.
+ *   - Subtype member → basetype (FK == full PK)            → ⊆ ✓ key edge
+ *   - SalesInvoice → Party (party_id ⊂ {party_id,inv_no})  → ⊆ ✓ key edge
+ *     (the identifying 1:many case — the FK is a PROPER SUBSET of the PK)
+ *   - SIL_Product → Product (product_id ∉ child PK)        → ⊄ ✗ secondary FK
+ *   - SI_Line → LineItemType, Party → PartyType (classifier FKs) → ✗ secondary
  *
- * Identity group of entityId = transitive closure over BOTH kinds of edge in
- * BOTH directions, with a visited Set so cycles terminate.
+ * On the real `key-inherited` model the parser's derived `edge.identifying`
+ * flag is exactly equivalent to FK ⊆ PK on every edge (verified empirically).
+ * We use the FK ⊆ PK test as the DEFINITION — it is the precise IDEF1X
+ * "identifying" semantics and is robust if the parser's derivation ever drifts.
  *
- * Inferred connections (the return value):
- *   - De-dup baseline: the active entity's OWN direct connections
- *     (`buildSpotlightConnections(index, entityId)`). ALL inherited
- *     connections — identity links and transitive relationships — are
- *     de-duplicated against this set.
- *   - For every OTHER member M in the group: emit M as an identity link
- *     (via = INHERITED_IDENTITY, direction = 'both'), UNLESS M is already
- *     a direct connection of the active (de-duped).
- *   - For every OTHER member M in the group: for each connection C of
- *     `buildSpotlightConnections(index, M)` where C.otherId is NOT in the
- *     identity group: emit C.otherId as inherited (via = M id, direction =
- *     C.direction), UNLESS C.otherId is already a direct connection of the
- *     active (de-duped) OR already bundled (first-seen wins).
- *   - Result sorted ascending by otherId.
- *   - Active in no identity group (group size 1, no neighbors) → [].
+ * ── Lineage ─────────────────────────────────────────────────────────────────
  *
- * `via` rule:
- *   - Identity links (to a group member) → INHERITED_IDENTITY ('identity').
- *   - Inherited relationships → the group-member id M through which the
- *     relationship was reached (nearest hop). This is a single entity id, not
- *     a chain, so the existing SpotlightOverlay label "via <M>" stays clean.
+ * The **lineage** of an entity is the transitive CONNECTED COMPONENT of that
+ * entity in the graph of KEY EDGES ONLY, traversed in BOTH directions (key edges
+ * are treated as undirected — two entities share lineage if connected by any
+ * chain of key edges). This is the set of entities that share a primary-key
+ * ancestry. Subtype clusters fall out naturally: every subtype member→basetype
+ * relationship IS a key edge (FK == full PK), so the key-edge component already
+ * captures subtype membership — no separate cluster walk is needed.
  *
- * Invariants:
- * - Never emits the active entity itself.
- * - De-dup against direct edges is applied to ALL inherited connections,
- *   identity links included (a subtype's direct FK to its basetype renders
- *   once as the solid direct line, not also as a dotted inherited line).
- * - Bundle duplicates: one inherited connection per otherId (first-seen wins).
- * - Active entity in no identity group → [].
+ * ── Inherited connections (the return value) ────────────────────────────────
+ *
+ * = the lineage members, EXCLUDING:
+ *   - the entity itself, AND
+ *   - its DIRECT real-edge neighbours (entities already connected to it by any
+ *     real graph edge — those render as solid lines; we never also draw a
+ *     dotted lineage line to them).
+ *
+ * One bundle per otherId; result sorted ascending by otherId. An entity in a
+ * trivial (singleton) lineage, or whose lineage adds nothing beyond its direct
+ * neighbours, returns [].
+ *
+ * `direction` / `via` are LESS meaningful under the lineage model (a lineage
+ * link is a shared-key kinship, not a single FK with an inherent direction):
+ *   - `direction` is always `'both'` (shared-key kinship has no direction).
+ *   - `via` is the nearest key-edge predecessor on the shortest key-edge path
+ *     from the active entity (so the DD pill can read "via <nearest kin>"), or
+ *     `INHERITED_IDENTITY` when no nearer key-edge kin exists. Consumers
+ *     (`SpotlightOverlay`, `GraphView`) mainly use `otherId`.
  */
 
 import type { ModelIndex } from '../../model/model-index';
-import { buildSpotlightConnections } from './spotlight';
+import type { ModelEdge } from '../../model/parse';
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
 /**
- * `via` provenance marker on an inherited connection:
- * - `'identity'` — the connection is a shared-key identity link (to another
- *   member of the same identity group), not a transitive relationship.
- * - any other string — the group-member id the relationship was inherited
- *   through (the nearest hop from the active entity).
+ * `via` provenance marker on a lineage connection:
+ * - `'identity'` — no nearer key-edge kin than the active entity itself; the
+ *   connection is a direct shared-key sibling.
+ * - any other string — the nearest key-edge kin (predecessor on the key-edge
+ *   path) the lineage member was reached through, so the renderer can label
+ *   "via <member>".
  */
 export const INHERITED_IDENTITY = 'identity';
 
 export type InheritedConnection = {
   otherId: string;
   /**
-   * Direction relative to the entity the relationship was inherited THROUGH.
-   * `'both'` when the underlying bundle carries edges in both directions.
-   * Identity links carry `'both'` (shared-key relationship has no inherent direction).
+   * Always `'both'` — a shared-key lineage kinship has no inherent direction.
+   * Kept in the shape for consumer compatibility (`SpotlightOverlay` fans a
+   * `'both'` connection into two faint lines).
    */
   direction: 'out' | 'in' | 'both';
   /**
-   * Provenance: `INHERITED_IDENTITY` for identity links (another group member),
-   * else the group-member id the FK relationship was inherited through (so the
-   * renderer can label "via <member>").
+   * Provenance: `INHERITED_IDENTITY` when the active entity is itself the
+   * nearest key-edge kin, else the nearest key-edge kin id the member was
+   * reached through (so the renderer can label "via <kin>").
    */
   via: string;
 };
@@ -97,100 +95,85 @@ export type InheritedConnection = {
 // ---------------------------------------------------------------------------
 
 /**
- * Returns true when the edge from `childId` to `parentId` qualifies as a
- * dependent identifying-1:1 — i.e., the FK columns are exactly the child's
- * full PK. This guard distinguishes dep-1:1 extension tables from regular
- * identifying FKs whose child cardinality is '0..1' (subtypes) or 'many'.
+ * Returns true when `edge` is a KEY edge: every child-side FK column (the keys
+ * of `edge.on`) is contained in the child (source) node's primary key. This is
+ * the FK ⊆ child-PK subset test — the precise IDEF1X identifying semantics. A
+ * secondary (non-key) FK fails this test and is never followed for lineage.
  */
-function isDepIdentifying11(
-  index: ModelIndex,
-  edge: { source: string; target: string; identifying: boolean; on: Record<string, string>; cardinality: { parent: string; child: string } },
-): boolean {
-  if (!edge.identifying) return false;
-  if (edge.cardinality.parent !== '1') return false;
-  if (edge.cardinality.child !== '1') return false;
+function isKeyEdge(index: ModelIndex, edge: ModelEdge): boolean {
+  const fkCols = Object.keys(edge.on);
+  if (fkCols.length === 0) return false;
 
   const childPk = index.pkByNode.get(edge.source);
   if (childPk === undefined || childPk.length === 0) return false;
 
-  const fkCols = Object.keys(edge.on).sort();
-  const pkCols = [...childPk].sort();
-
-  if (fkCols.length !== pkCols.length) return false;
-  for (let i = 0; i < fkCols.length; i++) {
-    if (fkCols[i] !== pkCols[i]) return false;
+  const pkSet = new Set(childPk);
+  for (const col of fkCols) {
+    if (!pkSet.has(col)) return false;
   }
   return true;
 }
 
 /**
- * Find all identity-group neighbors of `nodeId` in one step:
- * - Subtype cluster membership (basetype ↔ each member)
- * - Qualifying outgoing dep-1:1 edges (child → parent)
- * - Qualifying incoming dep-1:1 edges (another child → nodeId as parent)
+ * Key-edge neighbours of `nodeId` in one undirected step: the other endpoint of
+ * every KEY edge incident on `nodeId`, whether `nodeId` is the child (outgoing)
+ * or the parent (incoming).
  */
-function identityNeighbors(index: ModelIndex, nodeId: string): string[] {
+function keyEdgeNeighbors(index: ModelIndex, nodeId: string): string[] {
   const neighbors: string[] = [];
 
-  // (a) Subtype cluster links
-  const asMember = index.subtypeMemberToCluster.get(nodeId);
-  if (asMember !== undefined) {
-    neighbors.push(asMember.basetype);
-    for (const m of asMember.members) {
-      if (m !== nodeId) neighbors.push(m);
-    }
+  for (const edge of index.edgesBySource.get(nodeId) ?? []) {
+    if (isKeyEdge(index, edge)) neighbors.push(edge.target);
   }
-  const asBasetype = index.basetypeClusterById.get(nodeId);
-  if (asBasetype !== undefined) {
-    for (const m of asBasetype.members) {
-      neighbors.push(m);
-    }
-  }
-
-  // (b) Qualifying outgoing dep-1:1 edges (nodeId is the child)
-  const outEdges = index.edgesBySource.get(nodeId);
-  if (outEdges !== undefined) {
-    for (const edge of outEdges) {
-      if (isDepIdentifying11(index, edge)) {
-        neighbors.push(edge.target);
-      }
-    }
-  }
-
-  // (c) Qualifying incoming dep-1:1 edges (nodeId is the parent, edge.source is child)
-  const inEdges = index.edgesByTarget.get(nodeId);
-  if (inEdges !== undefined) {
-    for (const edge of inEdges) {
-      if (isDepIdentifying11(index, edge)) {
-        neighbors.push(edge.source);
-      }
-    }
+  for (const edge of index.edgesByTarget.get(nodeId) ?? []) {
+    if (isKeyEdge(index, edge)) neighbors.push(edge.source);
   }
 
   return neighbors;
 }
 
 /**
- * Compute the transitive identity group of `entityId` via BFS.
- * Returns the visited Set (includes entityId). Size 1 → no identity neighbors.
+ * All DIRECT real-edge neighbours of `entityId` — the other endpoint of every
+ * real graph edge incident on it, in either direction. These render as solid
+ * lines, so they are excluded from the dotted lineage set.
  */
-function buildIdentityGroup(index: ModelIndex, entityId: string): Set<string> {
-  const visited = new Set<string>();
-  const worklist: string[] = [entityId];
-  visited.add(entityId);
+function directNeighbors(index: ModelIndex, entityId: string): Set<string> {
+  const direct = new Set<string>();
+  for (const edge of index.edgesBySource.get(entityId) ?? []) direct.add(edge.target);
+  for (const edge of index.edgesByTarget.get(entityId) ?? []) direct.add(edge.source);
+  direct.delete(entityId);
+  return direct;
+}
 
-  while (worklist.length > 0) {
-    const current = worklist.pop();
+/**
+ * Breadth-first traversal of the KEY-edge connected component of `entityId`,
+ * treating key edges as undirected. Returns each reached member mapped to the
+ * nearest key-edge predecessor on its shortest path from `entityId` (the BFS
+ * parent). `entityId` maps to itself. Cycle-safe via the visited map.
+ */
+function buildLineageWithPredecessors(
+  index: ModelIndex,
+  entityId: string,
+): Map<string, string> {
+  // member id → predecessor id (the node it was first discovered from).
+  const predecessorOf = new Map<string, string>();
+  predecessorOf.set(entityId, entityId);
+
+  const queue: string[] = [entityId];
+  let head = 0;
+  while (head < queue.length) {
+    const current = queue[head];
+    head++;
     if (current === undefined) break;
-    for (const neighbor of identityNeighbors(index, current)) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        worklist.push(neighbor);
+    for (const neighbor of keyEdgeNeighbors(index, current)) {
+      if (!predecessorOf.has(neighbor)) {
+        predecessorOf.set(neighbor, current);
+        queue.push(neighbor);
       }
     }
   }
 
-  return visited;
+  return predecessorOf;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,52 +184,28 @@ export function buildInheritedConnections(
   index: ModelIndex,
   entityId: string,
 ): InheritedConnection[] {
-  // Build the transitive identity group.
-  const group = buildIdentityGroup(index, entityId);
+  // The lineage: the transitive connected component over key edges (both
+  // directions), each member tagged with the nearest key-edge predecessor.
+  const predecessorOf = buildLineageWithPredecessors(index, entityId);
 
-  // Group size 1 means no identity neighbors — nothing to inherit.
-  if (group.size <= 1) return [];
+  // Singleton lineage (no key-edge kin) → nothing to surface.
+  if (predecessorOf.size <= 1) return [];
 
-  // The active entity's OWN direct connections — the de-dup baseline.
-  const directOtherIds = new Set<string>();
-  for (const c of buildSpotlightConnections(index, entityId)) {
-    directOtherIds.add(c.otherId);
-  }
+  // Direct real-edge neighbours render as solid lines — exclude them.
+  const direct = directNeighbors(index, entityId);
 
-  // Accumulate one bundle per otherId; first-seen via/direction win.
-  const bundles = new Map<string, InheritedConnection>();
-
-  /**
-   * Add an inherited connection.
-   * Guards: never the active entity itself; never a direct edge (de-dup);
-   * first-seen wins (one bundle per otherId).
-   */
-  const add = (
-    otherId: string,
-    direction: 'out' | 'in' | 'both',
-    via: string,
-  ) => {
-    if (otherId === entityId) return;
-    if (directOtherIds.has(otherId)) return;
-    if (bundles.has(otherId)) return;
-    bundles.set(otherId, { otherId, direction, via });
-  };
-
-  // For every other member M in the group:
-  for (const memberId of group) {
+  const result: InheritedConnection[] = [];
+  for (const [memberId, predecessor] of predecessorOf) {
     if (memberId === entityId) continue;
+    if (direct.has(memberId)) continue;
 
-    // (1) The member itself as an identity link.
-    add(memberId, 'both', INHERITED_IDENTITY);
-
-    // (2) The member's external connections (those NOT in the identity group).
-    for (const c of buildSpotlightConnections(index, memberId)) {
-      if (group.has(c.otherId)) continue; // skip within-group edges
-      add(c.otherId, c.direction, memberId);
-    }
+    // `via`: the nearest key-edge kin the member was reached through. When the
+    // predecessor IS the active entity, there is no nearer kin to name — label
+    // it as a direct shared-key sibling (INHERITED_IDENTITY).
+    const via = predecessor === entityId ? INHERITED_IDENTITY : predecessor;
+    result.push({ otherId: memberId, direction: 'both', via });
   }
 
-  const result = [...bundles.values()];
   result.sort((a, b) => (a.otherId < b.otherId ? -1 : a.otherId > b.otherId ? 1 : 0));
   return result;
 }

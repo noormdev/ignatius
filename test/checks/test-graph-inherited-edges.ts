@@ -3,13 +3,14 @@
  *
  * Serves models/key-inherited and drives the real cytoscape graph in a browser:
  *
- *   1. Select Identity (a dependent-1:1 child of Party) → dotted `edge.inherited`
- *      edges appear, connecting Identity to Party's relationships (PartyType /
- *      PaymentMethod / SalesInvoice / SalesOrder) and siblings, and those target
- *      nodes are NOT faded.
- *   2. Select ITIN (subtype of Identity) → the TRANSITIVE set appears: more
- *      inherited edges than Identity alone, reaching Party's relationships via
- *      the ITIN → Identity → Party chain.
+ *   1. Select Identity (shares party_id key-lineage with Party) → dotted
+ *      `edge.inherited` edges appear, connecting Identity to Party's party-keyed
+ *      relationships (PaymentMethod / SalesInvoice / SalesOrder) and key-lineage
+ *      kin, and those target nodes are NOT faded. (PartyType is a secondary
+ *      classifier FK, not a key edge → never drawn.)
+ *   2. Select ITIN (also party_id key-lineage) → the TRANSITIVE set appears: more
+ *      inherited edges than Identity alone, reaching the whole party-keyed family
+ *      via the ITIN → Identity → Party key chain.
  *   3. Background-tap deselect → every `edge.inherited` is removed (count 0).
  *
  * Drives selection by emitting the cytoscape 'tap' event on the node — the same
@@ -106,7 +107,9 @@ try {
   );
 
   // At least one of Party's relationships is reached.
-  const partyRels = ['PartyType', 'PaymentMethod', 'SalesInvoice', 'SalesOrder'];
+  // Party's party-keyed relationships (key edges). PartyType is a secondary
+  // classifier FK and is intentionally NOT in lineage.
+  const partyRels = ['PaymentMethod', 'SalesInvoice', 'SalesOrder'];
   const reachedPartyRels = identityTargets.filter(t => partyRels.includes(t));
   assert(
     reachedPartyRels.length >= 1,

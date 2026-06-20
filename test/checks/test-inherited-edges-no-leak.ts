@@ -101,14 +101,19 @@ assert(
   'every inherited connection target is an existing model node — inherited edges introduce zero synthetic nodes, so the node-keyed layout-store can never gain a synthetic entry',
 );
 
-// ── 4. Concrete owner case: Identity selects ≥1 inherited connection to a Party relationship ──
+// ── 4. Concrete owner case: Identity inherits Party's party-keyed relationships ──
+// Party's secondary classifier FK (PartyType) is NOT a key edge → must be absent.
 const identityConns = buildInheritedConnections(index, 'Identity');
 const partyRelTargets = identityConns.filter(c =>
-  ['PartyType', 'PaymentMethod', 'SalesInvoice', 'SalesOrder'].includes(c.otherId),
+  ['PaymentMethod', 'SalesInvoice', 'SalesOrder'].includes(c.otherId),
 );
 assert(
   partyRelTargets.length >= 1,
-  `Identity inherits at least one of Party's relationships (got: ${partyRelTargets.map(c => c.otherId).join(', ')})`,
+  `Identity inherits at least one of Party's party-keyed relationships (got: ${partyRelTargets.map(c => c.otherId).join(', ')})`,
+);
+assert(
+  !identityConns.some(c => c.otherId === 'PartyType'),
+  "Identity does NOT inherit PartyType (a secondary classifier FK, not a key edge)",
 );
 
 console.log('\ntest-inherited-edges-no-leak: all assertions passed.');

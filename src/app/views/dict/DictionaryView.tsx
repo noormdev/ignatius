@@ -133,10 +133,10 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     return buildSpotlightConnections(modelIndex, activeId);
   }, [activeId, modelIndex]);
 
-  // CP7 (#9): inherited 1:1 key-inheritance connections — entity only. A subtype
-  // member surfaces its basetype + siblings + the basetype's relationships; a
-  // basetype surfaces its members + their relationships. De-duped against the
-  // active's direct edges inside the helper. [] for non-cluster entities.
+  // Key-inheritance lineage — entity only. Surfaces the active entity's
+  // key-edge lineage (the transitive component over edges whose FK ⊆ the child
+  // PK), minus the active and its direct real-edge neighbours, as dotted lines.
+  // [] for entities with no key-edge kin (e.g. ORM surrogate-PK models).
   const inheritedConnections = useMemo(() => {
     if (activeId === null || !activeIsEntity || modelIndex === null) return [];
     return buildInheritedConnections(modelIndex, activeId);

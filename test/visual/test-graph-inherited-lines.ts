@@ -234,6 +234,51 @@ try {
     itinTiers.unrelated ? `opacity=${itinTiers.unrelated.opacity} on ${itinTiers.unrelated.id}` : 'no faded node',
   );
 
+  // ── Corrected-lineage owner cases (pk-lineage-fix) ───────────────────────
+  // SSN now reaches the whole party-keyed sales family (party_id key chain).
+  const ssnTargets = await page.evaluate((nodeId: string) => {
+    const cy = window.__IGNATIUS_CY__;
+    if (!cy) return [] as string[];
+    const node = cy.$(`#${nodeId}`);
+    if (node.empty()) return [] as string[];
+    cy.elements().unselect();
+    node.select();
+    node.emit('tap');
+    const inherited = cy.edges('.inherited');
+    cy.fit(node.union(inherited.connectedNodes()), 80);
+    return inherited.map((e: { target(): { id(): string } }) => e.target().id());
+  }, 'SSN');
+  await Bun.sleep(500);
+  await shot('04-ssn-selected.png');
+  note(`SSN inherited dotted lines (${ssnTargets.length}): ${ssnTargets.join(', ')}`);
+  // SSN must reach the sales family and must NOT reach secondary-FK targets.
+  for (const t of ['SalesInvoice', 'SI_Line', 'SalesOrder', 'SO_Line', 'PaymentAllocation']) {
+    tierAssert(ssnTargets.includes(t), `SSN reaches ${t} (party-keyed sales family)`);
+  }
+  for (const t of ['Product', 'Subscription', 'LineItemType', 'PartyType']) {
+    tierAssert(!ssnTargets.includes(t), `SSN does NOT reach ${t} (secondary FK)`);
+  }
+
+  // SI_Line no longer over-connects to Product / Subscription / LineItemType.
+  const siLineTargets = await page.evaluate((nodeId: string) => {
+    const cy = window.__IGNATIUS_CY__;
+    if (!cy) return [] as string[];
+    const node = cy.$(`#${nodeId}`);
+    if (node.empty()) return [] as string[];
+    cy.elements().unselect();
+    node.select();
+    node.emit('tap');
+    const inherited = cy.edges('.inherited');
+    cy.fit(node.union(inherited.connectedNodes()), 80);
+    return inherited.map((e: { target(): { id(): string } }) => e.target().id());
+  }, 'SI_Line');
+  await Bun.sleep(500);
+  await shot('05-si-line-selected.png');
+  note(`SI_Line inherited dotted lines (${siLineTargets.length}): ${siLineTargets.join(', ')}`);
+  for (const t of ['Product', 'Subscription', 'LineItemType']) {
+    tierAssert(!siLineTargets.includes(t), `SI_Line does NOT over-connect to ${t} (was the bug)`);
+  }
+
   await page.evaluate(() => {
     const cy = window.__IGNATIUS_CY__;
     if (cy) cy.emit('tap');

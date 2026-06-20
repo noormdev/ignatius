@@ -4,37 +4,70 @@
 ## Problem
 
 
-Viewer item #9 shipped (CP7 of viewer-ux-polish) as a subtype-cluster-only,
-single-level, DD-spotlight-only feature. The owner's real intent is broader
-(verified against their model: `Identity` is a DEPENDENT entity with `party_id`
-PK = FK→Party at 1:1 — a *dependent* key inheritance, not a subtype — and
-`ITIN → Identity → Party` is a multi-hop 1:1 chain):
+A key-inherited entity shares its primary-key ancestry with a whole family of
+entities — they all carry the same key columns by inheritance, so selecting one
+should surface the family. The lineage spotlight (DD dotted lines + DG dotted
+inferred-upstream rays) exists to reveal that shared-key family.
 
-- Inheritance must be **transitive** up every 1:1 key-inheritance hop: `ITIN` inherits `Identity`'s relationships AND `Party`'s; `Business` inherits `Party`'s.
-- It must cover **dependent identifying-1:1** key inheritance (`Identity`), not only subtype clusters.
-- It must appear in the **graph (DG)** as dotted inferred-upstream lines — the same concept as the DD spotlight — not only in the DD.
+The first implementation got the rule wrong in two directions (owner-reported,
+verified against `models/key-inherited`):
+
+1. **Over-connected through SECONDARY (non-key) FKs.** It surfaced each lineage
+   member's *external direct FK* connections — including non-key FKs. Selecting
+   `SI Line` drew lines to `Product` / `Subscription` (from a subtype's secondary
+   `→ Product` FK); selecting `SIL Subscription` drew to `LineItemType` via `SI
+   Line`'s secondary classifier FK. None of those share a primary key; they are
+   wrong.
+2. **Missed identifying 1:many key inheritance.** Detection required FK == the
+   child's FULL PK at cardinality 1:1, so it never reached entities whose
+   inherited key is a PROPER SUBSET of their PK. Selecting `SSN` should reach
+   `SalesInvoice` / `SI Line` / `SalesOrder` / `SO Line` / `Payment Allocation`
+   (all carry `party_no` inside a larger PK — the chain `SSN → Identity → Party
+   ← SalesInvoice ← SI Line`), but the FK-==-full-PK + 1:1 gate excluded every
+   `party_no ⊂ PK` (cardinality 1:many) hop.
 
 
-## The model: identity group
+## The rule: lineage = the key-edge connected component
 
 
-Two entities share identity when connected by a **1:1 key-inheritance edge**:
+Lineage follows ONLY **key-inheritance edges** — never a secondary (non-key) FK.
 
-- **Subtype membership** — `subtypeClusters` basetype ↔ member (1:1 key-inherited by definition).
-- **Dependent identifying-1:1** — child `C` has an identifying FK to parent `P`, cardinality 1:1, and `C`'s PK columns ARE the FK columns (the child's key is inherited wholesale from the parent). `Identity` (PK `party_id` = FK→Party, 1:1) qualifies.
+- **Key edge** (a.k.a. identifying / PK-FK edge): an edge whose child-side FK
+  columns (the keys of `edge.on`) are ALL contained in the child (source) node's
+  primary key. This is a SUBSET test (FK ⊆ child PK), NOT equality:
+  - Subtype member → basetype (FK == full PK) → ⊆ ✓ key edge.
+  - `SalesInvoice → Party` (`party_no ⊂ {party_no, invoice_no}`) → ⊆ ✓ key edge
+    — the identifying 1:many case (FK is a PROPER SUBSET of the PK).
+  - `SIL Product → Product`, `SI Line → LineItemType`, `Party → PartyType`
+    (classifier / catalog secondary FKs) → ⊄ ✗ NOT key edges.
 
-The **identity group** of an entity `A` is the transitive closure over those edges
-(both directions). Every member shares `A`'s identity — the same key value,
-transitively.
+  On `models/key-inherited` the parser's derived `edge.identifying` flag is
+  exactly equivalent to FK ⊆ PK on every edge (verified empirically). The
+  implementation uses the FK ⊆ PK subset test as the DEFINITION — it is the
+  precise IDEF1X identifying semantics and is robust if the parser's derivation
+  ever drifts.
 
-**Inferred (inherited) connections** of `A` = for every OTHER member `M` of `A`'s
-identity group:
+- **Lineage of an entity** = the transitive CONNECTED COMPONENT of that entity in
+  the graph of KEY EDGES ONLY, traversed in BOTH directions (key edges treated as
+  undirected — two entities share lineage if connected by ANY chain of key edges).
+  This is the set of entities that share a primary-key ancestry. Subtype clusters
+  fall out for free: every subtype member→basetype relationship IS a key edge, so
+  the key-edge component already captures subtype membership — no separate cluster
+  walk is needed.
 
-- `M` itself (related to `A` via the shared key), unless `M` is already a direct relationship of `A`.
-- `M`'s direct relationships to entities OUTSIDE the group (provenance "via `M`"), unless already a direct relationship of `A`.
+**Inherited (inferred) connections** of `A` = the lineage members, EXCLUDING:
 
-De-duplicated against `A`'s own direct relationships — a direct edge never also
-draws as inferred (the #9 criterion, retained from CP7).
+- `A` itself, AND
+- `A`'s DIRECT real-edge neighbours — entities already connected to `A` by any
+  real graph edge render as SOLID lines; we never also draw a dotted lineage line
+  to them.
+
+Bundled one per `otherId`; sorted ascending by `otherId`. An entity in a trivial
+(singleton) lineage, or whose lineage adds nothing beyond its direct neighbours,
+returns `[]`. `direction` is always `'both'` (a shared-key kinship has no inherent
+direction); `via` is the nearest key-edge predecessor on the path (so the DD pill
+can read "via &lt;nearest kin&gt;"), or `INHERITED_IDENTITY` when no nearer kin
+exists. Consumers mainly use `otherId`.
 
 
 ## Surfaces
@@ -61,7 +94,7 @@ leakage either way.
 ## Non-goals
 
 
-- Inferring through non-1:1 or non-identifying FKs — only shared-identity 1:1 key inheritance qualifies (else the graph over-connects).
+- Inferring through SECONDARY (non-key) FKs — only key edges (FK ⊆ child PK) qualify, in either direction and at any cardinality (1:1 or 1:many). A secondary FK is never followed (else the graph over-connects to catalogs/classifiers).
 - Changing the underlying model, edges, or classification.
 - A separate hover (vs select) trigger in the DG beyond what the existing highlight already does — match the existing graph interaction.
 
@@ -70,3 +103,20 @@ leakage either way.
 
 
 None blocking.
+
+
+## Change log
+
+
+- 2026-06-19 — **Corrected the lineage rule.** Replaced the "identity group =
+  subtype-cluster membership + dependent identifying-1:1 (FK == full PK + 1:1),
+  then per-member external direct-FK expansion" model with: lineage = the
+  transitive connected component over KEY EDGES (FK ⊆ child PK, a SUBSET test),
+  both directions; inherited = lineage − self − direct-real-edge neighbours; no
+  secondary FK is ever traversed or surfaced. **Superseded:** the prior model
+  over-connected through secondary FKs (e.g. `SI Line → Product` /
+  `→ LineItemType`) and missed identifying 1:many key inheritance (FK a proper
+  subset of the PK, e.g. `SalesInvoice → Party`), so it could not reach the
+  `SSN → Identity → Party ← SalesInvoice ← SI Line` family. The FK ⊆ PK subset
+  test is the precise IDEF1X identifying semantics and (empirically) matches the
+  parser's `edge.identifying` flag exactly on `models/key-inherited`.

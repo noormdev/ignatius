@@ -4,17 +4,17 @@
 ## Goal
 
 
-Generalize viewer item #9 (shipped narrow as CP7) so that 1:1 key-inheritance
-relationships are inferred TRANSITIVELY up every hop, cover DEPENDENT
-identifying-1:1 (not just subtype clusters), and render as dotted inferred lines
-in BOTH the DD spotlight and the graph (DG). See
-`docs/design/key-inheritance-lineage.md`.
+Surface an entity's key-inheritance LINEAGE — the family of entities that share
+its primary-key ancestry — as dotted inferred lines in BOTH the DD spotlight and
+the graph (DG). Lineage follows ONLY key-inheritance edges (FK ⊆ the child's PK),
+in either direction and at any cardinality; a secondary (non-key) FK is never
+followed. See `docs/design/key-inheritance-lineage.md`.
 
 
 ## Non-goals
 
 
-- Inferring through non-1:1 / non-identifying FKs (only shared-identity 1:1 qualifies).
+- Inferring through SECONDARY (non-key) FKs — only key edges (FK ⊆ child PK) qualify. A secondary FK is never traversed or surfaced (else the graph over-connects to catalogs/classifiers).
 - Changing the model, edges, or classification.
 - DG hover trigger beyond the existing select/highlight interaction.
 
@@ -22,10 +22,11 @@ in BOTH the DD spotlight and the graph (DG). See
 ## Success criteria
 
 
-- [x] A pure `identity-group` helper computes the transitive closure of an entity over 1:1 key-inheritance edges — **subtype-cluster membership** AND **dependent identifying-1:1** (child PK columns == an identifying 1:1 FK's columns). Unit-tested on `ITIN → Identity → Party` (multi-hop) and `Business → Party` (single-hop).
-- [x] Inferred connections for `A` = every other group member + each member's external (out-of-group) direct relationships, with `via` provenance, de-duplicated against `A`'s direct relationships (a direct edge is never also inferred). Unit-tested.
-- [x] DD spotlight uses the generalized helper: spotlighting `Identity` surfaces Party's relationships; spotlighting `ITIN` transitively surfaces Identity's AND Party's relationships + siblings — all dotted. (Replaces CP7's subtype-only behavior; `test-spotlight-inherited.ts` updated.)
-- [x] DG graph: selecting `Identity` draws DOTTED inferred lines (color `--spotlight-line-inherited`) to Party's relationships (+ siblings), with those nodes kept lit; selecting `ITIN` draws them transitively to Identity's + Party's relationships. Direct edges stay solid. A visual screenshot on `models/key-inherited` confirms.
+- [x] A pure key-edge predicate: an edge is a KEY edge iff its child-side FK columns (`Object.keys(edge.on)`) are ALL contained in the child's primary key (`pkByNode.get(edge.source)`) — a SUBSET test (FK ⊆ PK), non-empty. This is the precise IDEF1X identifying semantics. Unit-tested: a child with BOTH a key FK (in its PK) and a secondary FK (not in PK) → the key FK target is in lineage, the secondary FK target is NOT; the identifying-1:many case (FK a PROPER subset of the PK, not ==) is a key edge.
+- [x] A pure lineage helper computes the transitive CONNECTED COMPONENT of an entity over key edges in BOTH directions (cycle-safe visited set). Subtype clusters fall out naturally (member→basetype is a key edge). Unit-tested for transitivity across a multi-hop key chain and for two entities sharing a key root reaching each other.
+- [x] Inherited connections for `A` = the lineage members, minus `A` itself, minus `A`'s direct real-edge neighbours (those render solid). De-dup is direct-neighbour exclusion, NOT per-member secondary-FK expansion. `direction = 'both'`; `via` = nearest key-edge predecessor on the path (or `INHERITED_IDENTITY`). Unit-tested for direct-neighbour exclusion; bundled one per `otherId`, sorted ascending. A no-op / old-behavior impl (per-member secondary-FK expansion) must fail the suite.
+- [x] DD spotlight uses the lineage helper: spotlighting `SSN` surfaces the whole party-keyed family (`Party`, `SalesInvoice`, `SI Line`, `SalesOrder`, `SO Line`, `Payment Allocation`, …) as dotted lines and EXCLUDES `Product` / `Subscription` / `LineItemType` / `PartyType`; spotlighting `SI Line` no longer over-connects to `Product` / `Subscription` / `LineItemType`. (`test-spotlight-inherited.ts` rewritten.)
+- [x] DG graph: selecting an entity draws DOTTED inferred lines (color `--spotlight-line-inherited`) to its lineage members, with those nodes kept lit; selecting `SSN` reaches the party-keyed sales family, selecting `SI Line` no longer reaches `Product` / `Subscription` / `LineItemType`, and a deeper member (`ITIN`) draws a strictly larger transitive set than a shallower one (`Identity`). Direct edges stay solid. A visual screenshot on `models/key-inherited` confirms.
 - [x] DG graph 3-tier focus opacity: while an entity is focused (selected or hovered), elements split into three visually-distinct tiers — **direct** (focused node + its real graph neighbors + connecting edges) at **opacity 1.0, solid**; **inherited/ancestral** (the dotted `inherited` ray edges + their target nodes, via `inherited-dim`) at **0.5**; **unrelated** (everything else, via `faded`) at **0.2**. Direct wins de-dup: a node reachable as both direct and inherited renders direct (1.0). Tiers clear on deselect/reselect/relayout/teardown — no tier class survives a deselect. A visual harness reads the per-tier opacities off the live cy elements and asserts `direct > inherited > unrelated`.
 - [x] The DG ephemeral lines never enter the model, the `layoutFingerprint` / saved positions, or the static export; they are removed on deselect / reselect / view-switch. A check asserts no inherited artifact leaks into `layoutFingerprint` / persistence.
 - [x] No new `tsc --noEmit` errors vs baseline; `bun run test` exits 0; `bun run build:cli` succeeds.
@@ -49,8 +50,8 @@ generalizes the CP7 row — note the supersession.
 
 | Risk | L | Mitigation |
 |------|---|-----------|
-| Transitive closure over-connects / cycles | med | Closure over a finite edge set with a visited-set; cap is the group size; unit-test a multi-level fixture; only 1:1 key edges qualify |
-| Dependent-1:1 detection misfires (catches non-key-inheritance 1:1 FKs) | high | Require identifying + cardinality 1:1 AND the FK columns == the child's FULL PK; unit-test a 1:1 FK that is NOT the PK → excluded |
+| Transitive closure over-connects / cycles | med | Connected component over a finite key-edge set with a visited-set; cap is the component size; unit-test a multi-hop chain; only key edges (FK ⊆ child PK) are followed |
+| Key-edge predicate misfires (follows a secondary FK or skips a key FK) | high | FK ⊆ child PK is the precise IDEF1X identifying test, robust to subset (1:many) keys; unit-test a child with BOTH a key FK and a secondary FK → only the key target is in lineage; verified on `models/key-inherited` that the parser's `edge.identifying` matches FK ⊆ PK exactly |
 | DG ephemeral edges leak into layout fingerprint / saved positions / export | high | Add edges AFTER layout with an `inherited` class; strip by class before any fingerprint/save; assert no leak in a check; exclude from export path |
 | DG ephemeral edges fight the lineage-fade highlight | med | Add inherited endpoints + edges to the lit set; reuse the existing select/deselect handlers; remove on every deselect/reselect/view-switch |
 | Dense diagrams: many dotted lines clutter the DG | low | Only on explicit select (not hover-everything); matches DD; owner asked for the full transitive set ("scaling to its possibilities") |
@@ -105,6 +106,47 @@ otherwise every inherited target collapses into the direct tier (caught by the
 visual harness during implementation). `buildInheritedConnections` already de-dups
 inherited vs direct, so a direct FK target never appears in the inherited set;
 the explicit `.difference(direct)` enforces "direct wins" defensively.
+
+
+### 2026-06-19 — Corrected the lineage rule (key-edge connected component)
+
+
+**What changed:** `buildInheritedConnections` was rewritten. Lineage is now the
+transitive CONNECTED COMPONENT of the active entity over KEY EDGES ONLY (an edge
+whose child-side FK columns — `Object.keys(edge.on)` — are ALL ⊆ the child's PK,
+`pkByNode.get(edge.source)`; a SUBSET test, non-empty), traversed in BOTH
+directions with a cycle-safe visited set. Inherited connections = the lineage
+members minus the active entity minus its direct real-edge neighbours (those
+render solid). `direction` is always `'both'`; `via` is the nearest key-edge
+predecessor on the BFS path (or `INHERITED_IDENTITY`). The export name,
+`InheritedConnection { otherId, direction, via }` shape, and `INHERITED_IDENTITY`
+are unchanged, so `SpotlightOverlay` (DD) and `GraphView` (DG) consume it
+unedited. Subtype clusters are no longer walked via the cluster maps — every
+subtype member→basetype relationship IS a key edge, so the key-edge component
+already includes them; `buildSpotlightConnections` is no longer called for
+de-dup (direct real-edge neighbours are computed from `edgesBySource` /
+`edgesByTarget` directly). `test/checks/test-spotlight-inherited.ts` was rewritten
+to the new model (key vs secondary FK, identifying-1:many subset key, transitivity,
+connected component, direct-neighbour exclusion, an old-behaviour-fails guard, and
+a real-model owner-case check); the no-leak and DG checks' expected sets were
+faithfully updated (PartyType dropped — it is a secondary classifier FK).
+
+**Why:** Owner-reported (annotated screenshots). The prior model (a) OVER-CONNECTED
+through secondary FKs — selecting `SI Line` reached `Product` / `Subscription`,
+`SIL Subscription` reached `LineItemType` — and (b) MISSED identifying 1:many key
+inheritance — selecting `SSN` could not reach `SalesInvoice` / `SI Line` /
+`SalesOrder` / `SO Line` / `Payment Allocation`, whose inherited `party_no` is a
+PROPER SUBSET of their PK (cardinality 1:many). The FK ⊆ PK subset test fixes both:
+it follows key edges at any cardinality and never follows a secondary FK.
+Empirically, on `models/key-inherited` the parser's `edge.identifying` flag equals
+FK ⊆ PK on every edge.
+
+**Superseded:** the "identity group = subtype-cluster membership + dependent
+identifying-1:1 (`edge.identifying` + cardinality 1:1 + `Object.keys(edge.on)` ==
+the child's FULL PK), then per-member EXTERNAL direct-FK expansion (`via = M`),
+de-duped against `buildSpotlightConnections(entityId)`" approach described in the
+CP-A implementation-log block below. That block is retained as dated history; the
+body above is the current contract.
 
 
 ## Implementation log
