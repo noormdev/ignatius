@@ -267,3 +267,5 @@ Feature complete (CP-A + CP-B).
 **Merged into main (fast-forward) as e2dd8a1 — 2026-06-19.** Ships in 0.12.0 alongside viewer-ux-polish.
 
 **DG 3-tier focus opacity merged as 1bbc402 — 2026-06-19.**
+
+**Key-edge lineage correction (PK-only / identifying edges) merged as 3c1663a, and the cytoscape-navigator teardown listener-leak fix as 2f6161f — 2026-06-19.**
