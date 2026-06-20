@@ -25,7 +25,7 @@ followed. See `docs/design/key-inheritance-lineage.md`.
 - [x] A pure key-edge predicate: an edge is a KEY edge iff its child-side FK columns (`Object.keys(edge.on)`) are ALL contained in the child's primary key (`pkByNode.get(edge.source)`) — a SUBSET test (FK ⊆ PK), non-empty. This is the precise IDEF1X identifying semantics. Unit-tested: a child with BOTH a key FK (in its PK) and a secondary FK (not in PK) → the key FK target is in lineage, the secondary FK target is NOT; the identifying-1:many case (FK a PROPER subset of the PK, not ==) is a key edge.
 - [x] A pure lineage helper computes the transitive CONNECTED COMPONENT of an entity over key edges in BOTH directions (cycle-safe visited set). Subtype clusters fall out naturally (member→basetype is a key edge). Unit-tested for transitivity across a multi-hop key chain and for two entities sharing a key root reaching each other.
 - [x] Inherited connections for `A` = the lineage members, minus `A` itself, minus `A`'s direct real-edge neighbours (those render solid). De-dup is direct-neighbour exclusion, NOT per-member secondary-FK expansion. `direction = 'out'` (single source-out arrow); `via` = nearest key-edge predecessor on the path (or `INHERITED_IDENTITY`). Unit-tested for direct-neighbour exclusion; bundled one per `otherId`, sorted ascending. A no-op / old-behavior impl (per-member secondary-FK expansion) must fail the suite.
-- [x] DD spotlight uses the lineage helper: spotlighting `SSN` surfaces the whole party-keyed family (`Party`, `SalesInvoice`, `SI Line`, `SalesOrder`, `SO Line`, `Payment Allocation`, …) as dotted lines and EXCLUDES `Product` / `Subscription` / `LineItemType` / `PartyType`; spotlighting `SI Line` no longer over-connects to `Product` / `Subscription` / `LineItemType`. (`test-spotlight-inherited.ts` rewritten.)
+- [x] DD spotlight uses the lineage helper, SHIFT-GATED: while an active card (hover or pin) is held AND Shift is down, spotlighting `SSN` surfaces the whole party-keyed family (`Party`, `SalesInvoice`, `SI Line`, `SalesOrder`, `SO Line`, `Payment Allocation`, …) as dotted lines and EXCLUDES `Product` / `Subscription` / `LineItemType` / `PartyType`; spotlighting `SI Line` no longer over-connects to `Product` / `Subscription` / `LineItemType`. Without Shift the inherited dotted lines (and their lit cards / off-screen chips) do not appear; FK (solid) + flow (dashed) lines render on plain hover/pin regardless of Shift. (`test-spotlight-inherited.ts` for the helper; `test/visual/test-dd-spotlight-grid.ts` for the three Shift states.)
 - [x] DG graph: selecting an entity draws DOTTED inferred lines (color `--spotlight-line-inherited`) to its lineage members, with those nodes kept lit; selecting `SSN` reaches the party-keyed sales family, selecting `SI Line` no longer reaches `Product` / `Subscription` / `LineItemType`, and a deeper member (`ITIN`) draws a strictly larger transitive set than a shallower one (`Identity`). Direct edges stay solid. A visual screenshot on `models/key-inherited` confirms.
 - [x] DG graph 3-tier focus opacity: while an entity is focused (selected or hovered), elements split into three visually-distinct tiers — **direct** (focused node + its real graph neighbors + connecting edges) at **opacity 1.0, solid**; **inherited/ancestral** (the dotted `inherited` ray edges + their target nodes, via `inherited-dim`) at **0.5**; **unrelated** (everything else, via `faded`) at **0.2**. Direct wins de-dup: a node reachable as both direct and inherited renders direct (1.0). Tiers clear on deselect/reselect/relayout/teardown — no tier class survives a deselect. A visual harness reads the per-tier opacities off the live cy elements and asserts `direct > inherited > unrelated`.
 - [x] The DG ephemeral lines never enter the model, the `layoutFingerprint` / saved positions, or the static export; they are removed on deselect / reselect / view-switch. A check asserts no inherited artifact leaks into `layoutFingerprint` / persistence.
@@ -328,3 +328,45 @@ DRAWING + lifecycle + no-leak contract is unchanged — only the TRIGGER moved f
 select to shift+hover. The `direction = 'both'` decision in the earlier
 "Corrected the lineage rule" entry is superseded by `direction = 'out'` for the
 DD single-arrow rendering.
+
+
+### 2026-06-20 — DD inherited (dotted) lines gated behind Shift (mirrors DG)
+
+
+**What changed:** In the DD browse lens the inherited (dotted, key-inheritance
+lineage) lines are now revealed ONLY while Shift is held over an active card —
+mirroring the DG, where Shift gates the lineage. The FK (solid) and flow (dashed)
+lines are UNCHANGED: they keep showing on plain hover/pin. Inherited lines are
+visible **iff a card is active (hover or pin) AND Shift is held**; releasing Shift
+removes the dotted lines live while FK/flow stay.
+
+`DictionaryView.tsx`: a new `shiftHeld` boolean state is driven by a document-level
+`keydown`/`keyup` pair on the `Shift` key (set true on Shift keydown, false on
+Shift keyup) plus a `window` `blur` reset (a lost keyup can't strand it `true`);
+listeners are registered/cleaned up in a dependency-free `useEffect` and call
+`setShiftHeld` directly (stale-closure-safe). The existing `inheritedConnections`
+useMemo is gated so it returns `[]` unless `shiftHeld && activeId` (deps add
+`shiftHeld`), so the `inheritedConnections` prop passed to `SpotlightOverlay` is
+`[]` without Shift and recomputes live on press/release while a card stays active.
+The inherited-id foldings are likewise gated: `spotlitIds` folds the (now-gated)
+`inheritedConnections` value, and `focusSet`'s inherited-id fold is wrapped in
+`if (shiftHeld)` (deps add `shiftHeld`) — so without Shift no inherited card is
+lit, extra-focused, or surfaced as an off-screen chip. `SpotlightOverlay` needed
+NO change: it already renders `inheritedConnections=[]` as zero inherited lines
+and chips. `buildInheritedConnections`, the FK/flow spotlight behavior, and the DG
+are untouched.
+
+**Why:** Owner request — the dotted lineage lines should be an explicit, transient
+inspection gesture in the DD just as they are in the DG, not always-on whenever a
+card is active. Keeping FK + flow on plain hover/pin preserves the default reading
+of the grid.
+
+**Tests.** `test/visual/test-dd-spotlight-grid.ts` CP7 section reworked to three
+Shift states (CP7.a NO Shift → 0 inherited, FK solid lines render; CP7.b hold
+Shift → inherited dotted lines appear, FK persists; CP7.c release Shift →
+inherited gone, FK persists) plus the CP7-TRANSITIVE Identity block (0 → >0 → 0
+under Shift). Verified in isolation via a throwaway probe (`tmp/trash/`) — the
+full visual test has a pre-existing CP5.1 off-screen-chip failure (manual-only,
+unrelated). Observed on `models/key-inherited`: `Identity` inherited paths
+`0 → 7 → 0`, FK constant at 5; `ITIN` inherited paths `0 → 11 → 0`, FK constant
+at 1. `bunx tsc --noEmit` → no new error categories; `bun run test` → exit 0.

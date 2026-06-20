@@ -4817,16 +4817,16 @@ try {
 
   note('\n══ CP6 PASS ════════════════════════════════════════════════════════════');
 
-  // ── CP7 assertions — inherited 1:1 key-inheritance lines (#9) ─────────────
+  // ── CP7 assertions — inherited key-inheritance lines (#9), SHIFT-GATED ─────
   // A 1:1 key-inherited subtype shares its basetype's PK — the child IS the
   // parent — so it transitively participates in the basetype's relationships and
   // relates to its sibling subtypes. models/key-inherited has Party (basetype)
   // with Business + Person subtypes; Business' only DIRECT FK is Business→Party,
   // while Party carries the rich relationships (PartyType, PaymentMethod,
-  // SalesInvoice, SalesOrder, Identity) + the sibling Person. Spotlighting
-  // Business must surface those as DOTTED inherited lines, distinct from the
-  // solid direct FK line to Party.
-  note('\n── CP7: Inherited 1:1 key-inheritance lines (#9) ────────────────────────');
+  // SalesInvoice, SalesOrder, Identity) + the sibling Person. The DOTTED inherited
+  // lines are now SHIFT-GATED (mirroring the DG): they appear ONLY while Shift is
+  // held over an active card. The solid direct FK line to Party is unaffected.
+  note('\n── CP7: Inherited key-inheritance lines (#9), SHIFT-GATED ───────────────');
 
   // Fresh dict browse page, clean state.
   await page.goto(`${BASE}/#view=dict`);
@@ -4837,6 +4837,22 @@ try {
   await page.locator('.dict-search-input').fill('');
   await page.waitForTimeout(400);
 
+  // Helper: collect every spotlight line path's class + dasharray + markers.
+  type Cp7PathInfo = { kind: string; dash: string; hasStart: boolean; hasEnd: boolean; d: string };
+  async function collectSpotlightPaths(): Promise<Cp7PathInfo[]> {
+    return page.evaluate((): Cp7PathInfo[] => {
+      const svg = document.querySelector('.spotlight-overlay');
+      if (!svg) return [];
+      return [...svg.querySelectorAll('path.spotlight-line')].map(p => ({
+        kind: p.getAttribute('data-kind') ?? 'fk',
+        dash: p.getAttribute('stroke-dasharray') ?? '',
+        hasStart: p.hasAttribute('marker-start'),
+        hasEnd: p.hasAttribute('marker-end'),
+        d: p.getAttribute('d') ?? '',
+      }));
+    });
+  }
+
   const businessCard = page.locator('.dict-grid-card[data-entity-id="Business"]');
   const businessCount = await businessCard.count();
   if (businessCount === 0) {
@@ -4844,37 +4860,51 @@ try {
     fail('CP7: subtype member "Business" card (data-entity-id="Business") not found in browse grid');
   }
 
-  // Pin the subtype member so the spotlight survives mouse-out.
+  // ── CP7.a: Pin the subtype member with NO Shift → ZERO inherited lines, but
+  //          FK (solid) lines DO render. ────────────────────────────────────────
+  note('\n── CP7.a: NO Shift → zero inherited lines; FK lines still render ────────');
   await businessCard.scrollIntoViewIfNeeded();
   await page.waitForTimeout(200);
   await businessCard.click();
   await page.mouse.move(10, 10);
   await page.waitForTimeout(500);
-  await shot('77-cp7-business-inherited-spotlight.png');
+  await shot('77a-cp7-business-noshift.png');
 
-  // Collect every spotlight line path's class + dasharray + markers.
-  type Cp7PathInfo = { kind: string; dash: string; hasStart: boolean; hasEnd: boolean; d: string };
-  const cp7Paths = await page.evaluate((): Cp7PathInfo[] => {
-    const svg = document.querySelector('.spotlight-overlay');
-    if (!svg) return [];
-    return [...svg.querySelectorAll('path.spotlight-line')].map(p => ({
-      kind: p.getAttribute('data-kind') ?? 'fk',
-      dash: p.getAttribute('stroke-dasharray') ?? '',
-      hasStart: p.hasAttribute('marker-start'),
-      hasEnd: p.hasAttribute('marker-end'),
-      d: p.getAttribute('d') ?? '',
-    }));
-  });
-  note(`CP7: ${cp7Paths.length} total spotlight-line path(s) drawn`);
-
-  // At least one INHERITED (dotted) line must be present.
-  const inheritedPaths = cp7Paths.filter(p => p.kind === 'inherited');
-  note(`CP7: ${inheritedPaths.length} inherited (dotted) path(s)`);
-  if (inheritedPaths.length === 0) {
-    await shot('FAIL-cp7-no-inherited-paths.png');
-    fail('CP7: no inherited (data-kind="inherited") spotlight lines drawn for subtype member Business');
+  const cp7NoShiftPaths = await collectSpotlightPaths();
+  const noShiftInherited = cp7NoShiftPaths.filter(p => p.kind === 'inherited');
+  const noShiftFk = cp7NoShiftPaths.filter(p => p.kind === 'fk');
+  note(`CP7.a: ${cp7NoShiftPaths.length} total path(s); ${noShiftInherited.length} inherited; ${noShiftFk.length} FK`);
+  if (noShiftInherited.length !== 0) {
+    await shot('FAIL-cp7-noshift-has-inherited.png');
+    fail(`CP7.a: expected 0 inherited lines without Shift, got ${noShiftInherited.length}`);
   }
-  note(`OK CP7: ${inheritedPaths.length} inherited lines drawn for the subtype member`);
+  if (noShiftFk.length === 0) {
+    await shot('FAIL-cp7-noshift-no-fk.png');
+    fail('CP7.a: expected the direct FK line (Business→Party) to render without Shift, got 0');
+  }
+  // FK lines must still be solid (no dasharray) even without Shift.
+  if (!noShiftFk.every(p => p.dash.length === 0)) {
+    await shot('FAIL-cp7-noshift-fk-dashed.png');
+    fail('CP7.a: a direct FK line is dashed without Shift');
+  }
+  note(`OK CP7.a: 0 inherited lines, ${noShiftFk.length} solid FK line(s) render without Shift`);
+
+  // ── CP7.b: Hold Shift → inherited (dotted) lines NOW appear; FK persists. ─────
+  note('\n── CP7.b: Hold Shift → inherited dotted lines appear; FK persists ───────');
+  await page.keyboard.down('Shift');
+  await page.waitForTimeout(400);
+  await shot('77b-cp7-business-shift.png');
+
+  const cp7ShiftPaths = await collectSpotlightPaths();
+  const shiftInherited = cp7ShiftPaths.filter(p => p.kind === 'inherited');
+  const shiftFk = cp7ShiftPaths.filter(p => p.kind === 'fk');
+  note(`CP7.b: ${cp7ShiftPaths.length} total path(s); ${shiftInherited.length} inherited; ${shiftFk.length} FK`);
+  if (shiftInherited.length === 0) {
+    await page.keyboard.up('Shift');
+    await shot('FAIL-cp7-shift-no-inherited.png');
+    fail('CP7.b: holding Shift produced 0 inherited (data-kind="inherited") lines for subtype member Business');
+  }
+  note(`OK CP7.b: ${shiftInherited.length} inherited line(s) appear while Shift is held`);
 
   // The inherited paths must carry the --inherited modifier class.
   const inheritedClassCount = await page.evaluate(() => {
@@ -4883,53 +4913,73 @@ try {
     return svg.querySelectorAll('path.spotlight-line--inherited').length;
   });
   if (inheritedClassCount === 0) {
+    await page.keyboard.up('Shift');
     await shot('FAIL-cp7-no-inherited-class.png');
-    fail('CP7: inherited lines do not carry the .spotlight-line--inherited class');
+    fail('CP7.b: inherited lines do not carry the .spotlight-line--inherited class');
   }
-  note(`OK CP7: ${inheritedClassCount} path(s) carry .spotlight-line--inherited`);
+  note(`OK CP7.b: ${inheritedClassCount} path(s) carry .spotlight-line--inherited`);
 
   // The inherited stroke color must resolve to the dedicated --spotlight-line-inherited var.
   const inheritedColor = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--spotlight-line-inherited').trim()
   );
-  note(`CP7: --spotlight-line-inherited="${inheritedColor}"`);
+  note(`CP7.b: --spotlight-line-inherited="${inheritedColor}"`);
   if (inheritedColor.length === 0) {
+    await page.keyboard.up('Shift');
     await shot('FAIL-cp7-no-inherited-var.png');
-    fail('CP7: --spotlight-line-inherited CSS var is not set');
+    fail('CP7.b: --spotlight-line-inherited CSS var is not set');
   }
-  note('OK CP7: --spotlight-line-inherited theme var is set');
+  note('OK CP7.b: --spotlight-line-inherited theme var is set');
 
-  // The inherited lines must be visually DISTINCT from direct FK lines: they are
-  // dotted (stroke-dasharray present), whereas direct FK lines are solid (no dash).
-  // (Flow lines are also dashed, but they carry data-kind="flow".)
-  const everyInheritedDotted = inheritedPaths.every(p => p.dash.length > 0);
-  if (!everyInheritedDotted) {
+  // Inherited lines must be dotted (distinct from solid direct FK lines).
+  if (!shiftInherited.every(p => p.dash.length > 0)) {
+    await page.keyboard.up('Shift');
     await shot('FAIL-cp7-inherited-not-dotted.png');
-    fail('CP7: an inherited line has no stroke-dasharray — not visually distinct from solid direct FK lines');
+    fail('CP7.b: an inherited line has no stroke-dasharray — not visually distinct from solid direct FK lines');
   }
-  note('OK CP7: every inherited line is dotted (distinct from solid direct FK lines)');
+  note('OK CP7.b: every inherited line is dotted (distinct from solid direct FK lines)');
 
-  // The direct FK line to Party must still be present, solid (no dash), and NOT
-  // marked inherited — direct vs. inherited stays unambiguous.
-  const directFkPaths = cp7Paths.filter(p => p.kind === 'fk');
-  const everyFkSolid = directFkPaths.every(p => p.dash.length === 0);
-  if (directFkPaths.length === 0) {
+  // FK lines must still be present and solid while Shift is held.
+  if (shiftFk.length === 0) {
+    await page.keyboard.up('Shift');
     await shot('FAIL-cp7-no-direct-fk.png');
-    fail('CP7: expected at least the direct FK line (Business→Party) to be present');
+    fail('CP7.b: expected at least the direct FK line (Business→Party) to be present while Shift is held');
   }
-  if (!everyFkSolid) {
+  if (!shiftFk.every(p => p.dash.length === 0)) {
+    await page.keyboard.up('Shift');
     await shot('FAIL-cp7-fk-dashed.png');
-    fail('CP7: a direct FK line is dashed — direct vs inherited no longer distinguishable');
+    fail('CP7.b: a direct FK line is dashed — direct vs inherited no longer distinguishable');
   }
-  note(`OK CP7: ${directFkPaths.length} direct FK line(s) remain solid alongside the dotted inherited lines`);
+  note(`OK CP7.b: ${shiftFk.length} direct FK line(s) remain solid alongside the dotted inherited lines`);
 
   // Each inherited line carries exactly one arrowhead (a connection line, not a stub).
-  const inheritedNoMarker = inheritedPaths.find(p => !p.hasStart && !p.hasEnd);
+  const inheritedNoMarker = shiftInherited.find(p => !p.hasStart && !p.hasEnd);
   if (inheritedNoMarker !== undefined) {
+    await page.keyboard.up('Shift');
     await shot('FAIL-cp7-inherited-no-marker.png');
-    fail('CP7: an inherited line carries no arrowhead');
+    fail('CP7.b: an inherited line carries no arrowhead');
   }
-  note('OK CP7: every inherited line carries an arrowhead');
+  note('OK CP7.b: every inherited line carries an arrowhead');
+
+  // ── CP7.c: Release Shift → inherited lines disappear; FK persists. ───────────
+  note('\n── CP7.c: Release Shift → inherited lines disappear; FK persists ────────');
+  await page.keyboard.up('Shift');
+  await page.waitForTimeout(400);
+  await shot('77c-cp7-business-shift-released.png');
+
+  const cp7ReleasePaths = await collectSpotlightPaths();
+  const releaseInherited = cp7ReleasePaths.filter(p => p.kind === 'inherited');
+  const releaseFk = cp7ReleasePaths.filter(p => p.kind === 'fk');
+  note(`CP7.c: ${cp7ReleasePaths.length} total path(s); ${releaseInherited.length} inherited; ${releaseFk.length} FK`);
+  if (releaseInherited.length !== 0) {
+    await shot('FAIL-cp7-release-still-inherited.png');
+    fail(`CP7.c: expected 0 inherited lines after releasing Shift, got ${releaseInherited.length}`);
+  }
+  if (releaseFk.length === 0) {
+    await shot('FAIL-cp7-release-no-fk.png');
+    fail('CP7.c: FK line vanished after releasing Shift — FK must persist independent of Shift');
+  }
+  note(`OK CP7.c: inherited lines gone, ${releaseFk.length} FK line(s) persist after Shift release`);
 
   // Release pin for clean state.
   await page.keyboard.press('Escape');
@@ -4964,42 +5014,70 @@ try {
     await identityCard.click();
     await page.mouse.move(10, 10);
     await page.waitForTimeout(500);
-    await shot('78-cp7-transitive-identity-spotlight.png');
 
     type Cp7tPathInfo = { kind: string; dash: string; hasStart: boolean; hasEnd: boolean };
-    const cp7tPaths = await page.evaluate((): Cp7tPathInfo[] => {
-      const svg = document.querySelector('.spotlight-overlay');
-      if (!svg) return [];
-      return [...svg.querySelectorAll('path.spotlight-line')].map(p => ({
-        kind: p.getAttribute('data-kind') ?? 'fk',
-        dash: p.getAttribute('stroke-dasharray') ?? '',
-        hasStart: p.hasAttribute('marker-start'),
-        hasEnd: p.hasAttribute('marker-end'),
-      }));
-    });
-    note(`CP7-TRANSITIVE: ${cp7tPaths.length} total spotlight-line path(s) for Identity`);
+    async function collectTransPaths(): Promise<Cp7tPathInfo[]> {
+      return page.evaluate((): Cp7tPathInfo[] => {
+        const svg = document.querySelector('.spotlight-overlay');
+        if (!svg) return [];
+        return [...svg.querySelectorAll('path.spotlight-line')].map(p => ({
+          kind: p.getAttribute('data-kind') ?? 'fk',
+          dash: p.getAttribute('stroke-dasharray') ?? '',
+          hasStart: p.hasAttribute('marker-start'),
+          hasEnd: p.hasAttribute('marker-end'),
+        }));
+      });
+    }
+
+    // NO Shift → zero inherited lines for Identity too.
+    const transNoShift = (await collectTransPaths()).filter(p => p.kind === 'inherited');
+    note(`CP7-TRANSITIVE: ${transNoShift.length} inherited path(s) WITHOUT Shift (expect 0)`);
+    if (transNoShift.length !== 0) {
+      await shot('FAIL-cp7-transitive-noshift-inherited.png');
+      fail(`CP7-TRANSITIVE: expected 0 inherited lines for Identity without Shift, got ${transNoShift.length}`);
+    }
+
+    // Hold Shift → transitive inherited lines appear.
+    await page.keyboard.down('Shift');
+    await page.waitForTimeout(400);
+    await shot('78-cp7-transitive-identity-spotlight.png');
+
+    const cp7tPaths = await collectTransPaths();
+    note(`CP7-TRANSITIVE: ${cp7tPaths.length} total spotlight-line path(s) for Identity (Shift held)`);
 
     const inheritedTrans = cp7tPaths.filter(p => p.kind === 'inherited');
     note(`CP7-TRANSITIVE: ${inheritedTrans.length} inherited (dotted) path(s)`);
 
     if (inheritedTrans.length === 0) {
+      await page.keyboard.up('Shift');
       await shot('FAIL-cp7-transitive-no-inherited-paths.png');
-      fail('CP7-TRANSITIVE: no inherited (data-kind="inherited") spotlight lines drawn for dep-1:1 Identity — transitive identity-group algorithm not surfacing Party\'s relationships');
+      fail('CP7-TRANSITIVE: no inherited (data-kind="inherited") spotlight lines drawn for dep-1:1 Identity while Shift held — transitive identity-group algorithm not surfacing Party\'s relationships');
     }
-    note(`OK CP7-TRANSITIVE: ${inheritedTrans.length} inherited lines drawn for dep-1:1 Identity (Party\'s relationships surfaced transitively)`);
+    note(`OK CP7-TRANSITIVE: ${inheritedTrans.length} inherited lines drawn for dep-1:1 Identity while Shift held (Party\'s relationships surfaced transitively)`);
 
     // Every inherited line must be dotted.
     const everyDotted = inheritedTrans.every(p => p.dash.length > 0);
     if (!everyDotted) {
+      await page.keyboard.up('Shift');
       await shot('FAIL-cp7-transitive-not-dotted.png');
       fail('CP7-TRANSITIVE: an inherited line for Identity has no stroke-dasharray');
     }
     note('OK CP7-TRANSITIVE: every inherited line is dotted');
 
+    // Release Shift → inherited lines disappear.
+    await page.keyboard.up('Shift');
+    await page.waitForTimeout(400);
+    const transReleased = (await collectTransPaths()).filter(p => p.kind === 'inherited');
+    if (transReleased.length !== 0) {
+      await shot('FAIL-cp7-transitive-release-inherited.png');
+      fail(`CP7-TRANSITIVE: expected 0 inherited lines for Identity after releasing Shift, got ${transReleased.length}`);
+    }
+    note('OK CP7-TRANSITIVE: inherited lines disappear after Shift release');
+
     // Release pin.
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
-    note('OK CP7-TRANSITIVE: transitive dep-1:1 inherited lines confirmed');
+    note('OK CP7-TRANSITIVE: Shift-gated transitive dep-1:1 inherited lines confirmed');
   }
 
   note('\n══ CP7 PASS ════════════════════════════════════════════════════════════');

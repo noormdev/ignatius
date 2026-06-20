@@ -99,6 +99,13 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   // Component state only; never written to URL hash.
   const [focusId, setFocusId] = useState<string | null>(null);
 
+  // Shift-gated lineage: inherited (dotted) key-inheritance lines appear ONLY
+  // while Shift is held over an active card — mirroring the DG, where Shift gates
+  // the lineage. FK (solid) + flow (dashed) lines are unaffected. Driven by a
+  // document-level keydown/keyup pair plus a window-blur reset so a lost keyup
+  // (e.g. focus stolen by a system dialog) doesn't strand it `true`.
+  const [shiftHeld, setShiftHeld] = useState(false);
+
   // CP10: local state for the FlowNodeModal opened from browse-lens grid cards.
   // The resolver is rebuilt from allDiagrams via useMemo (see below).
   const [openFlowResult, setOpenFlowResult] = useState<FlowDocResult | null>(null);
@@ -133,14 +140,19 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     return buildSpotlightConnections(modelIndex, activeId);
   }, [activeId, modelIndex]);
 
-  // Key-inheritance lineage — entity only. Surfaces the active entity's
-  // key-edge lineage (the transitive component over edges whose FK ⊆ the child
-  // PK), minus the active and its direct real-edge neighbours, as dotted lines.
-  // [] for entities with no key-edge kin (e.g. ORM surrogate-PK models).
+  // Key-inheritance lineage — entity only, SHIFT-GATED. Surfaces the active
+  // entity's key-edge lineage (the transitive component over edges whose FK ⊆
+  // the child PK), minus the active and its direct real-edge neighbours, as
+  // dotted lines — but ONLY while Shift is held (mirroring the DG, where Shift
+  // gates the lineage). Without Shift this is [] so no dotted lines, lit cards,
+  // or off-screen inherited chips appear; FK + flow lines are unaffected.
+  // [] also for entities with no key-edge kin (e.g. ORM surrogate-PK models).
+  // Recomputes when shiftHeld or activeId changes so pressing/releasing Shift
+  // while a card stays active toggles the lines live.
   const inheritedConnections = useMemo(() => {
-    if (activeId === null || !activeIsEntity || modelIndex === null) return [];
+    if (!shiftHeld || activeId === null || !activeIsEntity || modelIndex === null) return [];
     return buildInheritedConnections(modelIndex, activeId);
-  }, [activeId, modelIndex]);
+  }, [shiftHeld, activeId, modelIndex]);
 
   // Flow-lookup token for the active card:
   //   entity  → "db:<entityId>" (its flow endpoint token)
@@ -201,6 +213,29 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [lens]);
+
+  // Track whether Shift is held — gates the inherited (dotted) lineage lines.
+  // Stale-closure-safe: the listeners call setShiftHeld directly (no captured
+  // state). window blur resets to false so a missed keyup can't strand it true.
+  useEffect(() => {
+    function handleShiftDown(e: KeyboardEvent) {
+      if (e.key === 'Shift') setShiftHeld(true);
+    }
+    function handleShiftUp(e: KeyboardEvent) {
+      if (e.key === 'Shift') setShiftHeld(false);
+    }
+    function handleBlur() {
+      setShiftHeld(false);
+    }
+    document.addEventListener('keydown', handleShiftDown);
+    document.addEventListener('keyup', handleShiftUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      document.removeEventListener('keydown', handleShiftDown);
+      document.removeEventListener('keyup', handleShiftUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // CP14: Refs for stable access inside useCallback handlers without adding deps.
   // spotlitIdsRef: the current lit set (active ∪ connected cards).
@@ -563,8 +598,12 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     const focusIsEntity = !focusId.includes(':');
     if (focusIsEntity && modelIndex !== null) {
       for (const c of buildSpotlightConnections(modelIndex, focusId)) ids.add(c.otherId);
-      // CP7: inherited cards belong to the focus set too.
-      for (const c of buildInheritedConnections(modelIndex, focusId)) ids.add(c.otherId);
+      // CP7: inherited cards belong to the focus set too — but only while Shift is
+      // held, matching the Shift-gated inherited lines (no extra-focused inherited
+      // cards without Shift).
+      if (shiftHeld) {
+        for (const c of buildInheritedConnections(modelIndex, focusId)) ids.add(c.otherId);
+      }
     }
     // Flow connections (all card types).
     if (allDiagrams.length > 0) {
@@ -574,7 +613,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
       }
     }
     return ids;
-  }, [focusId, modelIndex, allDiagrams]);
+  }, [focusId, modelIndex, allDiagrams, shiftHeld]);
 
   // CP14: keep refs in sync so stable handleCardMouseEnter can read current values.
   spotlitIdsRef.current = spotlitIds;
