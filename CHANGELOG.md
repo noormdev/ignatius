@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.12.0](https://github.com/noormdev/ignatius/compare/v0.11.0...v0.12.0) (2026-06-20)
+
+
+### Features
+
+* **viewer:** add view-aware help overlay (? button + key) ([86b13cd](https://github.com/noormdev/ignatius/commit/86b13cda698f94c19a742da69a05cd8d1dce2ed9))
+* **viewer:** draw inherited key-inheritance lines in the graph ([e2dd8a1](https://github.com/noormdev/ignatius/commit/e2dd8a15cefa0cf8aeae3daf34905dd3d89a852d))
+* **viewer:** gate DD inherited lineage lines behind Shift ([d605eba](https://github.com/noormdev/ignatius/commit/d605ebaa92ebbdbeea4bd39efacf46c2517ea634))
+* **viewer:** make 100% zoom mean native 1:1 ([97e67c7](https://github.com/noormdev/ignatius/commit/97e67c7cc13f5c83770c4676213f59350e62b7fd))
+* **viewer:** route pinch and Cmd zoom to the canvas ([085af25](https://github.com/noormdev/ignatius/commit/085af25ef063c0f2fa85464d0c7722bcf9d73bf8))
+* **viewer:** separate overlapping spotlight connection lines ([a61387f](https://github.com/noormdev/ignatius/commit/a61387fdc2c34a479dd01a90c2f0a825e821b892))
+* **viewer:** set HTML title from model name ([c31d7ea](https://github.com/noormdev/ignatius/commit/c31d7ea13b1791db65958fbd11bcbb90b903bb77))
+* **viewer:** single source-out arrow (DD) + shift+hover lineage (DG) ([7e0098c](https://github.com/noormdev/ignatius/commit/7e0098c4be817a9e39593a5802123b99d1a9c678))
+* **viewer:** size DFD process nodes to their label ([7458203](https://github.com/noormdev/ignatius/commit/7458203b0620a1b39f4a45de8d6850ea3f170efb))
+* **viewer:** spotlight inherited 1:1 key-inheritance relationships ([fdb1317](https://github.com/noormdev/ignatius/commit/fdb13173baae21f9266dd391d1001b00fd5b687a))
+* **viewer:** sync entity modal with URL history ([86d81bc](https://github.com/noormdev/ignatius/commit/86d81bc8491e1e26e53c21b40847bc8440fa43f5))
+* **viewer:** three-tier focus opacity in the graph ([1bbc402](https://github.com/noormdev/ignatius/commit/1bbc402df9c9560b3dc9f3dc4f265d84eb12c064))
+* **viewer:** transitive identity-group inheritance in DD spotlight ([9842e19](https://github.com/noormdev/ignatius/commit/9842e19e266b58ef9606b2d6c58b5e71de279713))
+
+
+### Bug Fixes
+
+* **viewer:** lineage follows only primary-key (identifying) edges ([3c1663a](https://github.com/noormdev/ignatius/commit/3c1663a8c35b0a4d515c2f14254dbd69952a70d9))
+* **viewer:** remove leaked cytoscape-navigator cy listeners on teardown ([2f6161f](https://github.com/noormdev/ignatius/commit/2f6161f81f7d2b7da3ba31403646c135516ccd21))
+
 ## [0.11.0](https://github.com/noormdev/ignatius/compare/v0.10.0...v0.11.0) (2026-06-17)
 
 
