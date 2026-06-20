@@ -223,3 +223,5 @@ draw/clear lines — no NEW error type, zero errors in the new typed code
 Feature complete (CP-A + CP-B).
 
 **Merged into main (fast-forward) as e2dd8a1 — 2026-06-19.** Ships in 0.12.0 alongside viewer-ux-polish.
+
+**DG 3-tier focus opacity merged as 1bbc402 — 2026-06-19.**
