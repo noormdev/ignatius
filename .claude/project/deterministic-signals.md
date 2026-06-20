@@ -1,5 +1,5 @@
 ---
-generated_at: 2026-06-20T00:50:43Z
+generated_at: 2026-06-20T02:41:59Z
 atomic_version: 5.4.1
 ---
 # Deterministic signals
@@ -8,7 +8,7 @@ atomic_version: 5.4.1
 
 ├── .cursor/ (1)
 │   └── rules/ (1)
-│       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (02e2481, 179L, 18562ch, 18743B)
+│       └── use-bun-instead-of-node-vite-npm-pnpm.mdc (bbee49c, 179L, 19397ch, 19598B)
 ├── .github/ (1)
 │   └── workflows/ (2)
 │       ├── ci.yml (8718b72, 56L, 1568ch, 1568B)
@@ -30,7 +30,7 @@ atomic_version: 5.4.1
 │   │   ├── folder-model.md (0c51512, 104L, 5558ch, 5591B)
 │   │   ├── graph-position-persistence.md (7d5bf76, 118L, 7012ch, 7070B)
 │   │   ├── ignatius-project-config.md (854740b, 107L, 6806ch, 6838B)
-│   │   ├── key-inheritance-lineage.md (d362b13, 72L, 3545ch, 3579B)
+│   │   ├── key-inheritance-lineage.md (6a3a965, 122L, 6346ch, 6448B)
 │   │   ├── keyboard-nav-shortcuts.md (37b922e, 110L, 5283ch, 5301B)
 │   │   ├── markdown-driven-erd.md (aa374b7, 333L, 12629ch, 12757B)
 │   │   ├── noorm-flow-discovery.md (d205c66, 179L, 14142ch, 14240B)
@@ -75,7 +75,7 @@ atomic_version: 5.4.1
 │   │   ├── folder-model.md (9221504, 117L, 11731ch, 11793B)
 │   │   ├── graph-position-persistence.md (ae7bdcd, 106L, 8067ch, 8126B)
 │   │   ├── ignatius-project-config.md (9cbf90e, 108L, 9814ch, 9879B)
-│   │   ├── key-inheritance-lineage.md (5ecd3d4, 227L, 15481ch, 15603B)
+│   │   ├── key-inheritance-lineage.md (74e2dc1, 269L, 19505ch, 19667B)
 │   │   ├── keyboard-nav-shortcuts.md (fa5b2e7, 110L, 8598ch, 8663B)
 │   │   ├── noorm-flow-discovery.md (4b7f5a8, 83L, 10554ch, 10666B)
 │   │   ├── noorm-modeling-skill.md (947190e, 204L, 22457ch, 22582B)
@@ -234,7 +234,7 @@ atomic_version: 5.4.1
 │   │   │   ├── relationship-key.ts (21bbb6e, 21L, 950ch, 956B)
 │   │   │   ├── search.ts (c37e8e6, 124L, 4583ch, 4583B)
 │   │   │   ├── shortcuts.ts (3346233, 98L, 3591ch, 3615B)
-│   │   │   ├── spotlight-inherited.ts (7901b13, 252L, 9791ch, 9835B)
+│   │   │   ├── spotlight-inherited.ts (2a7ba4f, 211L, 8802ch, 9176B)
 │   │   │   ├── spotlight-lines.ts (0138798, 100L, 3696ch, 3724B)
 │   │   │   └── spotlight.ts (d4aec20, 101L, 3534ch, 3540B)
 │   │   ├── views/ (3)
@@ -288,7 +288,7 @@ atomic_version: 5.4.1
 │   │   └── file-imports.d.ts (c8fc2ce, 46L, 1951ch, 1953B)
 │   └── edge-routes.ts (58ce6af, 146L, 5589ch, 5609B)
 ├── test/ (4)
-│   ├── checks/ (82)
+│   ├── checks/ (83)
 │   │   ├── test-api-model.ts (7cb8b51, 97L, 3807ch, 3809B)
 │   │   ├── test-app-gen-zero-diagrams.ts (34d2a2f, 130L, 4325ch, 4581B)
 │   │   ├── test-app-title.ts (53472fb, 144L, 5253ch, 5631B)
@@ -333,9 +333,9 @@ atomic_version: 5.4.1
 │   │   ├── test-folder-model.ts (a19559a, 237L, 8937ch, 8957B)
 │   │   ├── test-graph-branding.ts (3edc892, 174L, 8180ch, 8426B)
 │   │   ├── test-graph-bundle-mode.ts (669847e, 213L, 8975ch, 8983B)
-│   │   ├── test-graph-inherited-edges.ts (c4a1179, 176L, 7119ch, 7317B)
+│   │   ├── test-graph-inherited-edges.ts (4ee4324, 179L, 7351ch, 7551B)
 │   │   ├── test-hash-router.ts (46f7614, 219L, 6942ch, 6998B)
-│   │   ├── test-inherited-edges-no-leak.ts (8ba3b76, 115L, 5030ch, 5128B)
+│   │   ├── test-inherited-edges-no-leak.ts (0c8a942, 120L, 5250ch, 5348B)
 │   │   ├── test-keyboard-shortcuts.ts (f287a6b, 200L, 7321ch, 7343B)
 │   │   ├── test-layout-fingerprint.ts (92d8eea, 255L, 8386ch, 8464B)
 │   │   ├── test-layout-key-injection.ts (1ff0306, 104L, 4296ch, 4300B)
@@ -344,6 +344,7 @@ atomic_version: 5.4.1
 │   │   ├── test-modal-history.ts (3b62815, 187L, 7092ch, 7173B)
 │   │   ├── test-mode-flag.ts (52f3812, 136L, 5187ch, 5195B)
 │   │   ├── test-model-index.ts (f6e304f, 409L, 17447ch, 17469B)
+│   │   ├── test-navigator-teardown.ts (a3776c7, 76L, 3299ch, 3323B)
 │   │   ├── test-open-browser.ts (e9f001b, 25L, 1122ch, 1126B)
 │   │   ├── test-parse-examples.ts (fb9b559, 121L, 3875ch, 3891B)
 │   │   ├── test-parse-flows.ts (7f417f4, 204L, 12121ch, 12163B)
@@ -355,7 +356,7 @@ atomic_version: 5.4.1
 │   │   ├── test-serve-port.ts (6e3e5fb, 52L, 1928ch, 2192B)
 │   │   ├── test-shortcuts.ts (75f7b57, 278L, 12564ch, 12692B)
 │   │   ├── test-spotlight-connections.ts (0806e1c, 282L, 10879ch, 10931B)
-│   │   ├── test-spotlight-inherited.ts (124c353, 593L, 22687ch, 22893B)
+│   │   ├── test-spotlight-inherited.ts (39af0a9, 388L, 18114ch, 18358B)
 │   │   ├── test-spotlight-lines.ts (e0cb78a, 207L, 9741ch, 9775B)
 │   │   ├── test-sse-live-reload.ts (16c011c, 130L, 4075ch, 4077B)
 │   │   ├── test-synthetic-model.ts (8cd42f2, 90L, 3258ch, 4004B)
@@ -465,7 +466,7 @@ atomic_version: 5.4.1
 │       ├── test-dict-view.ts (d59319f, 223L, 9004ch, 9368B)
 │       ├── test-export-offline.ts (9d1630a, 308L, 14287ch, 15241B)
 │       ├── test-flow-live-reload.ts (b173873, 202L, 7775ch, 8463B)
-│       ├── test-graph-inherited-lines.ts (270712c, 282L, 11790ch, 11934B)
+│       ├── test-graph-inherited-lines.ts (a258142, 327L, 13918ch, 14112B)
 │       ├── test-process-node-size.ts (b43170e, 166L, 6641ch, 7051B)
 │       └── test-sse-playwright.ts (636e685, 75L, 2474ch, 2476B)
 ├── trash/ (1)
@@ -491,7 +492,7 @@ atomic_version: 5.4.1
 ├── .gitignore (6d3972b, 53L, 809ch, 811B)
 ├── .signalsignore (50ea1be, 28L, 1036ch, 1050B)
 ├── CHANGELOG.md (c52b28c, 193L, 15151ch, 15157B)
-├── CLAUDE.md (02e2481, 179L, 18562ch, 18743B)
+├── CLAUDE.md (bbee49c, 179L, 19397ch, 19598B)
 ├── CONTRIBUTING.md (592685f, 53L, 2043ch, 2047B)
 ├── README.md (727982d, 69L, 4028ch, 4036B)
 ├── bun-env.d.ts (4404f36, 16L, 284ch, 284B)
@@ -509,8 +510,8 @@ atomic_version: 5.4.1
 
 ## Languages
 
-- TypeScript: 56618 LOC (70%), 260 files (44%)
-- Markdown: 19876 LOC (24%), 295 files (50%)
+- TypeScript: 56510 LOC (69%), 261 files (45%)
+- Markdown: 19968 LOC (24%), 295 files (50%)
 - CSS: 2672 LOC (3%), 2 files (0%)
 - YAML: 1340 LOC (1%), 14 files (2%)
 - Shell: 116 LOC (0%), 1 file (0%)
