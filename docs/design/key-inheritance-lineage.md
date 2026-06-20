@@ -73,22 +73,23 @@ exists. Consumers mainly use `otherId`.
 ## Surfaces
 
 
-- **DD spotlight** — replace CP7's subtype-only `buildInheritedConnections` with the generalized identity-group computation; render unchanged (dotted `--spotlight-line-inherited`).
-- **DG graph** — on entity select, draw DOTTED inferred-upstream lines (color `--spotlight-line-inherited`) from the active node to each inferred connection, and keep those nodes lit (not faded). View-only ephemeral overlay: it must NOT enter the model, the layout fingerprint / position persistence, or the static export. Removed on deselect / reselect / view-switch.
+- **DD spotlight** — replace CP7's subtype-only `buildInheritedConnections` with the generalized identity-group computation; render dotted (`--spotlight-line-inherited`) as a SINGLE source-out line — one arrowhead at the far (member) end, pointing FROM the active card OUT to the lineage member (`direction: 'out'`).
+- **DG graph** — lineage is revealed by SHIFT+HOVER (not click/select). While Shift is held and the pointer is over a node, draw DOTTED inferred-upstream lines (color `--spotlight-line-inherited`) from the hovered node to each inferred connection + apply the 3-tier focus opacity, and keep those nodes lit. Moving off the node or releasing Shift clears it. A plain click selects + opens the modal but draws NO lineage; a plain (no-shift) hover keeps only the direct-neighbour fade. View-only ephemeral overlay: it must NOT enter the model, the layout fingerprint / position persistence, or the static export. Removed on mouseout / shift-release / deselect / reselect / relayout / view-switch.
 
 
 ## Approach (DG dotted lines)
 
 
-Preferred: ephemeral Cytoscape edges added on select with a dotted `inherited`
-class (`line-style: dotted`, `line-color: var(--spotlight-line-inherited)`, no
-crow's-foot), removed on deselect. They follow pan/zoom/drag natively. They are
-added AFTER layout (never fed to ELK), carry a class so the lineage-fade keeps
-them + their endpoints lit, and are stripped before any `layoutFingerprint` /
-position save and excluded from export. Alternative (if ephemeral edges prove to
-pollute lifecycle): a position:fixed SVG overlay synced to cy pan/zoom, mirroring
-the DD `SpotlightOverlay`. Implementer picks; verify no model/persistence/export
-leakage either way.
+Ephemeral Cytoscape edges drawn on SHIFT+HOVER with a dotted `inherited` class
+(`line-style: dotted`, `line-color: var(--spotlight-line-inherited)`, no
+crow's-foot), removed on mouseout / shift-release. They follow pan/zoom/drag
+natively. They are added AFTER layout (never fed to ELK), carry a class so the
+focus-fade keeps them + their endpoints lit, and are stripped before any
+`layoutFingerprint` / position save and excluded from export. The shift+hover
+trigger lives in the cy `mouseover`/`mouseout` handlers (branch on
+`evt.originalEvent?.shiftKey`) plus a document-level `Shift` keydown/keyup pair
+that toggles lineage on the live hovered node (so holding/releasing Shift while
+already over a node works); all state is held in refs to avoid stale closures.
 
 
 ## Non-goals
@@ -96,7 +97,7 @@ leakage either way.
 
 - Inferring through SECONDARY (non-key) FKs — only key edges (FK ⊆ child PK) qualify, in either direction and at any cardinality (1:1 or 1:many). A secondary FK is never followed (else the graph over-connects to catalogs/classifiers).
 - Changing the underlying model, edges, or classification.
-- A separate hover (vs select) trigger in the DG beyond what the existing highlight already does — match the existing graph interaction.
+- Showing DG lineage on a plain click — a plain click selects + opens the modal only. (The original non-goal — "no separate hover trigger, match the existing select interaction" — was reversed by the owner: lineage in the DG is now an explicit SHIFT+HOVER inspection gesture, freeing a plain click for the modal. See the change log.)
 
 
 ## Open questions
@@ -120,3 +121,12 @@ None blocking.
   `SSN → Identity → Party ← SalesInvoice ← SI Line` family. The FK ⊆ PK subset
   test is the precise IDEF1X identifying semantics and (empirically) matches the
   parser's `edge.identifying` flag exactly on `models/key-inherited`.
+- 2026-06-19 — **Two viewer refinements (owner request).** (1) DD lineage lines
+  render as a SINGLE source-out arrow — `direction: 'out'`, one arrowhead at the
+  member end pointing FROM the active card OUT to the member (was bidirectional
+  `'both'`). (2) DG lineage trigger moved from click/SELECT to SHIFT+HOVER:
+  holding Shift over a node reveals the dotted rays + 3-tier opacity; moving off
+  or releasing Shift clears it; a plain click now only selects + opens the modal.
+  This reverses the original "no separate hover trigger" non-goal. Drawing +
+  lifecycle + no-leak contract unchanged — only the DD arrow count and the DG
+  trigger changed.

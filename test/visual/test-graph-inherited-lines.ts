@@ -63,8 +63,11 @@ async function shot(name: string): Promise<void> {
   note(`Screenshot: ${p}`);
 }
 
-// Emit a cy 'tap' on a node, then center the view on it + its inherited targets
-// so the dotted lines are framed in the screenshot.
+// SHIFT+HOVER a node (lineage trigger), then center the view on it + its
+// inherited targets so the dotted lines are framed in the screenshot. The
+// synthetic 'mouseover' carries `originalEvent.shiftKey` — exactly what the
+// GraphView handler reads. The node is LEFT hovered (no mouseout) so the rays +
+// 3-tier opacity persist for the screenshot and the tier readout.
 async function selectAndFrame(id: string): Promise<number> {
   return await page.evaluate((nodeId: string) => {
     const cy = window.__IGNATIUS_CY__;
@@ -73,9 +76,9 @@ async function selectAndFrame(id: string): Promise<number> {
     if (node.empty()) return -1;
     cy.elements().unselect();
     node.select();
-    node.emit('tap');
+    node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: true } });
     const inherited = cy.edges('.inherited');
-    // Fit the selected node + its inherited targets into view.
+    // Fit the hovered node + its inherited targets into view.
     const targets = node.union(inherited.connectedNodes());
     cy.fit(targets, 80);
     return inherited.length;
@@ -243,7 +246,7 @@ try {
     if (node.empty()) return [] as string[];
     cy.elements().unselect();
     node.select();
-    node.emit('tap');
+    node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: true } });
     const inherited = cy.edges('.inherited');
     cy.fit(node.union(inherited.connectedNodes()), 80);
     return inherited.map((e: { target(): { id(): string } }) => e.target().id());
@@ -267,7 +270,7 @@ try {
     if (node.empty()) return [] as string[];
     cy.elements().unselect();
     node.select();
-    node.emit('tap');
+    node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: true } });
     const inherited = cy.edges('.inherited');
     cy.fit(node.union(inherited.connectedNodes()), 80);
     return inherited.map((e: { target(): { id(): string } }) => e.target().id());

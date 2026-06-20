@@ -269,3 +269,62 @@ Feature complete (CP-A + CP-B).
 **DG 3-tier focus opacity merged as 1bbc402 — 2026-06-19.**
 
 **Key-edge lineage correction (PK-only / identifying edges) merged as 3c1663a, and the cytoscape-navigator teardown listener-leak fix as 2f6161f — 2026-06-19.**
+
+
+### 2026-06-19 — DD single source-out arrow + DG lineage trigger → shift+hover
+
+
+**What changed (two viewer refinements):**
+
+1. **DD spotlight — single source-out arrow.** `buildInheritedConnections`
+   (`src/app/logic/spotlight-inherited.ts`) now sets `direction: 'out'` on every
+   `InheritedConnection` (was `'both'`). The DD `SpotlightOverlay` renders an
+   `'out'` connection as ONE line (K=1 via `separateSpotlightLines`, no fan-out)
+   with a single arrowhead at the FAR (member) end — the line points FROM the
+   active card OUT to the lineage member, instead of the previous bidirectional
+   double-arrow. No `SpotlightOverlay` logic change was needed: `inheritedDirections('out')`
+   already returns `['out']` → one `marker-end`-only path. `test-spotlight-inherited.ts`
+   T7 updated (`direction === 'out'`).
+
+2. **DG graph — lineage trigger moved from click/select to SHIFT+HOVER.**
+   Selecting a node (plain click/tap, navigate, panel-navigate, deep-link/Back-
+   Forward restore) no longer draws lineage — it only selects + opens the modal
+   (shell-owned `entity=` flow unchanged). Lineage (dotted `edge.inherited` rays +
+   the 3-tier focus opacity) is revealed while **Shift is HELD and the pointer is
+   over a node**. `GraphView.tsx`: `drawInheritedEdges` + `applyFocusTiers` removed
+   from the tap / navigate / panel / hash-restore paths; `mouseover` branches on
+   `evt.originalEvent?.shiftKey` — shift → `enterLineageHover(node)` (draw rays +
+   tiers), no-shift → the pre-existing direct-neighbour fade (`applyFocusTiers`
+   with no rays present degrades to the direct/unrelated two-tier fade); `mouseout`
+   exits lineage mode (`clearInheritedEdges` + `clearFocusTiers`). Holding/releasing
+   Shift WHILE already hovering is handled by a document-level `keydown`/`keyup`
+   pair on the `Shift` key that reads the live hovered-node id from
+   `hoveredNodeIdRef` and toggles `enterLineageHover`/`exitLineageHover` via refs
+   (stale-closure-safe, matching the file's ref pattern). Listeners are removed in
+   the cy-init cleanup (same lifecycle as `hashchange`/wheel). The no-leak
+   guarantees are preserved verbatim: ephemeral edges never enter
+   model/`layoutFingerprint`/`layout-store`/export/ELK; cleared on
+   deselect / reselect / relayout (`resetLayout`/`applyLayoutMode` before ELK) /
+   view-switch (isActive false) / teardown.
+
+**Why:** Owner request. The DD bidirectional double-arrow read as ambiguous —
+a single source→member arrow communicates "this is the active card's lineage"
+clearly. The DG click-to-reveal collided with the modal-open intent of a click;
+shift+hover makes lineage an explicit, transient inspection gesture and frees a
+plain click to just open the entity.
+
+**Tests.** `test-spotlight-inherited.ts` T7 (`direction === 'out'`).
+`test-graph-inherited-edges.ts` rewritten to the shift+hover trigger (synthetic
+`mouseover` with `originalEvent.shiftKey`): plain click → 0 inherited edges
+(modal instead); shift+hover Identity → dotted rays; mouseout → 0; shift+hover
+ITIN → strictly larger transitive set; plain (no-shift) hover → 0; background-tap
+deselect → 0. `test/visual/test-graph-inherited-lines.ts` updated to shift+hover
+for the screenshots + 3-tier opacity readout. `test-inherited-edges-no-leak.ts`
+unchanged (tests `buildInheritedConnections` output, not the trigger).
+
+**Superseded:** the CP-B "on entity SELECT draw ephemeral dotted edges" trigger
+and the success-criteria #4/#5/#6 wording ("selecting an entity draws…"); the
+DRAWING + lifecycle + no-leak contract is unchanged — only the TRIGGER moved from
+select to shift+hover. The `direction = 'both'` decision in the earlier
+"Corrected the lineage rule" entry is superseded by `direction = 'out'` for the
+DD single-arrow rendering.

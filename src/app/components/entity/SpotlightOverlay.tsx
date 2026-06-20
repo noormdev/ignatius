@@ -6,10 +6,10 @@ import { separateSpotlightLines, type LineDirection } from '../../logic/spotligh
 
 /**
  * Map an inherited connection's bundle direction to the per-line direction set
- * that `separateSpotlightLines` consumes. A `both` connection fans into one
- * out + one in line; a single-direction connection is one line. Identity links
- * carry `both`, so they fan into two faint lines (the shared-key relationship
- * has no inherent direction).
+ * that `separateSpotlightLines` consumes. Lineage connections carry `'out'`
+ * (the line points FROM the active card OUTWARD to the member), so this returns
+ * a single `'out'` line — one clean line (K=1, no fan-out) with one arrowhead at
+ * the far (member) end. The `'both'` branch is retained only for shape safety.
  */
 function inheritedDirections(direction: 'out' | 'in' | 'both'): LineDirection[] {
   if (direction === 'both') return ['out', 'in'];
@@ -913,11 +913,11 @@ export function SpotlightOverlay({
         }
       }
 
-      // Draw inherited (dotted, green) lines. CP7 (#9): a connection inherited
-      // via 1:1 key-inheritance (shared key). Drawn DOTTED in a distinct green so
-      // it never reads as a direct FK (solid) or flow (dashed) line. A `both`
-      // connection (identity links + bidirectional inherited rels) fans into two
-      // lines via the CP6 separation so they don't overlap.
+      // Draw inherited (dotted, green) lines. CP7 (#9): a key-inheritance
+      // lineage connection (shared key). Drawn DOTTED in a distinct green so it
+      // never reads as a direct FK (solid) or flow (dashed) line. The connection
+      // carries `'out'`, so it renders as ONE line with a single arrowhead at the
+      // far (member) end — pointing FROM the active card OUT to the lineage member.
       for (const inheritedLine of inheritedLines) {
         const directions: LineDirection[] = inheritedDirections(inheritedLine.direction);
         const specs = separateSpotlightLines(

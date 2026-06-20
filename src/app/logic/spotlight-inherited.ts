@@ -50,7 +50,11 @@
  *
  * `direction` / `via` are LESS meaningful under the lineage model (a lineage
  * link is a shared-key kinship, not a single FK with an inherent direction):
- *   - `direction` is always `'both'` (shared-key kinship has no direction).
+ *   - `direction` is always `'out'` — the line points FROM the active card
+ *     OUTWARD to the lineage member. The DD `SpotlightOverlay` renders an
+ *     `'out'` connection as ONE line with a single arrowhead at the far (member)
+ *     end (source → member). DG ephemeral edges are arrowless, so `direction`
+ *     is unused there.
  *   - `via` is the nearest key-edge predecessor on the shortest key-edge path
  *     from the active entity (so the DD pill can read "via <nearest kin>"), or
  *     `INHERITED_IDENTITY` when no nearer key-edge kin exists. Consumers
@@ -77,9 +81,10 @@ export const INHERITED_IDENTITY = 'identity';
 export type InheritedConnection = {
   otherId: string;
   /**
-   * Always `'both'` — a shared-key lineage kinship has no inherent direction.
-   * Kept in the shape for consumer compatibility (`SpotlightOverlay` fans a
-   * `'both'` connection into two faint lines).
+   * Always `'out'` — the lineage line points FROM the active card OUTWARD to the
+   * lineage member. The `SpotlightOverlay` renders an `'out'` connection as ONE
+   * line with a single arrowhead at the far (member) end. The union retains
+   * `'in'`/`'both'` for shape compatibility with the other connection kinds.
    */
   direction: 'out' | 'in' | 'both';
   /**
@@ -203,7 +208,11 @@ export function buildInheritedConnections(
     // predecessor IS the active entity, there is no nearer kin to name — label
     // it as a direct shared-key sibling (INHERITED_IDENTITY).
     const via = predecessor === entityId ? INHERITED_IDENTITY : predecessor;
-    result.push({ otherId: memberId, direction: 'both', via });
+    // `direction = 'out'`: the lineage line points FROM the active (selected)
+    // card OUTWARD to the lineage member. The DD `SpotlightOverlay` renders an
+    // `'out'` connection as ONE line with a single arrowhead at the far (member)
+    // end. (DG ephemeral edges are arrowless, so `direction` is unused there.)
+    result.push({ otherId: memberId, direction: 'out', via });
   }
 
   result.sort((a, b) => (a.otherId < b.otherId ? -1 : a.otherId > b.otherId ? 1 : 0));

@@ -174,6 +174,18 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
     const panelNavigateRef = useRef<(id: string) => void>(() => {});
     const resetLayoutRef = useRef<(() => void) | null>(null);
     const applyLayoutModeRef = useRef<((mode: LayoutMode) => void) | null>(null);
+
+    // ── Shift+hover lineage state (DG lineage trigger = shift+hover) ──────────
+    // The currently-hovered node id (set on mouseover, cleared on mouseout) and
+    // whether shift+hover lineage mode is currently displayed. Both are refs so
+    // the document-level Shift keydown/keyup listeners read live values without
+    // a stale closure — matching this file's existing ref pattern. The enter/exit
+    // callbacks are also mirrored into refs so the keydown/keyup listeners (wired
+    // once per cy-init) call the live cy-bound implementations.
+    const hoveredNodeIdRef = useRef<string | null>(null);
+    const lineageActiveRef = useRef<boolean>(false);
+    const enterLineageHoverRef = useRef<((nodeId: string) => void) | null>(null);
+    const exitLineageHoverRef = useRef<(() => void) | null>(null);
     // Wired inside cy-init to the local redrawMarkers closure (clears + redraws badges).
     const redrawMarkersRef = useRef<(() => void) | null>(null);
     const cyZoomInRef = useRef<(() => void) | null>(null);
@@ -538,15 +550,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             cy.elements().unselect();
             target.select();
             if (state.pan === undefined) cy.center(target);
-            // Deep-link / Back-Forward restore of a selected entity also draws
-            // its inferred-upstream edges + applies the 3-tier focus opacity
-            // (keeps the DG consistent with a tap).
-            drawInheritedEdges(state.entity);
-            applyFocusTiers(target[0]);
+            // Selecting an entity (deep-link / Back-Forward restore) no longer
+            // draws lineage — lineage is a shift+hover affordance now. A restored
+            // selection only selects the node + opens the modal (shell-owned).
           }
         } else {
-          // Back/Forward to a state with no entity= → no modal, no inherited,
-          // no focus tiers.
+          // Back/Forward to a state with no entity= → no modal. Lineage is
+          // hover-driven, but clear defensively in case a hover was mid-flight.
           clearInheritedEdges();
           clearFocusTiers();
           redrawMarkers();
@@ -750,17 +760,56 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         redrawMarkers();
       }
 
+      // ── Shift+hover lineage trigger (DG lineage trigger = shift+hover) ──────
+      // Lineage (dotted inherited rays + 3-tier focus opacity) is revealed while
+      // Shift is HELD and the pointer is over a node. A plain (no-shift) hover
+      // keeps the existing direct-neighbour fade only (no inherited rays, since
+      // none are drawn). `enterLineageHover` draws the rays then applies the
+      // tiers; `exitLineageHover` strips both and restores normal opacity.
+
+      function enterLineageHover(nodeId: string): void {
+        const node = cy.$(`#${CSS.escape(nodeId)}`);
+        if (node.empty()) return;
+        drawInheritedEdges(nodeId);
+        applyFocusTiers(node[0]);
+        lineageActiveRef.current = true;
+      }
+
+      function exitLineageHover(): void {
+        clearInheritedEdges();
+        clearFocusTiers();
+        lineageActiveRef.current = false;
+        // Restore the plain-hover fade if still hovering a node (no shift), else
+        // fall back to the selected node's tiers, else clear to normal.
+        const hoveredId = hoveredNodeIdRef.current;
+        if (hoveredId !== null) {
+          const hovered = cy.$(`#${CSS.escape(hoveredId)}`);
+          if (hovered.nonempty()) {
+            applyFocusTiers(hovered[0]);
+            return;
+          }
+        }
+        const selected = cy.nodes(':selected');
+        if (selected.nonempty()) {
+          applyFocusTiers(selected[0]);
+        } else {
+          redrawMarkers();
+        }
+      }
+
+      enterLineageHoverRef.current = enterLineageHover;
+      exitLineageHoverRef.current = exitLineageHover;
+
       cy.on('tap', 'node', (evt) => {
         const nodeId = evt.target.id();
         const node = modelIndexRef.current?.nodeById.get(nodeId);
         if (node) {
           // Shell's onSelectEntity is the single writer of entity= (pushes one
           // history entry). GraphView does not write entity= on tap.
-          drawInheritedEdges(nodeId);
-          // Selecting an entity is the "focused" state: apply the 3-tier
-          // opacity around it so the dotted rays + their targets read as the
-          // middle (0.5) layer and unrelated elements dim to 0.2.
-          applyFocusTiers(evt.target);
+          //
+          // A plain click only SELECTS + opens the modal — it no longer draws
+          // lineage. Lineage (dotted inherited rays + 3-tier focus opacity) is a
+          // shift+hover affordance (see the mouseover handler below).
           onSelectEntity(node);
         }
       });
@@ -771,6 +820,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           // does not write the hash here — the shell owns entity= lifecycle.
           clearInheritedEdges();
           clearFocusTiers();
+          lineageActiveRef.current = false;
           redrawMarkers();
           onDeselectEntity();
         }
@@ -778,14 +828,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
       // Pan+select for an entity link/navigation. The shell pushes entity= via
       // openEntity before calling this; GraphView only moves the viewport.
+      // Selecting (navigation) does NOT draw lineage — lineage is shift+hover.
       navigateToEntityRef.current = (id: string) => {
         const target = cy.$(`#${CSS.escape(id)}`);
         if (target.length === 0) return;
         cy.elements().unselect();
         target.select();
         cy.center(target);
-        drawInheritedEdges(id);
-        applyFocusTiers(target[0]);
       };
 
       let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -797,6 +846,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // clear focus tiers so the relaid-out graph returns to full opacity.
         clearInheritedEdges();
         clearFocusTiers();
+        lineageActiveRef.current = false;
         layoutStore.clear(layoutKeyRef.current);
         const mode = layoutModeRef.current;
         const lo = cy.layout(buildLayoutOpts(mode));
@@ -817,6 +867,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // Also clear focus tiers so the relaid-out graph returns to full opacity.
         clearInheritedEdges();
         clearFocusTiers();
+        lineageActiveRef.current = false;
         const lo = cy.layout(buildLayoutOpts(mode));
         lo.one('layoutstop', () => {
           if (mode === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
@@ -835,8 +886,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cy.elements().unselect();
         target.select();
         cy.center(target);
-        drawInheritedEdges(id);
-        applyFocusTiers(target[0]);
+        // Panel-navigate selects+centers but does NOT draw lineage (shift+hover).
         const node = modelIndexRef.current?.nodeById.get(id);
         if (node) onPanelSelect(node);
         // Panel-navigate selects+centers but does NOT open the modal, so it must
@@ -869,6 +919,27 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (ev.ctrlKey || ev.metaKey) ev.preventDefault();
       }
       wheelContainer?.addEventListener('wheel', blockPageZoom, { passive: false });
+
+      // ── Shift keydown/keyup → toggle lineage on the hovered node ───────────
+      // The mouseover handler only sees the shift state AT pointer-enter time.
+      // To handle holding/releasing Shift WHILE already hovering a node, listen
+      // for the Shift key globally: pressing Shift over a hovered node enters
+      // lineage mode; releasing Shift exits it. Both read live state from refs to
+      // avoid stale closures. Listeners are removed in the cy-init cleanup.
+      function onShiftKeyDown(ev: KeyboardEvent) {
+        if (ev.key !== 'Shift') return;
+        if (lineageActiveRef.current) return; // already showing lineage
+        const hoveredId = hoveredNodeIdRef.current;
+        if (hoveredId === null) return; // not over a node
+        enterLineageHoverRef.current?.(hoveredId);
+      }
+      function onShiftKeyUp(ev: KeyboardEvent) {
+        if (ev.key !== 'Shift') return;
+        if (!lineageActiveRef.current) return;
+        exitLineageHoverRef.current?.();
+      }
+      document.addEventListener('keydown', onShiftKeyDown);
+      document.addEventListener('keyup', onShiftKeyUp);
 
       function applyArrow(edge: cytoscape.EdgeSingular, verb: string, dir: 'fwd' | 'rev'): string {
         if (!verb) return '';
@@ -966,11 +1037,20 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             edge.data('edgeLabel', applyArrow(edge, rev, 'rev'));
           }
         });
-        // Hover is a "focused" state: apply the same three-tier opacity around
-        // the hovered node. The inherited rays drawn for the SELECTED node stay
-        // lit at 0.5 (applyFocusTiers keeps `edge.inherited` + its targets out
-        // of the unrelated dim), so hovering never blacks out the rays.
-        applyFocusTiers(n);
+        // Track the hovered node so the document-level Shift keydown/keyup
+        // listeners know which node to reveal lineage for.
+        hoveredNodeIdRef.current = n.id();
+
+        // Shift held → LINEAGE mode: draw the dotted inherited rays + apply the
+        // 3-tier focus opacity. No shift → plain direct-neighbour fade only (no
+        // rays are drawn, so applyFocusTiers degrades to the direct/unrelated
+        // two-tier fade — the pre-existing hover behaviour).
+        const shiftHeld = evt.originalEvent?.shiftKey === true;
+        if (shiftHeld) {
+          enterLineageHover(n.id());
+        } else {
+          applyFocusTiers(n);
+        }
       });
 
       cy.on('mouseout', 'node', (evt) => {
@@ -981,9 +1061,19 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           edge.data('predicateMode', 'fwd');
           edge.data('edgeLabel', applyArrow(edge, fwd, 'fwd'));
         });
-        // On hover-out, fall back to the SELECTED node's tiers if one is
-        // selected (so leaving a hovered node doesn't kill the select-state
-        // hierarchy); otherwise clear back to normal (all full opacity).
+        // Leaving the node clears the hovered id first so exitLineageHover does
+        // not try to re-apply a fade for a node we're no longer over.
+        if (hoveredNodeIdRef.current === n.id()) hoveredNodeIdRef.current = null;
+
+        // In lineage mode (shift+hover), exit: strip the rays + focus tiers.
+        if (lineageActiveRef.current) {
+          clearInheritedEdges();
+          clearFocusTiers();
+          lineageActiveRef.current = false;
+        }
+        // Fall back to the SELECTED node's tiers if one is selected (so leaving a
+        // hovered node doesn't kill the select-state hierarchy); otherwise clear
+        // back to normal (all full opacity).
         const selected = cy.nodes(':selected');
         if (selected.nonempty()) {
           applyFocusTiers(selected[0]);
@@ -1012,6 +1102,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (saveTimer !== null) clearTimeout(saveTimer);
         window.removeEventListener('hashchange', onHashChange);
         wheelContainer?.removeEventListener('wheel', blockPageZoom);
+        document.removeEventListener('keydown', onShiftKeyDown);
+        document.removeEventListener('keyup', onShiftKeyUp);
         navigateToEntityRef.current = () => {};
         panelNavigateRef.current = () => {};
         resetLayoutRef.current = null;
@@ -1021,6 +1113,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cyZoomOutRef.current = null;
         cySetPercentRef.current = null;
         cyZoomResetRef.current = null;
+        enterLineageHoverRef.current = null;
+        exitLineageHoverRef.current = null;
+        hoveredNodeIdRef.current = null;
+        lineageActiveRef.current = false;
         // Strip ephemeral inherited edges + focus tiers on teardown / view-switch
         // away. cy.destroy() below also drops them, but clearing first keeps the
         // no-leak intent explicit.

@@ -306,7 +306,7 @@ function model(nodes: ModelNode[], edges: ModelEdge[], clusters: SubtypeCluster[
   // Shape: every connection carries otherId, direction, via.
   for (const c of result) {
     assert(typeof c.otherId === 'string' && c.otherId.length > 0, 'T7: otherId present');
-    assert(c.direction === 'both', 'T7: direction is both (shared-key kinship)');
+    assert(c.direction === 'out', 'T7: direction is out (single source-out arrow to the lineage member)');
     assert(typeof c.via === 'string' && c.via.length > 0, 'T7: via present');
   }
   // Siblings reached through the shared Root → via=Root (nearest kin).

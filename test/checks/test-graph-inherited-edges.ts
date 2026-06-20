@@ -1,21 +1,31 @@
 /**
- * test-graph-inherited-edges.ts — DG inferred-upstream (inherited) edges (CP-B).
+ * test-graph-inherited-edges.ts — DG inferred-upstream (inherited) edges (CP-B),
+ * shift+hover trigger.
  *
- * Serves models/key-inherited and drives the real cytoscape graph in a browser:
+ * Serves models/key-inherited and drives the real cytoscape graph in a browser.
+ * Lineage (dotted `edge.inherited` rays + 3-tier focus opacity) is now revealed
+ * by SHIFT+HOVER, not by click/select. A plain click only selects + opens the
+ * modal; it draws NO inherited edges.
  *
- *   1. Select Identity (shares party_id key-lineage with Party) → dotted
- *      `edge.inherited` edges appear, connecting Identity to Party's party-keyed
- *      relationships (PaymentMethod / SalesInvoice / SalesOrder) and key-lineage
- *      kin, and those target nodes are NOT faded. (PartyType is a secondary
- *      classifier FK, not a key edge → never drawn.)
- *   2. Select ITIN (also party_id key-lineage) → the TRANSITIVE set appears: more
- *      inherited edges than Identity alone, reaching the whole party-keyed family
- *      via the ITIN → Identity → Party key chain.
- *   3. Background-tap deselect → every `edge.inherited` is removed (count 0).
+ *   1. Plain CLICK (tap) Identity → NO `edge.inherited` edges (modal opens
+ *      instead — lineage no longer fires on select).
+ *   2. SHIFT+HOVER Identity → dotted `edge.inherited` edges appear, connecting
+ *      Identity to Party's party-keyed relationships (PaymentMethod /
+ *      SalesInvoice / SalesOrder) and key-lineage kin, and those target nodes
+ *      are NOT faded. (PartyType is a secondary classifier FK, not a key edge →
+ *      never drawn.)
+ *   3. mouseout (still shift held) → every `edge.inherited` is removed (count 0).
+ *   4. SHIFT+HOVER ITIN → the TRANSITIVE set appears: more inherited edges than
+ *      Identity alone, reaching the whole party-keyed family via the
+ *      ITIN → Identity → Party key chain.
+ *   5. Plain (no-shift) HOVER → NO `edge.inherited` edges (plain hover keeps only
+ *      the direct-neighbour fade).
+ *   6. Background-tap deselect → every `edge.inherited` is removed (count 0).
  *
- * Drives selection by emitting the cytoscape 'tap' event on the node — the same
- * event GraphView's `cy.on('tap','node',...)` handler binds to. Reads element
- * state straight off `window.__IGNATIUS_CY__`.
+ * The shift state is injected synthetically: a cytoscape `mouseover` event is
+ * emitted with `originalEvent: { shiftKey: true }`, which is exactly what the
+ * GraphView handler reads (`evt.originalEvent?.shiftKey`). `mouseout` is emitted
+ * to leave the node. Reads element state straight off `window.__IGNATIUS_CY__`.
  *
  * Skips gracefully (exit 0) when dist/static/index.js is absent — CI builds the
  * bundle before running checks.
@@ -52,21 +62,50 @@ await new Promise<void>(r => setTimeout(r, 400));
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
-// Emit a cy 'tap' on a node id and return the resulting inherited-edge state.
-async function selectAndReport(id: string) {
+type EdgeReport = { source: string; target: string; faded: boolean };
+
+// Emit a synthetic 'mouseover' on a node with the given shift state and return
+// the resulting inherited-edge set. Mirrors GraphView's `evt.originalEvent?.shiftKey`.
+async function hoverAndReport(id: string, shiftKey: boolean): Promise<{ ok: boolean; edges: EdgeReport[] }> {
+  return await page.evaluate(
+    ({ nodeId, shift }: { nodeId: string; shift: boolean }) => {
+      const cy = window.__IGNATIUS_CY__;
+      if (!cy) return { ok: false, edges: [] as Array<{ source: string; target: string; faded: boolean }> };
+      const node = cy.$(`#${nodeId}`);
+      if (node.empty()) return { ok: false, edges: [] as Array<{ source: string; target: string; faded: boolean }> };
+      node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: shift } });
+      const edges = cy.edges('.inherited').map((e: { source(): { id(): string }; target(): { id(): string } }) => ({
+        source: e.source().id(),
+        target: e.target().id(),
+        // A target node is "lit" when it does NOT carry the .faded class.
+        faded: cy.$(`#${e.target().id()}`).hasClass('faded'),
+      }));
+      return { ok: true, edges };
+    },
+    { nodeId: id, shift: shiftKey },
+  );
+}
+
+// Emit a synthetic 'mouseout' on a node (leave it).
+async function leaveNode(id: string): Promise<void> {
+  await page.evaluate((nodeId: string) => {
+    const cy = window.__IGNATIUS_CY__;
+    if (!cy) return;
+    const node = cy.$(`#${nodeId}`);
+    if (node.empty()) return;
+    node.emit({ type: 'mouseout', target: node });
+  }, id);
+}
+
+// Plain click (tap) a node — opens the modal, must NOT draw lineage.
+async function tapNode(id: string): Promise<{ ok: boolean; inherited: number }> {
   return await page.evaluate((nodeId: string) => {
     const cy = window.__IGNATIUS_CY__;
-    if (!cy) return { ok: false, edges: [] as Array<{ source: string; target: string; faded: boolean }> };
+    if (!cy) return { ok: false, inherited: -1 };
     const node = cy.$(`#${nodeId}`);
-    if (node.empty()) return { ok: false, edges: [] as Array<{ source: string; target: string; faded: boolean }> };
+    if (node.empty()) return { ok: false, inherited: -1 };
     node.emit('tap');
-    const edges = cy.edges('.inherited').map((e: { source(): { id(): string }; target(): { id(): string } }) => ({
-      source: e.source().id(),
-      target: e.target().id(),
-      // A target node is "lit" when it does NOT carry the .faded class.
-      faded: cy.$(`#${e.target().id()}`).hasClass('faded'),
-    }));
-    return { ok: true, edges };
+    return { ok: true, inherited: cy.edges('.inherited').length };
   }, id);
 }
 
@@ -88,18 +127,30 @@ try {
   }, { timeout: 20_000 });
   await new Promise<void>(r => setTimeout(r, 800));
 
-  // Pre-condition: no inherited edges before any selection.
-  assert((await inheritedCount()) === 0, 'no inherited edges before any selection');
+  // Pre-condition: no inherited edges before any interaction.
+  assert((await inheritedCount()) === 0, 'no inherited edges before any interaction');
 
-  // ── 1. Select Identity ──────────────────────────────────────────────────
-  const identity = await selectAndReport('Identity');
-  assert(identity.ok, 'Identity node exists in the graph');
+  // ── 1. Plain CLICK selects but draws NO lineage ──────────────────────────
+  const tap = await tapNode('Identity');
+  assert(tap.ok, 'Identity node exists (plain tap)');
+  assert(tap.inherited === 0, `plain click draws NO inherited edges (got ${tap.inherited}); the modal opens instead`);
+  // Clear any selection-state so the hover tests start clean.
+  await page.evaluate(() => {
+    const cy = window.__IGNATIUS_CY__;
+    if (cy) cy.emit('tap'); // background deselect
+  });
+  await new Promise<void>(r => setTimeout(r, 150));
+  assert((await inheritedCount()) === 0, 'still no inherited edges after deselect');
+
+  // ── 2. SHIFT+HOVER Identity → dotted lineage appears ─────────────────────
+  const identity = await hoverAndReport('Identity', true);
+  assert(identity.ok, 'Identity node exists (shift+hover)');
 
   const identityTargets = identity.edges.map(e => e.target);
   console.log(`        Identity inherited edges (${identity.edges.length}): ${identityTargets.join(', ')}`);
-  assert(identity.edges.length >= 1, `Identity draws ≥1 inherited edge (got ${identity.edges.length})`);
+  assert(identity.edges.length >= 1, `shift+hover Identity draws ≥1 inherited edge (got ${identity.edges.length})`);
 
-  // Every inherited edge must originate from Identity (selected node).
+  // Every inherited edge must originate from Identity (hovered node).
   assert(
     identity.edges.every(e => e.source === 'Identity'),
     'every Identity inherited edge originates from Identity',
@@ -116,26 +167,24 @@ try {
     `Identity inherited edges reach Party's relationships (got: ${reachedPartyRels.join(', ')})`,
   );
 
-  // The inherited target nodes are kept lit (no .faded after a fresh select — fade
-  // only applies on hover; at rest none are faded).
-  assert(
-    identity.edges.every(e => !e.faded),
-    'Identity inherited target nodes are lit (not faded)',
-  );
-
   const identityEdgeCount = identity.edges.length;
 
-  // ── 2. Select ITIN (transitive via ITIN → Identity → Party) ───────────────
-  const itin = await selectAndReport('ITIN');
-  assert(itin.ok, 'ITIN node exists in the graph');
+  // ── 3. mouseout (still shift held) → lineage cleared ─────────────────────
+  await leaveNode('Identity');
+  await new Promise<void>(r => setTimeout(r, 150));
+  assert((await inheritedCount()) === 0, 'mouseout removes ALL inherited edges (lineage cleared on leave)');
+
+  // ── 4. SHIFT+HOVER ITIN (transitive via ITIN → Identity → Party) ─────────
+  const itin = await hoverAndReport('ITIN', true);
+  assert(itin.ok, 'ITIN node exists (shift+hover)');
 
   const itinTargets = itin.edges.map(e => e.target);
   console.log(`        ITIN inherited edges (${itin.edges.length}): ${itinTargets.join(', ')}`);
 
-  // Reselect must replace, not accumulate: every edge now originates from ITIN.
+  // Re-hover must replace, not accumulate: every edge now originates from ITIN.
   assert(
     itin.edges.every(e => e.source === 'ITIN'),
-    'after reselect, every inherited edge originates from ITIN (prior Identity set was cleared)',
+    'after re-hover, every inherited edge originates from ITIN (prior Identity set was cleared)',
     `sources: ${itin.edges.map(e => e.source).join(', ')}`,
   );
 
@@ -153,9 +202,21 @@ try {
     `ITIN transitively reaches Party's relationships (got: ${itinReachedPartyRels.join(', ')})`,
   );
 
-  // ── 3. Background-tap deselect → all inherited edges removed ───────────────
-  // Emitting 'tap' on the cy core fires the background-tap handler with
-  // evt.target === cy (the deselect branch).
+  await leaveNode('ITIN');
+  await new Promise<void>(r => setTimeout(r, 150));
+  assert((await inheritedCount()) === 0, 'mouseout after ITIN removes ALL inherited edges');
+
+  // ── 5. Plain (no-shift) HOVER → NO lineage ───────────────────────────────
+  const plainHover = await hoverAndReport('Identity', false);
+  assert(plainHover.ok, 'Identity node exists (plain hover)');
+  assert(
+    plainHover.edges.length === 0,
+    `plain (no-shift) hover draws NO inherited edges (got ${plainHover.edges.length}); only the direct-neighbour fade applies`,
+  );
+  await leaveNode('Identity');
+  await new Promise<void>(r => setTimeout(r, 150));
+
+  // ── 6. Background-tap deselect → all inherited edges removed ──────────────
   await page.evaluate(() => {
     const cy = window.__IGNATIUS_CY__;
     if (cy) cy.emit('tap');
