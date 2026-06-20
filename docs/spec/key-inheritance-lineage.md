@@ -26,6 +26,7 @@ in BOTH the DD spotlight and the graph (DG). See
 - [x] Inferred connections for `A` = every other group member + each member's external (out-of-group) direct relationships, with `via` provenance, de-duplicated against `A`'s direct relationships (a direct edge is never also inferred). Unit-tested.
 - [x] DD spotlight uses the generalized helper: spotlighting `Identity` surfaces Party's relationships; spotlighting `ITIN` transitively surfaces Identity's AND Party's relationships + siblings — all dotted. (Replaces CP7's subtype-only behavior; `test-spotlight-inherited.ts` updated.)
 - [x] DG graph: selecting `Identity` draws DOTTED inferred lines (color `--spotlight-line-inherited`) to Party's relationships (+ siblings), with those nodes kept lit; selecting `ITIN` draws them transitively to Identity's + Party's relationships. Direct edges stay solid. A visual screenshot on `models/key-inherited` confirms.
+- [x] DG graph 3-tier focus opacity: while an entity is focused (selected or hovered), elements split into three visually-distinct tiers — **direct** (focused node + its real graph neighbors + connecting edges) at **opacity 1.0, solid**; **inherited/ancestral** (the dotted `inherited` ray edges + their target nodes, via `inherited-dim`) at **0.5**; **unrelated** (everything else, via `faded`) at **0.2**. Direct wins de-dup: a node reachable as both direct and inherited renders direct (1.0). Tiers clear on deselect/reselect/relayout/teardown — no tier class survives a deselect. A visual harness reads the per-tier opacities off the live cy elements and asserts `direct > inherited > unrelated`.
 - [x] The DG ephemeral lines never enter the model, the `layoutFingerprint` / saved positions, or the static export; they are removed on deselect / reselect / view-switch. A check asserts no inherited artifact leaks into `layoutFingerprint` / persistence.
 - [x] No new `tsc --noEmit` errors vs baseline; `bun run test` exits 0; `bun run build:cli` succeeds.
 
@@ -73,6 +74,37 @@ generalizes the CP7 row — note the supersession.
   `--spotlight-line-inherited` CSS var (DD) and by `buildStyles` for the cytoscape
   edge `line-color` (DG) — chosen over runtime `getComputedStyle` to avoid var-set
   timing fragility and guarantee the DG matches the DD exactly.
+
+
+### 2026-06-19 — DG 3-tier focus opacity
+
+
+**What changed:** Added a clear three-tier opacity hierarchy to the DG focus
+state (the same state that draws the inherited dotted rays). A single
+`applyFocusTiers(focusNode)` in `GraphView.tsx` splits the graph into: **direct**
+(focused node + its REAL graph neighbors — `connectedEdges().not('.inherited')`
++ identifying lineage/descendants + subtype joiners — at full opacity 1.0,
+unchanged); **inherited/ancestral** (the `edge.inherited` rays + their target
+nodes minus the direct set → `inherited-dim` 0.5); **unrelated** (everything
+else → `faded`). `styles.ts`: `.faded` opacity `0.3` → `0.2`, new
+`.inherited-dim` at `0.5`, and `edge.inherited` opacity `0.85` → `0.5` so the
+rays match their (0.5) targets. The same function runs on both select (`tap`,
+deep-link/Back-Forward restore, navigate/panel-navigate) and hover (`mouseover`);
+`mouseout` falls back to the selected node's tiers if one is selected, else
+clears. `clearFocusTiers()` runs on deselect/reselect/relayout/teardown — no tier
+class survives a deselect. Inheritance computation, ray-drawing, and the no-leak
+guarantees are unchanged; the change is graph highlight styling/tiering only.
+
+**Why:** Owner request — today inherited and direct were both merely "kept"
+(un-faded) with no visual distinction; the inherited/ancestral set needed to read
+as a middle layer between full-opacity direct and faded unrelated.
+
+**Note (de-dup):** `closedNeighborhood()` follows the ephemeral inherited rays,
+so the direct set must be built from the focused node's NON-inherited edges only —
+otherwise every inherited target collapses into the direct tier (caught by the
+visual harness during implementation). `buildInheritedConnections` already de-dups
+inherited vs direct, so a direct FK target never appears in the inherited set;
+the explicit `.difference(direct)` enforces "direct wins" defensively.
 
 
 ## Implementation log

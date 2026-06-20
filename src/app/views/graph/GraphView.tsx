@@ -539,12 +539,17 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             target.select();
             if (state.pan === undefined) cy.center(target);
             // Deep-link / Back-Forward restore of a selected entity also draws
-            // its inferred-upstream edges (keeps the DG consistent with a tap).
+            // its inferred-upstream edges + applies the 3-tier focus opacity
+            // (keeps the DG consistent with a tap).
             drawInheritedEdges(state.entity);
+            applyFocusTiers(target[0]);
           }
         } else {
-          // Back/Forward to a state with no entity= → no modal, no inherited.
+          // Back/Forward to a state with no entity= → no modal, no inherited,
+          // no focus tiers.
           clearInheritedEdges();
+          clearFocusTiers();
+          redrawMarkers();
         }
       }
 
@@ -682,6 +687,69 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (additions.length > 0) cy.add(additions);
       }
 
+      // ── Three-tier focus opacity (key-inheritance-lineage refinement) ───────
+      // While an entity is focused (selected OR hovered) elements split into
+      // three visual tiers so the inherited/ancestral set reads as a middle
+      // layer between full-opacity direct elements and dimmed unrelated ones:
+      //   1. Direct    — focused node + its real graph neighbors + the edges
+      //                  connecting them (incl. identifying lineage/descendants
+      //                  and subtype joiners) → full opacity (no tier class).
+      //   2. Inherited — the dotted inherited-ray edges + their endpoint nodes,
+      //                  minus anything already direct → `inherited-dim` (0.5).
+      //   3. Unrelated — everything else → `faded` (0.2).
+      // The ray EDGES carry their 0.5 opacity from the `edge.inherited` style
+      // itself, so only the inherited NODES need the `inherited-dim` class.
+
+      // Remove every focus-tier class. Idempotent. Called before each
+      // re-application (reselect / re-hover) and on mouseout / deselect.
+      function clearFocusTiers(): void {
+        cy.elements().removeClass('faded inherited-dim');
+        cy.nodes().removeClass('hover-focus');
+      }
+
+      // Apply the three tiers around `focusNode`. The direct set reuses the
+      // existing lineage-fade collection logic; the inherited set is the
+      // already-drawn `edge.inherited` rays' endpoints minus the direct set.
+      function applyFocusTiers(focusNode: cytoscape.NodeSingular): void {
+        clearFocusTiers();
+
+        // ── Tier 1: direct (full opacity) ──
+        // Neighborhood over REAL graph edges only — the ephemeral `.inherited`
+        // rays must NOT count as direct adjacency, or every inherited target
+        // would be pulled into the direct tier and the middle (0.5) layer would
+        // collapse. `closedNeighborhood()` follows ALL edges incl. the rays, so
+        // build the direct set from the focused node's non-inherited edges.
+        const realEdges = focusNode.connectedEdges().not(`.${INHERITED_EDGE_CLASS}`);
+        const direct = realEdges.connectedNodes().union(focusNode);
+        const joiners = direct.nodes('[joiner = "true"]');
+        const lineage = collectLineage(focusNode);
+        const descendants = collectDescendants(focusNode);
+        const directSet = direct
+          .union(realEdges)
+          .union(joiners.incomers())
+          .union(lineage)
+          .union(descendants);
+        const directWithAncestors = directSet.union(directSet.ancestors());
+
+        // ── Tier 2: inherited (0.5) ──
+        // The ephemeral inherited rays + their endpoint nodes, minus anything
+        // already in the direct tier (direct wins — full opacity).
+        const inheritedEdges = cy.edges(`.${INHERITED_EDGE_CLASS}`);
+        const inheritedNodes = inheritedEdges
+          .connectedNodes()
+          .difference(directWithAncestors);
+        const inheritedSet = inheritedEdges.union(inheritedNodes);
+        // Keep the inherited rays + their targets out of the unrelated dim.
+        const keepWithAncestors = directWithAncestors.union(inheritedSet);
+
+        // ── Tier 3: unrelated (0.2) ──
+        cy.elements().difference(keepWithAncestors).addClass('faded');
+        // Inherited NODES get the 0.5 tier (edges already 0.5 via edge.inherited).
+        inheritedNodes.addClass('inherited-dim');
+        focusNode.addClass('hover-focus');
+        redrawMarkers();
+      }
+
       cy.on('tap', 'node', (evt) => {
         const nodeId = evt.target.id();
         const node = modelIndexRef.current?.nodeById.get(nodeId);
@@ -689,6 +757,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           // Shell's onSelectEntity is the single writer of entity= (pushes one
           // history entry). GraphView does not write entity= on tap.
           drawInheritedEdges(nodeId);
+          // Selecting an entity is the "focused" state: apply the 3-tier
+          // opacity around it so the dotted rays + their targets read as the
+          // middle (0.5) layer and unrelated elements dim to 0.2.
+          applyFocusTiers(evt.target);
           onSelectEntity(node);
         }
       });
@@ -698,6 +770,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           // Shell's onDeselectEntity clears entity= (replaceState). GraphView
           // does not write the hash here — the shell owns entity= lifecycle.
           clearInheritedEdges();
+          clearFocusTiers();
+          redrawMarkers();
           onDeselectEntity();
         }
       });
@@ -711,6 +785,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         target.select();
         cy.center(target);
         drawInheritedEdges(id);
+        applyFocusTiers(target[0]);
       };
 
       let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -718,8 +793,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       resetLayoutRef.current = () => {
         if (saveTimer !== null) clearTimeout(saveTimer);
         // Strip ephemeral inherited edges BEFORE re-layout so ELK never lays
-        // them out and the saved ELK position set never captures them.
+        // them out and the saved ELK position set never captures them. Also
+        // clear focus tiers so the relaid-out graph returns to full opacity.
         clearInheritedEdges();
+        clearFocusTiers();
         layoutStore.clear(layoutKeyRef.current);
         const mode = layoutModeRef.current;
         const lo = cy.layout(buildLayoutOpts(mode));
@@ -737,7 +814,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       applyLayoutModeRef.current = (mode) => {
         if (saveTimer !== null) clearTimeout(saveTimer);
         // Strip ephemeral inherited edges BEFORE re-layout (never fed to ELK).
+        // Also clear focus tiers so the relaid-out graph returns to full opacity.
         clearInheritedEdges();
+        clearFocusTiers();
         const lo = cy.layout(buildLayoutOpts(mode));
         lo.one('layoutstop', () => {
           if (mode === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
@@ -757,6 +836,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         target.select();
         cy.center(target);
         drawInheritedEdges(id);
+        applyFocusTiers(target[0]);
         const node = modelIndexRef.current?.nodeById.get(id);
         if (node) onPanelSelect(node);
         // Panel-navigate selects+centers but does NOT open the modal, so it must
@@ -886,25 +966,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             edge.data('edgeLabel', applyArrow(edge, rev, 'rev'));
           }
         });
-        const direct = n.closedNeighborhood().union(n);
-        const joiners = direct.nodes('[joiner = "true"]');
-        const lineage = collectLineage(n);
-        const descendants = collectDescendants(n);
-        // The ephemeral inherited edges (drawn on select) and their endpoint
-        // nodes stay LIT through a hover — fold them into the keep set so the
-        // inferred-upstream lines and their targets never dim out.
-        const inherited = cy.edges(`.${INHERITED_EDGE_CLASS}`);
-        const inheritedEndpoints = inherited.connectedNodes();
-        const keep = direct
-          .union(joiners.incomers())
-          .union(lineage)
-          .union(descendants)
-          .union(inherited)
-          .union(inheritedEndpoints);
-        const keepWithAncestors = keep.union(keep.ancestors());
-        cy.elements().difference(keepWithAncestors).addClass('faded');
-        n.addClass('hover-focus');
-        redrawMarkers();
+        // Hover is a "focused" state: apply the same three-tier opacity around
+        // the hovered node. The inherited rays drawn for the SELECTED node stay
+        // lit at 0.5 (applyFocusTiers keeps `edge.inherited` + its targets out
+        // of the unrelated dim), so hovering never blacks out the rays.
+        applyFocusTiers(n);
       });
 
       cy.on('mouseout', 'node', (evt) => {
@@ -915,9 +981,16 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           edge.data('predicateMode', 'fwd');
           edge.data('edgeLabel', applyArrow(edge, fwd, 'fwd'));
         });
-        cy.elements().removeClass('faded');
-        cy.nodes().removeClass('hover-focus');
-        redrawMarkers();
+        // On hover-out, fall back to the SELECTED node's tiers if one is
+        // selected (so leaving a hovered node doesn't kill the select-state
+        // hierarchy); otherwise clear back to normal (all full opacity).
+        const selected = cy.nodes(':selected');
+        if (selected.nonempty()) {
+          applyFocusTiers(selected[0]);
+        } else {
+          clearFocusTiers();
+          redrawMarkers();
+        }
       });
 
       cyRef.current = cy;
@@ -948,9 +1021,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cyZoomOutRef.current = null;
         cySetPercentRef.current = null;
         cyZoomResetRef.current = null;
-        // Strip ephemeral inherited edges on teardown / view-switch away. cy.destroy()
-        // below also drops them, but clearing first keeps the no-leak intent explicit.
+        // Strip ephemeral inherited edges + focus tiers on teardown / view-switch
+        // away. cy.destroy() below also drops them, but clearing first keeps the
+        // no-leak intent explicit.
         clearInheritedEdges();
+        clearFocusTiers();
         cy.destroy();
         cyRef.current = null;
         window.__IGNATIUS_CY__ = undefined;

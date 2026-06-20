@@ -142,9 +142,24 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
     });
   }
 
+  // Three-tier focus opacity (key-inheritance-lineage refinement). When an
+  // entity is focused (selected or hovered), elements split into three visual
+  // tiers so the inherited/ancestral set reads as a distinct middle layer:
+  //   • Direct   — focused node + real graph neighbors + connecting edges →
+  //                full opacity (no class), unchanged.
+  //   • Inherited — inherited identity-group nodes (the dotted-ray targets) →
+  //                `inherited-dim` at 0.5. Sits between direct and unrelated.
+  //   • Unrelated — everything else → `faded` at 0.2.
+  // The `edge.inherited` ray style below carries its own 0.5 opacity so the
+  // dotted rays match their (0.5) target nodes.
   base.push({
     selector: '.faded',
-    style: { 'opacity': 0.3 },
+    style: { 'opacity': 0.2 },
+  });
+
+  base.push({
+    selector: '.inherited-dim',
+    style: { 'opacity': 0.5 },
   });
 
   base.push({
@@ -168,7 +183,10 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
       'source-arrow-shape': 'none',
       'curve-style': 'bezier',
       'label': '',
-      'opacity': 0.85,
+      // Inherited/ancestral tier (3-tier focus opacity): the dotted rays sit at
+      // 0.5 — between the full-opacity direct edges and the 0.2 unrelated set —
+      // matching their inherited target nodes (`.inherited-dim`).
+      'opacity': 0.5,
       'z-index': 1,
     },
   });
