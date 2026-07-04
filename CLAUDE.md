@@ -9,7 +9,7 @@ alwaysApply: false
 ## Project signals (auto-loaded)
 
 
-@.claude/project/signals.md
+@docs/wiki/index.md
 
 </atomic-signals>
 
