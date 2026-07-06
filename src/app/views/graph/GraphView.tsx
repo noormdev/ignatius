@@ -7,6 +7,11 @@ import {
   separateLeafFan,
   decollinearNodes,
   arrangeOrganic,
+  addGroupPullEdges,
+  GROUP_PULL_SELECTOR,
+  countEdgeCrossings,
+  groupScatter,
+  buildScratchCore,
   organicIters,
   ORGANIC_FALLBACK_THRESHOLD,
   LAYERED_THOROUGHNESS_TINY,
@@ -393,29 +398,73 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         return LAYERED_THOROUGHNESS_LARGE;
       }
 
-      function effectiveAlgorithm(mode: LayoutMode): 'stress' | 'layered' {
+      function effectiveAlgorithm(mode: LayoutMode): 'fcose' | 'layered' {
         if (mode === 'organic' && entityCount >= ORGANIC_FALLBACK_THRESHOLD) return 'layered';
-        return mode === 'organic' ? 'stress' : 'layered';
+        return mode === 'organic' ? 'fcose' : 'layered';
       }
+
+      // Degree-1 leaves at the moment a layout run starts. Snapshotted by
+      // runLayout BEFORE it injects the ephemeral group-pull edges (which give
+      // every grouped node +1 degree and would otherwise unmask the satellites),
+      // read by the fcose idealEdgeLength callback during the run.
+      const satelliteIds = new Set<string>();
+
+      // Multi-seed search bookkeeping. The generation token lets a newer run
+      // (Reset / mode toggle) abort a search still stepping through its
+      // candidates. The weight converts group scatter (in mean-edge-lengths,
+      // ~1 per tight group) into crossing-equivalents so one scattered family
+      // costs more than a handful of extra line crossings.
+      let layoutSearchGen = 0;
+      const GROUP_SCATTER_WEIGHT = 8;
 
       const buildLayoutOpts = (mode: LayoutMode): cytoscape.LayoutOptions => {
         const algo = effectiveAlgorithm(mode);
-        if (algo === 'stress') {
-          const stressIterLimit =
-            entityCount < 50  ? undefined :
-            entityCount < 100 ? 150 :
-                                80;
+        if (algo === 'fcose') {
+          // fCoSE: a spring-electrical force sim for GLOBAL placement — edges are
+          // springs, so related nodes (e.g. individual + its auth tables) stay
+          // close instead of being flung apart like ELK stress did. It runs
+          // incrementally from the deterministic seed (randomize:false) so a
+          // Reset is reproducible. LOCAL polish — subtype fans, cluster spacing,
+          // de-overlap — is layered on afterwards by arrangeOrganic (below).
+          // Keep springs SHORT: the sim finds its cleanest global organization
+          // at compact scale (long springs settle into tangled minima). The
+          // breathing room the compact solution lacks is added afterwards by
+          // expandCore in arrangeOrganic — a geometric inflation that cannot
+          // introduce new crossings.
+          const idealLength = Math.max(210, Math.round(layerSpacing * 1.3));
+          // Satellite edges — one endpoint is a degree-1 leaf (classifier/type
+          // boxes) — stay short, so leaves hug their entity instead of renting
+          // space in the core. The dominant clutter on real models is long
+          // dashed classifier edges spanning the whole graph. Membership is
+          // read from satelliteIds (snapshotted by runLayout BEFORE the
+          // ephemeral group-pull edges skew every grouped node's degree).
+          const isSatellite = (e: cytoscape.EdgeSingular) =>
+            satelliteIds.has(e.source().id()) || satelliteIds.has(e.target().id());
           return {
-            name: 'elk',
-            elk: {
-              algorithm: 'stress',
-              'elk.stress.desiredEdgeLength': String(Math.max(280, Math.round(layerSpacing * 1.6))),
-              'elk.spacing.nodeNode': String(Math.max(120, model.theme.spacing.nodeSep)),
-              'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-              ...(stressIterLimit !== undefined
-                ? { 'elk.stress.iterationLimit': String(stressIterLimit) }
-                : {}),
+            name: 'fcose',
+            quality: 'proof',
+            randomize: true, // keep the spectral draft; runLayout pins Math.random for reproducibility
+            animate: false,
+            fit: false,
+            nodeDimensionsIncludeLabels: true,
+            packComponents: true,
+            nodeSeparation: Math.max(150, Math.round(model.theme.spacing.nodeSep * 1.25)),
+            // Group-pull springs are long + soft: "stay in the neighbourhood",
+            // never "crush the family onto its anchor" — real FK edges keep
+            // 3× the elasticity so they still dictate the fine structure.
+            idealEdgeLength: (e: cytoscape.EdgeSingular) => {
+              if (e.data('groupPull')) return Math.round(idealLength * 1.6);
+              return isSatellite(e) ? Math.round(idealLength * 0.5) : idealLength;
             },
+            edgeElasticity: (e: cytoscape.EdgeSingular) => (e.data('groupPull') ? 0.25 : 0.45),
+            // Moderate repulsion: 8000 (used while satellites still rented core
+            // space) overpowers the springs — degree-2 families like the oauth
+            // tokens get blown apart into long parallel edges. With leaves
+            // docked, 5000 keeps clusters tight without recrowding the core.
+            nodeRepulsion: 5000,
+            gravity: 0.45,
+            gravityRange: 3.4,
+            numIter: 2500,
           } as cytoscape.LayoutOptions;
         }
         const inOrganicFallback = mode === 'organic' && entityCount >= ORGANIC_FALLBACK_THRESHOLD;
@@ -441,8 +490,6 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         } as cytoscape.LayoutOptions;
       };
 
-      const elkLayoutOpts = buildLayoutOpts(layoutModeRef.current);
-
       // L1: skip ELK when a cached layout already covers this model topology.
       const layoutStore = createLayoutStore();
       const preloadedSavedKey = layoutKeyRef.current;
@@ -458,10 +505,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         }
       }
 
-      // Use null layout during construction so the layoutstop handler is always
-      // attached before the layout fires (preset fires layoutstop synchronously).
+      // Construct with the null layout, then run the real layout explicitly AFTER
+      // the layoutstop handler is attached (below). fCoSE — like preset — fires
+      // layoutstop synchronously on run; constructing with it directly would fire
+      // the event before the handler exists, so fit/de-overlap would never run.
+      // ELK (async) tolerated the old constructor path but works here too.
       const nullLayoutOpts = { name: 'null' } satisfies cytoscape.LayoutOptions;
-      const chosenLayout = preloadedSaved ? nullLayoutOpts : elkLayoutOpts;
+      const chosenLayout = nullLayoutOpts;
 
       let cy: cytoscape.Core;
       try {
@@ -481,6 +531,134 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         return;
       }
       window.__IGNATIUS_CY__ = cy;
+
+      // Build and run the layout for a mode, then invoke onDone. runLayout owns
+      // layout creation (cytoscape snapshots the element set at cy.layout()
+      // time, so the ephemeral group-pull edges must be in the graph before the
+      // layout object exists) and owns completion signalling: the fCoSE path
+      // runs TWO synchronous passes, so callers cannot key off layoutstop —
+      // the first pass would fire it early.
+      //
+      // fCoSE's spectral draft pulls from Math.random, so each run lands
+      // somewhere new; pin Math.random to a fixed PRNG for the synchronous run
+      // (then restore) so a Reset is reproducible while keeping the spectral
+      // draft's quality. Non-fCoSE layouts run untouched.
+      const runLayout = (m: LayoutMode, onDone: () => void) => {
+        if (effectiveAlgorithm(m) !== 'fcose') {
+          cy.one('layoutstop', onDone);
+          cy.layout(buildLayoutOpts(m)).run();
+          return;
+        }
+        // The search runs on a HEADLESS scratch mirror of the graph: once the
+        // live core has painted, every element read/write pays renderer
+        // bookkeeping (label re-measures, compound bounds, notify) — measured
+        // at seconds per candidate versus milliseconds headless. The live
+        // graph keeps its current picture until the winner is applied.
+        const scratch = buildScratchCore(cy);
+        // Snapshot degree-1 leaves from REAL degrees — the group-pull edges
+        // added in pass 2 would otherwise give every grouped satellite +1
+        // degree and unmask it from the short-leash treatment.
+        satelliteIds.clear();
+        scratch.nodes(':childless').forEach((n) => { if (n.degree(false) === 1) satelliteIds.add(n.id()); });
+        // Multi-seed search: a force sim has no force that "sees" an edge
+        // crossing, so the only route to fewer crossings is to solve from
+        // several deterministic seeds and keep the best finished candidate.
+        // Fitness = crossings + weighted group scatter — crossings alone would
+        // pick a low-crossing candidate that scatters the colour families.
+        // The seed list is fixed, the score is deterministic, and strict
+        // less-than keeps the first best — so first load and every Reset still
+        // land on the byte-identical winner.
+        //
+        // Candidates run ONE PER MACROTASK so the page stays responsive. A
+        // generation token aborts a stale search when a newer run (Reset,
+        // mode toggle) starts.
+        const SEEDS = [0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x452821e6, 0x38d01377, 0xbe5466cf];
+        const myGen = ++layoutSearchGen;
+        let best: PositionMap | null = null;
+        let bestScore = Infinity;
+
+        const runCandidate = (seed: number) => {
+          const origRandom = Math.random;
+          let s = seed >>> 0;
+          Math.random = () => {
+            s = (s + 0x6d2b79f5) >>> 0;
+            let t = Math.imul(s ^ (s >>> 15), 1 | s);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+          try {
+            // Each candidate starts from the same state: no leftover pull
+            // edges, every node collapsed to the origin (fCoSE reads current
+            // positions even with randomize:true), PRNG reseeded.
+            scratch.remove(GROUP_PULL_SELECTOR);
+            scratch.nodes().forEach((n) => { if (!n.isParent()) n.position({ x: 0, y: 0 }); });
+            // The GLOBAL passes run on uniform node dims (fixed box, no
+            // label). Real label-sized boxes are wide and uneven; they distort
+            // the spring equilibrium into a visibly messier arrangement — and
+            // label-measurement timing would make the first load differ from
+            // every Reset (labels are unmeasured on the very first run).
+            scratch.nodes().addClass('layout-uniform');
+            // Pass 1 — global structure from pure FK topology. Solving WITH
+            // the group springs from scratch settles into a tangled minimum;
+            // solving without them first keeps the clean structure-driven
+            // picture.
+            scratch.layout(buildLayoutOpts(m)).run();
+            // Pass 2 — group cohesion as an incremental refinement: same-group
+            // attraction springs + randomize:false morph the pass-1 layout so
+            // each colour family drifts into one neighbourhood without a
+            // re-solve.
+            addGroupPullEdges(scratch);
+            scratch.layout({
+              ...buildLayoutOpts(m),
+              randomize: false,
+              numIter: 800,
+            } as cytoscape.LayoutOptions).run();
+            // Local polish uses REAL dimensions (docking, fans, de-overlap),
+            // so the uniform class comes off before it.
+            scratch.nodes().removeClass('layout-uniform');
+            arrangeOrganic(scratch, organicIters(entityCount));
+          } finally {
+            Math.random = origRandom;
+          }
+          const score = countEdgeCrossings(scratch) + GROUP_SCATTER_WEIGHT * groupScatter(scratch);
+          if (score < bestScore) {
+            bestScore = score;
+            const snap: PositionMap = {};
+            scratch.nodes(':childless').forEach((n) => {
+              const p = n.position();
+              snap[n.id()] = { x: p.x, y: p.y };
+            });
+            best = snap;
+          }
+        };
+
+        // Step candidates via a MessageChannel macrotask, NOT setTimeout —
+        // browsers throttle chained timers on hidden/background pages to as
+        // little as one wake per second, turning a ~2s search into a minute.
+        // A ported message yields to the event loop (paints, input) without
+        // any throttling.
+        const chan = new MessageChannel();
+        const finish = () => {
+          chan.port1.close();
+          chan.port2.close();
+          scratch.destroy();
+        };
+        let i = 0;
+        const step = () => {
+          if (cy.destroyed() || layoutSearchGen !== myGen) { finish(); return; } // superseded
+          const seed = SEEDS[i++];
+          if (seed !== undefined) runCandidate(seed);
+          if (i < SEEDS.length) {
+            chan.port2.postMessage(null);
+          } else {
+            finish();
+            if (best) applySavedPositions(cy, best);
+            onDone();
+          }
+        };
+        chan.port1.onmessage = step;
+        step();
+      };
       window.__IGNATIUS_CY_GEN__ = (window.__IGNATIUS_CY_GEN__ ?? 0) + 1;
 
       if (!svgRef.current) {
@@ -563,7 +741,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         }
       }
 
-      cy.one('layoutstop', () => {
+      // Completion handler for the INITIAL layout. Invoked via cy.one for the
+      // preset path and via runLayout's onDone for the computed paths (the
+      // two-pass fCoSE run fires layoutstop per pass, so the event can't be
+      // the completion signal there).
+      const onInitialLayoutDone = () => {
         if (preloadedSaved) {
           applySavedPositions(cy, preloadedSaved);
         } else {
@@ -571,9 +753,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           const saved = savedKey ? layoutStore.load(savedKey) : null;
           if (saved) {
             applySavedPositions(cy, saved);
-          } else if (layoutModeRef.current === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
-            arrangeOrganic(cy, organicIters(entityCount));
           }
+          // (Organic local polish — arrangeOrganic — now runs inside
+          // runLayout's per-candidate loop, before crossing scoring.)
 
           if (savedKey && !saved) {
             const elkPositions: Record<string, { x: number; y: number }> = {};
@@ -609,10 +791,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           // itself is opened by the shell's mount effect (single owner).
           applyHashState(initialState);
         }
-      });
+      };
 
       if (preloadedSaved) {
+        cy.one('layoutstop', onInitialLayoutDone);
         cy.layout({ name: 'preset', fit: false } satisfies cytoscape.LayoutOptions).run();
+      } else {
+        runLayout(layoutModeRef.current, onInitialLayoutDone);
       }
 
       cy.on('viewport', () => {
@@ -848,17 +1033,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         clearFocusTiers();
         lineageActiveRef.current = false;
         layoutStore.clear(layoutKeyRef.current);
-        const mode = layoutModeRef.current;
-        const lo = cy.layout(buildLayoutOpts(mode));
-        lo.one('layoutstop', () => {
-          if (mode === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
-            arrangeOrganic(cy, organicIters(entityCount));
-          }
+        runLayout(layoutModeRef.current, () => {
           cy.fit(undefined, 30);
           redrawMarkers();
           // fit fires a 'zoom' event → readout updates to the real percent.
         });
-        lo.run();
       };
 
       applyLayoutModeRef.current = (mode) => {
@@ -868,16 +1047,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         clearInheritedEdges();
         clearFocusTiers();
         lineageActiveRef.current = false;
-        const lo = cy.layout(buildLayoutOpts(mode));
-        lo.one('layoutstop', () => {
-          if (mode === 'organic' && entityCount < ORGANIC_FALLBACK_THRESHOLD) {
-            arrangeOrganic(cy, organicIters(entityCount));
-          }
+        runLayout(mode, () => {
           cy.fit(undefined, 30);
           redrawMarkers();
           // fit fires a 'zoom' event → readout updates to the real percent.
         });
-        lo.run();
       };
 
       panelNavigateRef.current = (id: string) => {

@@ -100,6 +100,11 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
         'curve-style': 'bezier',
         'label': 'data(edgeLabel)',
         'font-size': 10,
+        // Hide predicate labels when zoomed out — at fit-to-screen the text of
+        // every edge overlaps into unreadable noise over dense hubs. Cytoscape
+        // drops a label once its on-screen font would fall below this, so the
+        // labels reappear as the user zooms in to read a specific relationship.
+        'min-zoomed-font-size': 14,
         'color': p.textMuted,
         'text-rotation': 'autorotate',
         'text-margin-y': -10,

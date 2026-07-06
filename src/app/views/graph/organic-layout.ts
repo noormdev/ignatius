@@ -1,8 +1,10 @@
 import cytoscape from 'cytoscape';
 import elk from 'cytoscape-elk';
+import fcose from 'cytoscape-fcose';
 
 // @ts-expect-error — cytoscape uses `export =` which loses namespace members under bundler resolution
 cytoscape.use(elk);
+cytoscape.use(fcose);
 
 // ── ELK cost-scaling thresholds ───────────────────────────────────────────────
 // These constants gate both layered-thoroughness and organic post-processing.
@@ -42,13 +44,28 @@ export const ORGANIC_ITERS_MEDIUM: OrganicIters = { clusterFan: 20, leafFan: 20,
 // multi-line boxes and many-member clusters never collide on the arc. The span
 // widens with member count — small clusters stay a tight fan, large ones wrap
 // toward a near-full ring (capped just under 2π so the base side stays open).
-export function fanSubtypeClusters(cy: cytoscape.Core) {
+export function fanSubtypeClusters(cy: cytoscape.Core, maxExternalDegree = 4) {
   cy.nodes('[joiner = "true"]').forEach((j) => {
-    const jp = j.position();
-    const members = cy.edges().filter((e) => e.source().id() === j.id()).map((e) => e.target());
-    if (members.length === 0) return;
+    const allMembers = cy.edges().filter((e) => e.source().id() === j.id()).map((e) => e.target());
+    if (allMembers.length === 0) return;
     const inEdge = cy.edges().filter((e) => e.target().id() === j.id())[0];
     const base = inEdge ? inEdge.source() : null;
+
+    // Put the joiner diamond ON the line between the basetype and its members'
+    // centroid, so the base→joiner→member connector runs straight instead of
+    // zig-zagging out to wherever the force layout happened to drop the joiner.
+    const mcx = allMembers.reduce((s, m) => s + m.position().x, 0) / allMembers.length;
+    const mcy = allMembers.reduce((s, m) => s + m.position().y, 0) / allMembers.length;
+    const bp0 = base ? base.position() : { x: mcx, y: mcy };
+    j.position({ x: bp0.x + (mcx - bp0.x) * 0.5, y: bp0.y + (mcy - bp0.y) * 0.5 });
+    const jp = j.position();
+
+    // Only fan leaf-like members. A subtype that is itself a hub (e.g. `individual`
+    // with a dozen FK dependents) must stay where the force layout placed it —
+    // snapping it onto the fan arc drags its whole neighbourhood outward, casting
+    // the dependents off into their own island. Its own edges keep it cohesive.
+    const members = allMembers.filter((m) => m.degree(false) - m.edgesWith(j).length <= maxExternalDegree);
+    if (members.length === 0) return;
     // Fan outward, away from the basetype, so the diamond sits between base and members.
     let baseAngle = Math.PI / 2;
     if (base) {
@@ -74,31 +91,35 @@ export function fanSubtypeClusters(cy: cytoscape.Core) {
 // apart along their axis of least penetration; converges fast (breaks once a
 // pass moves nothing). Skips compound parents (invisible cluster boxes).
 export function deoverlapNodes(cy: cytoscape.Core, iterations: number) {
-  const nodes = cy.nodes().filter((n) => !n.isParent());
+  // Hoist dimension reads out of the pair loops: on a rendered core each
+  // outerWidth()/outerHeight() call re-measures the label bounding box, which
+  // turns this O(n²·iters) loop into seconds of label measurement. Dimensions
+  // are constant for the duration of the pass — read them once.
+  const boxes = cy.nodes()
+    .filter((n) => !n.isParent())
+    .map((n) => ({ n, w: n.outerWidth(), h: n.outerHeight() }));
   const pad = 30;
   for (let it = 0; it < iterations; it++) {
     let moved = false;
-    for (let a = 0; a < nodes.length; a++) {
-      for (let b = a + 1; b < nodes.length; b++) {
-        const A = nodes[a];
-        const B = nodes[b];
-        const pa = A.position();
-        const pb = B.position();
+    for (const [a, A] of boxes.entries()) {
+      for (const B of boxes.slice(a + 1)) {
+        const pa = A.n.position();
+        const pb = B.n.position();
         const dx = pb.x - pa.x;
         const dy = pb.y - pa.y;
-        const minX = (A.outerWidth() + B.outerWidth()) / 2 + pad;
-        const minY = (A.outerHeight() + B.outerHeight()) / 2 + pad;
+        const minX = (A.w + B.w) / 2 + pad;
+        const minY = (A.h + B.h) / 2 + pad;
         if (Math.abs(dx) < minX && Math.abs(dy) < minY) {
           const overlapX = minX - Math.abs(dx);
           const overlapY = minY - Math.abs(dy);
           if (overlapX < overlapY) {
             const shift = ((dx < 0 ? -1 : 1) * overlapX) / 2;
-            A.position({ x: pa.x - shift, y: pa.y });
-            B.position({ x: pb.x + shift, y: pb.y });
+            A.n.position({ x: pa.x - shift, y: pa.y });
+            B.n.position({ x: pb.x + shift, y: pb.y });
           } else {
             const shift = ((dy < 0 ? -1 : 1) * overlapY) / 2;
-            A.position({ x: pa.x, y: pa.y - shift });
-            B.position({ x: pb.x, y: pb.y + shift });
+            A.n.position({ x: pa.x, y: pa.y - shift });
+            B.n.position({ x: pb.x, y: pb.y + shift });
           }
           moved = true;
         }
@@ -145,6 +166,168 @@ export function separateClusterFans(cy: cytoscape.Core, iterations: number) {
     }
     if (!moved) break;
   }
+}
+
+// Count pairwise crossings between rendered edges, treating each edge as the
+// straight segment between its endpoints' centres. Edges sharing an endpoint
+// never count — they meet at the node by construction. This is the fitness
+// score for the multi-seed layout search: force sims have no force that
+// "sees" a crossing, so the only way to fewer crossings is to try several
+// deterministic seeds and keep the least-tangled result.
+export function countEdgeCrossings(cy: cytoscape.Core): number {
+  type Seg = { ax: number; ay: number; bx: number; by: number; s: string; t: string };
+  const segs: Seg[] = [];
+  cy.edges().forEach((e) => {
+    const s = e.source(), t = e.target();
+    if (s.isParent() || t.isParent()) return;
+    const a = s.position(), b = t.position();
+    segs.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y, s: s.id(), t: t.id() });
+  });
+  const orient = (px: number, py: number, qx: number, qy: number, rx: number, ry: number) =>
+    Math.sign((qx - px) * (ry - py) - (qy - py) * (rx - px));
+  let count = 0;
+  for (const [i, A] of segs.entries()) {
+    for (const B of segs.slice(i + 1)) {
+      if (A.s === B.s || A.s === B.t || A.t === B.s || A.t === B.t) continue;
+      const o1 = orient(A.ax, A.ay, A.bx, A.by, B.ax, B.ay);
+      const o2 = orient(A.ax, A.ay, A.bx, A.by, B.bx, B.by);
+      const o3 = orient(B.ax, B.ay, B.bx, B.by, A.ax, A.ay);
+      const o4 = orient(B.ax, B.ay, B.bx, B.by, A.bx, A.by);
+      if (o1 !== o2 && o3 !== o4 && o1 !== 0 && o2 !== 0 && o3 !== 0 && o4 !== 0) count++;
+    }
+  }
+  return count;
+}
+
+// Sum over groups of the average member-to-centroid distance, normalised by
+// the candidate's mean edge length so the number is scale-free. This is the
+// second fitness term of the multi-seed search: crossings alone would happily
+// pick a low-crossing candidate that scatters a colour family across the
+// canvas — group cohesion has to be part of what "best" means.
+export function groupScatter(cy: cytoscape.Core): number {
+  const byGroup = new Map<string, { x: number; y: number }[]>();
+  cy.nodes(':childless').forEach((n) => {
+    const g = n.data('group');
+    if (!g || n.data('joiner') === 'true') return;
+    const p = n.position();
+    const pts = byGroup.get(g);
+    if (pts) pts.push({ x: p.x, y: p.y }); else byGroup.set(g, [{ x: p.x, y: p.y }]);
+  });
+  let edgeLenSum = 0, edgeCount = 0;
+  cy.edges().forEach((e) => {
+    const a = e.source().position(), b = e.target().position();
+    edgeLenSum += Math.hypot(b.x - a.x, b.y - a.y);
+    edgeCount++;
+  });
+  const unit = edgeCount > 0 ? edgeLenSum / edgeCount : 1;
+  if (unit === 0) return 0;
+  let total = 0;
+  byGroup.forEach((pts) => {
+    if (pts.length < 2) return;
+    const cx = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
+    const cyy = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
+    total += pts.reduce((sum, p) => sum + Math.hypot(p.x - cx, p.y - cyy), 0) / pts.length / unit;
+  });
+  return total;
+}
+
+// Ephemeral same-group attraction edges for the fCoSE run. The model's group
+// (the border colour) is a semantic cluster the force sim knows nothing about,
+// so groupmates with no direct FK drift apart. A star of soft springs from
+// each group's best-connected member to every groupmate pulls the colour
+// family into one neighbourhood. The edges exist ONLY inside the synchronous
+// layout run: GraphView adds them before creating the layout (cytoscape
+// snapshots the element set at cy.layout() time) and arrangeOrganic strips
+// them first thing, so the degree-based local passes and the renderer never
+// see them. Deterministic: anchor = highest degree, ties by id.
+export const GROUP_PULL_SELECTOR = 'edge[groupPull = "true"]';
+
+export function addGroupPullEdges(cy: cytoscape.Core) {
+  const byGroup = new Map<string, cytoscape.NodeSingular[]>();
+  cy.nodes(':childless').forEach((n) => {
+    const g = n.data('group');
+    if (!g || n.data('joiner') === 'true') return;
+    const members = byGroup.get(g);
+    if (members) members.push(n); else byGroup.set(g, [n]);
+  });
+  const defs: cytoscape.ElementDefinition[] = [];
+  byGroup.forEach((members, g) => {
+    if (members.length < 2) return;
+    const anchor = members.reduce((best, n) => {
+      const d = n.degree(false), bd = best.degree(false);
+      return d > bd || (d === bd && n.id() < best.id()) ? n : best;
+    });
+    for (const m of members) {
+      if (m === anchor) continue;
+      // edgeLabel: '' — the edge stylesheet maps `label: data(edgeLabel)`;
+      // without the field cytoscape logs a mapping warning PER EDGE PER STYLE
+      // RECALC, which floods the console during the multi-candidate search.
+      defs.push({ group: 'edges', data: { id: `_gpull_${g}_${m.id()}`, source: anchor.id(), target: m.id(), groupPull: 'true', edgeLabel: '' } });
+    }
+  });
+  cy.add(defs);
+}
+
+// Inflate the core skeleton about its centroid while carrying each hub's
+// degree-1 satellites along rigidly. The force sim finds its cleanest global
+// organization at compact spring lengths, but that solution packs the dense
+// mid-band (real-model feedback: boxes crowded, labels colliding). A uniform
+// scale of the CORE is a similarity transform — it cannot introduce a single
+// new edge crossing — while satellites keep their tight local rings, so the
+// result reads as "same picture, more room" rather than a re-layout.
+export function expandCore(cy: cytoscape.Core, factor = 1.3) {
+  const plain = cy.nodes().filter((n) => !n.isParent());
+  const isSatellite = (n: cytoscape.NodeSingular) =>
+    n.parent().empty() && n.data('joiner') !== 'true' && n.degree(false) === 1
+    && n.openNeighborhood().nodes()[0].degree(false) > 1; // 2-node islands scale as core
+  const satellites = plain.filter(isSatellite);
+  const core = plain.difference(satellites);
+  if (core.length < 2) return;
+  let cx = 0, cy0 = 0;
+  core.forEach((n) => { cx += n.position().x; cy0 += n.position().y; });
+  cx /= core.length; cy0 /= core.length;
+  // Record every satellite's offset from its hub before the hubs move.
+  const rides = satellites.map((s) => {
+    const hub = s.openNeighborhood().nodes()[0];
+    const sp = s.position(), hp = hub.position();
+    return { s, hub, dx: sp.x - hp.x, dy: sp.y - hp.y };
+  });
+  core.forEach((n) => {
+    const p = n.position();
+    n.position({ x: cx + (p.x - cx) * factor, y: cy0 + (p.y - cy0) * factor });
+  });
+  rides.forEach(({ s, hub, dx, dy }) => {
+    const hp = hub.position();
+    s.position({ x: hp.x + dx, y: hp.y + dy });
+  });
+}
+
+// Pull each degree-1 satellite in toward its hub when the force layout left it
+// stranded. Classifier/type leaves must read as satellites of their entity —
+// a far-flung leaf turns into a long dashed edge slicing across the graph, the
+// dominant clutter on real models. Pure radial move (angle kept): the ring
+// radius is size-aware and grows with satellite count so a many-leaf hub (e.g.
+// `source` with ~9 type boxes) still has arc room for every box. separateLeafFan
+// then spreads crowded satellites angularly; deoverlapNodes clears collisions.
+export function dockLeaves(cy: cytoscape.Core) {
+  const movable = (n: cytoscape.NodeSingular) => n.parent().empty() && n.data('joiner') !== 'true';
+  cy.nodes().forEach((hub) => {
+    if (hub.isParent() || hub.data('joiner') === 'true') return;
+    const leaves = hub.openNeighborhood().nodes().filter((nb) => nb.degree(false) === 1 && movable(nb));
+    if (leaves.length === 0) return;
+    const hp = hub.position();
+    const hubExtent = Math.max(hub.outerWidth(), hub.outerHeight()) / 2;
+    // Each satellite box needs ~130px of arc on roughly three-quarters of the
+    // ring (the remaining quarter faces the hub's real edges).
+    const maxDist = Math.max(150, hubExtent + (leaves.length * 130) / (2 * Math.PI * 0.75));
+    leaves.forEach((leaf) => {
+      const p = leaf.position();
+      const dx = p.x - hp.x, dy = p.y - hp.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= maxDist || dist < 1) return;
+      leaf.position({ x: hp.x + (dx / dist) * maxDist, y: hp.y + (dy / dist) * maxDist });
+    });
+  });
 }
 
 // Spread a hub's degree-1 satellites angularly so their edges stop smearing into
@@ -211,19 +394,109 @@ export function decollinearNodes(cy: cytoscape.Core) {
   });
 }
 
-// Post-process a settled organic (stress) layout: fan subtype clusters into tidy
-// rings, pull interleaved fans into distinct regions, spread hub satellites,
-// triangulate collinear pass-throughs, then clear residual node overlaps.
+// Nudge a node off any edge that passes through its box but does not connect to
+// it, so lines stop cutting through unrelated entities. For each node, find the
+// non-incident edge whose segment runs closest to the node centre; if that line
+// pierces the box (perpendicular gap under the box's half-extent, and the foot
+// of the perpendicular falls within the segment), shove the node perpendicular
+// until it clears. Iterative and convergent like deoverlapNodes — it stops once
+// a pass moves nothing. Skips compound parents and the joiner diamonds.
+export function separateNodesFromEdges(cy: cytoscape.Core, iterations: number) {
+  const pad = 14;
+  // Dimensions hoisted out of the loops — see deoverlapNodes for why.
+  const boxes = cy.nodes()
+    .filter((n) => !n.isParent() && n.data('joiner') !== 'true')
+    .map((n) => ({ n, halfW: n.outerWidth() / 2 + pad, halfH: n.outerHeight() / 2 + pad }));
+  const edges = cy.edges().filter((e) => !e.source().isParent() && !e.target().isParent());
+  for (let it = 0; it < iterations; it++) {
+    let moved = false;
+    for (const { n, halfW, halfH } of boxes) {
+      const p = n.position();
+      for (const e of edges) {
+        const s = e.source(), t = e.target();
+        if (s.id() === n.id() || t.id() === n.id()) continue; // incident — its own edge
+        const a = s.position(), b = t.position();
+        const abx = b.x - a.x, aby = b.y - a.y;
+        const len2 = abx * abx + aby * aby;
+        if (len2 < 1) continue;
+        const proj = ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2;
+        if (proj < 0.05 || proj > 0.95) continue; // foot outside the segment
+        const footx = a.x + proj * abx, footy = a.y + proj * aby;
+        const perpx = p.x - footx, perpy = p.y - footy;
+        const perpDist = Math.hypot(perpx, perpy);
+        // Clearance scales the box half-extent by the edge's orientation, so a
+        // near-horizontal line is judged against the box height, vertical against width.
+        const len = Math.sqrt(len2);
+        const clearance = (halfW * Math.abs(aby) + halfH * Math.abs(abx)) / len;
+        if (perpDist >= clearance) continue;
+        const ux = perpDist > 1 ? perpx / perpDist : -aby / len;
+        const uy = perpDist > 1 ? perpy / perpDist : abx / len;
+        const shove = clearance - perpDist;
+        n.position({ x: p.x + ux * shove, y: p.y + uy * shove });
+        moved = true;
+        break; // re-evaluate this node against all edges next pass
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+// Post-process a settled organic (fCoSE) layout: fan subtype clusters into tidy
+// rings, pull interleaved fans into distinct regions, dock far-flung satellites
+// back onto their hub's ring, spread hub satellites angularly, triangulate
+// collinear pass-throughs, push nodes off edges that cut through them, then
+// clear residual node overlaps.
 //
 // iters — iteration budget per pass (derived from node count via ORGANIC_ITERS_*).
 // Below the first threshold (<50 nodes) callers pass ORGANIC_ITERS_TINY, which
 // restores the original hardcoded 80/90 values and preserves full visual quality.
 export function arrangeOrganic(cy: cytoscape.Core, iters: OrganicIters) {
+  // The group-pull springs did their job during the force run; strip them
+  // before any degree-based local pass (docking, fans) can misread them as
+  // real relationships — and before anything could paint them.
+  cy.remove(GROUP_PULL_SELECTOR);
+  expandCore(cy);
   fanSubtypeClusters(cy);
   separateClusterFans(cy, iters.clusterFan);
+  dockLeaves(cy);
   separateLeafFan(cy, iters.leafFan);
   decollinearNodes(cy);
+  separateNodesFromEdges(cy, iters.deoverlap);
   deoverlapNodes(cy, iters.deoverlap);
+}
+
+// Build a HEADLESS scratch mirror of the live graph for the layout search.
+// Once the live core has painted, every element read and write pays renderer
+// bookkeeping — label re-measures, compound-bounds upkeep, listener notify —
+// measured at SECONDS per search candidate versus milliseconds headless. The
+// search therefore runs entirely on this mirror and only the winning
+// positions touch the live core. Node dimensions are baked in as data
+// (dw/dh from the live outerWidth/outerHeight, read once — a cheap, paint-
+// independent measurement) so scratch geometry matches the live boxes without
+// any label machinery; the `layout-uniform` class gives the global fCoSE
+// passes their fixed structure-only box.
+export function buildScratchCore(live: cytoscape.Core): cytoscape.Core {
+  const elements: cytoscape.ElementDefinition[] = [];
+  live.nodes().forEach((n) => {
+    const data = { ...n.data() };
+    if (!n.isParent()) {
+      data.dw = n.outerWidth();
+      data.dh = n.outerHeight();
+    }
+    elements.push({ group: 'nodes', data });
+  });
+  live.edges().forEach((e) => {
+    elements.push({ group: 'edges', data: { ...e.data() } });
+  });
+  return cytoscape({
+    headless: true,
+    styleEnabled: true,
+    elements,
+    style: [
+      { selector: 'node[dw]', style: { 'width': 'data(dw)', 'height': 'data(dh)' } },
+      { selector: 'node.layout-uniform', style: { 'width': 60, 'height': 36 } },
+    ],
+  });
 }
 
 // Derive the iteration budget for arrangeOrganic from entity count.
