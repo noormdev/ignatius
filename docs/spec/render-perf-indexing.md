@@ -160,6 +160,33 @@ nicety, not a blocker, and needs a focused build-infra session. Committing non-f
 
 **Superseded:** CP6/CP7 are no longer in this batch's shipped scope (see Implementation log).
 
+### 2026-07-06 — Organic layout search made non-blocking; arrangeOrganic dim reads hoisted
+
+**What changed:** Two render-perf fixes folded in alongside the organic-layout quality work
+(`feat(graph)` group-aware, crossing-minimized layout):
+
+1. **Non-blocking multi-seed search.** The organic layout now tries several deterministic seeds and keeps the
+   least-tangled candidate. Running that search on the *live* (painted) cytoscape core froze the page for tens of
+   seconds — every position write and element read on a rendered core pays renderer bookkeeping (compound-bounds
+   upkeep, listener notify, label re-measure). The search now runs on a **headless off-DOM scratch core** (data +
+   baked-in dimensions only, no renderer) and steps **one candidate per macrotask**; only the winning positions
+   are written back to the live graph. Measured ~seconds/candidate on the live core → ~milliseconds headless;
+   whole search ≈1.8s with the page interactive throughout.
+2. **Hoisted dimension reads out of the O(n²) post-passes.** `deoverlapNodes` and `separateNodesFromEdges` called
+   `outerWidth()`/`outerHeight()` inside their pairwise loops; on a rendered core each call re-measures the label
+   bounding box, turning the O(n²·iters) passes into seconds of pure label measurement. Node dimensions are
+   constant for the duration of a pass, so they are now read once up front. (This is the same class of hot spot
+   L2/CP5 addressed for `arrangeOrganic`'s iteration counts — here it's the per-cell cost, not the cell count.)
+
+**Why:** user-reported page freeze after the multi-seed search landed. Root cause was renderer bookkeeping on the
+live core (position writes + label re-measurement), not the force sim itself — confirmed by per-stage profiling
+(pass-1/pass-2 ≈400ms each; `arrangeOrganic` ≈6–12s, dominated by `outerWidth`/`outerHeight` re-measures).
+
+**Relationship to existing scope:** this delivers the **non-blocking layout** goal of the deferred
+`render-perf-elk-web-worker` (CP6) for the organic path — but via a headless scratch core + macrotask stepping
+rather than a web worker (which Bun's HTML bundler inlines, the reason CP6 stalled). CP6 remains open only for
+moving the ELK/fCoSE *solve itself* off-thread; the search *loop* is no longer a blocker.
+
 
 ## Implementation log
 
@@ -193,7 +220,9 @@ now paint on load. L1 makes repeat loads instant.
 - CP6 worker: Bun's HTML bundler inlines workers, so the worker never runs — deferred (see change-log).
 
 **Deferred items still open:**
-- `render-perf-elk-web-worker` (CP6 — non-blocking first-load layout; needs separate worker build).
+- `render-perf-elk-web-worker` (CP6 — non-blocking first-load layout; needs separate worker build). **Partially
+  obviated 2026-07-06** — the organic multi-seed search is now non-blocking via a headless scratch core +
+  macrotask stepping (no worker). CP6 remains only for moving the ELK/fCoSE solve itself off-thread.
 - `render-perf-flow-index` (CP7 — flow validate/parse O(n²) indexing; low value).
 - `app-tsx-decomposition` (user-requested; App.tsx is ~5300 lines).
 - Scratchpad `FOLLOWUPS.md` F-1..F-9 (nits: docstrings, test strictness, harness dead-code, the n=150 LONGEST_PATH
