@@ -1006,26 +1006,42 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       enterLineageHoverRef.current = enterLineageHover;
       exitLineageHoverRef.current = exitLineageHover;
 
+      // Cytoscape applies tap-selection AFTER emitting 'tap', so unselecting
+      // inside the tap handler is silently overridden on real pointer
+      // gestures (synthetic emits don't run the gesture pipeline, which is
+      // why tests missed it). Suppress the selection at the 'select' event
+      // instead: armed at tapstart for non-shift gestures, disarmed after the
+      // gesture's task drains — programmatic selects (deep-link restore,
+      // panel navigate, entity-link hops) are never suppressed.
+      let suppressTapSelect = false;
+      cy.on('tapstart', 'node', (evt) => {
+        suppressTapSelect = evt.originalEvent?.shiftKey !== true;
+      });
+      cy.on('tapend', () => {
+        setTimeout(() => { suppressTapSelect = false; }, 0);
+      });
+      cy.on('select', 'node', (evt) => {
+        if (suppressTapSelect) evt.target.unselect();
+      });
+
       cy.on('tap', 'node', (evt) => {
         const nodeId = evt.target.id();
         const node = modelIndexRef.current?.nodeById.get(nodeId);
         if (!node) return;
         // SHIFT+click: pin the relationship highlight and do NOT open the
-        // modal. cy's tap already selected the node, and the mouseout handler
-        // re-applies the selected node's focus tiers — so the neighbourhood
-        // stays lit after the pointer leaves, until deselect/background tap.
+        // modal. cy's tap-select is allowed through (shift gesture), and the
+        // mouseout/mouseleave handlers re-apply the selected node's focus
+        // tiers — the neighbourhood stays lit until deselect/background tap.
         if (evt.originalEvent?.shiftKey) return;
         // Plain click: open the modal ONLY — nothing stays highlighted. The
         // modal covers the canvas, so cytoscape never gets the mouseout that
         // would clear the hover fade; clear ALL highlight state here instead
-        // of relying on it. Also undo cy's automatic tap-select (a selected
-        // node re-pins its tiers via the mouseout fallback).
+        // of relying on it (the tap-select itself is suppressed above).
         //
         // Shell's onSelectEntity is the single writer of entity= (pushes one
         // history entry). GraphView does not write entity= on tap. Lineage
         // (dotted inherited rays + 3-tier focus opacity) is a shift+hover
         // affordance (see the mouseover handler below).
-        evt.target.unselect();
         hoveredNodeIdRef.current = null;
         clearInheritedEdges();
         clearFocusTiers();
@@ -1297,6 +1313,28 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         }
       });
 
+      // Cytoscape only synthesises a node `mouseout` from mousemoves on its own
+      // canvas — a pointer that EXITS the canvas from on top of a node (into
+      // the entity modal, the top bar, off-window) never gets one, so the
+      // hover fade stuck permanently. Clear hover state at the DOM boundary:
+      // leaving the graph container ends the hover; a shift+click-pinned
+      // selection re-applies its tiers instead (the pin must survive).
+      const onGraphMouseLeave = () => {
+        hoveredNodeIdRef.current = null;
+        if (lineageActiveRef.current) {
+          clearInheritedEdges();
+          lineageActiveRef.current = false;
+        }
+        const selected = cy.nodes(':selected');
+        if (selected.nonempty()) {
+          applyFocusTiers(selected[0]);
+        } else {
+          clearFocusTiers();
+          redrawMarkers();
+        }
+      };
+      containerRef.current.addEventListener('mouseleave', onGraphMouseLeave);
+
       cyRef.current = cy;
 
       // Mount navigator INSIDE the cy lifecycle so teardown is guaranteed before cy.destroy().
@@ -1318,6 +1356,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         wheelContainer?.removeEventListener('wheel', blockPageZoom);
         document.removeEventListener('keydown', onShiftKeyDown);
         document.removeEventListener('keyup', onShiftKeyUp);
+        containerRef.current?.removeEventListener('mouseleave', onGraphMouseLeave);
         navigateToEntityRef.current = () => {};
         panelNavigateRef.current = () => {};
         resetLayoutRef.current = null;
