@@ -1010,17 +1010,27 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         const nodeId = evt.target.id();
         const node = modelIndexRef.current?.nodeById.get(nodeId);
         if (!node) return;
-        // SHIFT+click: keep the node highlighted (cy's tap already selected
-        // it) and do NOT open the modal — a persistent visual marker.
+        // SHIFT+click: pin the relationship highlight and do NOT open the
+        // modal. cy's tap already selected the node, and the mouseout handler
+        // re-applies the selected node's focus tiers — so the neighbourhood
+        // stays lit after the pointer leaves, until deselect/background tap.
         if (evt.originalEvent?.shiftKey) return;
-        // Plain click: open the modal ONLY. Undo cytoscape's automatic
-        // tap-select so the node doesn't stay highlighted behind the modal.
+        // Plain click: open the modal ONLY — nothing stays highlighted. The
+        // modal covers the canvas, so cytoscape never gets the mouseout that
+        // would clear the hover fade; clear ALL highlight state here instead
+        // of relying on it. Also undo cy's automatic tap-select (a selected
+        // node re-pins its tiers via the mouseout fallback).
         //
         // Shell's onSelectEntity is the single writer of entity= (pushes one
         // history entry). GraphView does not write entity= on tap. Lineage
         // (dotted inherited rays + 3-tier focus opacity) is a shift+hover
         // affordance (see the mouseover handler below).
         evt.target.unselect();
+        hoveredNodeIdRef.current = null;
+        clearInheritedEdges();
+        clearFocusTiers();
+        lineageActiveRef.current = false;
+        redrawMarkers();
         onSelectEntity(node);
       });
 
