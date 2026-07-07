@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+
+### Bug Fixes
+
+* **graph:** run the organic layout search off the main thread so the page no longer freezes; hoist node-dimension reads out of the O(n²) arrangeOrganic passes ([04d5e59](https://github.com/noormdev/ignatius/commit/04d5e599c524ccc6c1bee117c300264a06c18ee1))
+
 ## [0.12.0](https://github.com/noormdev/ignatius/compare/v0.11.0...v0.12.0) (2026-06-20)
 
 
