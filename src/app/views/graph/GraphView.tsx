@@ -11,6 +11,8 @@ import {
   GROUP_PULL_SELECTOR,
   countEdgeCrossings,
   groupScatter,
+  excessWireLength,
+  gradeEdgeSpans,
   buildScratchCore,
   organicIters,
   ORGANIC_FALLBACK_THRESHOLD,
@@ -411,11 +413,15 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
       // Multi-seed search bookkeeping. The generation token lets a newer run
       // (Reset / mode toggle) abort a search still stepping through its
-      // candidates. The weight converts group scatter (in mean-edge-lengths,
-      // ~1 per tight group) into crossing-equivalents so one scattered family
-      // costs more than a handful of extra line crossings.
+      // candidates. The weight converts group scatter (member-summed, in
+      // mean-edge-lengths) into crossing-equivalents: one member sitting one
+      // edge-length off its family centroid ≈ 4 crossings, so scattering a
+      // whole family costs far more than a handful of extra line crossings.
       let layoutSearchGen = 0;
-      const GROUP_SCATTER_WEIGHT = 8;
+      const GROUP_SCATTER_WEIGHT = 4;
+      // One median-edge-length of excess wire ≈ 3 crossings: candidates that
+      // seat bridge nodes amid their neighbours beat ones with long tethers.
+      const WIRE_EXCESS_WEIGHT = 3;
 
       const buildLayoutOpts = (mode: LayoutMode): cytoscape.LayoutOptions => {
         const algo = effectiveAlgorithm(mode);
@@ -554,7 +560,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // bookkeeping (label re-measures, compound bounds, notify) — measured
         // at seconds per candidate versus milliseconds headless. The live
         // graph keeps its current picture until the winner is applied.
-        const scratch = buildScratchCore(cy);
+        // Above ~150 entities the flat force problem starts to tangle —
+        // decompose by colour family via compound regions on the mirror.
+        const scratch = buildScratchCore(cy, entityCount >= 150);
         // Snapshot degree-1 leaves from REAL degrees — the group-pull edges
         // added in pass 2 would otherwise give every grouped satellite +1
         // degree and unmask it from the short-leash treatment.
@@ -572,7 +580,17 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // Candidates run ONE PER MACROTASK so the page stays responsive. A
         // generation token aborts a stale search when a newer run (Reset,
         // mode toggle) starts.
-        const SEEDS = [0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x452821e6, 0x38d01377, 0xbe5466cf];
+        // Candidate count scales DOWN with model size: headless candidates
+        // cost ~0.3s at 100 nodes but ~1.3s at 200, and past ~250 entities
+        // organic falls back to layered anyway (a 400-node force layout is a
+        // hairball no matter how many seeds you try). 12 seeds under 100
+        // nodes, 8 to 150, 5 up to the fallback threshold — keeps first-load
+        // layout in single-digit seconds across the whole organic range.
+        const ALL_SEEDS = [
+          0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x452821e6, 0x38d01377, 0xbe5466cf,
+          0x34e90c6c, 0xc97c50dd, 0x8f1bbcdc, 0x2ffd72db, 0xd01adfb7, 0xa4093822,
+        ];
+        const SEEDS = ALL_SEEDS.slice(0, entityCount < 100 ? 12 : entityCount < 150 ? 8 : entityCount < 250 ? 5 : 3);
         const myGen = ++layoutSearchGen;
         let best: PositionMap | null = null;
         let bestScore = Infinity;
@@ -611,7 +629,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             scratch.layout({
               ...buildLayoutOpts(m),
               randomize: false,
-              numIter: 800,
+              numIter: 1200,
             } as cytoscape.LayoutOptions).run();
             // Local polish uses REAL dimensions (docking, fans, de-overlap),
             // so the uniform class comes off before it.
@@ -620,7 +638,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           } finally {
             Math.random = origRandom;
           }
-          const score = countEdgeCrossings(scratch) + GROUP_SCATTER_WEIGHT * groupScatter(scratch);
+          const score = countEdgeCrossings(scratch)
+            + GROUP_SCATTER_WEIGHT * groupScatter(scratch)
+            + WIRE_EXCESS_WEIGHT * excessWireLength(scratch);
           if (score < bestScore) {
             bestScore = score;
             const snap: PositionMap = {};
@@ -768,6 +788,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           }
         }
 
+        gradeEdgeSpans(cy);
         cy.fit(undefined, 30);
         cy.style(buildStyles(modelNonNull.groups, modelNonNull.theme, themeModeRef.current));
         cy.forceRender();
@@ -988,15 +1009,19 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       cy.on('tap', 'node', (evt) => {
         const nodeId = evt.target.id();
         const node = modelIndexRef.current?.nodeById.get(nodeId);
-        if (node) {
-          // Shell's onSelectEntity is the single writer of entity= (pushes one
-          // history entry). GraphView does not write entity= on tap.
-          //
-          // A plain click only SELECTS + opens the modal — it no longer draws
-          // lineage. Lineage (dotted inherited rays + 3-tier focus opacity) is a
-          // shift+hover affordance (see the mouseover handler below).
-          onSelectEntity(node);
-        }
+        if (!node) return;
+        // SHIFT+click: keep the node highlighted (cy's tap already selected
+        // it) and do NOT open the modal — a persistent visual marker.
+        if (evt.originalEvent?.shiftKey) return;
+        // Plain click: open the modal ONLY. Undo cytoscape's automatic
+        // tap-select so the node doesn't stay highlighted behind the modal.
+        //
+        // Shell's onSelectEntity is the single writer of entity= (pushes one
+        // history entry). GraphView does not write entity= on tap. Lineage
+        // (dotted inherited rays + 3-tier focus opacity) is a shift+hover
+        // affordance (see the mouseover handler below).
+        evt.target.unselect();
+        onSelectEntity(node);
       });
 
       cy.on('tap', (evt) => {
@@ -1034,6 +1059,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         lineageActiveRef.current = false;
         layoutStore.clear(layoutKeyRef.current);
         runLayout(layoutModeRef.current, () => {
+          gradeEdgeSpans(cy);
           cy.fit(undefined, 30);
           redrawMarkers();
           // fit fires a 'zoom' event → readout updates to the real percent.
@@ -1048,6 +1074,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         clearFocusTiers();
         lineageActiveRef.current = false;
         runLayout(mode, () => {
+          gradeEdgeSpans(cy);
           cy.fit(undefined, 30);
           redrawMarkers();
           // fit fires a 'zoom' event → readout updates to the real percent.
@@ -1152,6 +1179,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       setTimeout(refreshArrows, 0);
 
       cy.on('free', 'node', () => {
+        // Re-grade edge spans on drag release — a moved node changes which of
+        // its edges count as long-haul.
+        gradeEdgeSpans(cy);
         if (saveTimer !== null) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
           const key = layoutKeyRef.current;

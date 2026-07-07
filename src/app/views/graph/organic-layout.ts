@@ -10,9 +10,13 @@ cytoscape.use(fcose);
 // These constants gate both layered-thoroughness and organic post-processing.
 // Scaling is always by model.nodes.length (entity count, not cy leaf count).
 //
-// ORGANIC_FALLBACK_THRESHOLD: above this count, organic mode falls back to
-// cheap layered even when the user chose "organic". ELK stress is O(n²) per
-// iteration and cannot render 150+ nodes without crashing the tab.
+// ORGANIC_FALLBACK_THRESHOLD: at or above this count, organic mode falls back
+// to cheap layered even when the user chose "organic". Historically 150 (ELK
+// stress was O(n²) and crashed the tab). With fCoSE + compound group regions
+// (buildScratchCore groupRegions, on at ≥150 entities) a 400-entity model lays
+// out in ~14s as a readable domain map — each colour family solves as its own
+// ~n/6-node sub-problem instead of one flat hairball — so the threshold now
+// sits at 500. Beyond that is unmeasured; layered takes over.
 //
 // LAYERED_THOROUGHNESS_*: passed directly to ELK `elk.layered.thoroughness`.
 // Fewer iterations → faster layout; below 50 we keep the original high quality.
@@ -20,7 +24,7 @@ cytoscape.use(fcose);
 // ORGANIC_ITERS_*: iteration counts for arrangeOrganic post-processing passes.
 // `clusterFan` = separateClusterFans; `leafFan` = separateLeafFan; `deoverlap` = deoverlapNodes.
 // Below 50 nodes all three run at full quality (original hardcoded values).
-export const ORGANIC_FALLBACK_THRESHOLD = 150; // at or above this count → fall back to cheap layered instead of stress
+export const ORGANIC_FALLBACK_THRESHOLD = 500; // at or above this count → fall back to cheap layered
 
 export const LAYERED_THOROUGHNESS_TINY    = 30;  // n < 50
 export const LAYERED_THOROUGHNESS_SMALL   = 20;  // 50 ≤ n < 100
@@ -199,11 +203,14 @@ export function countEdgeCrossings(cy: cytoscape.Core): number {
   return count;
 }
 
-// Sum over groups of the average member-to-centroid distance, normalised by
-// the candidate's mean edge length so the number is scale-free. This is the
-// second fitness term of the multi-seed search: crossings alone would happily
-// pick a low-crossing candidate that scatters a colour family across the
-// canvas — group cohesion has to be part of what "best" means.
+// Sum over ALL grouped nodes of the distance to their group's centroid,
+// normalised by the candidate's mean edge length so the number is scale-free.
+// This is the second fitness term of the multi-seed search: crossings alone
+// would happily pick a low-crossing candidate that scatters a colour family
+// across the canvas — group cohesion has to be part of what "best" means.
+// Summed (not averaged) per member, so a 20-member billing family counts
+// proportionally to its size: on large models a per-group average let big
+// families drift apart almost free.
 export function groupScatter(cy: cytoscape.Core): number {
   const byGroup = new Map<string, { x: number; y: number }[]>();
   cy.nodes(':childless').forEach((n) => {
@@ -226,7 +233,7 @@ export function groupScatter(cy: cytoscape.Core): number {
     if (pts.length < 2) return;
     const cx = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
     const cyy = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
-    total += pts.reduce((sum, p) => sum + Math.hypot(p.x - cx, p.y - cyy), 0) / pts.length / unit;
+    total += pts.reduce((sum, p) => sum + Math.hypot(p.x - cx, p.y - cyy), 0) / unit;
   });
   return total;
 }
@@ -326,6 +333,43 @@ export function dockLeaves(cy: cytoscape.Core) {
       const dist = Math.hypot(dx, dy);
       if (dist <= maxDist || dist < 1) return;
       leaf.position({ x: hp.x + (dx / dist) * maxDist, y: hp.y + (dy / dist) * maxDist });
+    });
+  });
+}
+
+// Place each isolated (degree-0) GROUPED node on the perimeter of its colour
+// family. No spring ever moves an edgeless node — the force sim leaves it
+// wherever the spectral draft dumped it, in every seed — so a node like an
+// oauth signing key floats far from the oauth family no matter how the search
+// weighs group scatter. Deterministic: members sorted by id, perimeter angle
+// derived from the isolate's position in that order. deoverlapNodes clears any
+// collision afterwards. Ungrouped isolates are left alone (nothing to dock to).
+export function dockIsolates(cy: cytoscape.Core) {
+  const byGroup = new Map<string, { anchored: cytoscape.NodeSingular[]; isolates: cytoscape.NodeSingular[] }>();
+  cy.nodes(':childless').forEach((n) => {
+    const g = n.data('group');
+    if (!g || n.data('joiner') === 'true') return;
+    let entry = byGroup.get(g);
+    if (!entry) { entry = { anchored: [], isolates: [] }; byGroup.set(g, entry); }
+    (n.degree(false) === 0 ? entry.isolates : entry.anchored).push(n);
+  });
+  byGroup.forEach(({ anchored, isolates }) => {
+    if (isolates.length === 0 || anchored.length === 0) return;
+    let cx = 0, cyy = 0, extent = 0;
+    for (const a of anchored) {
+      const p = a.position();
+      cx += p.x; cyy += p.y;
+    }
+    cx /= anchored.length; cyy /= anchored.length;
+    for (const a of anchored) {
+      const p = a.position();
+      extent = Math.max(extent, Math.hypot(p.x - cx, p.y - cyy));
+    }
+    isolates.sort((a, b) => (a.id() < b.id() ? -1 : 1));
+    isolates.forEach((iso, i) => {
+      const radius = extent + Math.max(iso.outerWidth(), iso.outerHeight()) / 2 + 70;
+      const angle = (2 * Math.PI * i) / isolates.length + Math.PI / 4;
+      iso.position({ x: cx + radius * Math.cos(angle), y: cyy + radius * Math.sin(angle) });
     });
   });
 }
@@ -459,10 +503,70 @@ export function arrangeOrganic(cy: cytoscape.Core, iters: OrganicIters) {
   fanSubtypeClusters(cy);
   separateClusterFans(cy, iters.clusterFan);
   dockLeaves(cy);
+  dockIsolates(cy);
   separateLeafFan(cy, iters.leafFan);
   decollinearNodes(cy);
   separateNodesFromEdges(cy, iters.deoverlap);
   deoverlapNodes(cy, iters.deoverlap);
+}
+
+// Total EXCESS wire length: the summed amount by which each edge exceeds
+// 1.5× the median edge length, in median units. Third fitness term of the
+// multi-seed search — crossings and group scatter don't punish a bridge node
+// (e.g. an invoice item wired to both the payment and invoice sub-families)
+// being flung to one extreme with long tethers back to the other; excess wire
+// does, preferring candidates that seat bridges amid the bulk of their
+// neighbours. Only the excess counts, so ordinary edge lengths cost nothing.
+export function excessWireLength(cy: cytoscape.Core): number {
+  const lens: number[] = [];
+  cy.edges().forEach((e) => {
+    const s = e.source(), t = e.target();
+    if (s.isParent() || t.isParent()) return;
+    const a = s.position(), b = t.position();
+    lens.push(Math.hypot(b.x - a.x, b.y - a.y));
+  });
+  if (lens.length === 0) return 0;
+  const sorted = [...lens].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+  if (median === 0) return 0;
+  const cap = median * 1.5;
+  let excess = 0;
+  for (const len of lens) {
+    if (len > cap) excess += (len - cap) / median;
+  }
+  return excess;
+}
+
+// Grade every rendered edge by its length within the layout's own length
+// distribution, so the stylesheet can de-emphasise long-haul wires. A
+// cross-graph edge carries "these domains are related" — it does not deserve
+// the same ink as a local FK, and rendering both at full weight is what makes
+// a dense model read as wire spaghetti. Percentile-based (top decile = far,
+// top quartile = mid) because a settled force layout has no extreme outliers —
+// the noise band IS the top quartile — with a median-ratio floor so a tight
+// uniform layout, where even the longest edge is unremarkable, dims nothing.
+// Pure function of current positions (no layout change); call after every
+// positions change (layout done, drag release).
+export function gradeEdgeSpans(cy: cytoscape.Core) {
+  const lengths: { e: cytoscape.EdgeSingular; len: number }[] = [];
+  cy.edges().forEach((e) => {
+    const s = e.source(), t = e.target();
+    if (s.isParent() || t.isParent()) return;
+    const a = s.position(), b = t.position();
+    lengths.push({ e, len: Math.hypot(b.x - a.x, b.y - a.y) });
+  });
+  if (lengths.length === 0) return;
+  const sorted = lengths.map((x) => x.len).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+  const p75 = sorted[Math.floor(sorted.length * 0.75)] ?? Infinity;
+  const p90 = sorted[Math.floor(sorted.length * 0.9)] ?? Infinity;
+  if (median === 0) return;
+  for (const { e, len } of lengths) {
+    const ratio = len / median;
+    if (len >= p90 && ratio >= 1.5) e.data('span', 'far');
+    else if (len >= p75 && ratio >= 1.2) e.data('span', 'mid');
+    else e.data('span', 'near');
+  }
 }
 
 // Build a HEADLESS scratch mirror of the live graph for the layout search.
@@ -475,7 +579,33 @@ export function arrangeOrganic(cy: cytoscape.Core, iters: OrganicIters) {
 // independent measurement) so scratch geometry matches the live boxes without
 // any label machinery; the `layout-uniform` class gives the global fCoSE
 // passes their fixed structure-only box.
-export function buildScratchCore(live: cytoscape.Core): cytoscape.Core {
+// groupRegions: wrap each colour family in an invisible compound parent on the
+// scratch mirror. fCoSE is compound-aware (the CoSE lineage is *designed* for
+// compound graphs): with regions, a large model decomposes into per-family
+// sub-layouts plus one small region-vs-region problem, instead of one flat
+// n-node force problem — which at ~400 nodes settles into an unreadable
+// hairball no matter the seed. The regions exist ONLY here; the live core
+// receives bare positions. Cluster compounds nest inside the region of their
+// majority member group; ungrouped nodes stay top-level.
+export function buildScratchCore(live: cytoscape.Core, groupRegions = false): cytoscape.Core {
+  const regionId = (g: string) => `_group_${g}`;
+  const usedRegions = new Set<string>();
+  // Majority group per existing compound (subtype cluster) parent.
+  const clusterGroup = new Map<string, string>();
+  if (groupRegions) {
+    live.nodes(':parent').forEach((p) => {
+      const counts = new Map<string, number>();
+      p.children().forEach((c) => {
+        const g = c.data('group');
+        if (g) counts.set(g, (counts.get(g) ?? 0) + 1);
+      });
+      let bestG = '', bestN = 0;
+      for (const [g, n] of [...counts.entries()].sort()) {
+        if (n > bestN) { bestG = g; bestN = n; }
+      }
+      if (bestG) clusterGroup.set(p.id(), bestG);
+    });
+  }
   const elements: cytoscape.ElementDefinition[] = [];
   live.nodes().forEach((n) => {
     const data = { ...n.data() };
@@ -483,7 +613,17 @@ export function buildScratchCore(live: cytoscape.Core): cytoscape.Core {
       data.dw = n.outerWidth();
       data.dh = n.outerHeight();
     }
+    if (groupRegions && !data.parent) {
+      const g = n.isParent() ? clusterGroup.get(n.id()) : n.data('group');
+      if (g) {
+        data.parent = regionId(g);
+        usedRegions.add(g);
+      }
+    }
     elements.push({ group: 'nodes', data });
+  });
+  usedRegions.forEach((g) => {
+    elements.push({ group: 'nodes', data: { id: regionId(g) } });
   });
   live.edges().forEach((e) => {
     elements.push({ group: 'edges', data: { ...e.data() } });

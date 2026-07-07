@@ -131,6 +131,19 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
         'width': 1.2,
       },
     },
+    // Length-graded de-emphasis (data set by gradeEdgeSpans after layout).
+    // Long-haul wires say "these domains are related" — at overview they must
+    // not carry the same ink as a local FK, or the model reads as spaghetti.
+    // They stay hoverable/selectable and regain presence as you follow them.
+    // Placed AFTER the identifying rules so the grading wins the cascade.
+    {
+      selector: 'edge[span = "mid"]',
+      style: { 'opacity': 0.5 },
+    },
+    {
+      selector: 'edge[span = "far"]',
+      style: { 'opacity': 0.22, 'width': 1, 'z-index': -1 },
+    },
   ];
 
   for (const [name, cfg] of Object.entries(groups)) {
