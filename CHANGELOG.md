@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.0](https://github.com/noormdev/ignatius/compare/v0.12.0...v0.13.0) (2026-07-07)
+
+
+### Features
+
+* **graph:** group-aware, crossing-minimized organic layout ([04d5e59](https://github.com/noormdev/ignatius/commit/04d5e599c524ccc6c1bee117c300264a06c18ee1))
+* **graph:** scale organic layout to 400+ entities via group regions ([88ddac1](https://github.com/noormdev/ignatius/commit/88ddac176dce94e63054dc0bc59bdac898b4cf0a))
+
+
+### Bug Fixes
+
+* **graph:** clear relationship highlight on plain click ([1b2462c](https://github.com/noormdev/ignatius/commit/1b2462c5f0aa9f86a3ca1a6a174e34ab6b700f6b))
+* **graph:** keep the layout search off the main thread ([d445c7b](https://github.com/noormdev/ignatius/commit/d445c7bdc20e79762640161a9891bf6e45beb7f9))
+* **graph:** stop hover highlight sticking after click and canvas exit ([2db307f](https://github.com/noormdev/ignatius/commit/2db307f29481412eaa359e2c69ad9371b15af736))
+
 ## [0.12.0](https://github.com/noormdev/ignatius/compare/v0.11.0...v0.12.0) (2026-06-20)
 
 
