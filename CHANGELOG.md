@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/noormdev/ignatius/compare/v0.13.0...v0.14.0) (2026-07-14)
+
+
+### Features
+
+* search to the Graph and Flows views ([#21](https://github.com/noormdev/ignatius/issues/21)) ([367d786](https://github.com/noormdev/ignatius/commit/367d78636f42b5bb611aedbef601c068cc1065b6))
+
 ## [0.13.0](https://github.com/noormdev/ignatius/compare/v0.12.0...v0.13.0) (2026-07-07)
 
 
