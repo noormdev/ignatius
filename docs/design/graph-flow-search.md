@@ -12,7 +12,7 @@ The Graph view (DG) and the Flows view (DFD) have no way to find a node by name.
 
 - A search bar on the Graph view: type a term, non-matching entities dim, matching entities stay lit with a visible highlight, a count readout shows how many matched, Enter pans to each match in turn.
 - A search bar on the Flows view: the term is matched across **all** diagrams including sub-DFDs; a results list shows every matching process, external, store, and diagram title with the diagram it lives in; clicking a result navigates to that diagram, where non-matches render dimmed.
-- Matching is by **title** by default — entity id; process id, label, and dotted number; external id and label; store name and display name; diagram id and title. Ids are included because models are authored as files: users know entities and flows by slug as much as by display label. A per-bar **body toggle** opts into also matching the markdown body text.
+- Matching is by **title** by default — entity id; process id, label, and dotted number; external id and label; store name and display name; diagram id and title. Ids are included because models are authored as files: users know entities and flows by slug as much as by display label. A per-bar **toggle switch labeled "Include descriptions"** opts into also matching the markdown body text — a switch with a descriptive label, not a terse button, because "Body" alone doesn't tell a user what it does.
 - `/` focuses the active view's search input (all three views — the Dictionary's existing bar included).
 - Everything is client-side: the feature works identically in `ignatius serve` and the static `export` HTML.
 
@@ -58,10 +58,12 @@ The Graph view (DG) and the Flows view (DFD) have no way to find a node by name.
 - Dropdown under the bar lists results grouped by diagram: kind marker, label, dotted number for processes, diagram title. Clicking a row calls `selectDiagramById(diagramId)`; a diagram-title row navigates to that diagram. Enter opens the first row — the keyboard path to the top result. The list is capped for display with a "+N more" overflow line.
 - In the rendered diagram, nodes whose token is in the match set keep full opacity; others render at the existing `DIM_OPACITY`. Edges stay lit when **either** endpoint matches (a matched process's data flows are the information). Role-split layout copies (`--src`/`--snk`, `--read`/`--write` suffixes) match by their base token.
 - Hover dim wins while hovering (unchanged behavior); releasing hover restores the search dim.
+- The bar shares the top edge with the DFD breadcrumb chips and nav card; it must never overlap them, at any breadcrumb depth — the flow surface's chrome layout accounts for the bar the same way the graph surface accounts for the error banner.
 
 ### Keyboard
 
 - `/` resolves to a new `{ type: 'search' }` shortcut action — after the editable guard (typing `/` in any input inserts the character), gated off ctrl/meta/alt. The shell focuses the active view's search input; for the Dictionary this reaches the existing bar through a new `focusSearch()` on `DictionaryViewHandle`.
+- **Cmd/Ctrl+K** resolves to the same `{ type: 'search' }` action on all three views — resolved before the editable guard like the zoom chords, so it focuses the search bar even while typing elsewhere. This is the industry-standard search chord; `/` remains as the lightweight alternative.
 - Escape in a search input clears the term and blurs.
 
 
