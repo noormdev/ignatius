@@ -170,7 +170,7 @@ M CLAUDE.md                              — feature-map row (and '/' added to t
 
 ### shipped — 2026-07-14
 
-Built across 4 iterations of the /autopilot subagent loop. Commits (chronological):
+Built across 5 iterations of the /autopilot subagent loop (the fifth from live user feedback mid-run). Commits (chronological):
 
 - `196c214` — design doc + spec
 - `82d1c84` — CP1 pure title/body matchers + cross-diagram flow walker (+12-assertion unit check)
@@ -179,6 +179,9 @@ Built across 4 iterations of the /autopilot subagent loop. Commits (chronologica
 - `3c4d520` — CP3 flow cross-diagram search: results dropdown, token dimming, live renderer updates (+25-assertion Playwright check, visual)
 - `de396ab` — CP4 `/` shortcut + help overlay + guide/keymap-spec/feature-map rows
 - `8afa0bc` — spec correction: validator column schema for the checkpoints table
+- `10bda6a` — signals refresh (wiki) after CP1–CP4
+- `b135003` — spec amendment: CP5 from live user feedback
+- `0150807` — CP5 switch control, Cmd/Ctrl+K, flow-chrome clearance, visual tightening
 
 **Out-of-scope work performed during this build:**
 
@@ -189,6 +192,7 @@ Built across 4 iterations of the /autopilot subagent loop. Commits (chronologica
 - Global error banner (z-index 200) fully occluded the search bar on error-bearing models — fixed with a measured `--search-bar-top` offset plus a true-positive-proven regression check against `models/broken-demo`.
 - The `data-token` DOM attribute stamps externals as the bare id while every other kind is prefixed — search tokens therefore mirror the layout `node.id` scheme instead; recorded on the token type's doc comment.
 - The repo carries a systemic pre-existing typecheck debt (cytoscape `Core` typing, ~640 instances; CI runs typecheck `continue-on-error`) — the gate used throughout was "no new error categories," verified per iteration.
+- Checks hardcode ports (e.g. 3297) — a hung check process orphaned by a parallel suite run blocked `bun run test` until cleared; local runs contend where CI's sequential loop does not.
 
 **Deferred items still open:**
 
