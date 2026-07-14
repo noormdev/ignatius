@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { semanticColors, resolveFlowKindPalette, type FlowKindKey, type FlowKindEntry } from '../theme/theme-defaults';
 import { parseHash } from './hash-router';
@@ -14,9 +14,13 @@ import { buildModelIndex } from '../model/model-index';
 import type { ModelIndex } from '../model/model-index';
 import { hexToRgba } from './logic/color';
 import { buildAllFlowNodeIds } from './logic/flow-node-ids';
+import { entityMatches, searchFlowDiagrams } from './logic/search';
 import { Modal } from './components/ui/Modal';
 import { HelpModal } from './components/ui/HelpModal';
 import { ZoomControl } from './components/ui/ZoomControl';
+import { SearchBar } from './components/ui/SearchBar';
+import type { SearchBarHandle } from './components/ui/SearchBar';
+import { FlowSearchResults } from './components/flow/FlowSearchResults';
 import { EntityModal } from './components/entity/EntityModal';
 import { FindingsPanel } from './components/findings/FindingsPanel';
 import { LegendModal } from './views/flow/LegendModal';
@@ -39,6 +43,10 @@ export function App() {
   const graphViewRef = useRef<GraphViewHandle>(null);
   // Minimap container: rendered in shell JSX, ref passed down to GraphView.
   const minimapRef = useRef<HTMLDivElement>(null);
+  // Global-error banner: ref used ONLY to measure its rendered height (see the
+  // layout effect below) so the search bar can offset below it — the banner's
+  // height is dynamic (row count varies with error count / text wrap width).
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   const [selected, setSelected] = useState<ModelNode | null>(null);
 
@@ -64,6 +72,11 @@ export function App() {
   const flowsViewRef = useRef<FlowsViewHandle>(null);
   // Handle to DictionaryView — provides toggleLens for keyboard shortcut.
   const dictViewRef = useRef<DictionaryViewHandle>(null);
+  // Handles to the per-view SearchBar — the `/` shortcut (CP4) focuses whichever
+  // one belongs to the active view; Dictionary is reached via dictViewRef instead
+  // since its search input lives inside DictionaryView, not a SearchBar.
+  const graphSearchBarRef = useRef<SearchBarHandle>(null);
+  const flowSearchBarRef = useRef<SearchBarHandle>(null);
 
   const { view, setView, openEntity, closeEntity } = useHashRoute({
     onRestoreDfd: (dfdId) => flowsViewRef.current?.selectDiagramById(dfdId),
@@ -102,6 +115,19 @@ export function App() {
   // Dictionary state — keep-mounted so search text + scroll survive view switches.
   const [dictSearchText, setDictSearchText] = useState('');
   const [dictNavOpen, setDictNavOpen] = useState(false);
+  // Graph search state (graph-flow-search CP2) — term + includeBody, survive
+  // view switches the same way dictSearchText does (shell-owned useState, not
+  // reset on unmount since GraphView stays mounted across view switches).
+  const [graphSearchTerm, setGraphSearchTerm] = useState('');
+  const [graphSearchIncludeBody, setGraphSearchIncludeBody] = useState(false);
+  // Ascending-id cursor for Enter-to-cycle (SC3) — reset whenever the term or
+  // body toggle changes so the next Enter always starts from the first match.
+  const graphSearchCursorRef = useRef(-1);
+  // Flow search state (graph-flow-search CP3) — term + includeBody, survives
+  // view switches the same way graphSearchTerm does (shell-owned, FlowsView
+  // stays mounted-but-inactive across view switches).
+  const [flowSearchTerm, setFlowSearchTerm] = useState('');
+  const [flowSearchIncludeBody, setFlowSearchIncludeBody] = useState(false);
   // Pending scroll target: set by onNavigateToProcess, consumed by the view-switch
   // useEffect once the dict container is visible and the process anchor exists.
   const pendingScrollProcessIdRef = useRef<string | null>(null);
@@ -186,6 +212,44 @@ export function App() {
     document.title = model?._meta?.name ?? 'Ignatius';
   }, [model]);
 
+  // Whether the flow surface is active — hoisted early since it (and
+  // bannerVisible below) are read by both the banner-offset effect and the
+  // render's banner gate; a single derivation keeps them from diverging (F-1).
+  const isFlowSurface = view === 'flow';
+  // Global-error banner visibility: hidden on the flow surface (F-1 — this
+  // used to be re-derived independently by the layout effect below and by
+  // the render gate; one shared value now feeds both).
+  const bannerVisible = !bannerDismissed && findings.globalErrors.length > 0 && !isFlowSurface;
+
+  // Offset the graph search bar below the global-error banner (fixes the bar
+  // being fully occluded by the full-width, higher-z-index banner). Measures
+  // the banner's REAL rendered height via ResizeObserver rather than a fixed
+  // constant because it can wrap into multiple rows (many/long global errors,
+  // narrow viewport) — the fixed offset must track that and the bar must
+  // snap back to its default top when the banner is dismissed or has no
+  // errors. Written as a CSS custom property (consumed by .viewer-search-bar
+  // in styles.css) rather than passed as a prop, since SearchBar renders
+  // `.viewer-search-bar` directly with no style override slot.
+  useLayoutEffect(() => {
+    const el = bannerRef.current;
+    const root = document.documentElement;
+    if (!bannerVisible || !el) {
+      root.style.removeProperty('--search-bar-top');
+      return;
+    }
+    const BANNER_GAP = 12; // matches --search-bar-top's no-banner fallback in styles.css
+    function applyOffset() {
+      root.style.setProperty('--search-bar-top', `${el!.offsetHeight + BANNER_GAP}px`);
+    }
+    applyOffset();
+    const ro = new ResizeObserver(applyOffset);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--search-bar-top');
+    };
+  }, [bannerVisible]);
+
   function toggleMinimapOpen() {
     const next = !minimapOpen;
     localStorage.setItem('ignatius-minimap', String(next));
@@ -217,6 +281,15 @@ export function App() {
     else if (view === 'flow') flowsViewRef.current?.resetZoom();
   }
 
+  // Keyboard `/` (SC8) — focus the active view's search input. Graph and Flow
+  // route through their SearchBar's focus handle; Dictionary's search input
+  // lives inside DictionaryView, reached via its own handle.
+  function handleKeyboardSearchFocus() {
+    if (view === 'graph') graphSearchBarRef.current?.focus();
+    else if (view === 'flow') flowSearchBarRef.current?.focus();
+    else if (view === 'dict') dictViewRef.current?.focusSearch();
+  }
+
   // Global keyboard shortcut handler — single window keydown listener.
   // Reads current `view`/callbacks via a ref inside the hook (no stale closures).
   useKeyboardShortcuts({
@@ -228,6 +301,7 @@ export function App() {
     onZoomOut: handleKeyboardZoomOut,
     onZoomReset: handleKeyboardZoomReset,
     onHelp: () => setShowHelp(true),
+    onSearch: handleKeyboardSearchFocus,
   });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been
@@ -275,6 +349,75 @@ export function App() {
     () => (model ? buildModelIndex(model) : null),
     [model],
   );
+
+  // Graph search (graph-flow-search CP2, SC1/SC2/SC5): match-set computation
+  // over model.nodes using CP1's pure entityMatches. graphSearchActive tracks
+  // whether a term is present at all — GraphView's searchMatches prop is null
+  // (no active search, nothing dims) when inactive, and a Set (possibly empty,
+  // meaning "active search, zero matches — dim everything") when active. Pure
+  // UI state: never touches the model, layout fingerprint, layout-store, or
+  // URL hash (SC9).
+  const graphSearchActive = graphSearchTerm.trim() !== '';
+  const graphSearchMatchIds = useMemo(() => {
+    if (!model || !graphSearchActive) return [];
+    const term = graphSearchTerm.trim();
+    const ids: string[] = [];
+    for (const node of model.nodes) {
+      if (entityMatches(node, term, graphSearchIncludeBody)) ids.push(node.id);
+    }
+    ids.sort((a, b) => a.localeCompare(b));
+    return ids;
+  }, [model, graphSearchActive, graphSearchTerm, graphSearchIncludeBody]);
+  const graphSearchMatches = useMemo(
+    () => (graphSearchActive ? new Set(graphSearchMatchIds) : null),
+    [graphSearchActive, graphSearchMatchIds],
+  );
+
+  // Reset the Enter-cycle cursor whenever the term or body toggle changes so
+  // the next Enter press always starts from the first match in id order.
+  useEffect(() => {
+    graphSearchCursorRef.current = -1;
+  }, [graphSearchTerm, graphSearchIncludeBody]);
+
+  // Enter cycles ascending-id matches, wrapping (SC3). Centers + selects via
+  // the existing navigateToEntity handle — no new GraphView method needed.
+  function handleGraphSearchEnter() {
+    const ids = graphSearchMatchIds;
+    if (ids.length === 0) return;
+    const next = (graphSearchCursorRef.current + 1) % ids.length;
+    const nextId = ids[next];
+    if (nextId === undefined) return;
+    graphSearchCursorRef.current = next;
+    graphViewRef.current?.navigateToEntity(nextId);
+  }
+
+  // Flow search (graph-flow-search CP3, SC6/SC7): cross-diagram match list via
+  // CP1's searchFlowDiagrams, recomputed whenever the term/toggle/diagram set
+  // changes. flowSearchActive gates both the dropdown (SearchBar's results
+  // slot) and the token set threaded into FlowsView → FlowDiagramSvg for
+  // in-diagram dimming — same "null = inactive, Set = active" contract as
+  // the graph search above (SC9: never touches the model, layout store, or hash).
+  const flowSearchActive = flowSearchTerm.trim() !== '';
+  const flowSearchResults = useMemo(() => {
+    if (!flowDiagrams || !flowSearchActive) return [];
+    return searchFlowDiagrams(flowDiagrams, flowSearchTerm.trim(), flowSearchIncludeBody);
+  }, [flowDiagrams, flowSearchActive, flowSearchTerm, flowSearchIncludeBody]);
+  const flowSearchTokens = useMemo(
+    () => (flowSearchActive ? new Set(flowSearchResults.map(r => r.token)) : null),
+    [flowSearchActive, flowSearchResults],
+  );
+
+  // Row click / Enter routes through the existing selectDiagramById, which
+  // already reconstructs the full breadcrumb path into any sub-DFD — no new
+  // navigation machinery needed. Enter opens the first result (the keyboard
+  // path to the top match).
+  function handleFlowSearchSelect(diagramId: string) {
+    flowsViewRef.current?.selectDiagramById(diagramId);
+  }
+  function handleFlowSearchEnter() {
+    const first = flowSearchResults[0];
+    if (first) flowsViewRef.current?.selectDiagramById(first.diagramId);
+  }
 
   // Deep-link modal restore: a URL loaded with entity=<id> opens that modal once
   // the model (and its index) is available. One-shot — guarded by a ref so an
@@ -328,14 +471,11 @@ export function App() {
   // read the live index without re-running effects or causing stale-closure bugs.
   modelIndexRef.current = modelIndex;
 
-  const showBanner = !bannerDismissed && findings.globalErrors.length > 0;
-  const isFlowSurface = view === 'flow';
-
   return (
     <div className="app">
       {/* ── ERD surface chrome (hidden on flow surface) ── */}
-      {!isFlowSurface && showBanner && (
-        <div className="graph-global-banner" role="alert">
+      {bannerVisible && (
+        <div className="graph-global-banner" role="alert" ref={bannerRef}>
           <button
             className="graph-global-banner-close"
             onClick={() => setBannerDismissed(true)}
@@ -368,6 +508,7 @@ export function App() {
         layoutKey={layoutKeyRef.current}
         minimapOpen={minimapOpen}
         initialLayoutMode={layoutMode}
+        searchMatches={graphSearchMatches}
         onCyReadyChange={setCyReady}
         onZoomPercentChange={setZoomPercent}
         onLayoutModeChange={setLayoutMode}
@@ -435,10 +576,47 @@ export function App() {
         getThemeConfig={() => entityModelRef.current?.theme}
         onOpenEntity={(id, fromFlow) => openEntityByIdRef.current(id, fromFlow)}
         onZoomPercentChange={setFlowZoomPercent}
+        searchTokens={flowSearchTokens}
       />
 
       {/* ── ERD surface chrome (hidden on flow surface) ── */}
       {view === 'graph' && minimapOpen && <div ref={minimapRef} id="minimap-panel" className="minimap" />}
+      {/* Graph search bar (graph-flow-search CP2) — mounted while Graph view is active and a model is loaded. */}
+      {view === 'graph' && model && (
+        <SearchBar
+          ref={graphSearchBarRef}
+          term={graphSearchTerm}
+          onTermChange={setGraphSearchTerm}
+          includeBody={graphSearchIncludeBody}
+          onIncludeBodyChange={setGraphSearchIncludeBody}
+          matchCount={graphSearchActive ? graphSearchMatchIds.length : null}
+          totalCount={model.nodes.length}
+          onEnter={handleGraphSearchEnter}
+          placeholder="Search entities…"
+          ariaLabel="Search graph"
+          className="viewer-search-bar--graph"
+        />
+      )}
+      {/* Flow search bar (graph-flow-search CP3) — mounted while Flows view is active and diagrams exist. */}
+      {view === 'flow' && (flowDiagrams?.length ?? 0) > 0 && (
+        <SearchBar
+          ref={flowSearchBarRef}
+          term={flowSearchTerm}
+          onTermChange={setFlowSearchTerm}
+          includeBody={flowSearchIncludeBody}
+          onIncludeBodyChange={setFlowSearchIncludeBody}
+          matchCount={null}
+          totalCount={0}
+          onEnter={handleFlowSearchEnter}
+          placeholder="Search flows…"
+          ariaLabel="Search flows"
+          className="viewer-search-bar--flow"
+        >
+          {flowSearchActive && (
+            <FlowSearchResults results={flowSearchResults} onSelect={handleFlowSearchSelect} />
+          )}
+        </SearchBar>
+      )}
       {/* Zoom control — Graph view: delegates to GraphView handle */}
       {view === 'graph' && cyReady && (
         <ZoomControl

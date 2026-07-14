@@ -185,6 +185,17 @@ function truncateLabel(label: string, maxChars: number): string {
   return label.slice(0, maxChars - 1) + '…';
 }
 
+/**
+ * Strips the role-split layout suffixes (external src/snk routing copies,
+ * split store read/write copies — see flow-layout.ts's `ext:<id>--src/--snk`
+ * and `<kind>:<name>--read/--write` id schemes) so a node/edge-endpoint id
+ * compares equal to the base token search.ts's searchFlowDiagrams produces
+ * (graph-flow-search CP3, SC7).
+ */
+function baseToken(id: string): string {
+  return id.replace(/--(src|snk|read|write)$/, '');
+}
+
 function storeWidth(name: string): number {
   // Reserve a right-side slot for the ⓘ badge so it never overlaps the name.
   const bodyW = Math.max(STORE_BODY_W, measureText(name, 11.5) + STORE_INFO_PAD);
@@ -829,6 +840,13 @@ export type FlowDiagramSvgProps = {
     zoomTo(scale: number): void;
     resetFit(): void;
   } | null) => void;
+  /**
+   * Match-set for graph-flow-search CP3: base tokens (role-split --src/--snk/
+   * --read/--write suffixes stripped, see baseToken) that stay at full opacity
+   * when no hover is active. null = no active search (no dimming from this
+   * source). A pointer hover always wins over search dimming while it's active.
+   */
+  searchTokens?: ReadonlySet<string> | null;
 };
 
 export function FlowDiagramSvg({
@@ -846,6 +864,7 @@ export function FlowDiagramSvg({
   onRegisterPanTo,
   onZoomChange,
   onRegisterZoomControl,
+  searchTokens = null,
 }: FlowDiagramSvgProps) {
   // Select palette based on current theme.
   const c = themeMode === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
@@ -1493,8 +1512,23 @@ export function FlowDiagramSvg({
     }
     focus = { nodes: fNodes, edges: fEdges };
   }
-  const nodeOpacity = (id: string) => (!focus || focus.nodes.has(id) ? 1 : DIM_OPACITY);
-  const edgeOpacity = (id: string) => (!focus || focus.edges.has(id) ? 1 : DIM_OPACITY);
+  // Search dimming (graph-flow-search CP3, SC7) applies only while no hover is
+  // active — hover always wins, matching the existing focus-tier precedence.
+  const nodeOpacity = (id: string) => {
+    if (focus) return focus.nodes.has(id) ? 1 : DIM_OPACITY;
+    if (searchTokens) return searchTokens.has(baseToken(id)) ? 1 : DIM_OPACITY;
+    return 1;
+  };
+  const edgeOpacity = (id: string) => {
+    if (focus) return focus.edges.has(id) ? 1 : DIM_OPACITY;
+    if (searchTokens) {
+      const edge = edges.find(e => e.id === id);
+      if (!edge) return 1;
+      const matches = searchTokens.has(baseToken(edge.source)) || searchTokens.has(baseToken(edge.target));
+      return matches ? 1 : DIM_OPACITY;
+    }
+    return 1;
+  };
 
   // Resolve the hovered edge render for the tooltip.
   const tooltipEdge = edgeTooltip !== null

@@ -39,6 +39,7 @@ const GRAPH_EXPLORE: Row[] = [
   { term: 'Layouts', desc: 'Organic clusters related entities by force; Hierarchical stacks them in dependency layers. Toggle with L.' },
   { term: 'Shift + hover', desc: 'Reveals dotted lines to an entity’s whole key-inheritance family — every relative that shares its primary key, however far apart.' },
   { term: 'Click · drag · zoom', desc: 'Click an entity for full detail; drag to rearrange (positions are saved); scroll or ⌘/Ctrl +/−/0 to zoom.' },
+  { term: 'Search', desc: 'Type to highlight matches and dim the rest; flip Include descriptions to also match markdown text; Enter cycles through matches.' },
 ];
 
 const GRAPH_STYLES: Row[] = [
@@ -66,6 +67,7 @@ const FLOW_SYMBOLS: Row[] = [
 const FLOW_EXPLORE: Row[] = [
   { term: 'Levels & drill-down', desc: 'Numbered processes decompose — click one to drill into its sub-diagram; breadcrumbs walk back up. The context and overview levels are derived automatically.' },
   { term: 'Inspect', desc: 'Hover a connector to see the exact data items it carries; the ⓘ badge on any node opens its details (a db: store opens the full entity).' },
+  { term: 'Search', desc: 'Type to find matches across every diagram, including sub-DFDs — flip Include descriptions to also match markdown text; results list by diagram, click one to navigate there. Non-matches dim in the diagram.' },
 ];
 
 function shortcutRows(view: ViewName): Row[] {
@@ -78,6 +80,7 @@ function shortcutRows(view: ViewName): Row[] {
   if (view === 'graph' || view === 'flow') {
     rows.push({ term: '⌘/Ctrl +/−/0', desc: 'Zoom the canvas in, out, or reset.' });
   }
+  rows.push({ term: '/ · ⌘/Ctrl K', desc: 'Focus the search bar.' });
   rows.push({ term: '?', desc: 'Open this help.' });
   return rows;
 }

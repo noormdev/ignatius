@@ -16,9 +16,13 @@
  *
  * The imperative core's onDrillUp and onSelectDiagram callbacks are provided
  * back to it via props (the chrome owns the UI; the core owns the SVG).
+ *
+ * Also writes the --flow-search-bar-top CSS custom property (measured off the
+ * breadcrumb row) so App.tsx's flow search bar clears the breadcrumb chips at
+ * any drill depth (graph-flow-search CP5, SC12) — see the effect below.
  */
 
-import { useState, useImperativeHandle, forwardRef, useRef } from 'react';
+import { useState, useImperativeHandle, forwardRef, useRef, useLayoutEffect } from 'react';
 import type { FlowDiagram } from '../flows/flow-parse';
 import type { MinimapData } from './FlowDiagramSvg';
 import { DARK_PALETTE, LIGHT_PALETTE } from './FlowDiagramSvg';
@@ -197,6 +201,39 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
     const [minimapData, setMinimapData] = useState<MinimapData | null>(null);
     // Minimap pan callback: calls the registered pan handler from the core.
     const minimapPanRef = useRef<((worldX: number, worldY: number) => void) | null>(null);
+    // Breadcrumb row ref — measured below so the flow search bar (App.tsx) can
+    // clear it (graph-flow-search CP5, SC12).
+    const breadcrumbRef = useRef<HTMLDivElement>(null);
+
+    // Search-bar collision avoidance (SC12): the breadcrumb chip row grows
+    // WIDER with drill depth (single line, no wrap — see the div's flex rules
+    // below) but its HEIGHT never changes, so tracking its measured bottom
+    // edge is enough to guarantee the horizontally-centered flow search bar
+    // never overlaps it at any depth. Mirrors App.tsx's --search-bar-top
+    // banner-offset idiom (ResizeObserver → CSS custom property); scoped
+    // locally here — via its own --flow-search-bar-top var, not the banner's
+    // — since FlowChrome owns the breadcrumb DOM and the banner is never
+    // shown on the flow surface anyway (see styles.css .viewer-search-bar--flow).
+    useLayoutEffect(() => {
+      const el = breadcrumbRef.current;
+      const root = document.documentElement;
+      if (!el) {
+        root.style.removeProperty('--flow-search-bar-top');
+        return;
+      }
+      const GAP = 12; // matches --search-bar-top's no-banner fallback gap
+      function applyOffset() {
+        const rect = el!.getBoundingClientRect();
+        root.style.setProperty('--flow-search-bar-top', `${rect.bottom + GAP}px`);
+      }
+      applyOffset();
+      const ro = new ResizeObserver(applyOffset);
+      ro.observe(el);
+      return () => {
+        ro.disconnect();
+        root.style.removeProperty('--flow-search-bar-top');
+      };
+    }, []);
 
     useImperativeHandle(ref, () => ({
       setStack(s: BreadcrumbEntry[]) { setStack(s); },
@@ -226,15 +263,18 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
     return (
       <>
         {/* ── Breadcrumb chips — top-left ── */}
-        <div style={{
-          position: 'absolute',
-          top: '18px',
-          left: '240px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          zIndex: 30,
-        }}>
+        <div
+          ref={breadcrumbRef}
+          data-ignatius="flow-breadcrumbs"
+          style={{
+            position: 'absolute',
+            top: '18px',
+            left: '240px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            zIndex: 30,
+          }}>
           <span style={{ color: 'var(--color-text-muted, #8b949e)', fontSize: '13px' }}>/</span>
           <div style={{
             display: 'inline-flex',
@@ -315,7 +355,7 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
 
         {/* ── DFD nav card — floating top-left below branding ── */}
         {showNav && (
-          <div style={{
+          <div data-ignatius="flow-nav-card" style={{
             position: 'absolute',
             top: '72px',
             left: '20px',

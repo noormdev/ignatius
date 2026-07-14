@@ -108,6 +108,11 @@ export interface GraphViewProps {
   minimapOpen: boolean;
   /** Initial layout mode (read once; changes arrive via applyLayoutMode handle). */
   initialLayoutMode: LayoutMode;
+  /** Active graph-search match set (entity ids). Null = no active search — no
+   *  search-* classes applied. Applied as `search-match`/`search-dim` classes
+   *  (graph-flow-search CP2); survives hover tiers, lineage, layout changes,
+   *  and SSE model refresh (reapplied on cy rebuild). */
+  searchMatches: ReadonlySet<string> | null;
   /** Called when cy readiness changes (true = cy alive; false = cy destroyed). */
   onCyReadyChange(ready: boolean): void;
   /** Called on every cy zoom event with the readout percent (100 = fit baseline). */
@@ -141,6 +146,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       layoutKey,
       minimapOpen,
       initialLayoutMode,
+      searchMatches,
       onCyReadyChange,
       onZoomPercentChange,
       onLayoutModeChange,
@@ -169,6 +175,12 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
     const findingsRef = useRef(findings);
     findingsRef.current = findings;
 
+    // searchMatchesRef: read by applySearchClasses (defined inside cy-init,
+    // wired to applySearchClassesRef below) so the reapply effect below never
+    // needs the cy-init effect to re-run when the term changes mid-typing.
+    const searchMatchesRef = useRef<ReadonlySet<string> | null>(searchMatches);
+    searchMatchesRef.current = searchMatches;
+
     // minimapOpenRef: read by cy effect on mount (avoid adding minimapOpen to deps).
     const minimapOpenRef = useRef<boolean>(minimapOpen);
     minimapOpenRef.current = minimapOpen;
@@ -195,6 +207,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
     const exitLineageHoverRef = useRef<(() => void) | null>(null);
     // Wired inside cy-init to the local redrawMarkers closure (clears + redraws badges).
     const redrawMarkersRef = useRef<(() => void) | null>(null);
+    // Wired inside cy-init to the local applySearchClasses closure (search-match/
+    // search-dim class application, keyed off searchMatchesRef).
+    const applySearchClassesRef = useRef<(() => void) | null>(null);
     const cyZoomInRef = useRef<(() => void) | null>(null);
     const cyZoomOutRef = useRef<(() => void) | null>(null);
     const cySetPercentRef = useRef<((pct: number) => void) | null>(null);
@@ -253,6 +268,17 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       if (!isActive) return;
       redrawMarkersRef.current?.();
     }, [findings.entityErrors, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Search class reapply (graph-flow-search CP2, SC1/SC4) ──────────────
+    // Runs on every searchMatches change (live as the shell debounces the
+    // term) AND whenever cyReady flips true — which covers the cy-rebuild
+    // paths (SSE model refresh, initial mount) where the fresh cy instance
+    // starts with no search-* classes and must have the ACTIVE term reapplied
+    // without the user retyping it (SC4).
+    useEffect(() => {
+      if (!isActive || !cyReady) return;
+      applySearchClassesRef.current?.();
+    }, [searchMatches, isActive, cyReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Navigator toggle effect (CP18) ─────────────────────────────────────
     // Runs on minimapOpen, cyReady, and isActive changes.
@@ -693,6 +719,31 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         drawWarningBadges(cy, svg, badgeIds);
       };
       redrawMarkersRef.current = redrawMarkers;
+
+      // ── Graph search classes (graph-flow-search CP2) ───────────────────────
+      // search-match / search-dim are DEDICATED classes, distinct from the
+      // hover-tier classes (faded/inherited-dim/hover-focus) and the ephemeral
+      // .inherited lineage class — clearFocusTiers/clearInheritedEdges never
+      // touch them, so hover, shift-lineage, background tap, and layout
+      // changes cannot erase active search dimming (SC4). Reads the match set
+      // from searchMatchesRef (never stale — mirrored every render), so the
+      // reapply effect above can call this without the cy-init effect
+      // re-running on every keystroke.
+      function applySearchClasses(): void {
+        if (cy.destroyed()) return;
+        cy.elements().removeClass('search-match search-dim');
+        const matches = searchMatchesRef.current;
+        if (!matches) return; // no active search — leave every element undimmed
+        const matchedNodes = cy.nodes().filter(n => matches.has(n.id()));
+        const unmatchedNodes = cy.nodes().difference(matchedNodes);
+        matchedNodes.addClass('search-match');
+        unmatchedNodes.addClass('search-dim');
+        // An edge stays undimmed only when BOTH endpoints match (SC1).
+        cy.edges()
+          .filter(e => !(matches.has(e.source().id()) && matches.has(e.target().id())))
+          .addClass('search-dim');
+      }
+      applySearchClassesRef.current = applySearchClasses;
 
       // Tracks the last hash string we wrote ourselves, to break the hashchange feedback loop.
       let lastWrittenHash = '';
@@ -1362,6 +1413,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         resetLayoutRef.current = null;
         applyLayoutModeRef.current = null;
         redrawMarkersRef.current = null;
+        applySearchClassesRef.current = null;
         cyZoomInRef.current = null;
         cyZoomOutRef.current = null;
         cySetPercentRef.current = null;

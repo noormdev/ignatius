@@ -22,10 +22,10 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 ## Success criteria
 
 - [x] `HelpModal` (`src/app/components/ui/HelpModal.tsx`) renders on the shared `Modal` primitive with `className="help-modal"`, switches body content on `view: ViewName`, and titles per view ("About the Graph/Dictionary/Flows").
-- [x] Graph body covers: an ER-diagram intro, the five entity types (Independent, Dependent, Subtype, Associative, Classifier), how-to-explore (layouts, Shift+hover lineage, click/drag/zoom), and the key-inherited vs surrogate distinction.
+- [x] Graph body covers: an ER-diagram intro, the five entity types (Independent, Dependent, Subtype, Associative, Classifier), how-to-explore (layouts, Shift+hover lineage, click/drag/zoom, search — term matching with a body-text toggle, Enter cycling through matches), and the key-inherited vs surrogate distinction.
 - [x] Dictionary body covers: Read/Browse lenses, spotlight, Shift+hover lineage, search/focus.
-- [x] Flows body covers: a DFD intro, symbols (process/store/external), drill-down + inspect.
-- [x] A Keyboard section is present on every view and tailored to it (only the keys active there); Graph and Flows footnote a pointer to the Legend.
+- [x] Flows body covers: a DFD intro, symbols (process/store/external), drill-down + inspect, cross-diagram search (results grouped by diagram, non-matches dimmed in the rendered diagram).
+- [x] A Keyboard section is present on every view and tailored to it (only the keys active there), including `/` to focus that view's search input; Graph and Flows footnote a pointer to the Legend.
 - [x] A `?` top-bar button sits just left of the theme toggle (shared chrome, all views), opens the overlay, and is hidden in `@media print`.
 - [x] `resolveShortcut` returns `{ type: 'help' }` for `?`: resolved after the editable guard, before the bare-key modifier guard (Shift is inherent), and gated off ctrl/meta/alt. `useKeyboardShortcuts` carries an `onHelp` callback; the shell opens the overlay.
 - [x] Editable guard holds: typing `?` in the search box inserts a literal `?` and does NOT open the overlay.
@@ -51,4 +51,8 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 
 ## Change log
 
-<!-- First amendment after approval goes here. -->
+### 2026-07-14 — Search rows + `/` key added
+
+**What changed:** the Graph and Flows "How to explore" sections each gained a Search row (Graph: term matching, body-text toggle, Enter cycling; Flows: cross-diagram results grouped by diagram, in-diagram dimming). Every view's Keyboard section now lists `/` — focus that view's search input.
+
+**Why:** the graph-flow-search feature (`docs/spec/graph-flow-search.md`, SC8) adds search bars to Graph, Dictionary, and Flows with a shared `/` focus shortcut; the help overlay must describe what a first-time viewer sees, including the new search affordance.

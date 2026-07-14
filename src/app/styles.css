@@ -1169,6 +1169,245 @@ code {
   color: var(--color-text-muted);
 }
 
+/* graph-flow-search CP2: shared Graph/Flows search bar (SearchBar.tsx).
+   Compact frosted pill, top-center — visually consistent with .dict-search-bar
+   but deliberately NOT full-width, so it never collides with the top-right
+   help/theme toggles + FindingsPanel or the top-left branding block. The
+   full-width global error banner is handled separately via --search-bar-top
+   (see below) since width alone doesn't avoid a top-anchored, full-width
+   banner. */
+.viewer-search-bar {
+  position: fixed;
+  /* --search-bar-top is set by App.tsx's banner-measuring layout effect while
+     the global-error banner is visible, so the bar sits below it instead of
+     being occluded (banner is full-width, z-index:200 vs. the bar's 45).
+     Falls back to 12px (no banner) — never written by CSS. */
+  top: var(--search-bar-top, 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* graph-flow-search CP5 (SC12): the flow bar clears the DFD breadcrumb chip
+   row via its OWN measured offset var, --flow-search-bar-top — never the
+   banner's --search-bar-top (the global banner is always hidden on the flow
+   surface, so that var stays at its 12px fallback there anyway; keeping the
+   two vars separate avoids two independent effects racing to write/clear the
+   same custom property). Written by FlowChrome.tsx (owns the breadcrumb DOM)
+   via the same ResizeObserver-driven idiom App.tsx uses for the banner. Two
+   classes on one element (.viewer-search-bar.viewer-search-bar--flow) so this
+   wins on specificity regardless of CSS source order. */
+.viewer-search-bar.viewer-search-bar--flow {
+  top: var(--flow-search-bar-top, 64px);
+}
+
+.viewer-search-bar-inner {
+  position: relative; /* anchors .viewer-search-count (see below) */
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background-color: color-mix(in srgb, var(--color-background) 75%, transparent);
+  transition: border-color 0.15s;
+}
+
+/* Focus ring — same border-color-on-focus idiom as .viewer-search-input and
+   .dict-search-input, raised to the whole pill so focusing the input reads
+   as the bar itself being active, not just a 1px input edge. */
+.viewer-search-bar-inner:focus-within {
+  border-color: var(--color-link);
+}
+
+.viewer-search-input {
+  width: 200px;
+  padding: 0.4rem 0.65rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.viewer-search-input:focus {
+  border-color: var(--color-link);
+}
+
+.viewer-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Body-text toggle switch — role="switch", small track + thumb, accent color
+   when on. Sized to match the compact chrome scale (.zoom-control-btn is
+   24×24; this pairs a 30×17 track with a visible text label instead of an
+   icon-only control, since the label IS the point — see CP5 change log). */
+.viewer-search-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.viewer-search-switch-track {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: 30px;
+  height: 17px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.viewer-search-switch-track:focus-visible {
+  outline: none;
+  border-color: var(--color-link);
+}
+
+.viewer-search-switch-track[aria-checked="true"] {
+  background: var(--color-link);
+  border-color: var(--color-link);
+}
+
+.viewer-search-switch-thumb {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.viewer-search-switch-track[aria-checked="true"] .viewer-search-switch-thumb {
+  background: var(--color-background);
+  transform: translateX(13px);
+}
+
+.viewer-search-switch-label {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Count readout — absolutely positioned OUTSIDE the flex flow so its width
+   never contributes to .viewer-search-bar-inner's own size. The bar is
+   horizontally centered (`.viewer-search-bar`'s left:50%+translateX(-50%)),
+   so any width change ripples into a visible shift of the whole pill (the
+   input included) — this keeps the bar's width (and therefore its centered
+   position) constant whether or not the count is showing. Still mounted
+   only when matchCount !== null (SearchBar.tsx) — clearing the term removes
+   it from the DOM entirely, not just visually. */
+.viewer-search-count {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* graph-flow-search CP3: Flows results dropdown, rendered into the SearchBar's
+   results slot below .viewer-search-bar-inner. Same frosted-pill language as
+   the bar itself. Nested under .viewer-search-bar, so it's already covered by
+   that selector's @media print rule (no separate print-hidden entry needed). */
+.viewer-search-results {
+  margin-top: 6px;
+  width: 320px;
+  max-height: 360px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background-color: color-mix(in srgb, var(--color-background) 90%, transparent);
+}
+
+.viewer-search-results-group + .viewer-search-results-group {
+  border-top: 1px solid var(--color-border);
+}
+
+.viewer-search-results-group-title {
+  padding: 6px 10px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.viewer-search-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.65rem;
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.viewer-search-result-row:hover,
+.viewer-search-result-row:focus-visible {
+  background: var(--color-surface-alt);
+}
+
+.viewer-search-result-kind {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+}
+
+.viewer-search-result-dotted {
+  flex: none;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.viewer-search-result-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-search-results-overflow {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
 /* CP9: DD search highlight — CSS Custom Highlight API pseudo-element.
    The --dd-search-highlight var is set per-mode by applyThemeCssVars at runtime
    (authoritative). These fallbacks cover surfaces that don't call it (e.g. static
@@ -2450,6 +2689,7 @@ a.dict-link-missing:hover {
   .flow-chrome,
   .graph-global-banner,
   .dict-search-bar,
+  .viewer-search-bar,
   .dict-nav-panel,
   .findings-panel,
   .theme-toggle,

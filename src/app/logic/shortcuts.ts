@@ -10,6 +10,10 @@
  *   f → view flow    (any view)
  *   l → toggleLayout (view==='graph' only; null otherwise)
  *   b → toggleLens   (view==='dict'  only; null otherwise)
+ *   / → search       (any view; ordinary bare key — unlike '?' it needs no
+ *                      Shift, so it resolves in the normal switch below.
+ *                      Cmd/Ctrl+k is a second, always-on route to the same
+ *                      action — see "Modifier-gated zoom + search" below.)
  *   ? → help         (any view; needs Shift, so resolved before guard 2)
  *
  * Guards checked before the switch:
@@ -22,11 +26,15 @@
  * Key matching is done on e.key.toLowerCase() so capslock does not block
  * actions (shift is already guarded, preventing Shift+G etc.).
  *
- * Modifier-gated zoom (Cmd/Ctrl + =/+ / -/_ / 0): resolved BEFORE the bare-key
- * guards, so it works regardless of the editable context and is gated on
- * ctrl/meta (NOT alt/shift). These map to the browser's own zoom chord, which
- * we intercept and route to the active canvas instead of the page. Bare =/-/0
- * with no modifier are NOT hijacked — they fall through to null.
+ * Modifier-gated zoom + search (Cmd/Ctrl + =/+ / -/_ / 0 / k): resolved
+ * BEFORE the bare-key guards, so these work regardless of the editable
+ * context and are gated on ctrl/meta (NOT alt/shift). The zoom keys map to
+ * the browser's own zoom chord, which we intercept and route to the active
+ * canvas instead of the page; Cmd/Ctrl+k maps to the conventional "focus
+ * search" chord and resolves to the same { type: 'search' } action as '/' —
+ * unlike '/', it fires even while typing elsewhere (not suppressed by the
+ * editable guard). Bare =/-/0/k with no modifier are NOT hijacked — they
+ * fall through to null (bare 'k' is simply unmapped, so it types normally).
  */
 
 import type { ViewName } from '../hash-router';
@@ -51,7 +59,8 @@ export type ShortcutAction =
   | { type: 'zoomIn' }
   | { type: 'zoomOut' }
   | { type: 'zoomReset' }
-  | { type: 'help' };
+  | { type: 'help' }
+  | { type: 'search' };
 
 // ---------------------------------------------------------------------------
 // resolveShortcut
@@ -72,10 +81,12 @@ export function resolveShortcut(
 ): ShortcutAction | null {
   const key = e.key.toLowerCase();
 
-  // Modifier-gated zoom: Cmd/Ctrl + =/+ / -/_ / 0. Resolved FIRST so it bypasses
-  // the editable guard (these are not typed characters — they are the browser's
-  // own page-zoom chord, which we steal for the active canvas). Gated on
-  // ctrl/meta ONLY: alt or shift held with these keys → no zoom.
+  // Modifier-gated zoom + search: Cmd/Ctrl + =/+ / -/_ / 0 / k. Resolved FIRST
+  // so these bypass the editable guard (not typed characters — the zoom keys
+  // are the browser's own page-zoom chord, which we steal for the active
+  // canvas; 'k' is the conventional "focus search" chord). Gated on ctrl/meta
+  // ONLY: alt or shift held with these keys → no action (same slot, same guard
+  // for both groups).
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
     switch (key) {
       case '=':
@@ -83,6 +94,7 @@ export function resolveShortcut(
       case '-':
       case '_': return { type: 'zoomOut' };
       case '0': return { type: 'zoomReset' };
+      case 'k': return { type: 'search' };
     }
   }
 
@@ -106,6 +118,7 @@ export function resolveShortcut(
     case 'f': return { type: 'view', view: 'flow' };
     case 'l': return view === 'graph' ? { type: 'toggleLayout' } : null;
     case 'b': return view === 'dict'  ? { type: 'toggleLens'   } : null;
+    case '/': return { type: 'search' };
     default:  return null;
   }
 }
