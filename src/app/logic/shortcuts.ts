@@ -10,6 +10,8 @@
  *   f → view flow    (any view)
  *   l → toggleLayout (view==='graph' only; null otherwise)
  *   b → toggleLens   (view==='dict'  only; null otherwise)
+ *   / → search       (any view; ordinary bare key — unlike '?' it needs no
+ *                      Shift, so it resolves in the normal switch below)
  *   ? → help         (any view; needs Shift, so resolved before guard 2)
  *
  * Guards checked before the switch:
@@ -51,7 +53,8 @@ export type ShortcutAction =
   | { type: 'zoomIn' }
   | { type: 'zoomOut' }
   | { type: 'zoomReset' }
-  | { type: 'help' };
+  | { type: 'help' }
+  | { type: 'search' };
 
 // ---------------------------------------------------------------------------
 // resolveShortcut
@@ -106,6 +109,7 @@ export function resolveShortcut(
     case 'f': return { type: 'view', view: 'flow' };
     case 'l': return view === 'graph' ? { type: 'toggleLayout' } : null;
     case 'b': return view === 'dict'  ? { type: 'toggleLens'   } : null;
+    case '/': return { type: 'search' };
     default:  return null;
   }
 }

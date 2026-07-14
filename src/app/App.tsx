@@ -19,6 +19,7 @@ import { Modal } from './components/ui/Modal';
 import { HelpModal } from './components/ui/HelpModal';
 import { ZoomControl } from './components/ui/ZoomControl';
 import { SearchBar } from './components/ui/SearchBar';
+import type { SearchBarHandle } from './components/ui/SearchBar';
 import { FlowSearchResults } from './components/flow/FlowSearchResults';
 import { EntityModal } from './components/entity/EntityModal';
 import { FindingsPanel } from './components/findings/FindingsPanel';
@@ -71,6 +72,11 @@ export function App() {
   const flowsViewRef = useRef<FlowsViewHandle>(null);
   // Handle to DictionaryView — provides toggleLens for keyboard shortcut.
   const dictViewRef = useRef<DictionaryViewHandle>(null);
+  // Handles to the per-view SearchBar — the `/` shortcut (CP4) focuses whichever
+  // one belongs to the active view; Dictionary is reached via dictViewRef instead
+  // since its search input lives inside DictionaryView, not a SearchBar.
+  const graphSearchBarRef = useRef<SearchBarHandle>(null);
+  const flowSearchBarRef = useRef<SearchBarHandle>(null);
 
   const { view, setView, openEntity, closeEntity } = useHashRoute({
     onRestoreDfd: (dfdId) => flowsViewRef.current?.selectDiagramById(dfdId),
@@ -275,6 +281,15 @@ export function App() {
     else if (view === 'flow') flowsViewRef.current?.resetZoom();
   }
 
+  // Keyboard `/` (SC8) — focus the active view's search input. Graph and Flow
+  // route through their SearchBar's focus handle; Dictionary's search input
+  // lives inside DictionaryView, reached via its own handle.
+  function handleKeyboardSearchFocus() {
+    if (view === 'graph') graphSearchBarRef.current?.focus();
+    else if (view === 'flow') flowSearchBarRef.current?.focus();
+    else if (view === 'dict') dictViewRef.current?.focusSearch();
+  }
+
   // Global keyboard shortcut handler — single window keydown listener.
   // Reads current `view`/callbacks via a ref inside the hook (no stale closures).
   useKeyboardShortcuts({
@@ -286,6 +301,7 @@ export function App() {
     onZoomOut: handleKeyboardZoomOut,
     onZoomReset: handleKeyboardZoomReset,
     onHelp: () => setShowHelp(true),
+    onSearch: handleKeyboardSearchFocus,
   });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been
@@ -568,6 +584,7 @@ export function App() {
       {/* Graph search bar (graph-flow-search CP2) — mounted while Graph view is active and a model is loaded. */}
       {view === 'graph' && model && (
         <SearchBar
+          ref={graphSearchBarRef}
           term={graphSearchTerm}
           onTermChange={setGraphSearchTerm}
           includeBody={graphSearchIncludeBody}
@@ -583,6 +600,7 @@ export function App() {
       {/* Flow search bar (graph-flow-search CP3) — mounted while Flows view is active and diagrams exist. */}
       {view === 'flow' && (flowDiagrams?.length ?? 0) > 0 && (
         <SearchBar
+          ref={flowSearchBarRef}
           term={flowSearchTerm}
           onTermChange={setFlowSearchTerm}
           includeBody={flowSearchIncludeBody}

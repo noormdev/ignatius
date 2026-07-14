@@ -308,4 +308,39 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// T17: '/' → search on every view. Ordinary bare key (no Shift needed, unlike
+//      '?'), so it resolves through the normal switch after both guards.
+// ---------------------------------------------------------------------------
+{
+  for (const view of VIEWS) {
+    const result = resolveShortcut(ev('/'), view, false);
+    assert(result !== null && result.type === 'search', `T17: '/' on ${view} → { type:'search' }`);
+    assert(Object.keys(result).length === 1, "T17: search action has only 'type'");
+    console.log(`PASS T17: '/' on view=${view} → { type:'search' }`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T18: '/' with ctrl/meta/alt held → null (modifier guard applies like any
+//      other bare key).
+// ---------------------------------------------------------------------------
+{
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey'] as const) {
+    const result = resolveShortcut(ev('/', { [mod]: true }), 'graph', false);
+    assert(result === null, `T18: ${mod}+'/' → null`);
+    console.log(`PASS T18: ${mod}+'/' → null`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T19: '/' while editable === true → null (typing '/' in an input/textarea/
+//      contenteditable/modal must insert the literal character instead).
+// ---------------------------------------------------------------------------
+{
+  const result = resolveShortcut(ev('/'), 'graph', true);
+  assert(result === null, "T19: '/' editable=true → null");
+  console.log("PASS T19: '/' editable=true → null");
+}
+
 console.log('\nAll tests passed.');

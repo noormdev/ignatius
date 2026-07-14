@@ -122,6 +122,7 @@ The app responds to single-key shortcuts while no text field is focused and no m
 | `f` | Switch to the Data Flows |
 | `l` | Toggle graph layout (organic ↔ hierarchical) — Graph view |
 | `b` | Toggle dictionary lens (read ↔ browse) — Dictionary view |
+| `/` | Focus the search bar — Graph, Dictionary, Flows |
 | `?` | Open the help overlay for the current view |
 
 Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?` is the one exception to the modifier rule — it needs Shift to type, so Shift does not suppress it (but it is still ignored while typing in a field).

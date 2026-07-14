@@ -15,6 +15,8 @@ interface KeyboardShortcutsConfig {
   onZoomReset: () => void;
   /** `?` — open the view-aware help overlay. */
   onHelp: () => void;
+  /** `/` — focus the active view's search input. */
+  onSearch: () => void;
 }
 
 /**
@@ -37,11 +39,12 @@ export function useKeyboardShortcuts({
   onZoomOut,
   onZoomReset,
   onHelp,
+  onSearch,
 }: KeyboardShortcutsConfig): void {
   // Latest config ref — updated synchronously on every render so the stable
   // listener closure never reads stale values.
-  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp });
-  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp };
+  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch });
+  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch };
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -77,6 +80,7 @@ export function useKeyboardShortcuts({
         case 'zoomOut': cfg.onZoomOut(); break;
         case 'zoomReset': cfg.onZoomReset(); break;
         case 'help': cfg.onHelp(); break;
+        case 'search': cfg.onSearch(); break;
       }
     }
 

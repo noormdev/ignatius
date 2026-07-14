@@ -31,11 +31,17 @@ distinct guard class from the bare keys (see Keymap).
 | `f` | view → `flow` | any view |
 | `l` | toggle DG layout `organic ↔ hierarchical` | `view === 'graph'` |
 | `b` | toggle DD lens `read ↔ browse` | `view === 'dict'` |
+| `/` | focus the active view's search input (graph bar, flow bar, or the Dictionary's search box) | any view |
 
 Bare keys bail (no action) when: `ctrlKey || metaKey || altKey || shiftKey`, OR
 focus is an editable target (`input` / `textarea` / `select` /
 `contenteditable` / inside an open `.modal`). `l` and `b` resolve to no action
-when their view is not active. View jumps are idempotent.
+when their view is not active. View jumps are idempotent. `/` needs no Shift
+(unlike `?`), so it resolves through the ordinary bare-key switch with no
+special guard slot; typing `/` inside any editable target inserts the literal
+character instead of firing the shortcut. The search feature itself (bars,
+matching, dimming) is owned by `docs/spec/graph-flow-search.md`; this resolver
+owns only the `/` key binding and the shell's focus-routing dispatch.
 
 **Modifier-gated zoom** (CP4) — resolved *before* the bare-key guards, so the
 editable guard does **not** block them (they are not typed characters), and
@@ -128,3 +134,9 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 **Why:** First-time viewers need an in-app orientation; `?` is the conventional help key.
 
 **Superseded:** the non-goal "A help / cheat-sheet overlay" — the resolver now owns the `?` binding; the overlay itself moved to its own spec.
+
+### 2026-07-14 — `/` search-focus key added to the resolver
+
+**What changed:** `resolveShortcut` now returns `{ type: 'search' }` for `/`, added to the `ShortcutAction` union and the bare-key keymap table. Unlike `?`, `/` needs no Shift, so it resolves through the ordinary bare-key switch (after both guards) rather than a special pre-modifier-guard slot. `useKeyboardShortcuts` carries an `onSearch` callback; the shell (`App.tsx`) routes it to the active view's search input — the graph/flow `SearchBar`'s focus handle, or `DictionaryViewHandle.focusSearch()` on the Dictionary. `test-shortcuts.ts` T17–T19 cover it (bare key on every view, ctrl/meta/alt → null, editable → null).
+
+**Why:** the graph-flow-search feature (`docs/spec/graph-flow-search.md`, SC8) adds search bars to all three views and needs a keyboard shortcut to focus them; `/` is the conventional search-focus key. The search feature itself (bars, matching, dimming, results) is owned by that spec — this resolver owns only the key binding.

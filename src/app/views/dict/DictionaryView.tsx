@@ -47,9 +47,11 @@ function readStoredLens(): 'read' | 'browse' {
  * Imperative handle exposed by DictionaryView to the shell (App). The shell
  * calls into the view for actions that originate outside the dict surface:
  * - `toggleLens`: keyboard shortcut `b` → flip read↔browse lens.
+ * - `focusSearch`: keyboard shortcut `/` → focus the dict search input.
  */
 export interface DictionaryViewHandle {
   toggleLens(): void;
+  focusSearch(): void;
 }
 
 interface DictionaryViewProps {
@@ -110,6 +112,10 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   // The resolver is rebuilt from allDiagrams via useMemo (see below).
   const [openFlowResult, setOpenFlowResult] = useState<FlowDocResult | null>(null);
 
+  // Ref to the dict search input — focused by the `/` keyboard shortcut via
+  // DictionaryViewHandle.focusSearch().
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   function switchLens(next: 'read' | 'browse') {
     try {
       localStorage.setItem(LENS_STORAGE_KEY, next);
@@ -126,6 +132,9 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   useImperativeHandle(ref, () => ({
     toggleLens() {
       switchLens(lens === 'read' ? 'browse' : 'read');
+    },
+    focusSearch() {
+      searchInputRef.current?.focus();
     },
   }), [lens]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -907,6 +916,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
         <div className="dict-search-bar-inner">
           <div className="dict-search">
             <input
+              ref={searchInputRef}
               type="search"
               className="dict-search-input"
               placeholder="Search entities, columns, processes, stores…"
