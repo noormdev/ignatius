@@ -48,7 +48,7 @@ Dim-don't-filter with pure matchers and per-view wiring, per `docs/design/graph-
 | CP1 | Pure matchers in `src/app/logic/search.ts`: per-kind title/body match functions taking `includeBody`, plus the recursive cross-diagram flow walker returning grouped results with tokens. Unit check `test/checks/test-viewer-search.ts`. | Unit check green; SC5/SC6 matcher halves proven on fixture data. |
 | CP2 | `SearchBar` component + shell graph wiring: search state in `App.tsx`, match computation, `searchMatches` prop into `GraphView`, `search-match`/`search-dim` styles in `styles.ts`, count readout, Enter cycle, `.viewer-search-bar` CSS. Playwright check `test/checks/test-graph-search.ts` + visual `test/visual/test-graph-search.ts`. | SC1–SC4 asserted in the Playwright check against `models/key-inherited`; SC9 asserted there too (URL hash and persisted layout positions unchanged while searching). |
 | CP3 | Flow wiring: shell flow-search state, `searchTokens` threaded `FlowsView` → `FlowDiagramSvg` opacity rules, results dropdown + `selectDiagramById` navigation. Playwright check `test/checks/test-flow-search.ts` + visual `test/visual/test-flow-search.ts`. | SC6/SC7 asserted in the Playwright check, including a sub-DFD navigation; SC9's flow half asserted there (hash gains no search param; flow layout store unchanged). |
-| CP4 | `/` shortcut end-to-end: resolver action, `useKeyboardShortcuts` `onSearch`, shell focus routing, `DictionaryViewHandle.focusSearch()`, HelpModal search + `/` rows, `docs/guides/commands.md` shortcut row, `CLAUDE.md` feature-map row. Extend `test/checks/test-shortcuts.ts`. | SC8 resolver cases green in `test-shortcuts.ts`; docs rows present. |
+| CP4 | `/` shortcut end-to-end: resolver action, `useKeyboardShortcuts` `onSearch`, shell focus routing, `DictionaryViewHandle.focusSearch()`, HelpModal search + `/` rows, `docs/guides/commands.md` shortcut row, `CLAUDE.md` feature-map row, and keymap amendments to `docs/spec/keyboard-nav-shortcuts.md` + `docs/spec/help-overlay.md` (the repo requires those specs stay current with the keymap). Extend `test/checks/test-shortcuts.ts`. | SC8 resolver cases green in `test-shortcuts.ts`; docs rows present; both keymap specs amended with change-log entries. |
 
 
 ## Change tree
@@ -74,7 +74,9 @@ A test/checks/test-flow-search.ts        — Playwright: dropdown, sub-DFD navig
 A test/visual/test-graph-search.ts       — screenshot: graph search active
 A test/visual/test-flow-search.ts        — screenshot: flow search active + dropdown
 M docs/guides/commands.md                — '/' keyboard shortcut row
-M CLAUDE.md                              — feature-map row
+M docs/spec/keyboard-nav-shortcuts.md    — '/' in the keymap/resolver contract + change-log entry
+M docs/spec/help-overlay.md              — search rows in the view branches + change-log entry
+M CLAUDE.md                              — feature-map row (and '/' added to the keyboard-shortcuts row's key list)
 ```
 
 
@@ -134,6 +136,12 @@ M CLAUDE.md                              — feature-map row
 
 ## Change log
 
+
+### 2026-07-14 — CP4 covers the keymap spec surfaces
+
+**What changed:** CP4's scope, proof, and the change tree now include amendments to `docs/spec/keyboard-nav-shortcuts.md` and `docs/spec/help-overlay.md`, and the `CLAUDE.md` keyboard-shortcuts row's key list.
+
+**Why:** the repo's shortcut-key convention (project signals, cross-cutting section) requires every new key to update the keymap spec, the help-overlay spec, and the shell wiring surfaces together; the initial change tree missed the two spec files.
 
 ### 2026-07-14 — Initial spec
 
