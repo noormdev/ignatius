@@ -154,3 +154,32 @@ M CLAUDE.md                              — feature-map row (and '/' added to t
 **What changed:** Initial contract for title-first search on the Graph and Flows views with an opt-in body toggle, cross-diagram flow results, and the `/` focus shortcut.
 
 **Why:** Neither view is searchable; users cannot find entities or processes on large models. Issue #18 (graph half) plus the flows gap raised alongside it.
+
+
+## Implementation log
+
+### shipped — 2026-07-14
+
+Built across 4 iterations of the /autopilot subagent loop. Commits (chronological):
+
+- `196c214` — design doc + spec
+- `82d1c84` — CP1 pure title/body matchers + cross-diagram flow walker (+12-assertion unit check)
+- `ffdf70d` — CP2 graph search bar: dim/highlight classes, count, Enter cycling, banner offset (+26-assertion Playwright check, visual)
+- `e41a241` — spec amendment: CP4 covers the keymap spec surfaces
+- `3c4d520` — CP3 flow cross-diagram search: results dropdown, token dimming, live renderer updates (+25-assertion Playwright check, visual)
+- `de396ab` — CP4 `/` shortcut + help overlay + guide/keymap-spec/feature-map rows
+- `8afa0bc` — spec correction: validator column schema for the checkpoints table
+
+**Out-of-scope work performed during this build:**
+
+- none
+
+**Unforeseens — surprises that emerged during implementation:**
+
+- Global error banner (z-index 200) fully occluded the search bar on error-bearing models — fixed with a measured `--search-bar-top` offset plus a true-positive-proven regression check against `models/broken-demo`.
+- The `data-token` DOM attribute stamps externals as the bare id while every other kind is prefixed — search tokens therefore mirror the layout `node.id` scheme instead; recorded on the token type's doc comment.
+- The repo carries a systemic pre-existing typecheck debt (cytoscape `Core` typing, ~640 instances; CI runs typecheck `continue-on-error`) — the gate used throughout was "no new error categories," verified per iteration.
+
+**Deferred items still open:**
+
+- none — the FOLLOWUPS ledger closed empty (F-1 folded into CP3).
