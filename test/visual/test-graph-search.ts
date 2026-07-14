@@ -1,9 +1,11 @@
 /**
- * Visual verification: Graph search (graph-flow-search CP2).
+ * Visual verification: Graph search (graph-flow-search CP2/CP5).
  *
  * Types "Party" into the Graph search bar and screenshots the result:
  * Party + PartyType highlighted (search-match), every other entity dimmed
- * (search-dim), and the "n of N" count readout visible.
+ * (search-dim), and the "n of N" count readout visible. Captures BOTH theme
+ * modes (CP5 visual-tightening pass: switch styling, count/focus treatment)
+ * so the polish can be reviewed against dark AND light chrome.
  *
  * Run: bun test/visual/test-graph-search.ts
  *
@@ -75,14 +77,23 @@ const readout = await page.locator('.viewer-search-count').textContent();
 note(`  Count readout: "${readout}"`);
 
 await shot('02-graph-search-active.png');
-note('  Captured active search: Party/PartyType highlighted, rest dimmed.');
+note('  Captured active search (dark): Party/PartyType highlighted, rest dimmed.');
+
+note('Toggling to light theme…');
+await page.locator('button[title="Switch to light mode"], button[title="Switch to dark mode"]').first().click();
+await page.waitForTimeout(400); // re-theme settle
+await page.locator('.viewer-search-input').focus(); // clicking the toggle stole focus — restore it so the focus ring shows
+await page.waitForTimeout(200);
+
+await shot('03-graph-search-active-light.png');
+note('  Captured active search (light): same state, light theme chrome.');
 
 await browser.close();
 serverHandle.stop();
 
 note('\nVisual check complete.');
-note('Review 02-graph-search-active.png — it should show:');
+note('Review 02-graph-search-active.png (dark) and 03-graph-search-active-light.png (light) — each should show:');
 note('  - Party and PartyType with a gold border (search-match)');
 note('  - Every other entity + non-connecting edges dimmed to ~0.2 opacity');
-note('  - The "n of N" count readout in the search bar');
+note('  - The "n of N" count readout in the search bar, and the "Include descriptions" switch');
 process.exit(0);

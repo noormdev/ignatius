@@ -1191,17 +1191,39 @@ code {
   align-items: center;
 }
 
+/* graph-flow-search CP5 (SC12): the flow bar clears the DFD breadcrumb chip
+   row via its OWN measured offset var, --flow-search-bar-top — never the
+   banner's --search-bar-top (the global banner is always hidden on the flow
+   surface, so that var stays at its 12px fallback there anyway; keeping the
+   two vars separate avoids two independent effects racing to write/clear the
+   same custom property). Written by FlowChrome.tsx (owns the breadcrumb DOM)
+   via the same ResizeObserver-driven idiom App.tsx uses for the banner. Two
+   classes on one element (.viewer-search-bar.viewer-search-bar--flow) so this
+   wins on specificity regardless of CSS source order. */
+.viewer-search-bar.viewer-search-bar--flow {
+  top: var(--flow-search-bar-top, 64px);
+}
+
 .viewer-search-bar-inner {
+  position: relative; /* anchors .viewer-search-count (see below) */
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 6px 10px;
+  gap: 0.45rem;
+  padding: 5px 8px;
   border-radius: 8px;
   border: 1px solid var(--color-border);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   background-color: color-mix(in srgb, var(--color-background) 75%, transparent);
+  transition: border-color 0.15s;
+}
+
+/* Focus ring — same border-color-on-focus idiom as .viewer-search-input and
+   .dict-search-input, raised to the whole pill so focusing the input reads
+   as the bar itself being active, not just a 1px input edge. */
+.viewer-search-bar-inner:focus-within {
+  border-color: var(--color-link);
 }
 
 .viewer-search-input {
@@ -1225,25 +1247,79 @@ code {
   color: var(--color-text-muted);
 }
 
-.viewer-search-body-toggle {
-  padding: 0.35rem 0.6rem;
-  border-radius: 6px;
+/* Body-text toggle switch — role="switch", small track + thumb, accent color
+   when on. Sized to match the compact chrome scale (.zoom-control-btn is
+   24×24; this pairs a 30×17 track with a visible text label instead of an
+   icon-only control, since the label IS the point — see CP5 change log). */
+.viewer-search-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.viewer-search-switch-track {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: 30px;
+  height: 17px;
+  padding: 2px;
+  border-radius: 999px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
   cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.viewer-search-switch-track:focus-visible {
+  outline: none;
+  border-color: var(--color-link);
+}
+
+.viewer-search-switch-track[aria-checked="true"] {
+  background: var(--color-link);
+  border-color: var(--color-link);
+}
+
+.viewer-search-switch-thumb {
+  display: block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.viewer-search-switch-track[aria-checked="true"] .viewer-search-switch-thumb {
+  background: var(--color-background);
+  transform: translateX(13px);
+}
+
+.viewer-search-switch-label {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
   white-space: nowrap;
 }
 
-.viewer-search-body-toggle--active {
-  background: var(--color-link);
-  border-color: var(--color-link);
-  color: var(--color-background);
-}
-
+/* Count readout — absolutely positioned OUTSIDE the flex flow so its width
+   never contributes to .viewer-search-bar-inner's own size. The bar is
+   horizontally centered (`.viewer-search-bar`'s left:50%+translateX(-50%)),
+   so any width change ripples into a visible shift of the whole pill (the
+   input included) — this keeps the bar's width (and therefore its centered
+   position) constant whether or not the count is showing. Still mounted
+   only when matchCount !== null (SearchBar.tsx) — clearing the term removes
+   it from the DOM entirely, not just visually. */
 .viewer-search-count {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
   font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
   white-space: nowrap;
 }

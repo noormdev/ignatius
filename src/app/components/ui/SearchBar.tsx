@@ -120,15 +120,22 @@ export const SearchBar = forwardRef<SearchBarHandle, SearchBarProps>(
             onKeyDown={handleKeyDown}
             aria-label={ariaLabel}
           />
-          <button
-            type="button"
-            className={`viewer-search-body-toggle${includeBody ? ' viewer-search-body-toggle--active' : ''}`}
-            aria-pressed={includeBody}
-            onClick={() => onIncludeBodyChange(!includeBody)}
-            title="Include body text in search"
-          >
-            Body
-          </button>
+          {/* Toggle switch (role="switch", not a checkbox/button-pressed pattern) —
+              opts markdown body text into matching. Wrapping <label> gives the
+              visible text a native click/tap target and doubles as the button's
+              accessible name; the button itself carries no separate aria-label. */}
+          <label className="viewer-search-switch">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={includeBody}
+              className="viewer-search-switch-track"
+              onClick={() => onIncludeBodyChange(!includeBody)}
+            >
+              <span className="viewer-search-switch-thumb" />
+            </button>
+            <span className="viewer-search-switch-label">Include descriptions</span>
+          </label>
           {matchCount !== null && (
             <span className="viewer-search-count">{matchCount} of {totalCount}</span>
           )}

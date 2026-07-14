@@ -1,10 +1,12 @@
 /**
- * Visual verification: Flow search (graph-flow-search CP3).
+ * Visual verification: Flow search (graph-flow-search CP3/CP5).
  *
  * Types "Validate" into the Flows search bar and screenshots the result: the
  * results dropdown open (Validate Customer, grouped under Create Sales Order)
  * while the currently-rendered diagram's own nodes — none of which match —
  * render dimmed (searchTokens folded into FlowDiagramSvg's opacity rules).
+ * Captures BOTH theme modes (CP5 visual-tightening pass) so the polish can be
+ * reviewed against dark AND light chrome.
  *
  * Run: bun test/visual/test-flow-search.ts
  *
@@ -74,13 +76,23 @@ await page.waitForSelector('.viewer-search-result-row[data-token="proc:Validate-
 await page.waitForTimeout(300); // let the opacity transition settle
 
 await shot('02-flow-search-active.png');
-note('  Captured active search: dropdown open, current diagram nodes dimmed.');
+note('  Captured active search (dark): dropdown open, current diagram nodes dimmed.');
+
+note('Toggling to light theme…');
+await page.locator('button[title="Switch to light mode"], button[title="Switch to dark mode"]').first().click();
+await page.waitForTimeout(400); // re-theme settle
+await page.locator('.viewer-search-input').focus(); // clicking the toggle stole focus — restore it so the focus ring shows
+await page.waitForTimeout(200);
+
+await shot('03-flow-search-active-light.png');
+note('  Captured active search (light): same state, light theme chrome.');
 
 await browser.close();
 serverHandle.stop();
 
 note('\nVisual check complete.');
-note('Review 02-flow-search-active.png — it should show:');
+note('Review 02-flow-search-active.png (dark) and 03-flow-search-active-light.png (light) — each should show:');
 note('  - The results dropdown open, listing "Validate Customer" (1.1.1) under "Create Sales Order"');
 note('  - Every node in the currently-rendered diagram dimmed to ~0.3 opacity (none match "Validate")');
+note('  - The "Include descriptions" switch in the bar');
 process.exit(0);

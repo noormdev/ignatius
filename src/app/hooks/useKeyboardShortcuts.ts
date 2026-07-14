@@ -69,7 +69,8 @@ export function useKeyboardShortcuts({
 
       // preventDefault for every matched action — critically, this is what
       // stops the browser from page-zooming on Cmd/Ctrl +/-/0 (the zoom
-      // actions) before we route the zoom to the active canvas instead.
+      // actions) and from firing its own "focus search" behavior on
+      // Cmd/Ctrl+k, before we route those to the active view instead.
       e.preventDefault();
 
       switch (action.type) {

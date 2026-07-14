@@ -39,23 +39,28 @@ focus is an editable target (`input` / `textarea` / `select` /
 when their view is not active. View jumps are idempotent. `/` needs no Shift
 (unlike `?`), so it resolves through the ordinary bare-key switch with no
 special guard slot; typing `/` inside any editable target inserts the literal
-character instead of firing the shortcut. The search feature itself (bars,
-matching, dimming) is owned by `docs/spec/graph-flow-search.md`; this resolver
-owns only the `/` key binding and the shell's focus-routing dispatch.
+character instead of firing the shortcut. `Cmd`/`Ctrl` + `k` is a second,
+always-on route to the same `{ type: 'search' }` action — see "Modifier-gated
+zoom + search" below. The search feature itself (bars, matching, dimming) is
+owned by `docs/spec/graph-flow-search.md`; this resolver owns only the `/`
+and `Cmd`/`Ctrl`+`k` key bindings and the shell's focus-routing dispatch.
 
-**Modifier-gated zoom** (CP4) — resolved *before* the bare-key guards, so the
-editable guard does **not** block them (they are not typed characters), and
-they require `ctrl`/`meta` (the opposite of the bare-key modifier guard):
+**Modifier-gated zoom + search** — resolved *before* the bare-key guards, so
+the editable guard does **not** block them (they are not typed characters),
+and they require `ctrl`/`meta` (the opposite of the bare-key modifier guard):
 
 | Chord | Action | Routed to |
 |-------|--------|-----------|
 | `Cmd`/`Ctrl` + `=` or `+` | `zoomIn` | active canvas (graph cy / flow SVG); dict no-op |
 | `Cmd`/`Ctrl` + `-` or `_` | `zoomOut` | active canvas; dict no-op |
 | `Cmd`/`Ctrl` + `0` | `zoomReset` (fit) | active canvas; dict no-op |
+| `Cmd`/`Ctrl` + `k` | `search` | the active view's search input — same target as `/` |
 
 Gated on `ctrl`/`meta` only — `alt` or `shift` held disqualifies (→ null). Bare
-`=`/`-`/`0` with no modifier → null (plain keystrokes are never hijacked). The
-hook `preventDefault`s on the matched action so the browser never page-zooms.
+`=`/`-`/`0`/`k` with no modifier → null (plain keystrokes are never hijacked;
+bare `k` is simply unmapped). The hook `preventDefault`s on the matched action
+so the browser never page-zooms or fires its own "focus search" behavior on
+`Cmd`/`Ctrl`+`k`.
 
 **Help key** — resolved *after* the editable guard but *before* the bare-key
 modifier guard, because the character itself requires Shift:
@@ -81,6 +86,7 @@ opens the overlay). The overlay content/component is owned by
 - [ ] `bun run test` passes (all `test/checks/*.ts`, exit 0).
 - [ ] Touched source files (`App.tsx`, `DictionaryView.tsx`, `FabMenu.tsx`, new `logic/shortcuts.ts`, new `hooks/useKeyboardShortcuts.ts`) introduce **zero** new `tsc --noEmit` errors vs. the baseline (`tmp/baseline-typecheck.log`; these files start at 0).
 - [ ] CLAUDE.md feature map gets a "Keyboard navigation shortcuts" row; a brief mention added to the relevant user guide (`docs/guides/commands.md` or controls guide).
+- [ ] `Cmd`/`Ctrl` + `k` resolves to `{ type: 'search' }` in the same pre-editable-guard slot as the zoom chords (gated on `ctrl`/`meta`, not `alt`/`shift`), so it focuses the active view's search input even while a text field is already focused elsewhere; `test-shortcuts.ts` covers Cmd+k/Ctrl+k → search, editable-bypass, alt/shift → null, and bare `k` (no modifier) → null.
 
 ## Approaches
 
@@ -140,3 +146,9 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 **What changed:** `resolveShortcut` now returns `{ type: 'search' }` for `/`, added to the `ShortcutAction` union and the bare-key keymap table. Unlike `?`, `/` needs no Shift, so it resolves through the ordinary bare-key switch (after both guards) rather than a special pre-modifier-guard slot. `useKeyboardShortcuts` carries an `onSearch` callback; the shell (`App.tsx`) routes it to the active view's search input — the graph/flow `SearchBar`'s focus handle, or `DictionaryViewHandle.focusSearch()` on the Dictionary. `test-shortcuts.ts` T17–T19 cover it (bare key on every view, ctrl/meta/alt → null, editable → null).
 
 **Why:** the graph-flow-search feature (`docs/spec/graph-flow-search.md`, SC8) adds search bars to all three views and needs a keyboard shortcut to focus them; `/` is the conventional search-focus key. The search feature itself (bars, matching, dimming, results) is owned by that spec — this resolver owns only the key binding.
+
+### 2026-07-14 — `Cmd`/`Ctrl`+`k` joins the modifier-gated slot as a second search-focus route
+
+**What changed:** `resolveShortcut` now also returns `{ type: 'search' }` for `Cmd`/`Ctrl` + `k`, resolved in the same pre-editable-guard slot as the zoom chords (gated on `ctrl`/`meta`, not `alt`/`shift`) — so it focuses the active view's search input even while typing elsewhere, unlike bare `/` which stays suppressed in editable context. The section formerly titled "Modifier-gated zoom" is now "Modifier-gated zoom + search" to reflect the added row. `test-shortcuts.ts` covers Cmd+k/Ctrl+k → search, editable-bypass, alt/shift → null, and bare `k` (no modifier) → null.
+
+**Why:** user feedback on the live graph-flow-search branch (`docs/spec/graph-flow-search.md` CP5, SC8) — `Cmd`/`Ctrl`+`K` is the conventional "focus search" chord in modern web apps and users expect it to work regardless of where focus currently is.

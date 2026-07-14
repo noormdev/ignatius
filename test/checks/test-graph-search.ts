@@ -50,6 +50,13 @@ try {
   await page.waitForSelector('.viewer-search-bar--graph', { timeout: 10_000 });
   await page.waitForTimeout(1500); // let the initial layout settle
 
+  // graph-flow-search CP5 (SC5): the body-text opt-in is a labeled toggle
+  // switch, not the old bare "Body" pill button — role="switch", aria-checked,
+  // and a visible "Include descriptions" label.
+  const bodySwitch = page.getByRole('switch', { name: 'Include descriptions' });
+  await bodySwitch.waitFor({ state: 'visible', timeout: 5000 });
+  assert(await bodySwitch.getAttribute('aria-checked') === 'false', 'SC5: body switch starts unchecked (aria-checked="false")');
+
   const totalEntities = await page.evaluate(() => window.__IGNATIUS_CY__!.nodes('[classification]').length);
   assert(totalEntities > 0, 'model has entity nodes to search', `got ${totalEntities}`);
 
@@ -108,9 +115,9 @@ try {
   // ---------------------------------------------------------------------
   // SC9 — hash/localStorage untouched by typing + toggling (no Enter yet).
   // ---------------------------------------------------------------------
-  await page.click('.viewer-search-body-toggle'); // on
+  await bodySwitch.click(); // on
   await page.waitForTimeout(200);
-  await page.click('.viewer-search-body-toggle'); // back off
+  await bodySwitch.click(); // back off
   await page.waitForTimeout(200);
 
   const hashAfterSearch = await page.evaluate(() => location.hash);
@@ -201,8 +208,9 @@ try {
     window.__IGNATIUS_CY__!.nodes('[classification]').filter(n => n.hasClass('search-match')).length);
   assert(bodyOffMatches === 0, 'SC5: body-only term does not match with the body toggle off', `got ${bodyOffMatches}`);
 
-  await page.click('.viewer-search-body-toggle'); // on
+  await bodySwitch.click(); // on
   await page.waitForTimeout(200);
+  assert(await bodySwitch.getAttribute('aria-checked') === 'true', 'SC5: body switch reports aria-checked="true" once on');
 
   const bodyOn = await page.evaluate(() => {
     const cy = window.__IGNATIUS_CY__!;

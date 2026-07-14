@@ -77,6 +77,13 @@ try {
   await page.waitForSelector('.viewer-search-bar--flow', { timeout: 10_000 });
   await page.waitForTimeout(1000); // let the initial diagram settle
 
+  // graph-flow-search CP5 (SC5): the body-text opt-in is a labeled toggle
+  // switch, not the old bare "Body" pill button — role="switch", aria-checked,
+  // and a visible "Include descriptions" label.
+  const bodySwitch = page.getByRole('switch', { name: 'Include descriptions' });
+  await bodySwitch.waitFor({ state: 'visible', timeout: 5000 });
+  assert(await bodySwitch.getAttribute('aria-checked') === 'false', 'SC5: body switch starts unchecked (aria-checked="false")');
+
   // ---------------------------------------------------------------------
   // SC9 (baseline) — capture hash + flow-layout localStorage BEFORE any
   // search interaction, and re-check after typing/toggling (not after the
@@ -111,9 +118,9 @@ try {
 
   // Toggle body on/off — exercised here (no title-field-vs-body ambiguity
   // for this term) purely to prove it doesn't disturb hash/localStorage.
-  await page.click('.viewer-search-body-toggle');
+  await bodySwitch.click();
   await page.waitForTimeout(200);
-  await page.click('.viewer-search-body-toggle');
+  await bodySwitch.click();
   await page.waitForTimeout(200);
 
   const hashAfterSearch = await page.evaluate(() => location.hash);
@@ -186,7 +193,8 @@ try {
   const visaOffRowCount = await page.locator('.viewer-search-result-row').count();
   assert(visaOffRowCount === 0, 'SC5: body-only term does not match with the body toggle off', `got ${visaOffRowCount}`);
 
-  await page.click('.viewer-search-body-toggle'); // on
+  await bodySwitch.click(); // on
+  assert(await bodySwitch.getAttribute('aria-checked') === 'true', 'SC5: body switch reports aria-checked="true" once on');
   await page.waitForSelector('.viewer-search-result-row[data-token="proc:Collect-Payment"]', { timeout: 5000 });
   const visaOnRow = await page.evaluate(() => {
     const el = document.querySelector('.viewer-search-result-row[data-token="proc:Collect-Payment"]');
@@ -206,7 +214,7 @@ try {
   );
   assert(true, 'SC6: Enter opens the first dropdown row and navigates there');
 
-  await page.click('.viewer-search-body-toggle'); // back off
+  await bodySwitch.click(); // back off
 
   // ---------------------------------------------------------------------
   // SC6 — display cap: "+N more" overflow line, verified against the
@@ -245,6 +253,80 @@ try {
   await page.close();
   await browser.close();
   handle.stop();
+}
+
+// ---------------------------------------------------------------------------
+// SC12 (CP5) — flow-chrome non-collision: the search bar never overlaps the
+// DFD breadcrumb chip row, at any breadcrumb depth. Mirrors the
+// banner-collision idiom above. test/fixtures/flows-leveling drills 3 levels
+// deep (auth → Authenticate → Login), rendering the full breadcrumb chain
+// ("Process Flows" root chip + auth + Authenticate + Login = 4 chips) — the
+// reported collision scenario. Deep-links straight to the deepest diagram via
+// the #dfd= hash param (the same path selectDiagramById/findDiagramPath use
+// for a sub-DFD id) rather than clicking through two drill-downs.
+// ---------------------------------------------------------------------------
+
+const LEVELING_MODEL = join(ROOT, 'test/fixtures/flows-leveling');
+const LEVELING_PORT = 3299;
+const levelingHandle = serveCommand(LEVELING_MODEL, { port: LEVELING_PORT });
+await new Promise<void>(r => setTimeout(r, 400));
+
+const levelingBrowser = await chromium.launch();
+const levelingPage = await levelingBrowser.newPage({ viewport: { width: 1440, height: 900 } });
+
+try {
+  await levelingPage.goto(`http://localhost:${LEVELING_PORT}/#view=flow&dfd=Login`, { waitUntil: 'load' });
+  await levelingPage.waitForFunction(() => !!(window as { __IGNATIUS_FLOW_READY__?: unknown }).__IGNATIUS_FLOW_READY__, { timeout: 20_000 });
+  await levelingPage.waitForSelector('.viewer-search-bar--flow', { timeout: 10_000 });
+  await levelingPage.waitForFunction(
+    () => (window as { __IGNATIUS_ACTIVE_FLOW_DFD__?: string }).__IGNATIUS_ACTIVE_FLOW_DFD__ === 'Login',
+    { timeout: 10_000 },
+  );
+  await levelingPage.waitForTimeout(500); // let the breadcrumb-offset ResizeObserver settle
+
+  const barBox = await levelingPage.locator('.viewer-search-bar--flow').boundingBox();
+  const crumbBox = await levelingPage.locator('[data-ignatius="flow-breadcrumbs"]').boundingBox();
+  assert(barBox !== null, 'SC12: search bar has a bounding box');
+  assert(crumbBox !== null, 'SC12: breadcrumb chip row has a bounding box');
+
+  if (barBox && crumbBox) {
+    const intersects =
+      barBox.x < crumbBox.x + crumbBox.width &&
+      barBox.x + barBox.width > crumbBox.x &&
+      barBox.y < crumbBox.y + crumbBox.height &&
+      barBox.y + barBox.height > crumbBox.y;
+    assert(
+      !intersects,
+      'SC12: search bar bounding box does not intersect the breadcrumb chip row at full drill depth',
+      `bar=${JSON.stringify(barBox)} crumbs=${JSON.stringify(crumbBox)}`,
+    );
+    assert(
+      barBox.y >= crumbBox.y + crumbBox.height,
+      'SC12: search bar sits fully below the breadcrumb chip row',
+      `bar.y=${barBox.y} crumbs.bottom=${crumbBox.y + crumbBox.height}`,
+    );
+  }
+
+  // Playwright's click() actionability check fails if the target point is
+  // covered by another element — a successful click + type proves the bar is
+  // visible AND clickable, not just geometrically clear (mirrors the
+  // banner-collision idiom's clickability proof).
+  await levelingPage.locator('.viewer-search-input').click();
+  await levelingPage.keyboard.type('Login');
+  await levelingPage.waitForTimeout(400);
+  const typedValue = await levelingPage.locator('.viewer-search-input').inputValue();
+  assert(
+    typedValue === 'Login',
+    'SC12: search input is visible and clickable at full breadcrumb depth',
+    `got "${typedValue}"`,
+  );
+} catch (err) {
+  console.error('FAIL:', err instanceof Error ? err.message : String(err));
+  failures++;
+} finally {
+  await levelingPage.close();
+  await levelingBrowser.close();
+  levelingHandle.stop();
 }
 
 if (failures > 0) {

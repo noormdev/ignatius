@@ -343,4 +343,72 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
   console.log("PASS T19: '/' editable=true → null");
 }
 
+// ---------------------------------------------------------------------------
+// T20: Cmd/Ctrl + K → search, on every view — same modifier-gated slot as the
+//      zoom chords (resolved before the bare-key guards).
+// ---------------------------------------------------------------------------
+{
+  for (const mod of ['ctrlKey', 'metaKey'] as const) {
+    for (const view of VIEWS) {
+      const result = resolveShortcut(ev('k', { [mod]: true }), view, false);
+      assert(result !== null && result.type === 'search', `T20: ${mod}+'k' on ${view} → { type:'search' }`);
+      console.log(`PASS T20: ${mod}+'k' on view=${view} → { type:'search' }`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T21: Cmd/Ctrl + K resolves EVEN when editable === true (mirrors T12 for
+//      zoom — Cmd/Ctrl+K focuses search while typing anywhere, unlike bare '/').
+// ---------------------------------------------------------------------------
+{
+  for (const mod of ['ctrlKey', 'metaKey'] as const) {
+    const result = resolveShortcut(ev('k', { [mod]: true }), 'graph', true);
+    assert(
+      result !== null && result.type === 'search',
+      `T21: ${mod}+'k' with editable=true still → { type:'search' }`,
+    );
+    console.log(`PASS T21: ${mod}+'k' editable=true → { type:'search' }`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T22: alt/shift + K (and combos) → null (mirrors T13 — ONLY ctrl/meta
+//      trigger the chord).
+// ---------------------------------------------------------------------------
+{
+  const alt = resolveShortcut(ev('k', { altKey: true }), 'graph', false);
+  assert(alt === null, "T22: alt+'k' → null");
+  const shift = resolveShortcut(ev('k', { shiftKey: true }), 'graph', false);
+  assert(shift === null, "T22: shift+'k' → null");
+  const ctrlAlt = resolveShortcut(ev('k', { ctrlKey: true, altKey: true }), 'graph', false);
+  assert(ctrlAlt === null, "T22: ctrl+alt+'k' → null");
+  const metaShift = resolveShortcut(ev('k', { metaKey: true, shiftKey: true }), 'graph', false);
+  assert(metaShift === null, "T22: meta+shift+'k' → null");
+  console.log("PASS T22: alt/shift (and combos) on 'k' → null");
+}
+
+// ---------------------------------------------------------------------------
+// T23: bare 'k' (no modifier) → null — unmapped, not hijacked; a plain 'k'
+//      keystroke types normally.
+// ---------------------------------------------------------------------------
+{
+  for (const view of VIEWS) {
+    const result = resolveShortcut(ev('k'), view, false);
+    assert(result === null, `T23: bare 'k' on ${view} → null`);
+  }
+  console.log("PASS T23: bare 'k' (no modifier) → null on all views");
+}
+
+// ---------------------------------------------------------------------------
+// T24: Cmd/Ctrl+K action shape carries only { type } (exact discriminated
+//      shape, mirrors T15 for the zoom actions).
+// ---------------------------------------------------------------------------
+{
+  const result = resolveShortcut(ev('k', { metaKey: true }), 'graph', false);
+  assert(result !== null && result.type === 'search', 'T24: search action shape');
+  assert(Object.keys(result).length === 1, "T24: search action has only 'type'");
+  console.log("PASS T24: Cmd+'k' action shape { type:'search' }");
+}
+
 console.log('\nAll tests passed.');
