@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { semanticColors, resolveFlowKindPalette, type FlowKindKey, type FlowKindEntry } from '../theme/theme-defaults';
 import { parseHash } from './hash-router';
@@ -14,9 +14,11 @@ import { buildModelIndex } from '../model/model-index';
 import type { ModelIndex } from '../model/model-index';
 import { hexToRgba } from './logic/color';
 import { buildAllFlowNodeIds } from './logic/flow-node-ids';
+import { entityMatches } from './logic/search';
 import { Modal } from './components/ui/Modal';
 import { HelpModal } from './components/ui/HelpModal';
 import { ZoomControl } from './components/ui/ZoomControl';
+import { SearchBar } from './components/ui/SearchBar';
 import { EntityModal } from './components/entity/EntityModal';
 import { FindingsPanel } from './components/findings/FindingsPanel';
 import { LegendModal } from './views/flow/LegendModal';
@@ -39,6 +41,10 @@ export function App() {
   const graphViewRef = useRef<GraphViewHandle>(null);
   // Minimap container: rendered in shell JSX, ref passed down to GraphView.
   const minimapRef = useRef<HTMLDivElement>(null);
+  // Global-error banner: ref used ONLY to measure its rendered height (see the
+  // layout effect below) so the search bar can offset below it — the banner's
+  // height is dynamic (row count varies with error count / text wrap width).
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   const [selected, setSelected] = useState<ModelNode | null>(null);
 
@@ -102,6 +108,14 @@ export function App() {
   // Dictionary state — keep-mounted so search text + scroll survive view switches.
   const [dictSearchText, setDictSearchText] = useState('');
   const [dictNavOpen, setDictNavOpen] = useState(false);
+  // Graph search state (graph-flow-search CP2) — term + includeBody, survive
+  // view switches the same way dictSearchText does (shell-owned useState, not
+  // reset on unmount since GraphView stays mounted across view switches).
+  const [graphSearchTerm, setGraphSearchTerm] = useState('');
+  const [graphSearchIncludeBody, setGraphSearchIncludeBody] = useState(false);
+  // Ascending-id cursor for Enter-to-cycle (SC3) — reset whenever the term or
+  // body toggle changes so the next Enter always starts from the first match.
+  const graphSearchCursorRef = useRef(-1);
   // Pending scroll target: set by onNavigateToProcess, consumed by the view-switch
   // useEffect once the dict container is visible and the process anchor exists.
   const pendingScrollProcessIdRef = useRef<string | null>(null);
@@ -185,6 +199,36 @@ export function App() {
   useEffect(() => {
     document.title = model?._meta?.name ?? 'Ignatius';
   }, [model]);
+
+  // Offset the graph search bar below the global-error banner (fixes the bar
+  // being fully occluded by the full-width, higher-z-index banner). Measures
+  // the banner's REAL rendered height via ResizeObserver rather than a fixed
+  // constant because it can wrap into multiple rows (many/long global errors,
+  // narrow viewport) — the fixed offset must track that and the bar must
+  // snap back to its default top when the banner is dismissed or has no
+  // errors. Written as a CSS custom property (consumed by .viewer-search-bar
+  // in styles.css) rather than passed as a prop, since SearchBar renders
+  // `.viewer-search-bar` directly with no style override slot.
+  useLayoutEffect(() => {
+    const bannerVisible = !bannerDismissed && findings.globalErrors.length > 0 && view !== 'flow';
+    const el = bannerRef.current;
+    const root = document.documentElement;
+    if (!bannerVisible || !el) {
+      root.style.removeProperty('--search-bar-top');
+      return;
+    }
+    const BANNER_GAP = 12; // matches --search-bar-top's no-banner fallback in styles.css
+    function applyOffset() {
+      root.style.setProperty('--search-bar-top', `${el!.offsetHeight + BANNER_GAP}px`);
+    }
+    applyOffset();
+    const ro = new ResizeObserver(applyOffset);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--search-bar-top');
+    };
+  }, [bannerDismissed, findings.globalErrors.length, view]);
 
   function toggleMinimapOpen() {
     const next = !minimapOpen;
@@ -276,6 +320,47 @@ export function App() {
     [model],
   );
 
+  // Graph search (graph-flow-search CP2, SC1/SC2/SC5): match-set computation
+  // over model.nodes using CP1's pure entityMatches. graphSearchActive tracks
+  // whether a term is present at all — GraphView's searchMatches prop is null
+  // (no active search, nothing dims) when inactive, and a Set (possibly empty,
+  // meaning "active search, zero matches — dim everything") when active. Pure
+  // UI state: never touches the model, layout fingerprint, layout-store, or
+  // URL hash (SC9).
+  const graphSearchActive = graphSearchTerm.trim() !== '';
+  const graphSearchMatchIds = useMemo(() => {
+    if (!model || !graphSearchActive) return [];
+    const term = graphSearchTerm.trim();
+    const ids: string[] = [];
+    for (const node of model.nodes) {
+      if (entityMatches(node, term, graphSearchIncludeBody)) ids.push(node.id);
+    }
+    ids.sort((a, b) => a.localeCompare(b));
+    return ids;
+  }, [model, graphSearchActive, graphSearchTerm, graphSearchIncludeBody]);
+  const graphSearchMatches = useMemo(
+    () => (graphSearchActive ? new Set(graphSearchMatchIds) : null),
+    [graphSearchActive, graphSearchMatchIds],
+  );
+
+  // Reset the Enter-cycle cursor whenever the term or body toggle changes so
+  // the next Enter press always starts from the first match in id order.
+  useEffect(() => {
+    graphSearchCursorRef.current = -1;
+  }, [graphSearchTerm, graphSearchIncludeBody]);
+
+  // Enter cycles ascending-id matches, wrapping (SC3). Centers + selects via
+  // the existing navigateToEntity handle — no new GraphView method needed.
+  function handleGraphSearchEnter() {
+    const ids = graphSearchMatchIds;
+    if (ids.length === 0) return;
+    const next = (graphSearchCursorRef.current + 1) % ids.length;
+    const nextId = ids[next];
+    if (nextId === undefined) return;
+    graphSearchCursorRef.current = next;
+    graphViewRef.current?.navigateToEntity(nextId);
+  }
+
   // Deep-link modal restore: a URL loaded with entity=<id> opens that modal once
   // the model (and its index) is available. One-shot — guarded by a ref so an
   // SSE model refetch does not re-open a modal the user already closed. Works
@@ -335,7 +420,7 @@ export function App() {
     <div className="app">
       {/* ── ERD surface chrome (hidden on flow surface) ── */}
       {!isFlowSurface && showBanner && (
-        <div className="graph-global-banner" role="alert">
+        <div className="graph-global-banner" role="alert" ref={bannerRef}>
           <button
             className="graph-global-banner-close"
             onClick={() => setBannerDismissed(true)}
@@ -368,6 +453,7 @@ export function App() {
         layoutKey={layoutKeyRef.current}
         minimapOpen={minimapOpen}
         initialLayoutMode={layoutMode}
+        searchMatches={graphSearchMatches}
         onCyReadyChange={setCyReady}
         onZoomPercentChange={setZoomPercent}
         onLayoutModeChange={setLayoutMode}
@@ -439,6 +525,21 @@ export function App() {
 
       {/* ── ERD surface chrome (hidden on flow surface) ── */}
       {view === 'graph' && minimapOpen && <div ref={minimapRef} id="minimap-panel" className="minimap" />}
+      {/* Graph search bar (graph-flow-search CP2) — mounted while Graph view is active and a model is loaded. */}
+      {view === 'graph' && model && (
+        <SearchBar
+          term={graphSearchTerm}
+          onTermChange={setGraphSearchTerm}
+          includeBody={graphSearchIncludeBody}
+          onIncludeBodyChange={setGraphSearchIncludeBody}
+          matchCount={graphSearchActive ? graphSearchMatchIds.length : null}
+          totalCount={model.nodes.length}
+          onEnter={handleGraphSearchEnter}
+          placeholder="Search entities…"
+          ariaLabel="Search graph"
+          className="viewer-search-bar--graph"
+        />
+      )}
       {/* Zoom control — Graph view: delegates to GraphView handle */}
       {view === 'graph' && cyReady && (
         <ZoomControl

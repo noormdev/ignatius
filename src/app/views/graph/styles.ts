@@ -4,6 +4,17 @@ import type { GroupConfig } from '../../../model/parse';
 import { blendHex, pastel, lighten } from '../../logic/color';
 import { SPOTLIGHT_LINE_INHERITED } from '../../dom/theme-css-vars';
 
+/**
+ * Graph search match border (graph-flow-search CP2). Distinct gold/yellow so
+ * it never reads as the amber "spotlight-line-out" lineage color or a group's
+ * border color — mirrors the Dictionary view's `--dd-search-highlight` yellow
+ * so "search" reads as the same visual language across surfaces.
+ */
+const SEARCH_MATCH_BORDER: Record<ThemeMode, string> = {
+  dark: '#fde047',
+  light: '#ca8a04',
+};
+
 export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mode: ThemeMode): cytoscape.Stylesheet[] {
   const p = mode === 'light' ? theme.light : theme.dark;
   const defaultNodeBg = pastel(p.textMuted, p.background, p.pastelMix);
@@ -206,6 +217,25 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
       // matching their inherited target nodes (`.inherited-dim`).
       'opacity': 0.5,
       'z-index': 1,
+    },
+  });
+
+  // Graph search (graph-flow-search CP2). Dedicated classes — distinct from
+  // the hover-tier classes above — so `clearFocusTiers` never strips active
+  // search dimming. Pushed LAST so they win the cascade over the span-graded
+  // edge opacity (`edge[span=...]`, declared early in `base`) and the
+  // per-group border-color rules, matching the precedence the file already
+  // gives `.faded`/`.inherited-dim` over span grading.
+  base.push({
+    selector: '.search-dim',
+    style: { 'opacity': 0.2 },
+  });
+
+  base.push({
+    selector: 'node.search-match',
+    style: {
+      'border-width': 3,
+      'border-color': SEARCH_MATCH_BORDER[mode],
     },
   });
 
