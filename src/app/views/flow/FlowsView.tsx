@@ -64,6 +64,13 @@ export interface FlowChromeCallbacks {
    */
   onRegisterRetheme?: (fn: ((mode: 'dark' | 'light') => void) | null) => void;
   /**
+   * Called once to register a function that applies a live search-token set
+   * (graph-flow-search CP3) to the current diagram without rebuilding the
+   * renderer — preserves the selected DFD and drill-down stack the same way
+   * onRegisterRetheme does. Calling it with null clears active search dimming.
+   */
+  onRegisterSearchTokens?: (fn: ((tokens: ReadonlySet<string> | null) => void) | null) => void;
+  /**
    * Called on every diagram render — top-level select, drill-down, and drill-up.
    * The id is the diagram being rendered (the current top of the breadcrumb stack).
    * Used by FlowsView to write the `dfd` URL hash param so the active DFD is
@@ -210,6 +217,11 @@ export function initFlowGraphCore(
   getThemeConfig?: () => ThemeConfig | undefined,
   // CP21: token-keyed usage index so ext/store dialogs can render Processes section.
   nodeUsageIndex?: ReadonlyMap<string, ProcessUsage[]>,
+  // graph-flow-search CP3: initial search-token set for in-diagram dimming.
+  // Kept live via chromeCallbacks.onRegisterSearchTokens (see currentSearchTokens
+  // below) rather than a dependency-array rebuild, so typing a search term never
+  // tears down the renderer — that would lose the drill-down stack.
+  initialSearchTokens?: ReadonlySet<string> | null,
 ): () => void {
   // Resolver for node ⓘ docs + in-dialog [[links]]. The entityModel parameter
   // may be a getter (() => Model | undefined) so the resolver always reads the
@@ -238,6 +250,12 @@ export function initFlowGraphCore(
   // Breadcrumb stack: array of { diagram, label } from the selected top-level DFD down.
   // The current diagram is always the last entry.
   const stack: Array<{ diagram: FlowDiagram; label: string }> = [];
+
+  // Live search-token set (graph-flow-search CP3). Updated in place by
+  // chromeCallbacks.onRegisterSearchTokens without rebuilding the renderer —
+  // survives drill-down/selectDiagramById since it lives in this closure,
+  // outside renderDiagram.
+  let currentSearchTokens: ReadonlySet<string> | null = initialSearchTokens ?? null;
 
   // Current palette mode. Updated by retheme() without rebuilding the renderer.
   let currentThemeMode: 'dark' | 'light' = initialThemeMode;
@@ -383,6 +401,7 @@ export function initFlowGraphCore(
           svgProps: {
             diagram,
             kindPalette,
+            searchTokens: currentSearchTokens,
             onDrill: handleDrill,
             onReady: () => {
               window.__IGNATIUS_FLOW_READY__ = true;
@@ -419,6 +438,14 @@ export function initFlowGraphCore(
     chromeCallbacks?.onRegisterRetheme?.((mode) => {
       currentThemeMode = mode;
       doRender(mode);
+    });
+
+    // Register the search-tokens hook — same live-update pattern as retheme:
+    // re-renders with the new match set without unmounting, so the drill-down
+    // stack and breadcrumb position survive every keystroke.
+    chromeCallbacks?.onRegisterSearchTokens?.((tokens) => {
+      currentSearchTokens = tokens;
+      doRender(currentThemeMode);
     });
 
     // Notify the app that the active diagram changed so it can update the URL hash.
@@ -519,6 +546,7 @@ export function initFlowGraphCore(
   return () => {
     chromeCallbacks?.onResetLayout?.(null);
     chromeCallbacks?.onRegisterRetheme?.(null);
+    chromeCallbacks?.onRegisterSearchTokens?.(null);
     if (svgRoot) {
       svgRoot.unmount();
       svgRoot = null;
@@ -585,6 +613,12 @@ export interface FlowsViewProps {
   onActiveDiagramChange?: (id: string, isInitial: boolean) => void;
   /** Called whenever the flow ZoomControl readout changes. */
   onZoomPercentChange: (pct: number) => void;
+  /**
+   * Match-set for graph-flow-search CP3: base tokens that keep full opacity in
+   * the rendered diagram, threaded through to FlowDiagramSvg's searchTokens
+   * prop. null = no active search (no dimming from this source).
+   */
+  searchTokens: ReadonlySet<string> | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -603,6 +637,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       onOpenEntity,
       onActiveDiagramChange = undefined,
       onZoomPercentChange,
+      searchTokens,
     },
     ref,
   ) {
@@ -612,6 +647,8 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     const flowSelectDiagramRef = useRef<((id: string) => void) | null>(null);
     // Retheme callback: updates the flow SVG palette without tearing down the renderer.
     const flowRethemeRef = useRef<((mode: 'dark' | 'light') => void) | null>(null);
+    // Search-tokens callback: applies live dimming without tearing down the renderer.
+    const flowSearchTokensRef = useRef<((tokens: ReadonlySet<string> | null) => void) | null>(null);
     // Flow reset layout: registered by initFlowGraphCore so the FAB can trigger it.
     const flowResetLayoutRef = useRef<(() => void) | null>(null);
     // Tracks the currently selected top-level DFD id across SSE re-renders.
@@ -707,6 +744,9 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         onRegisterRetheme: (fn) => {
           flowRethemeRef.current = fn;
         },
+        onRegisterSearchTokens: (fn) => {
+          flowSearchTokensRef.current = fn;
+        },
         onActiveDiagramChange: (id) => {
           activeFlowDiagramIdRef.current = id;
           window.__IGNATIUS_ACTIVE_FLOW_DFD__ = id;
@@ -783,11 +823,14 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         (open) => { flowOpenRef.current = open; },
         getThemeConfig,
         nodeUsageIndex,
+        searchTokens,
       );
       return cleanup;
     }, [isActive, flowDiagrams]); // eslint-disable-line react-hooks/exhaustive-deps
     // Note: themeMode intentionally excluded — retheme is handled by the separate effect below.
     // onOpenEntity, getEntityModel, getThemeConfig are stable refs/callbacks — not deps.
+    // searchTokens intentionally excluded — live updates handled by the separate
+    // effect below (mirrors themeMode/retheme); this call only seeds the initial value.
 
     // Re-theme the flow SVG whenever the theme changes while the flow view is active.
     // Uses the registered retheme callback which calls root.render() with the new
@@ -795,6 +838,14 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     useEffect(() => {
       if (isActive) flowRethemeRef.current?.(themeMode);
     }, [themeMode, isActive]);
+
+    // Apply the live search-token set (graph-flow-search CP3) whenever it
+    // changes while the flow view is active. Uses the registered callback
+    // which calls root.render() in place — no renderer rebuild, so the
+    // drill-down stack survives every keystroke.
+    useEffect(() => {
+      if (isActive) flowSearchTokensRef.current?.(searchTokens);
+    }, [searchTokens, isActive]);
 
     // FlowsView renders only the FlowChrome overlay and leaves the actual diagram
     // DOM managed by the imperative initFlowGraphCore inside the containerRef.

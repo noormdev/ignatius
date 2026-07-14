@@ -1248,6 +1248,90 @@ code {
   white-space: nowrap;
 }
 
+/* graph-flow-search CP3: Flows results dropdown, rendered into the SearchBar's
+   results slot below .viewer-search-bar-inner. Same frosted-pill language as
+   the bar itself. Nested under .viewer-search-bar, so it's already covered by
+   that selector's @media print rule (no separate print-hidden entry needed). */
+.viewer-search-results {
+  margin-top: 6px;
+  width: 320px;
+  max-height: 360px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background-color: color-mix(in srgb, var(--color-background) 90%, transparent);
+}
+
+.viewer-search-results-group + .viewer-search-results-group {
+  border-top: 1px solid var(--color-border);
+}
+
+.viewer-search-results-group-title {
+  padding: 6px 10px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.viewer-search-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.65rem;
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.viewer-search-result-row:hover,
+.viewer-search-result-row:focus-visible {
+  background: var(--color-surface-alt);
+}
+
+.viewer-search-result-kind {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+}
+
+.viewer-search-result-dotted {
+  flex: none;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.viewer-search-result-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-search-results-overflow {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
 /* CP9: DD search highlight — CSS Custom Highlight API pseudo-element.
    The --dd-search-highlight var is set per-mode by applyThemeCssVars at runtime
    (authoritative). These fallbacks cover surfaces that don't call it (e.g. static
