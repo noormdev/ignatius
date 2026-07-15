@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.15.0](https://github.com/noormdev/ignatius/compare/v0.14.0...v0.15.0) (2026-07-15)
+
+
+### Features
+
+* **app:** arrow-key canvas panning on Graph and Flows ([9370139](https://github.com/noormdev/ignatius/commit/9370139cc9630ca37375af2316b91f04030af107))
+* **app:** raise arrow-key pan steps to 10px/50px ([7d5c8e9](https://github.com/noormdev/ignatius/commit/7d5c8e9d150a4fe0d968aa8941001b2da46d0c07))
+
+
+### Bug Fixes
+
+* **app:** stop StrictMode double-fetch from racing the flow renderer ([c121bab](https://github.com/noormdev/ignatius/commit/c121bab3d827ebb95358af6193014fcab2632711))
+
 ## [0.14.0](https://github.com/noormdev/ignatius/compare/v0.13.0...v0.14.0) (2026-07-14)
 
 
