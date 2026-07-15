@@ -204,8 +204,8 @@ try {
   await new Promise<void>(r => setTimeout(r, 150));
   const panAfterRight = await page.evaluate(() => window.__IGNATIUS_CY__!.pan());
   assert(
-    panAfterRight.x === panBefore.x - 5 && panAfterRight.y === panBefore.y,
-    'ArrowRight pans the graph viewport right by 5px (content slides left)',
+    panAfterRight.x === panBefore.x - 10 && panAfterRight.y === panBefore.y,
+    'ArrowRight pans the graph viewport right by 10px (content slides left)',
     `pan before: ${JSON.stringify(panBefore)}  after: ${JSON.stringify(panAfterRight)}`,
   );
 
@@ -215,8 +215,8 @@ try {
   await new Promise<void>(r => setTimeout(r, 150));
   const panAfterShiftDown = await page.evaluate(() => window.__IGNATIUS_CY__!.pan());
   assert(
-    panAfterShiftDown.y === panAfterRight.y - 25 && panAfterShiftDown.x === panAfterRight.x,
-    'Shift+ArrowDown pans the graph viewport down by 25px',
+    panAfterShiftDown.y === panAfterRight.y - 50 && panAfterShiftDown.x === panAfterRight.x,
+    'Shift+ArrowDown pans the graph viewport down by 50px',
     `pan before: ${JSON.stringify(panAfterRight)}  after: ${JSON.stringify(panAfterShiftDown)}`,
   );
 
@@ -260,7 +260,7 @@ try {
   const shiftDx = flowAfterRight && flowAfterShift ? flowAfterRight.tx - flowAfterShift.tx : NaN;
   assert(
     Math.abs(shiftDx - bareDx * 5) < 1e-6,
-    'Shift+ArrowRight flow pan step is exactly 5x the bare step (25px vs 5px)',
+    'Shift+ArrowRight flow pan step is exactly 5x the bare step (50px vs 10px)',
     `bare dx: ${bareDx}  shift dx: ${shiftDx}`,
   );
 

@@ -414,7 +414,7 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
 }
 
 // ---------------------------------------------------------------------------
-// T25: arrow keys on graph/flow → { type:'pan' } with a 5px viewport-movement
+// T25: arrow keys on graph/flow → { type:'pan' } with a 10px viewport-movement
 //      delta in the arrow's direction (keyboard-pan).
 // ---------------------------------------------------------------------------
 {
@@ -437,7 +437,7 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
 }
 
 // ---------------------------------------------------------------------------
-// T26: Shift + arrow → the fast 25px step (Shift is the step multiplier here,
+// T26: Shift + arrow → the fast 50px step (Shift is the step multiplier here,
 //      NOT a suppressor — arrows resolve before the modifier guard, like '?').
 // ---------------------------------------------------------------------------
 {

@@ -75,9 +75,9 @@ export type ShortcutAction =
   | { type: 'pan'; dx: number; dy: number };
 
 /** Arrow-key pan step per keydown, in screen px (viewport-movement delta). */
-export const PAN_STEP = 5;
+export const PAN_STEP = 10;
 /** Arrow-key pan step per keydown with Shift held, in screen px. */
-export const PAN_STEP_FAST = 25;
+export const PAN_STEP_FAST = 50;
 
 /** Viewport-movement delta per arrow key, at unit step. */
 const PAN_DIRECTION: Record<string, { dx: number; dy: number }> = {
