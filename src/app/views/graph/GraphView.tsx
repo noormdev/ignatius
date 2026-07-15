@@ -80,6 +80,9 @@ export interface GraphViewHandle {
   zoomOut(): void;
   setPercent(pct: number): void;
   resetZoom(): void;
+  /** Pan the viewport by (dx, dy) screen px — viewport-movement delta, so the
+   *  rendered graph slides the opposite way. Keyboard arrow-key scrolling. */
+  panBy(dx: number, dy: number): void;
   retheme(mode: 'dark' | 'light', model: Model, entityErrors: EntityError[]): void;
 }
 
@@ -244,6 +247,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       },
       resetZoom() {
         cyZoomResetRef.current?.();
+      },
+      panBy(dx: number, dy: number) {
+        // cy.panBy moves the RENDERED CONTENT by the given px; the viewport
+        // moving right means the content slides left, hence the negation.
+        cyRef.current?.panBy({ x: -dx, y: -dy });
       },
       retheme(mode: 'dark' | 'light', m: Model, entityErrors: EntityError[]) {
         const cy = cyRef.current;

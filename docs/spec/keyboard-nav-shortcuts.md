@@ -74,6 +74,26 @@ Suppressed in editable context (typing a literal `?` in the search box never
 opens the overlay). The overlay content/component is owned by
 `docs/spec/help-overlay.md`; this resolver owns only the key binding.
 
+**Arrow-key panning** — resolved in the same slot as `?` (after the editable
+guard, before the bare-key modifier guard), because Shift is the step
+multiplier here, not a suppressor:
+
+| Key | Action | Active when |
+|-----|--------|-------------|
+| `←` `→` `↑` `↓` | `{ type: 'pan', dx, dy }` — pan the active canvas by `PAN_STEP` (5) screen px in the arrow's direction; `PAN_STEP_FAST` (25) with Shift held | `view === 'graph'` or `view === 'flow'`, not while typing |
+
+`(dx, dy)` is the direction the **viewport** moves; consumers slide their
+content the opposite way (`GraphViewHandle.panBy` → `cy.panBy({ x: -dx, y: -dy })`;
+`FlowsViewHandle.panBy` → the flow SVG's registered zoom/pan control, which
+converts screen px to viewBox units with the same mapping as the pointer
+drag-pan). The action fires on every `keydown`, so OS auto-repeat gives
+continuous scrolling while a key is held. Gated off `ctrl`/`meta`/`alt`
+(OS text/history chords like `Cmd`+`←` pass through), suppressed in editable
+context (the text cursor keeps moving in inputs), and `null` on the dict view
+(the Dictionary is a native scroll container — hijacking arrows would break
+page scroll). `PAN_STEP`/`PAN_STEP_FAST` are exported constants in
+`src/app/logic/shortcuts.ts`.
+
 ## Success criteria
 
 - [ ] `resolveShortcut(event, view, editable)` is a pure function in `src/app/logic/shortcuts.ts`, no DOM/React imports, exporting a `ShortcutAction` discriminated union.
@@ -87,6 +107,7 @@ opens the overlay). The overlay content/component is owned by
 - [ ] Touched source files (`App.tsx`, `DictionaryView.tsx`, `FabMenu.tsx`, new `logic/shortcuts.ts`, new `hooks/useKeyboardShortcuts.ts`) introduce **zero** new `tsc --noEmit` errors vs. the baseline (`tmp/baseline-typecheck.log`; these files start at 0).
 - [ ] CLAUDE.md feature map gets a "Keyboard navigation shortcuts" row; a brief mention added to the relevant user guide (`docs/guides/commands.md` or controls guide).
 - [ ] `Cmd`/`Ctrl` + `k` resolves to `{ type: 'search' }` in the same pre-editable-guard slot as the zoom chords (gated on `ctrl`/`meta`, not `alt`/`shift`), so it focuses the active view's search input even while a text field is already focused elsewhere; `test-shortcuts.ts` covers Cmd+k/Ctrl+k → search, editable-bypass, alt/shift → null, and bare `k` (no modifier) → null.
+- [ ] Arrow keys resolve to `{ type: 'pan', dx, dy }` on graph/flow per the keymap (5px, 25px with Shift; dict → null; editable → null; ctrl/meta/alt → null); both view handles expose `panBy(dx, dy)` and the shell routes to the active canvas. `test-shortcuts.ts` covers the resolver rows (T25–T29); `test-keyboard-shortcuts.ts` proves in the browser that ArrowRight moves `cy.pan()` by exactly −5px, Shift steps 25px, the flow SVG inner translate moves opposite the viewport with a 5× Shift ratio, and arrows stay inert while a search input is focused.
 
 ## Approaches
 
@@ -152,3 +173,9 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 **What changed:** `resolveShortcut` now also returns `{ type: 'search' }` for `Cmd`/`Ctrl` + `k`, resolved in the same pre-editable-guard slot as the zoom chords (gated on `ctrl`/`meta`, not `alt`/`shift`) — so it focuses the active view's search input even while typing elsewhere, unlike bare `/` which stays suppressed in editable context. The section formerly titled "Modifier-gated zoom" is now "Modifier-gated zoom + search" to reflect the added row. `test-shortcuts.ts` covers Cmd+k/Ctrl+k → search, editable-bypass, alt/shift → null, and bare `k` (no modifier) → null.
 
 **Why:** user feedback on the live graph-flow-search branch (`docs/spec/graph-flow-search.md` CP5, SC8) — `Cmd`/`Ctrl`+`K` is the conventional "focus search" chord in modern web apps and users expect it to work regardless of where focus currently is.
+
+### 2026-07-14 — Arrow-key canvas panning
+
+**What changed:** `resolveShortcut` now returns `{ type: 'pan', dx, dy }` for the arrow keys on the graph and flow views — `PAN_STEP` (5) screen px per keydown, `PAN_STEP_FAST` (25) with Shift, resolved in the same post-editable/pre-modifier-guard slot as `?` since Shift is the step multiplier rather than a suppressor; ctrl/meta/alt chords and the dict view fall through to null. The body gained an "Arrow-key panning" keymap section. `useKeyboardShortcuts` carries an `onPan(dx, dy)` callback; the shell routes it to a new `panBy(dx, dy)` on `GraphViewHandle` (→ `cy.panBy` negated) and `FlowsViewHandle` (→ the flow SVG's registered zoom/pan control, screen-px→viewBox conversion shared with the pointer drag-pan). `test-shortcuts.ts` T25–T29 cover the resolver; `test-keyboard-shortcuts.ts` tests 5–7 prove the browser behavior on both canvases plus the editable guard.
+
+**Why:** user request — the DG and DFD canvases were mouse-only for scrolling; arrow keys with keydown auto-repeat give continuous keyboard scrolling, and Shift gives a faster stride.

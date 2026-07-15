@@ -56,3 +56,9 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 **What changed:** the Graph and Flows "How to explore" sections each gained a Search row (Graph: term matching, body-text toggle, Enter cycling; Flows: cross-diagram results grouped by diagram, in-diagram dimming). Every view's Keyboard section now lists `/` — focus that view's search input.
 
 **Why:** the graph-flow-search feature (`docs/spec/graph-flow-search.md`, SC8) adds search bars to Graph, Dictionary, and Flows with a shared `/` focus shortcut; the help overlay must describe what a first-time viewer sees, including the new search affordance.
+
+### 2026-07-14 — Arrow-key pan row added to the Keyboard section
+
+**What changed:** the Graph and Flows Keyboard sections gained a `← ↑ ↓ →` row ("Scroll the canvas; hold Shift to scroll faster"), added inside the existing graph/flow-only block next to the zoom chord row.
+
+**Why:** arrow-key canvas panning shipped in the shortcut resolver (`docs/spec/keyboard-nav-shortcuts.md`, 2026-07-14 arrow-key entry); the overlay lists the keys that work on each view.

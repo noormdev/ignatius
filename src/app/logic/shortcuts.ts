@@ -15,6 +15,8 @@
  *                      Cmd/Ctrl+k is a second, always-on route to the same
  *                      action — see "Modifier-gated zoom + search" below.)
  *   ? → help         (any view; needs Shift, so resolved before guard 2)
+ *   arrows → pan     (graph/flow only; Shift multiplies the step, so resolved
+ *                      before guard 2 like '?' — see "Arrow-key panning" below)
  *
  * Guards checked before the switch:
  *   1. editable === true → null
@@ -22,6 +24,15 @@
  *
  * Exception: '?' (Shift+/) is resolved after guard 1 but before guard 2, since
  * the character itself requires Shift; it is still suppressed in editable context.
+ *
+ * Arrow-key panning (graph/flow views): each keydown pans the active canvas by
+ * PAN_STEP screen px, or PAN_STEP_FAST with Shift held — keydown auto-repeat
+ * makes holding a key scroll continuously. Resolved after guard 1 (arrows must
+ * keep moving the text cursor in editable context) but before guard 2 (Shift is
+ * the step multiplier here, not a suppressor); ctrl/meta/alt chords fall through
+ * to null (Cmd/Alt+arrow is OS text/history navigation). The action's (dx, dy)
+ * is the direction the VIEWPORT moves — consumers slide the content the
+ * opposite way. Dict view → null, preserving native page scroll.
  *
  * Key matching is done on e.key.toLowerCase() so capslock does not block
  * actions (shift is already guarded, preventing Shift+G etc.).
@@ -60,7 +71,21 @@ export type ShortcutAction =
   | { type: 'zoomOut' }
   | { type: 'zoomReset' }
   | { type: 'help' }
-  | { type: 'search' };
+  | { type: 'search' }
+  | { type: 'pan'; dx: number; dy: number };
+
+/** Arrow-key pan step per keydown, in screen px (viewport-movement delta). */
+export const PAN_STEP = 5;
+/** Arrow-key pan step per keydown with Shift held, in screen px. */
+export const PAN_STEP_FAST = 25;
+
+/** Viewport-movement delta per arrow key, at unit step. */
+const PAN_DIRECTION: Record<string, { dx: number; dy: number }> = {
+  arrowleft: { dx: -1, dy: 0 },
+  arrowright: { dx: 1, dy: 0 },
+  arrowup: { dx: 0, dy: -1 },
+  arrowdown: { dx: 0, dy: 1 },
+};
 
 // ---------------------------------------------------------------------------
 // resolveShortcut
@@ -107,6 +132,16 @@ export function resolveShortcut(
   // collides with a browser chord.
   if (key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     return { type: 'help' };
+  }
+
+  // Arrow-key panning: like '?', resolved after the editable guard but before
+  // the modifier guard — Shift selects the fast step instead of suppressing.
+  // Gated to the two canvas views (dict keeps native scroll) and off
+  // ctrl/meta/alt (OS text/history navigation chords pass through).
+  const panDir = PAN_DIRECTION[key];
+  if (panDir && (view === 'graph' || view === 'flow') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const step = e.shiftKey ? PAN_STEP_FAST : PAN_STEP;
+    return { type: 'pan', dx: panDir.dx * step, dy: panDir.dy * step };
   }
 
   // Guard 2: modifier chords (bare keys only — any modifier suppresses)

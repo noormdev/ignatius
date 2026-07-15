@@ -8,6 +8,8 @@
 
 import {
   resolveShortcut,
+  PAN_STEP,
+  PAN_STEP_FAST,
   type ShortcutKeyEvent,
   type ShortcutAction,
 } from '../../src/app/logic/shortcuts';
@@ -409,6 +411,96 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
   assert(result !== null && result.type === 'search', 'T24: search action shape');
   assert(Object.keys(result).length === 1, "T24: search action has only 'type'");
   console.log("PASS T24: Cmd+'k' action shape { type:'search' }");
+}
+
+// ---------------------------------------------------------------------------
+// T25: arrow keys on graph/flow → { type:'pan' } with a 5px viewport-movement
+//      delta in the arrow's direction (keyboard-pan).
+// ---------------------------------------------------------------------------
+{
+  const ARROW_DELTAS: Array<[string, number, number]> = [
+    ['ArrowLeft', -PAN_STEP, 0],
+    ['ArrowRight', PAN_STEP, 0],
+    ['ArrowUp', 0, -PAN_STEP],
+    ['ArrowDown', 0, PAN_STEP],
+  ];
+  for (const view of ['graph', 'flow'] as const) {
+    for (const [key, dx, dy] of ARROW_DELTAS) {
+      const result = resolveShortcut(ev(key), view, false);
+      assert(
+        result !== null && result.type === 'pan' && result.dx === dx && result.dy === dy,
+        `T25: ${key} on ${view} → { type:'pan', dx:${dx}, dy:${dy} }`,
+      );
+    }
+    console.log(`PASS T25: arrows on ${view} → pan at ${PAN_STEP}px`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// T26: Shift + arrow → the fast 25px step (Shift is the step multiplier here,
+//      NOT a suppressor — arrows resolve before the modifier guard, like '?').
+// ---------------------------------------------------------------------------
+{
+  const result = resolveShortcut(ev('ArrowDown', { shiftKey: true }), 'graph', false);
+  assert(
+    result !== null && result.type === 'pan' && result.dx === 0 && result.dy === PAN_STEP_FAST,
+    `T26: shift+ArrowDown → { type:'pan', dy:${PAN_STEP_FAST} }`,
+  );
+  const left = resolveShortcut(ev('ArrowLeft', { shiftKey: true }), 'flow', false);
+  assert(
+    left !== null && left.type === 'pan' && left.dx === -PAN_STEP_FAST && left.dy === 0,
+    `T26: shift+ArrowLeft on flow → { type:'pan', dx:${-PAN_STEP_FAST} }`,
+  );
+  console.log(`PASS T26: shift+arrow → pan at ${PAN_STEP_FAST}px`);
+}
+
+// ---------------------------------------------------------------------------
+// T27: arrows on dict → null — the Dictionary is a native scroll container;
+//      hijacking arrows there would break page scrolling.
+// ---------------------------------------------------------------------------
+{
+  for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) {
+    assert(resolveShortcut(ev(key), 'dict', false) === null, `T27: ${key} on dict → null`);
+    assert(
+      resolveShortcut(ev(key, { shiftKey: true }), 'dict', false) === null,
+      `T27: shift+${key} on dict → null`,
+    );
+  }
+  console.log('PASS T27: arrows (bare and shifted) on dict → null');
+}
+
+// ---------------------------------------------------------------------------
+// T28: editable guard suppresses arrows — the text cursor must keep moving
+//      inside inputs/textareas/modals.
+// ---------------------------------------------------------------------------
+{
+  for (const view of ['graph', 'flow'] as const) {
+    assert(
+      resolveShortcut(ev('ArrowRight'), view, true) === null,
+      `T28: ArrowRight editable=true on ${view} → null`,
+    );
+    assert(
+      resolveShortcut(ev('ArrowUp', { shiftKey: true }), view, true) === null,
+      `T28: shift+ArrowUp editable=true on ${view} → null`,
+    );
+  }
+  console.log('PASS T28: arrows suppressed in editable context');
+}
+
+// ---------------------------------------------------------------------------
+// T29: ctrl/meta/alt + arrow → null — OS text/history navigation chords
+//      (Cmd+Left = line start / browser back) pass through untouched.
+// ---------------------------------------------------------------------------
+{
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey'] as const) {
+    const result = resolveShortcut(ev('ArrowLeft', { [mod]: true }), 'graph', false);
+    assert(result === null, `T29: ${mod}+ArrowLeft → null`);
+    const shifted = resolveShortcut(
+      ev('ArrowLeft', { [mod]: true, shiftKey: true }), 'graph', false,
+    );
+    assert(shifted === null, `T29: ${mod}+shift+ArrowLeft → null`);
+  }
+  console.log('PASS T29: ctrl/meta/alt arrow chords → null');
 }
 
 console.log('\nAll tests passed.');

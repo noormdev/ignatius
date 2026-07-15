@@ -79,6 +79,7 @@ function shortcutRows(view: ViewName): Row[] {
   }
   if (view === 'graph' || view === 'flow') {
     rows.push({ term: '⌘/Ctrl +/−/0', desc: 'Zoom the canvas in, out, or reset.' });
+    rows.push({ term: '← ↑ ↓ →', desc: 'Scroll the canvas; hold Shift to scroll faster.' });
   }
   rows.push({ term: '/ · ⌘/Ctrl K', desc: 'Focus the search bar.' });
   rows.push({ term: '?', desc: 'Open this help.' });
