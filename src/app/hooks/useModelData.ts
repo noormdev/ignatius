@@ -67,6 +67,16 @@ export function useModelData(opts?: UseModelDataOptions): {
   };
 
   useEffect(() => {
+    // React StrictMode double-invokes this effect in dev (mount→cleanup→mount).
+    // The boot fetch below has no way to cancel an in-flight request, so without
+    // this flag the FIRST invocation's fetch still resolves after its own
+    // cleanup ran and calls setFlowDiagrams/setModel anyway — a second,
+    // reference-changed update lands shortly after the real one, retriggering
+    // every effect keyed on `flowDiagrams`/`model` (including the flow
+    // renderer's mount effect) while the first mount is still settling. This
+    // is the documented React pattern for fetch-in-effect: a local flag set on
+    // cleanup, checked before every setState in a `.then()`.
+    let ignore = false;
     const mode = window.__IGNATIUS_MODE__;
 
     if (mode === 'static') {
@@ -126,24 +136,29 @@ export function useModelData(opts?: UseModelDataOptions): {
 
     Promise.all([doModelFetch(), doFlowFetch()])
       .then(([modelPayload, flowPayload]) => {
+        if (ignore) return;
         applyModelPayload(modelPayload);
         applyFlowPayload(flowPayload);
       })
-      .catch(err => console.error('[ignatius] boot co-fetch failed:', err));
+      .catch(err => { if (!ignore) console.error('[ignatius] boot co-fetch failed:', err); });
 
     const es = new EventSource('/events');
     es.addEventListener('model-changed', () => {
       Promise.all([doModelFetch(), doFlowFetch()])
         .then(([modelPayload, flowPayload]) => {
+          if (ignore) return;
           applyModelPayload(modelPayload);
           applyFlowPayload(flowPayload);
           setBannerDismissed(false);
           onSseRefreshRef.current?.(modelPayload.validation.cleanedModel);
         })
-        .catch(err => console.error('[ignatius] SSE refetch failed:', err));
+        .catch(err => { if (!ignore) console.error('[ignatius] SSE refetch failed:', err); });
     });
 
-    return () => es.close();
+    return () => {
+      ignore = true;
+      es.close();
+    };
   }, []);
 
   return {
