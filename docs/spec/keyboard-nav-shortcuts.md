@@ -80,7 +80,7 @@ multiplier here, not a suppressor:
 
 | Key | Action | Active when |
 |-----|--------|-------------|
-| `←` `→` `↑` `↓` | `{ type: 'pan', dx, dy }` — pan the active canvas by `PAN_STEP` (5) screen px in the arrow's direction; `PAN_STEP_FAST` (25) with Shift held | `view === 'graph'` or `view === 'flow'`, not while typing |
+| `←` `→` `↑` `↓` | `{ type: 'pan', dx, dy }` — pan the active canvas by `PAN_STEP` (10) screen px in the arrow's direction; `PAN_STEP_FAST` (50) with Shift held | `view === 'graph'` or `view === 'flow'`, not while typing |
 
 `(dx, dy)` is the direction the **viewport** moves; consumers slide their
 content the opposite way (`GraphViewHandle.panBy` → `cy.panBy({ x: -dx, y: -dy })`;
@@ -107,7 +107,7 @@ page scroll). `PAN_STEP`/`PAN_STEP_FAST` are exported constants in
 - [ ] Touched source files (`App.tsx`, `DictionaryView.tsx`, `FabMenu.tsx`, new `logic/shortcuts.ts`, new `hooks/useKeyboardShortcuts.ts`) introduce **zero** new `tsc --noEmit` errors vs. the baseline (`tmp/baseline-typecheck.log`; these files start at 0).
 - [ ] CLAUDE.md feature map gets a "Keyboard navigation shortcuts" row; a brief mention added to the relevant user guide (`docs/guides/commands.md` or controls guide).
 - [ ] `Cmd`/`Ctrl` + `k` resolves to `{ type: 'search' }` in the same pre-editable-guard slot as the zoom chords (gated on `ctrl`/`meta`, not `alt`/`shift`), so it focuses the active view's search input even while a text field is already focused elsewhere; `test-shortcuts.ts` covers Cmd+k/Ctrl+k → search, editable-bypass, alt/shift → null, and bare `k` (no modifier) → null.
-- [ ] Arrow keys resolve to `{ type: 'pan', dx, dy }` on graph/flow per the keymap (5px, 25px with Shift; dict → null; editable → null; ctrl/meta/alt → null); both view handles expose `panBy(dx, dy)` and the shell routes to the active canvas. `test-shortcuts.ts` covers the resolver rows (T25–T29); `test-keyboard-shortcuts.ts` proves in the browser that ArrowRight moves `cy.pan()` by exactly −5px, Shift steps 25px, the flow SVG inner translate moves opposite the viewport with a 5× Shift ratio, and arrows stay inert while a search input is focused.
+- [ ] Arrow keys resolve to `{ type: 'pan', dx, dy }` on graph/flow per the keymap (10px, 50px with Shift; dict → null; editable → null; ctrl/meta/alt → null); both view handles expose `panBy(dx, dy)` and the shell routes to the active canvas. `test-shortcuts.ts` covers the resolver rows (T25–T29); `test-keyboard-shortcuts.ts` proves in the browser that ArrowRight moves `cy.pan()` by exactly −10px, Shift steps 50px, the flow SVG inner translate moves opposite the viewport with a 5× Shift ratio, and arrows stay inert while a search input is focused.
 
 ## Approaches
 
@@ -179,3 +179,11 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 **What changed:** `resolveShortcut` now returns `{ type: 'pan', dx, dy }` for the arrow keys on the graph and flow views — `PAN_STEP` (5) screen px per keydown, `PAN_STEP_FAST` (25) with Shift, resolved in the same post-editable/pre-modifier-guard slot as `?` since Shift is the step multiplier rather than a suppressor; ctrl/meta/alt chords and the dict view fall through to null. The body gained an "Arrow-key panning" keymap section. `useKeyboardShortcuts` carries an `onPan(dx, dy)` callback; the shell routes it to a new `panBy(dx, dy)` on `GraphViewHandle` (→ `cy.panBy` negated) and `FlowsViewHandle` (→ the flow SVG's registered zoom/pan control, screen-px→viewBox conversion shared with the pointer drag-pan). `test-shortcuts.ts` T25–T29 cover the resolver; `test-keyboard-shortcuts.ts` tests 5–7 prove the browser behavior on both canvases plus the editable guard.
 
 **Why:** user request — the DG and DFD canvases were mouse-only for scrolling; arrow keys with keydown auto-repeat give continuous keyboard scrolling, and Shift gives a faster stride.
+
+### 2026-07-14 — Pan step values raised to 10px / 50px
+
+**What changed:** `PAN_STEP`/`PAN_STEP_FAST` changed from 5/25 to 10/50 screen px; the keymap table, the affected success criterion, and every doc/test wording that named the old values were updated to match (the shift-fast-to-bare ratio stays 5×, unaffected).
+
+**Why:** user feedback on the live branch — the original 5px step felt too slow for practical scrolling.
+
+**Superseded:** the "Arrow-key canvas panning" entry above introduced the feature at 5px/25px; that entry is left as-is as the historical record of that commit.
