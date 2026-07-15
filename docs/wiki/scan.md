@@ -223,7 +223,7 @@
 │   │   ├── hooks/ (4)
 │   │   │   ├── useHashRoute.ts (c50964c, 121L, 5142ch, 5150B)
 │   │   │   ├── useKeyboardShortcuts.ts (5962b6b, 93L, 3529ch, 3545B)
-│   │   │   ├── useModelData.ts (4877d58, 158L, 5483ch, 5609B)
+│   │   │   ├── useModelData.ts (b582ec4, 173L, 6319ch, 6451B)
 │   │   │   └── useThemeMode.ts (1e0a3db, 36L, 1642ch, 1642B)
 │   │   ├── logic/ (11)
 │   │   │   ├── color.ts (8006242, 39L, 1796ch, 1796B)
@@ -492,7 +492,7 @@
 │       └── App.tsx (8ff50d4, 78L, 2470ch, 2474B)
 ├── .gitignore (6d3972b, 53L, 809ch, 811B)
 ├── .signalsignore (50ea1be, 28L, 1036ch, 1050B)
-├── CHANGELOG.md (871fba9, 218L, 17630ch, 17636B)
+├── CHANGELOG.md (dd55a4d, 240L, 18854ch, 18860B)
 ├── CLAUDE.md (7e4582d, 181L, 22826ch, 23053B)
 ├── CONTRIBUTING.md (592685f, 53L, 2043ch, 2047B)
 ├── README.md (727982d, 69L, 4028ch, 4036B)
@@ -500,19 +500,19 @@
 ├── bun.lock (01dab35, 107L, 7820ch, 7820B)
 ├── bunfig.toml (3ab75b0, 2L, 35ch, 35B)
 ├── install.sh (64a6757, 116L, 3578ch, 3594B)
-├── package.json (2fca4c9, 48L, 1804ch, 1806B)
+├── package.json (5642340, 48L, 1804ch, 1806B)
 ├── release-please-config.json (9f191fe, 15L, 416ch, 416B)
-├── release-please-manifest.json (c2ec4bd, 3L, 20ch, 20B)
+├── release-please-manifest.json (a0fb1f6, 3L, 20ch, 20B)
 └── tsconfig.json (1d9427f, 37L, 870ch, 870B)
 
 ## Manifests
 
-- package.json: name=ignatius, version=0.12.0, scripts=[build, build:bundle, build:cli, build:stable-names, cli, dev, dev:cli, start, test, typecheck]
+- package.json: name=ignatius, version=0.14.0, scripts=[build, build:bundle, build:cli, build:stable-names, cli, dev, dev:cli, start, test, typecheck]
 
 ## Languages
 
-- TypeScript: 59159 LOC (70%), 265 files (45%)
-- Markdown: 20461 LOC (24%), 298 files (50%)
+- TypeScript: 59201 LOC (70%), 265 files (45%)
+- Markdown: 20483 LOC (24%), 298 files (50%)
 - CSS: 3004 LOC (3%), 2 files (0%)
 - YAML: 1340 LOC (1%), 14 files (2%)
 - Shell: 116 LOC (0%), 1 file (0%)
