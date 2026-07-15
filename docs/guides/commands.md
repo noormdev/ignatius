@@ -124,8 +124,9 @@ The app responds to single-key shortcuts while no text field is focused and no m
 | `b` | Toggle dictionary lens (read ↔ browse) — Dictionary view |
 | `/` or `Cmd`/`Ctrl` + `K` | Focus the search bar — Graph, Dictionary, Flows |
 | `?` | Open the help overlay for the current view |
+| `←` `→` `↑` `↓` | Scroll the canvas 5px — Graph and Flows views; hold `Shift` for 25px |
 
-Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?` is the one exception to the modifier rule — it needs Shift to type, so Shift does not suppress it (but it is still ignored while typing in a field). `Cmd`/`Ctrl` + `K` is a second exception: like the zoom chords below, it focuses search even while a text field is already focused elsewhere.
+Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?` is the one exception to the modifier rule — it needs Shift to type, so Shift does not suppress it (but it is still ignored while typing in a field). `Cmd`/`Ctrl` + `K` is a second exception: like the zoom chords below, it focuses search even while a text field is already focused elsewhere. The arrow keys are a third: `Shift` selects their faster stride instead of suppressing them, and holding an arrow scrolls continuously. Arrows keep their normal meaning while typing in a field, and `Cmd`/`Ctrl`/`Alt` arrow chords are left to the OS and browser.
 
 
 ### Help overlay

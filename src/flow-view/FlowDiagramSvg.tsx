@@ -832,13 +832,15 @@ export type FlowDiagramSvgProps = {
    */
   onZoomChange?: (scale: number, fitScale: number) => void;
   /**
-   * Called once on mount with zoom-control imperative operations, and with null
+   * Called once on mount with zoom/pan imperative operations, and with null
    * on unmount. Allows app-level ZoomControl handlers to drive the SVG zoom
-   * without coupling the component to the control.
+   * without coupling the component to the control. `panBy` takes a
+   * viewport-movement delta in screen px (keyboard arrow-key scrolling).
    */
   onRegisterZoomControl?: (ctrl: {
     zoomTo(scale: number): void;
     resetFit(): void;
+    panBy(dxPx: number, dyPx: number): void;
   } | null) => void;
   /**
    * Match-set for graph-flow-search CP3: base tokens (role-split --src/--snk/
@@ -1084,7 +1086,18 @@ export function FlowDiagramSvg({
       setTy(0);
       setScale(1);
     }
-    onRegisterZoomControl({ zoomTo, resetFit });
+    function panBy(dxPx: number, dyPx: number) {
+      // Screen px → vb units, same mapping as the pointer drag-pan above.
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0 || rect.height === 0) return;
+      const vbDx = (dxPx / rect.width) * vbW;
+      const vbDy = (dyPx / rect.height) * vbH;
+      // (dxPx, dyPx) is the direction the VIEWPORT moves — the content
+      // translate goes the opposite way.
+      setTx(txRef.current - vbDx);
+      setTy(tyRef.current - vbDy);
+    }
+    onRegisterZoomControl({ zoomTo, resetFit, panBy });
     return () => { onRegisterZoomControl(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onRegisterZoomControl, vbX, vbY, vbW, vbH]);

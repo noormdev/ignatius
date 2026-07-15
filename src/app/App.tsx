@@ -290,6 +290,14 @@ export function App() {
     else if (view === 'dict') dictViewRef.current?.focusSearch();
   }
 
+  // Keyboard arrow-key pan — route to the ACTIVE canvas. (dx, dy) is the
+  // viewport-movement delta in screen px; each view's panBy slides its content
+  // the opposite way. Dict never reaches here (resolver returns null).
+  function handleKeyboardPan(dx: number, dy: number) {
+    if (view === 'graph') graphViewRef.current?.panBy(dx, dy);
+    else if (view === 'flow') flowsViewRef.current?.panBy(dx, dy);
+  }
+
   // Global keyboard shortcut handler — single window keydown listener.
   // Reads current `view`/callbacks via a ref inside the hook (no stale closures).
   useKeyboardShortcuts({
@@ -302,6 +310,7 @@ export function App() {
     onZoomReset: handleKeyboardZoomReset,
     onHelp: () => setShowHelp(true),
     onSearch: handleKeyboardSearchFocus,
+    onPan: handleKeyboardPan,
   });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been

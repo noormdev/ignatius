@@ -17,6 +17,10 @@ interface KeyboardShortcutsConfig {
   onHelp: () => void;
   /** `/` — focus the active view's search input. */
   onSearch: () => void;
+  /** Arrow keys — pan the active canvas by (dx, dy) screen px (viewport-movement
+   *  delta; graph/flow only — the resolver returns null on dict). Fires on every
+   *  keydown, so OS auto-repeat gives continuous scrolling while held. */
+  onPan: (dx: number, dy: number) => void;
 }
 
 /**
@@ -40,11 +44,12 @@ export function useKeyboardShortcuts({
   onZoomReset,
   onHelp,
   onSearch,
+  onPan,
 }: KeyboardShortcutsConfig): void {
   // Latest config ref — updated synchronously on every render so the stable
   // listener closure never reads stale values.
-  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch });
-  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch };
+  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan });
+  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan };
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -82,6 +87,9 @@ export function useKeyboardShortcuts({
         case 'zoomReset': cfg.onZoomReset(); break;
         case 'help': cfg.onHelp(); break;
         case 'search': cfg.onSearch(); break;
+        // preventDefault above also stops the browser from scrolling the page
+        // on arrow keys while a canvas view is active.
+        case 'pan': cfg.onPan(action.dx, action.dy); break;
       }
     }
 

@@ -186,6 +186,103 @@ try {
     `key g reached the search input (input value contains 'g', got: "${inputValue}")`,
   );
 
+  // ---------------------------------------------------------------------------
+  // Test 5: keyboard-pan on the graph — ArrowRight moves the viewport right
+  // (cy pan.x decreases by exactly 5); Shift+ArrowDown moves it down by 25.
+  // ---------------------------------------------------------------------------
+
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+  await page.keyboard.press('g');
+  await page.waitForFunction(() => location.hash.includes('view=graph'), { timeout: 3000 });
+  await new Promise<void>(r => setTimeout(r, 800));
+  await page.evaluate(() => document.body.focus());
+
+  const panBefore = await page.evaluate(() => window.__IGNATIUS_CY__!.pan());
+  await page.keyboard.press('ArrowRight');
+  await new Promise<void>(r => setTimeout(r, 150));
+  const panAfterRight = await page.evaluate(() => window.__IGNATIUS_CY__!.pan());
+  assert(
+    panAfterRight.x === panBefore.x - 5 && panAfterRight.y === panBefore.y,
+    'ArrowRight pans the graph viewport right by 5px (content slides left)',
+    `pan before: ${JSON.stringify(panBefore)}  after: ${JSON.stringify(panAfterRight)}`,
+  );
+
+  await page.keyboard.down('Shift');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.up('Shift');
+  await new Promise<void>(r => setTimeout(r, 150));
+  const panAfterShiftDown = await page.evaluate(() => window.__IGNATIUS_CY__!.pan());
+  assert(
+    panAfterShiftDown.y === panAfterRight.y - 25 && panAfterShiftDown.x === panAfterRight.x,
+    'Shift+ArrowDown pans the graph viewport down by 25px',
+    `pan before: ${JSON.stringify(panAfterRight)}  after: ${JSON.stringify(panAfterShiftDown)}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // Test 6: keyboard-pan on the flow SVG — the inner <g> translate moves
+  // opposite the viewport, and the Shift step is exactly 5× the bare step
+  // (both go through the same screen-px→viewBox conversion).
+  // ---------------------------------------------------------------------------
+
+  await page.keyboard.press('f');
+  await page.waitForFunction(() => location.hash.includes('view=flow'), { timeout: 3000 });
+  await page.waitForSelector('[data-ignatius="flow-svg"] > g', { timeout: 10_000 });
+  await new Promise<void>(r => setTimeout(r, 800));
+  await page.evaluate(() => document.body.focus());
+
+  function readFlowTranslate() {
+    return page.evaluate(() => {
+      const g = document.querySelector('[data-ignatius="flow-svg"] > g');
+      const m = g?.getAttribute('transform')?.match(/translate\(([-\d.e]+),([-\d.e]+)\)/);
+      return m ? { tx: Number(m[1]), ty: Number(m[2]) } : null;
+    });
+  }
+
+  const flowBefore = await readFlowTranslate();
+  await page.keyboard.press('ArrowRight');
+  await new Promise<void>(r => setTimeout(r, 150));
+  const flowAfterRight = await readFlowTranslate();
+  const bareDx = flowBefore && flowAfterRight ? flowBefore.tx - flowAfterRight.tx : NaN;
+  assert(
+    flowBefore !== null && flowAfterRight !== null
+      && bareDx > 0 && flowAfterRight.ty === flowBefore.ty,
+    'ArrowRight pans the flow viewport right (inner translate tx decreases, ty unchanged)',
+    `translate before: ${JSON.stringify(flowBefore)}  after: ${JSON.stringify(flowAfterRight)}`,
+  );
+
+  await page.keyboard.down('Shift');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.up('Shift');
+  await new Promise<void>(r => setTimeout(r, 150));
+  const flowAfterShift = await readFlowTranslate();
+  const shiftDx = flowAfterRight && flowAfterShift ? flowAfterRight.tx - flowAfterShift.tx : NaN;
+  assert(
+    Math.abs(shiftDx - bareDx * 5) < 1e-6,
+    'Shift+ArrowRight flow pan step is exactly 5x the bare step (25px vs 5px)',
+    `bare dx: ${bareDx}  shift dx: ${shiftDx}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // Test 7: arrows are inert while typing — focus the flow search input and
+  // press ArrowRight; the canvas must not move (editable guard).
+  // ---------------------------------------------------------------------------
+
+  await page.focus('.viewer-search-bar--flow .viewer-search-input');
+  await new Promise<void>(r => setTimeout(r, 100));
+  const flowBeforeEditable = await readFlowTranslate();
+  await page.keyboard.press('ArrowRight');
+  await new Promise<void>(r => setTimeout(r, 150));
+  const flowAfterEditable = await readFlowTranslate();
+  assert(
+    flowBeforeEditable !== null && flowAfterEditable !== null
+      && flowAfterEditable.tx === flowBeforeEditable.tx
+      && flowAfterEditable.ty === flowBeforeEditable.ty,
+    'ArrowRight does not pan while focus is in a search input (editable guard)',
+    `translate before: ${JSON.stringify(flowBeforeEditable)}  after: ${JSON.stringify(flowAfterEditable)}`,
+  );
+
 } finally {
   await page.close();
   await browser.close();

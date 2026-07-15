@@ -91,6 +91,7 @@ export interface FlowChromeCallbacks {
   onRegisterZoomControl?: (ctrl: {
     zoomTo(scale: number): void;
     resetFit(): void;
+    panBy(dxPx: number, dyPx: number): void;
   } | null) => void;
 }
 
@@ -609,6 +610,9 @@ export interface FlowsViewHandle {
   zoomOut(): void;
   setPercent(pct: number): void;
   resetZoom(): void;
+  /** Pan the viewport by (dx, dy) screen px — viewport-movement delta, so the
+   *  rendered diagram slides the opposite way. Keyboard arrow-key scrolling. */
+  panBy(dx: number, dy: number): void;
   openFlowToken(token: string): void;
 }
 
@@ -691,6 +695,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     // Adapter refs wired by onRegisterZoomControl from FlowDiagramSvg.
     const flowZoomToRef = useRef<((scale: number) => void) | null>(null);
     const flowResetFitRef = useRef<(() => void) | null>(null);
+    const flowPanByRef = useRef<((dxPx: number, dyPx: number) => void) | null>(null);
     // Live-scale mirror so zoom operations always read the current scale, not a stale closure value.
     const flowScaleRef = useRef(1);
     // Live fitScale mirror (viewBox→container ratio). Drives percent↔scale
@@ -726,6 +731,9 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       },
       resetZoom() {
         flowResetFitRef.current?.();
+      },
+      panBy(dx: number, dy: number) {
+        flowPanByRef.current?.(dx, dy);
       },
       openFlowToken(token: string) {
         flowOpenRef.current?.(token);
@@ -807,6 +815,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         onRegisterZoomControl: (ctrl) => {
           flowZoomToRef.current = ctrl ? ctrl.zoomTo : null;
           flowResetFitRef.current = ctrl ? ctrl.resetFit : null;
+          flowPanByRef.current = ctrl ? ctrl.panBy : null;
           // The diagram mounts at fit (scale 1). The real readout is reported by
           // onZoomChange once the SVG measures its container; no forced 100 here.
         },
