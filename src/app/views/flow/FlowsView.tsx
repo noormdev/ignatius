@@ -283,6 +283,17 @@ export function initFlowGraphCore(
   // its generation number; after any await the call checks whether it is still the
   // latest — if a newer call started while ELK was computing, the stale call aborts.
   let renderGen = 0;
+  // Set true by the teardown function returned below. renderGen alone only
+  // guards against a NEWER renderDiagram call within this same still-alive
+  // instance; it does nothing when the whole instance is torn down (e.g. React
+  // StrictMode's dev-mode mount→cleanup→mount, or the user navigating away
+  // while ELK is still computing) — svgRoot is still null at that point (the
+  // async call hasn't reached "create root" yet), so teardown has nothing to
+  // unmount, and the orphaned continuation later resumes, finds the shared
+  // `container` still connected, and injects a second live React root into it.
+  // Checked after every await in renderDiagram so a disposed instance never
+  // touches the DOM again.
+  let disposed = false;
 
   // Returns the fingerprint for a diagram id from the injected layout keys map.
   // Static: window.__FLOW_LAYOUT_KEYS__; live: injected by the app-level flow
@@ -292,6 +303,11 @@ export function initFlowGraphCore(
   }
 
   async function renderDiagram(diagram: FlowDiagram) {
+    // This instance was torn down before this call even started (e.g. queued
+    // via resetLayout/drillUp right as the effect cleaned up) — bail before
+    // touching anything.
+    if (disposed) return;
+
     // Claim this render generation. Any concurrent renderDiagram that starts
     // while we await ELK will bump renderGen and invalidate ours.
     renderGen += 1;
@@ -326,7 +342,14 @@ export function initFlowGraphCore(
       const elkResult = await computeElkLayout(diagram);
       // Guard: if a newer renderDiagram call started while ELK was computing
       // (e.g. the user clicked a different DFD), abort — the newer call wins.
-      if (renderGen !== myGen) return;
+      // Guard: if this WHOLE instance was torn down while we awaited (e.g.
+      // React StrictMode's dev-mode mount→cleanup→mount, or navigating away
+      // and back before ELK finished) — svgRoot was still null when teardown
+      // ran, so it had nothing to unmount; without this check the orphaned
+      // call would resume, find `container` still connected (App keeps every
+      // view's container mounted across view switches), and inject a second
+      // live React root into it.
+      if (renderGen !== myGen || disposed) return;
       elkPositions = elkResult.positions;
       // CP4b: capture routed edge geometry alongside positions.
       // On ELK failure (catch below), elkEdgeRoutes stays undefined so the
@@ -335,11 +358,11 @@ export function initFlowGraphCore(
     } catch (err) {
       // ELK layout failure is non-fatal: fall back to banded positions.
       console.warn('[ignatius] ELK layout failed, falling back to banded positions:', err);
-      if (renderGen !== myGen) return;
+      if (renderGen !== myGen || disposed) return;
     }
 
-    // Guard: if the renderer was torn down while we awaited ELK (e.g. view
-    // switched away), the container will have been removed — abort.
+    // Guard: if the container element itself was removed from the document
+    // (a full unmount, not just this instance's teardown), abort.
     if (!container.isConnected) return;
 
     // Create a fresh full-bleed sub-div for the SVG.
@@ -544,6 +567,10 @@ export function initFlowGraphCore(
   }
 
   return () => {
+    // Set before anything else: any renderDiagram call still awaiting ELK at
+    // this point must resume as a no-op instead of racing the next instance
+    // for the shared `container` (see the disposed checks above).
+    disposed = true;
     chromeCallbacks?.onResetLayout?.(null);
     chromeCallbacks?.onRegisterRetheme?.(null);
     chromeCallbacks?.onRegisterSearchTokens?.(null);
