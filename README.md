@@ -67,3 +67,11 @@ The [glossary](docs/glossary.md) defines the shared vocabulary — DG, DD, DFD, 
 
 
 Conceptual designs live in `docs/design/`; the implementation contracts derived from them live in `docs/spec/`. Start with `docs/design/markdown-driven-erd.md` for the entity format and the derivation rules. Contributors should also read `CONTRIBUTING.md`.
+
+
+## License
+
+
+Apache License 2.0. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
+
+The license covers ignatius itself. Models you author with it are your own work, and the viewer's default logo, title and copyright line are placeholders you are meant to replace. See [Themes and branding](docs/guides/themes-and-branding.md).
