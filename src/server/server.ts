@@ -79,7 +79,11 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         const flowsDir = join(modelsDir, 'flows');
         const hasFlows = existsSync(flowsDir);
         if (!hasFlows) {
-          return Response.json({ diagrams: [], validation: { flowErrors: [], globalErrors: [], cleanedFlowModel: { diagrams: [], modelDir: modelsDir } }, flowLayoutKeys: {} });
+          // entityModel is present here too — the empty state must not be a
+          // different SHAPE from the populated one, or a consumer that reads
+          // `entityModel` breaks only on models that happen to have no flows.
+          const { model: entityModel } = await parseModels(modelsDir);
+          return Response.json({ diagrams: [], entityModel, validation: { flowErrors: [], globalErrors: [], cleanedFlowModel: { diagrams: [], modelDir: modelsDir } }, flowLayoutKeys: {} });
         }
 
         const { model } = await parseModels(modelsDir);

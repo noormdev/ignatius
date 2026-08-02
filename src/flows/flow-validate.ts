@@ -4,7 +4,7 @@
  * No Node/Bun I/O; imports only types. Browser-safe.
  * Mirrors the structure of validate.ts for the ERD layer.
  *
- * All 11 flow.* rules are implemented here as pure functions.
+ * All 12 flow.* rules are implemented here as pure functions.
  * Class B rules strip edges/stores from cleanedFlowModel.
  * Class A rules record findings but strip nothing.
  */

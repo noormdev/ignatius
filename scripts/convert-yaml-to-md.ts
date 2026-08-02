@@ -1,9 +1,22 @@
 import { parse as parseYaml, stringify } from 'yaml';
 import { resolve } from 'path';
 
-const yamlContent = await Bun.file(resolve(import.meta.dir, '../tmp/sample_model.yaml')).text();
+// Input path is argv[2]; the old hardcoded tmp/ path stays the default so existing
+// invocations keep working. Output dir is argv[3].
+const inputPath = process.argv[2]
+  ? resolve(process.argv[2])
+  : resolve(import.meta.dir, '../tmp/sample_model.yaml');
+
+const inputFile = Bun.file(inputPath);
+if (!(await inputFile.exists())) {
+  console.error(`convert-yaml-to-md: input not found: ${inputPath}`);
+  console.error('usage: bun scripts/convert-yaml-to-md.ts [input.yaml] [outDir]');
+  process.exit(1);
+}
+
+const yamlContent = await inputFile.text();
 const doc = parseYaml(yamlContent) as Record<string, unknown>;
-const outDir = resolve(import.meta.dir, '../models');
+const outDir = process.argv[3] ? resolve(process.argv[3]) : resolve(import.meta.dir, '../models');
 
 type Col = { type: string; nullable?: boolean; default?: unknown; desc?: string };
 type Rel = { desc?: string; on: Record<string, string>; predicate: { fwd: string; rev: string } };

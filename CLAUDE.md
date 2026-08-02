@@ -36,7 +36,7 @@ Default to using Bun instead of Node.js.
 ## Visual changes
 
 
-When visual changes are made (UI, layout, graph rendering, theming), take Playwright screenshots via the existing harness at `scripts/screenshot.ts` and `test/visual/`. Never claim a visual change works without seeing it. Don't build a new capture path — extend the existing harness instead.
+When visual changes are made (UI, layout, graph rendering, theming), take screenshots via the existing harness — `test/visual/` for Playwright captures, `scripts/screenshot.ts` for a quick webview-bun grab. Never claim a visual change works without seeing it. Don't build a new capture path — extend the existing harness instead.
 
 
 ## Surface consistency

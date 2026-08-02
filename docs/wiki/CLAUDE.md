@@ -46,3 +46,5 @@ Keep the twelve established domains; do not re-derive or merge them.
 - node_modules/
 - models/     (demo + fixture model roots, i.e. sample data — not source)
 - test/fixtures/
+- spec/       (top-level spec/spec.md is the ORIGINAL single-YAML design, self-marked historical
+              and superseded — provenance only, never a domain; the live specs are docs/spec/)

@@ -1,6 +1,6 @@
 # IDEF1X Graphing Engine — Spec
 
-> **⚠ HISTORICAL — superseded.** This is the original single-YAML-file design from the start of the project. The shipped tool uses per-entity markdown files with YAML frontmatter, organized under `models/<group>/*.md`. Groups are defined in `models/_groups/*.md`, theme in `models/_theme.yaml`.
+> **⚠ HISTORICAL — superseded.** This is the original single-YAML-file design from the start of the project. Kept for provenance only; nothing here describes the shipped tool. The shipped tool uses per-entity markdown files with YAML frontmatter under `<model>/data/**.md`, with `groups/`, `externals/`, and `stores/` at the model root and a single `ignatius.yml` for config, theme, and branding.
 >
 > Current docs:
 > - `docs/design/markdown-driven-erd.md` — current architecture and source format

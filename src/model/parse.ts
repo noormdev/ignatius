@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
-import { defaultTheme, mergeTheme, type ThemeConfig, type ThemePalette, type ThemeSpacing } from '../theme/theme-defaults';
+import { defaultTheme, mergeTheme, type ThemeConfig } from '../theme/theme-defaults';
 import { defaultBranding, mergeBranding, type Branding } from '../theme/branding-defaults';
 import { wikiLinkPlugin, type WikiLinkEnv } from './wikilink';
 import type { GlobalError } from './validate';
@@ -199,7 +199,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       };
     }
     if (themeRaw !== null && typeof themeRaw === 'object') {
-      theme = mergeTheme(themeRaw as Partial<{ dark: Partial<ThemePalette>; light: Partial<ThemePalette>; spacing: Partial<ThemeSpacing> }>);
+      theme = mergeTheme(themeRaw as Parameters<typeof mergeTheme>[0]);
     }
     if (brandingRaw !== null && typeof brandingRaw === 'object') {
       branding = mergeBranding(brandingRaw as Parameters<typeof mergeBranding>[0]);
@@ -337,6 +337,13 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   for (const node of rawNodes) rawNodeById[node.id] = node;
 
   // Derive `identifying` per edge: every FK child col in edge.on must be in child PK
+  //
+  // A dangling edge (unknown target, or FK column absent from the child) is carried
+  // through as `identifying: false` rather than raised here. That is deliberate: the
+  // parser reports only what stops it producing a Model, and `validate.ts` owns the
+  // diagnostics — `edge.unknown_target` and `edge.dangling_fk_column` both live there,
+  // with the fix hints and the cleaned-model stripping. Raising it here too would
+  // report the same defect from two layers.
   type DerivedEdge = RawEdge & { identifying: boolean };
   const derivedEdges: DerivedEdge[] = rawEdges.map(edge => {
     const childNode = rawNodeById[edge.source];
