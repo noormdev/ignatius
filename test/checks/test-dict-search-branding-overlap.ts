@@ -91,10 +91,27 @@ pass(`--branding-gutter published as ${gutter}`);
 
 // ── 2. No overlap across widths — narrow ones are the regression ────────────
 const WIDTHS = [1920, 1440, 1280, 1100, 1050, 900, 800];
-for (const width of WIDTHS) {
+// `setViewportSize` resolves before the page has necessarily re-laid-out, and
+// the bar's indent is computed from 100vw — so a stale viewport yields the
+// PREVIOUS width's padding and the boxes read as overlapping. Wait for the
+// viewport the CSS actually sees, then for the geometry to settle; on timeout
+// fall through so the assert below reports real numbers rather than a bare
+// Playwright error. A fixed sleep here passed locally and twice in CI, then
+// failed 3/3 on a loaded machine.
+async function settleAt(width: number): Promise<void> {
   await page.setViewportSize({ width, height: 900 });
-  // Let ResizeObserver + layout settle.
-  await page.waitForTimeout(250);
+  await page.waitForFunction(w => window.innerWidth === w, width, { timeout: 5000 });
+  try {
+    await page.waitForFunction(() => {
+      const b = document.querySelector('.branding-block')?.getBoundingClientRect();
+      const i = document.querySelector('.dict-search-input')?.getBoundingClientRect();
+      return b !== undefined && i !== undefined && i.x >= b.x + b.width;
+    }, undefined, { timeout: 5000 });
+  } catch {}
+}
+
+for (const width of WIDTHS) {
+  await settleAt(width);
 
   const { gap, brand, input } = await measureGap();
   if (overlaps(brand, input)) {
@@ -111,12 +128,20 @@ for (const width of WIDTHS) {
 // ── 3. A 50-char title (the parser's cap) must still clear ──────────────────
 // This is the case a hard-coded gutter would fail: the block gets much wider,
 // and only a measured gutter grows with it.
-await page.setViewportSize({ width: 1050, height: 900 });
+await settleAt(1050);
 await page.evaluate(() => {
   const el = document.querySelector('.branding-title');
   if (el !== null) el.textContent = 'A'.repeat(50);
 });
-await page.waitForTimeout(300);
+// The widened title has to reach the ResizeObserver, then --branding-gutter,
+// then the bar's padding — three hops, so poll for the outcome.
+try {
+  await page.waitForFunction(() => {
+    const b = document.querySelector('.branding-block')?.getBoundingClientRect();
+    const i = document.querySelector('.dict-search-input')?.getBoundingClientRect();
+    return b !== undefined && i !== undefined && i.x >= b.x + b.width;
+  }, undefined, { timeout: 5000 });
+} catch {}
 
 const wide = await measureGap();
 if (overlaps(wide.brand, wide.input)) {

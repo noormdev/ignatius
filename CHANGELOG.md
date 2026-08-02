@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.1](https://github.com/noormdev/ignatius/compare/v0.15.0...v0.15.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* embed branding logos, and watch .yml ([#27](https://github.com/noormdev/ignatius/issues/27)) ([aca8a58](https://github.com/noormdev/ignatius/commit/aca8a5896a3758dd640b3c09568ce5b420e3d6d0))
+* **viewer:** keep branding off the dict search input ([a706c1c](https://github.com/noormdev/ignatius/commit/a706c1c8551616386f61daa572d78d3937d13ddb))
+* **viewer:** stop lineage walking through junction entities ([5eaf289](https://github.com/noormdev/ignatius/commit/5eaf289eecc14f568f6638365c8a459bc1e7bc64))
+
 ## [0.15.0](https://github.com/noormdev/ignatius/compare/v0.14.0...v0.15.0) (2026-07-15)
 
 

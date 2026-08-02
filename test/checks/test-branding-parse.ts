@@ -58,14 +58,25 @@ function makeFixtureDir(name: string): string {
   console.log('PASS: custom branding block end-to-end');
 }
 
+// A logo distinguishable from the embedded noorm mark, so "the path resolved
+// and was read" is provable rather than indistinguishable from the fallback.
+const FIXTURE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1"/></svg>';
+const FIXTURE_SVG_DATA_URI = `data:image/svg+xml;base64,${Buffer.from(FIXTURE_SVG).toString('base64')}`;
+
 // --- Test 3: string shorthand expansion ---
+// Shorthand still expands one path into BOTH slots; parse then inlines each to
+// a data URI (the model root is the only place a relative logo path resolves
+// against, so the raw path never survives). Asserting the inlined value proves
+// expansion AND that the file was actually found — a missing file silently
+// yields the noorm default, which would pass a "both slots are equal" check.
 {
   const dir = makeFixtureDir('shorthand');
+  writeFileSync(`${dir}/icon.svg`, FIXTURE_SVG);
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  logo: "./icon.svg"\n`);
   const { model } = await parseModels(dir);
-  assert(model.branding.logo.dark === './icon.svg',
+  assert(model.branding.logo.dark === FIXTURE_SVG_DATA_URI,
     `FAIL: shorthand dark: ${model.branding.logo.dark}`);
-  assert(model.branding.logo.light === './icon.svg',
+  assert(model.branding.logo.light === FIXTURE_SVG_DATA_URI,
     `FAIL: shorthand light: ${model.branding.logo.light}`);
   console.log('PASS: string shorthand expansion');
 }
@@ -73,13 +84,29 @@ function makeFixtureDir(name: string): string {
 // --- Test 4: object form with one missing key falls back to the present one ---
 {
   const dir = makeFixtureDir('logo-object');
+  writeFileSync(`${dir}/logo-dark.svg`, FIXTURE_SVG);
   writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  logo:\n    dark: "./logo-dark.svg"\n`);
   const { model } = await parseModels(dir);
-  assert(model.branding.logo.dark === './logo-dark.svg',
+  assert(model.branding.logo.dark === FIXTURE_SVG_DATA_URI,
     `FAIL: object.dark: ${model.branding.logo.dark}`);
-  assert(model.branding.logo.light === './logo-dark.svg',
+  assert(model.branding.logo.light === FIXTURE_SVG_DATA_URI,
     `FAIL: object missing light should fallback to dark: ${model.branding.logo.light}`);
   console.log('PASS: object form with one missing key falls back to the present one');
+}
+
+// --- Test 4b: a logo path that does not resolve falls back to the noorm mark ---
+// The fallback is deliberate (a broken <img> in an exported file is worse than
+// the wrong logo), so it needs a test of its own — otherwise Tests 3/4 above
+// would still pass if inlining silently stopped resolving anything.
+{
+  const dir = makeFixtureDir('logo-missing');
+  writeFileSync(`${dir}/ignatius.yml`, `name: Test Model\nbranding:\n  logo: "./nope.svg"\n`);
+  const { model } = await parseModels(dir);
+  assert(model.branding.logo.dark === defaultBranding.logo.dark,
+    `FAIL: missing logo file should fall back to the default mark: ${model.branding.logo.dark.slice(0, 60)}`);
+  assert(model.branding.logo.light === defaultBranding.logo.light,
+    `FAIL: missing logo file light fallback: ${model.branding.logo.light.slice(0, 60)}`);
+  console.log('PASS: unresolvable logo path falls back to the default mark');
 }
 
 // --- Test 5: title >50 chars throws ---

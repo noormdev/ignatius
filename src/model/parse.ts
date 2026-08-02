@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import { defaultTheme, mergeTheme, type ThemeConfig } from '../theme/theme-defaults';
-import { defaultBranding, mergeBranding, type Branding } from '../theme/branding-defaults';
+import { defaultBranding, mergeBranding, inlineBrandingLogos, type Branding } from '../theme/branding-defaults';
 import { wikiLinkPlugin, type WikiLinkEnv } from './wikilink';
 import type { GlobalError } from './validate';
 
@@ -202,7 +202,12 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       theme = mergeTheme(themeRaw as Parameters<typeof mergeTheme>[0]);
     }
     if (brandingRaw !== null && typeof brandingRaw === 'object') {
-      branding = mergeBranding(brandingRaw as Parameters<typeof mergeBranding>[0]);
+      // Inlined here rather than in mergeBranding, which is pure and has no
+      // idea where the model lives. Logo paths are relative to the model root.
+      branding = await inlineBrandingLogos(
+        mergeBranding(brandingRaw as Parameters<typeof mergeBranding>[0]),
+        dir,
+      );
     }
   }
 
