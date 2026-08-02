@@ -325,6 +325,34 @@ export function App() {
     ? (themeMode === 'dark' ? branding.logo.dark : branding.logo.light)
     : undefined;
 
+  // The branding block is position:fixed, so it is out of flow and no stylesheet
+  // can know how much room to leave for it. Publish its measured width as
+  // `--branding-gutter` so the DD search bar can indent past it at viewport
+  // widths where the two would otherwise share a row (the bar is full-bleed;
+  // the graph/flow pill is narrow and centred, so it never collides). Measured
+  // rather than hard-coded because title and subtitle come from the model's
+  // branding and can be any length.
+  const brandingRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = brandingRef.current;
+    const root = document.documentElement;
+    if (el === null) {
+      root.style.removeProperty('--branding-gutter');
+      return;
+    }
+    const publish = () => {
+      root.style.setProperty('--branding-gutter', `${Math.ceil(el.getBoundingClientRect().width)}px`);
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--branding-gutter');
+    };
+    // logoSrc: swapping the theme logo can change the block's width.
+  }, [branding, logoSrc]);
+
   // Error fallback — cytoscape init threw; render banner instead of blank canvas
   if (cyInitError) {
     return (
@@ -647,7 +675,7 @@ export function App() {
         />
       )}
       {branding && (
-        <div className="branding-block">
+        <div className="branding-block" ref={brandingRef}>
           {logoSrc && (
             <img className="branding-logo" src={logoSrc} alt={branding.title} />
           )}
