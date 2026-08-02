@@ -78,15 +78,6 @@ import type { ModelEdge } from '../../model/parse';
  */
 export const INHERITED_IDENTITY = 'identity';
 
-/**
- * How the key-edge walk treats ASSOCIATIVE (junction) entities:
- * - `'strict'` (default) — a junction is a BARRIER. Reachable, not traversable.
- * - `'legacy'` — the original rule: walk straight through junctions. Kept only
- *   so the two can be compared side by side in a running viewer (`?lineage=legacy`).
- *   On association-heavy models it collapses the whole graph into one lineage.
- */
-export type LineageMode = 'strict' | 'legacy';
-
 export type InheritedConnection = {
   otherId: string;
   /**
@@ -207,7 +198,6 @@ function directNeighbors(index: ModelIndex, entityId: string): Set<string> {
 function buildLineageWithPredecessors(
   index: ModelIndex,
   entityId: string,
-  mode: LineageMode,
 ): Map<string, string> {
   // member id → predecessor id (the node it was first discovered from).
   const predecessorOf = new Map<string, string>();
@@ -225,7 +215,7 @@ function buildLineageWithPredecessors(
     // junction of a hub like `Tag` links back to that hub, one pass-through
     // welds every parent entity in the model into a single lineage. The start
     // node is exempt — hovering a junction should still show its own kin.
-    if (mode === 'strict' && current !== entityId && isAssociative(index, current)) continue;
+    if (current !== entityId && isAssociative(index, current)) continue;
     for (const neighbor of keyEdgeNeighbors(index, current)) {
       if (!predecessorOf.has(neighbor)) {
         predecessorOf.set(neighbor, current);
@@ -244,11 +234,10 @@ function buildLineageWithPredecessors(
 export function buildInheritedConnections(
   index: ModelIndex,
   entityId: string,
-  mode: LineageMode = 'strict',
 ): InheritedConnection[] {
   // The lineage: the transitive connected component over key edges (both
   // directions), each member tagged with the nearest key-edge predecessor.
-  const predecessorOf = buildLineageWithPredecessors(index, entityId, mode);
+  const predecessorOf = buildLineageWithPredecessors(index, entityId);
 
   // Singleton lineage (no key-edge kin) → nothing to surface.
   if (predecessorOf.size <= 1) return [];

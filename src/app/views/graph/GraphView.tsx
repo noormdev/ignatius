@@ -35,7 +35,6 @@ import type { PositionMap } from './layout-store';
 import { parseHash, serializeHash } from '../../hash-router';
 import type { HashState, ViewName } from '../../hash-router';
 import { buildInheritedConnections } from '../../logic/spotlight-inherited';
-import { getLineageMode } from '../../logic/lineage-mode';
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../../../model/parse';
 import type { EntityError, GlobalError } from '../../../model/validate';
 import type { ModelIndex } from '../../../model/model-index';
@@ -947,7 +946,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (cy.$(`#${CSS.escape(selectedId)}`).empty()) return;
 
         const additions: cytoscape.ElementDefinition[] = [];
-        for (const conn of buildInheritedConnections(index, selectedId, getLineageMode())) {
+        for (const conn of buildInheritedConnections(index, selectedId)) {
           // Only connect to nodes actually present in the graph.
           if (cy.$(`#${CSS.escape(conn.otherId)}`).empty()) continue;
           additions.push({
