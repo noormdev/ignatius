@@ -1,5 +1,6 @@
 // Verification: parseModels reads theme/branding/meta from ignatius.yml
 // Covers: (a) full ignatius.yml, (b) only name: in ignatius.yml, (c) no ignatius.yml
+import { assert } from '../assert';
 import { parseModels } from '../../src/model/parse';
 import { defaultTheme } from '../../src/theme/theme-defaults';
 import { defaultBranding } from '../../src/theme/branding-defaults';
@@ -45,19 +46,19 @@ branding:
 
   const { model } = await parseModels(dir);
 
-  console.assert(model._meta !== undefined, 'FAIL (a): _meta should be defined');
-  console.assert(model._meta?.name === 'Full Model', `FAIL (a): _meta.name = ${model._meta?.name}`);
-  console.assert(model._meta?.version === '1.0', `FAIL (a): _meta.version = ${model._meta?.version}`);
-  console.assert(model._meta?.desc === 'A complete config', `FAIL (a): _meta.desc = ${model._meta?.desc}`);
-  console.assert(model._meta?.updated === '2026-01-01', `FAIL (a): _meta.updated = ${model._meta?.updated}`);
-  console.assert(model.theme.dark.background === '#1a0030', `FAIL (a): theme.dark.background = ${model.theme.dark.background}`);
-  console.assert(model.theme.dark.border === '#ff6b00', `FAIL (a): theme.dark.border = ${model.theme.dark.border}`);
+  assert(model._meta !== undefined, 'FAIL (a): _meta should be defined');
+  assert(model._meta?.name === 'Full Model', `FAIL (a): _meta.name = ${model._meta?.name}`);
+  assert(model._meta?.version === '1.0', `FAIL (a): _meta.version = ${model._meta?.version}`);
+  assert(model._meta?.desc === 'A complete config', `FAIL (a): _meta.desc = ${model._meta?.desc}`);
+  assert(model._meta?.updated === '2026-01-01', `FAIL (a): _meta.updated = ${model._meta?.updated}`);
+  assert(model.theme.dark.background === '#1a0030', `FAIL (a): theme.dark.background = ${model.theme.dark.background}`);
+  assert(model.theme.dark.border === '#ff6b00', `FAIL (a): theme.dark.border = ${model.theme.dark.border}`);
   // unspecified theme fields fall back to defaults
-  console.assert(model.theme.dark.text === defaultTheme.dark.text, `FAIL (a): theme.dark.text should be default, got ${model.theme.dark.text}`);
-  console.assert(model.theme.light.background === defaultTheme.light.background, `FAIL (a): light should be default`);
-  console.assert(model.branding.title === 'Custom Title', `FAIL (a): branding.title = ${model.branding.title}`);
-  console.assert(model.branding.subtitle === 'Custom Subtitle', `FAIL (a): branding.subtitle = ${model.branding.subtitle}`);
-  console.assert(model.branding.poweredBy === false, `FAIL (a): branding.poweredBy = ${model.branding.poweredBy}`);
+  assert(model.theme.dark.text === defaultTheme.dark.text, `FAIL (a): theme.dark.text should be default, got ${model.theme.dark.text}`);
+  assert(model.theme.light.background === defaultTheme.light.background, `FAIL (a): light should be default`);
+  assert(model.branding.title === 'Custom Title', `FAIL (a): branding.title = ${model.branding.title}`);
+  assert(model.branding.subtitle === 'Custom Subtitle', `FAIL (a): branding.subtitle = ${model.branding.subtitle}`);
+  assert(model.branding.poweredBy === false, `FAIL (a): branding.poweredBy = ${model.branding.poweredBy}`);
   console.log('PASS (a): full ignatius.yml — theme + branding + meta loaded');
 }
 
@@ -68,13 +69,13 @@ branding:
 
   const { model } = await parseModels(dir);
 
-  console.assert(model._meta !== undefined, 'FAIL (b): _meta should be defined');
-  console.assert(model._meta?.name === 'Name-Only Model', `FAIL (b): _meta.name = ${model._meta?.name}`);
-  console.assert(model._meta?.version === undefined, `FAIL (b): _meta.version should be undefined, got ${model._meta?.version}`);
+  assert(model._meta !== undefined, 'FAIL (b): _meta should be defined');
+  assert(model._meta?.name === 'Name-Only Model', `FAIL (b): _meta.name = ${model._meta?.name}`);
+  assert(model._meta?.version === undefined, `FAIL (b): _meta.version should be undefined, got ${model._meta?.version}`);
   // theme and branding must equal defaults
-  console.assert(model.theme.dark.background === defaultTheme.dark.background, `FAIL (b): theme should default, got ${model.theme.dark.background}`);
-  console.assert(model.branding.title === defaultBranding.title, `FAIL (b): branding.title should default, got ${model.branding.title}`);
-  console.assert(model.branding.poweredBy === true, `FAIL (b): branding.poweredBy should default true`);
+  assert(model.theme.dark.background === defaultTheme.dark.background, `FAIL (b): theme should default, got ${model.theme.dark.background}`);
+  assert(model.branding.title === defaultBranding.title, `FAIL (b): branding.title should default, got ${model.branding.title}`);
+  assert(model.branding.poweredBy === true, `FAIL (b): branding.poweredBy should default true`);
   console.log('PASS (b): only name: in ignatius.yml — theme + branding default, _meta.name set');
 }
 
@@ -85,9 +86,9 @@ branding:
 
   const { model } = await parseModels(dir);
 
-  console.assert(model._meta === undefined, `FAIL (c): _meta should be undefined, got ${JSON.stringify(model._meta)}`);
-  console.assert(model.theme.dark.background === defaultTheme.dark.background, `FAIL (c): theme should default`);
-  console.assert(model.branding.title === defaultBranding.title, `FAIL (c): branding should default`);
+  assert(model._meta === undefined, `FAIL (c): _meta should be undefined, got ${JSON.stringify(model._meta)}`);
+  assert(model.theme.dark.background === defaultTheme.dark.background, `FAIL (c): theme should default`);
+  assert(model.branding.title === defaultBranding.title, `FAIL (c): branding should default`);
   console.log('PASS (c): no ignatius.yml — defaults, _meta undefined');
 }
 

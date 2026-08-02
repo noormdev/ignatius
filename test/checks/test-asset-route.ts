@@ -3,6 +3,7 @@
  * Starts serveCommand on a free port, sends requests, verifies status codes.
  */
 
+import { assert } from '../assert';
 import { resolve } from 'path';
 import { serveCommand } from '../../src/server/server';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
@@ -17,16 +18,16 @@ const base = `http://localhost:3099`;
 // --- Test 1: valid relative path returns 200 ---
 {
   const res = await fetch(`${base}/api/asset?path=test-logo.svg`);
-  console.assert(res.status === 200, `FAIL: expected 200, got ${res.status}`);
+  assert(res.status === 200, `FAIL: expected 200, got ${res.status}`);
   const text = await res.text();
-  console.assert(text.includes('<svg'), `FAIL: expected SVG content, got: ${text.slice(0, 40)}`);
+  assert(text.includes('<svg'), `FAIL: expected SVG content, got: ${text.slice(0, 40)}`);
   console.log('PASS: valid relative path returns 200 with file contents');
 }
 
 // --- Test 2: absolute path returns 400 ---
 {
   const res = await fetch(`${base}/api/asset?path=/etc/passwd`);
-  console.assert(res.status === 400, `FAIL: expected 400 for absolute path, got ${res.status}`);
+  assert(res.status === 400, `FAIL: expected 400 for absolute path, got ${res.status}`);
   await res.body?.cancel();
   console.log('PASS: absolute path returns 400');
 }
@@ -34,7 +35,7 @@ const base = `http://localhost:3099`;
 // --- Test 3: path traversal with .. returns 400 ---
 {
   const res = await fetch(`${base}/api/asset?path=../../etc/passwd`);
-  console.assert(res.status === 400, `FAIL: expected 400 for traversal, got ${res.status}`);
+  assert(res.status === 400, `FAIL: expected 400 for traversal, got ${res.status}`);
   await res.body?.cancel();
   console.log('PASS: path traversal with .. returns 400');
 }
@@ -42,7 +43,7 @@ const base = `http://localhost:3099`;
 // --- Test 4: missing file returns 404 ---
 {
   const res = await fetch(`${base}/api/asset?path=does-not-exist.svg`);
-  console.assert(res.status === 404, `FAIL: expected 404 for missing file, got ${res.status}`);
+  assert(res.status === 404, `FAIL: expected 404 for missing file, got ${res.status}`);
   await res.body?.cancel();
   console.log('PASS: missing file returns 404');
 }
@@ -50,7 +51,7 @@ const base = `http://localhost:3099`;
 // --- Test 5: missing path query param returns 400 ---
 {
   const res = await fetch(`${base}/api/asset`);
-  console.assert(res.status === 400, `FAIL: expected 400 for missing param, got ${res.status}`);
+  assert(res.status === 400, `FAIL: expected 400 for missing param, got ${res.status}`);
   await res.body?.cancel();
   console.log('PASS: missing path query param returns 400');
 }
