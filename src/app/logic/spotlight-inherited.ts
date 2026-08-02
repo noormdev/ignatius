@@ -78,6 +78,15 @@ import type { ModelEdge } from '../../model/parse';
  */
 export const INHERITED_IDENTITY = 'identity';
 
+/**
+ * How the key-edge walk treats ASSOCIATIVE (junction) entities:
+ * - `'strict'` (default) — a junction is a BARRIER. Reachable, not traversable.
+ * - `'legacy'` — the original rule: walk straight through junctions. Kept only
+ *   so the two can be compared side by side in a running viewer (`?lineage=legacy`).
+ *   On association-heavy models it collapses the whole graph into one lineage.
+ */
+export type LineageMode = 'strict' | 'legacy';
+
 export type InheritedConnection = {
   otherId: string;
   /**
@@ -120,6 +129,45 @@ function isKeyEdge(index: ModelIndex, edge: ModelEdge): boolean {
 }
 
 /**
+ * Returns true when `nodeId` is an ASSOCIATIVE entity — a pure junction/link
+ * table whose identity is nothing but the concatenation of its parents' keys.
+ *
+ * Signature: it has key edges to 2+ DISTINCT parents, and the union of those
+ * edges' FK columns covers its ENTIRE primary key. Nothing of its own is left
+ * over — no discriminator, no sequence number, no surrogate.
+ *
+ *   - `Project_Tag` pk {tag_id, project_id} → Tag + Project cover it   → ✓
+ *   - `Task_Tag`    pk {tag_id, milestone_id, task_no} → Tag + Task    → ✓
+ *   - `Task`        pk {milestone_id, task_no} → Milestone covers only
+ *     `milestone_id`; `task_no` is Task's own                          → ✗
+ *   - `SSN`         pk {party_id} → ONE parent (Identity)              → ✗
+ *
+ * The 2+ DISTINCT parents clause is what keeps subtype members out: a subtype's
+ * FK == its full PK, so the coverage test alone would flag it. It has only one
+ * parent, and that relationship is real inheritance.
+ *
+ * Parent FK column sets are allowed to OVERLAP — under IDEF1X key migration two
+ * parents commonly share a migrated ancestor column (`PaymentAllocation` reaches
+ * both `Payment` and `SI_Line`, and both carry `party_id`). Requiring disjoint
+ * sets would miss those.
+ */
+function isAssociative(index: ModelIndex, nodeId: string): boolean {
+  const pk = index.pkByNode.get(nodeId);
+  if (pk === undefined || pk.length === 0) return false;
+
+  const parents = new Set<string>();
+  const covered = new Set<string>();
+  for (const edge of index.edgesBySource.get(nodeId) ?? []) {
+    if (!isKeyEdge(index, edge)) continue;
+    parents.add(edge.target);
+    for (const col of Object.keys(edge.on)) covered.add(col);
+  }
+
+  if (parents.size < 2) return false;
+  return pk.every(col => covered.has(col));
+}
+
+/**
  * Key-edge neighbours of `nodeId` in one undirected step: the other endpoint of
  * every KEY edge incident on `nodeId`, whether `nodeId` is the child (outgoing)
  * or the parent (incoming).
@@ -159,6 +207,7 @@ function directNeighbors(index: ModelIndex, entityId: string): Set<string> {
 function buildLineageWithPredecessors(
   index: ModelIndex,
   entityId: string,
+  mode: LineageMode,
 ): Map<string, string> {
   // member id → predecessor id (the node it was first discovered from).
   const predecessorOf = new Map<string, string>();
@@ -170,6 +219,13 @@ function buildLineageWithPredecessors(
     const current = queue[head];
     head++;
     if (current === undefined) break;
+    // An associative entity is a BARRIER: it is reachable (it does share key
+    // columns with its parents) but the walk stops there. Passing THROUGH one
+    // would treat "both are tagged" as shared key ancestry, and since every
+    // junction of a hub like `Tag` links back to that hub, one pass-through
+    // welds every parent entity in the model into a single lineage. The start
+    // node is exempt — hovering a junction should still show its own kin.
+    if (mode === 'strict' && current !== entityId && isAssociative(index, current)) continue;
     for (const neighbor of keyEdgeNeighbors(index, current)) {
       if (!predecessorOf.has(neighbor)) {
         predecessorOf.set(neighbor, current);
@@ -188,10 +244,11 @@ function buildLineageWithPredecessors(
 export function buildInheritedConnections(
   index: ModelIndex,
   entityId: string,
+  mode: LineageMode = 'strict',
 ): InheritedConnection[] {
   // The lineage: the transitive connected component over key edges (both
   // directions), each member tagged with the nearest key-edge predecessor.
-  const predecessorOf = buildLineageWithPredecessors(index, entityId);
+  const predecessorOf = buildLineageWithPredecessors(index, entityId, mode);
 
   // Singleton lineage (no key-edge kin) → nothing to surface.
   if (predecessorOf.size <= 1) return [];

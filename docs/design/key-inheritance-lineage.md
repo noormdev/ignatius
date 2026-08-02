@@ -55,6 +55,33 @@ Lineage follows ONLY **key-inheritance edges** — never a secondary (non-key) F
   the key-edge component already captures subtype membership — no separate cluster
   walk is needed.
 
+- **ASSOCIATIVE entities are BARRIERS** — reachable, but never traversed THROUGH.
+  An entity is associative when it has key edges to 2+ DISTINCT parents whose FK
+  columns together cover its ENTIRE primary key: a pure junction whose identity
+  is nothing but its parents' keys concatenated, with no discriminator, sequence
+  number, or surrogate of its own.
+  - `Project_Tag` (pk `{tag_id, project_id}`, covered by Tag + Project) → ✓
+  - `Task_Tag` (pk `{tag_id, milestone_id, task_no}`, covered by Tag + Task) → ✓
+  - `Task` (pk `{milestone_id, task_no}` — Milestone covers only `milestone_id`;
+    `task_no` is Task's own) → ✗ genuine key inheritance
+  - `SSN` (pk `{party_id}`, ONE parent) → ✗ genuine subtype
+
+  The 2+ DISTINCT parents clause is what keeps subtype members out: a subtype's
+  FK equals its full PK, so the coverage test alone would flag it. Parent FK
+  column sets MAY overlap — under IDEF1X key migration two parents commonly share
+  a migrated ancestor column (`PaymentAllocation` reaches both `Payment` and
+  `SI_Line`, and both carry `party_id`), so requiring disjoint sets would miss
+  them.
+
+  **Why a barrier and not merely an exclusion:** a junction genuinely does share
+  key columns with both parents, so it belongs to the component. But passing
+  THROUGH one asserts that "both are tagged" is shared key ancestry. Because every
+  junction of a hub entity like `Tag` links back to that hub, a single pass-through
+  welds every tagged parent in the model into ONE lineage — on
+  `models/llm-memory-db-mssql`, hovering `Task` lit up 12 of 38 entities and
+  `Related_Memory` 15. The start node is exempt: hovering a junction still shows
+  its own kin.
+
 **Inherited (inferred) connections** of `A` = the lineage members, EXCLUDING:
 
 - `A` itself, AND
@@ -96,6 +123,7 @@ already over a node works); all state is held in refs to avoid stale closures.
 
 
 - Inferring through SECONDARY (non-key) FKs — only key edges (FK ⊆ child PK) qualify, in either direction and at any cardinality (1:1 or 1:many). A secondary FK is never followed (else the graph over-connects to catalogs/classifiers).
+- Inferring THROUGH an associative entity — a junction is a lineage terminal, never a corridor (else a hub like `Tag` merges every parent it links into one component).
 - Changing the underlying model, edges, or classification.
 - Showing DG lineage on a plain click — a plain click selects + opens the modal only. (The original non-goal — "no separate hover trigger, match the existing select interaction" — was reversed by the owner: lineage in the DG is now an explicit SHIFT+HOVER inspection gesture, freeing a plain click for the modal. See the change log.)
 
@@ -109,6 +137,20 @@ None blocking.
 ## Change log
 
 
+- 2026-08-01 — **Associative entities are now BARRIERS** (owner-reported). The
+  key-edge component is correct IDEF1X, but a junction's PK is FK columns all the
+  way down, so both its legs pass FK ⊆ PK and the walk ran straight through it.
+  Every junction of a hub entity links back to that hub, so one pass-through
+  welded every tagged parent into a single lineage: on `models/llm-memory-db-mssql`
+  hovering `Task` drew 12 dotted lines across a 38-entity model, `Project` 9,
+  `Related_Memory` 15 — "everything is family", which answers nothing. A junction
+  is now reachable but not traversable. Measured effect: that model's average
+  drops 6.5 → 2.7 lines per entity (worst case 15 → 9); `models/key-inherited` is
+  **byte-identical under both rules**, so the SSN/SI_Line expectations below are
+  untouched. Detection requires 2+ DISTINCT parents so subtype members (one
+  parent, FK == full PK) are never mistaken for junctions. A `?lineage=legacy`
+  URL escape hatch keeps the old walk available for side-by-side comparison in a
+  running viewer; `scripts/compare-lineage-modes.ts` prints the per-entity diff.
 - 2026-06-19 — **Corrected the lineage rule.** Replaced the "identity group =
   subtype-cluster membership + dependent identifying-1:1 (FK == full PK + 1:1),
   then per-member external direct-FK expansion" model with: lineage = the

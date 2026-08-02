@@ -17,6 +17,7 @@ import { resolveBodyClick, upgradeMissingLinksInContainer } from '../../dom/body
 import { buildSpotlightConnections } from '../../logic/spotlight';
 import { buildFlowSpotlightConnections } from '../../logic/flow-spotlight';
 import { buildInheritedConnections } from '../../logic/spotlight-inherited';
+import { getLineageMode } from '../../logic/lineage-mode';
 import { buildFlowDocResolver } from '../../logic/doc-resolver';
 import type { FlowDocResult } from '../../logic/doc-resolver';
 import { SpotlightOverlay } from '../../components/entity/SpotlightOverlay';
@@ -160,7 +161,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   // while a card stays active toggles the lines live.
   const inheritedConnections = useMemo(() => {
     if (!shiftHeld || activeId === null || !activeIsEntity || modelIndex === null) return [];
-    return buildInheritedConnections(modelIndex, activeId);
+    return buildInheritedConnections(modelIndex, activeId, getLineageMode());
   }, [shiftHeld, activeId, modelIndex]);
 
   // Flow-lookup token for the active card:
@@ -611,7 +612,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
       // held, matching the Shift-gated inherited lines (no extra-focused inherited
       // cards without Shift).
       if (shiftHeld) {
-        for (const c of buildInheritedConnections(modelIndex, focusId)) ids.add(c.otherId);
+        for (const c of buildInheritedConnections(modelIndex, focusId, getLineageMode())) ids.add(c.otherId);
       }
     }
     // Flow connections (all card types).
