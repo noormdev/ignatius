@@ -1124,10 +1124,23 @@ code {
   pointer-events: none;
 }
 
+/* The bar is centred at max-width 1100px, so above ~1100px viewport it already
+   clears the fixed .branding-block at left:16px. Below that it goes full-bleed
+   and the two share a row — branding is z-50 vs the bar's z-30, so the brand
+   painted straight over the search input. Indent past it by exactly the room
+   that is missing: the slack is however much empty space the centring leaves on
+   the left, and once that runs out we pay the difference in padding. Falls back
+   to the plain 2rem when there is no branding (var unset → 0px) or when the
+   viewport is wide enough that the subtraction goes negative. */
 .dict-search-bar-inner {
+  --dict-bar-left-slack: max(0px, (100vw - 1100px) / 2);
   width: 100%;
   max-width: 1100px;
   padding: 8px 2rem 8px;
+  padding-left: max(
+    2rem,
+    calc(16px + var(--branding-gutter, 0px) + 12px - var(--dict-bar-left-slack))
+  );
   display: flex;
   align-items: center;
   gap: 0.75rem;
