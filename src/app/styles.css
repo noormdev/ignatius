@@ -1132,14 +1132,18 @@ code {
    the left, and once that runs out we pay the difference in padding. Falls back
    to the plain 2rem when there is no branding (var unset → 0px) or when the
    viewport is wide enough that the subtraction goes negative. */
+/* The 100vw term is written INLINE rather than hoisted into a custom property:
+   viewport units behind a var() indirection are not reliably re-evaluated on
+   resize in Chromium, so the indent went stale when the window changed size and
+   the overlap came back. --branding-gutter is a plain px value written by JS,
+   which substitutes fine. */
 .dict-search-bar-inner {
-  --dict-bar-left-slack: max(0px, (100vw - 1100px) / 2);
   width: 100%;
   max-width: 1100px;
   padding: 8px 2rem 8px;
   padding-left: max(
     2rem,
-    calc(16px + var(--branding-gutter, 0px) + 12px - var(--dict-bar-left-slack))
+    calc(16px + var(--branding-gutter, 0px) + 12px - max(0px, (100vw - 1100px) / 2))
   );
   display: flex;
   align-items: center;
