@@ -10,7 +10,9 @@ import { watch, existsSync } from 'fs';
 
 const encoder = new TextEncoder();
 
-const WATCHED_EXTENSIONS: Record<string, true> = { '.md': true, '.yaml': true };
+// `.yml` matters as much as `.yaml`: the model marker is `ignatius.yml`, so
+// without it an edit to name, theme, branding or flow_rules never reloaded.
+const WATCHED_EXTENSIONS: Record<string, true> = { '.md': true, '.yaml': true, '.yml': true };
 
 function hasWatchedExtension(filename: string): boolean {
   const dot = filename.lastIndexOf('.');

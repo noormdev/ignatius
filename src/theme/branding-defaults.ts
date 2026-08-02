@@ -1,3 +1,5 @@
+import { isAbsolute, resolve as resolvePath } from 'path';
+
 import noormLogoPath from '../../assets/noorm-logo.svg' with { type: 'file' };
 
 export type LogoPair = {
@@ -75,4 +77,58 @@ export function mergeBranding(userInput: RawBrandingInput): Branding {
     },
     poweredBy: userInput.poweredBy ?? defaultBranding.poweredBy,
   };
+}
+
+const LOGO_MIME_BY_EXT: Record<string, string> = {
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+};
+
+/**
+ * Read one logo path into a data URI, resolved against the model root.
+ *
+ * WHY: a value that is already a data: or remote URI is passed through, and
+ * anything unreadable falls back to the embedded default. A broken <img> in
+ * an exported file is worse than the noorm mark, and parse has no findings
+ * channel at the point branding is merged.
+ */
+async function inlineLogo(value: string, modelRoot: string): Promise<string> {
+  if (value.startsWith('data:') || value.startsWith('http://') || value.startsWith('https://')) {
+    return value;
+  }
+
+  const dot = value.lastIndexOf('.');
+  const mime = dot === -1 ? undefined : LOGO_MIME_BY_EXT[value.slice(dot).toLowerCase()];
+
+  if (mime === undefined) return NOORM_DEFAULT_LOGO;
+
+  const file = Bun.file(isAbsolute(value) ? value : resolvePath(modelRoot, value));
+
+  if (!(await file.exists())) return NOORM_DEFAULT_LOGO;
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`;
+}
+
+/**
+ * Embed branding logos so a model renders without its asset folder.
+ *
+ * WHY: `branding.logo` takes a path, but both the served app and `export`
+ * hand it straight to an <img src>. A relative path resolves against the
+ * page rather than the model, so a branded export mailed to a stakeholder
+ * showed a broken image, and the served app 404'd. Only the built-in mark
+ * was ever a data URI.
+ */
+export async function inlineBrandingLogos(branding: Branding, modelRoot: string): Promise<Branding> {
+  const [dark, light] = await Promise.all([
+    inlineLogo(branding.logo.dark, modelRoot),
+    inlineLogo(branding.logo.light, modelRoot),
+  ]);
+
+  return { ...branding, logo: { dark, light } };
 }
