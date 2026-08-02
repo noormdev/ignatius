@@ -1,0 +1,10 @@
+scope = "repo"
+
+[code]
+ignore = [
+    "trash/**",
+    "dist/**",
+    "tmp/**",
+    "node_modules/**",
+    "test/fixtures/**",
+]
