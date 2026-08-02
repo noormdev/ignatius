@@ -6,6 +6,7 @@
 // Approach: build temporary fixture dirs under tmp/ (gitignored),
 // include one malformed file + one valid file per scenario,
 // assert globalErrors contains the expected ruleId and the bad file is absent from model.nodes.
+import { assert } from '../assert';
 import { parseModels } from '../../src/model/parse';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -55,12 +56,12 @@ async function cleanup(dir: string): Promise<void> {
         const result = await parseModels(dir);
 
         // Must have both keys
-        console.assert('model' in result, 'FAIL: parseModels return missing "model" key');
-        console.assert('globalErrors' in result, 'FAIL: parseModels return missing "globalErrors" key');
-        console.assert(Array.isArray(result.globalErrors), 'FAIL: globalErrors is not an array');
-        console.assert(result.globalErrors.length === 0, `FAIL: baseline has unexpected globalErrors: ${JSON.stringify(result.globalErrors)}`);
-        console.assert(result.model.nodes.length === 1, `FAIL: baseline model should have 1 node, got ${result.model.nodes.length}`);
-        console.assert(result.model.nodes[0]!.id === 'GoodEntity', 'FAIL: baseline node id mismatch');
+        assert('model' in result, 'FAIL: parseModels return missing "model" key');
+        assert('globalErrors' in result, 'FAIL: parseModels return missing "globalErrors" key');
+        assert(Array.isArray(result.globalErrors), 'FAIL: globalErrors is not an array');
+        assert(result.globalErrors.length === 0, `FAIL: baseline has unexpected globalErrors: ${JSON.stringify(result.globalErrors)}`);
+        assert(result.model.nodes.length === 1, `FAIL: baseline model should have 1 node, got ${result.model.nodes.length}`);
+        assert(result.model.nodes[0]!.id === 'GoodEntity', 'FAIL: baseline node id mismatch');
         console.log('PASS: parseModels returns { model, globalErrors } shape with zero errors for valid dir');
     } finally {
         await cleanup(dir);
@@ -88,14 +89,14 @@ Body.
         const { model, globalErrors } = await parseModels(dir);
 
         // Good file still parses
-        console.assert(model.nodes.length === 1, `FAIL: parse.invalid_yaml — good entity not in model (nodes: ${model.nodes.map(n => n.id).join(',')})`);
-        console.assert(model.nodes[0]!.id === 'GoodEntity', 'FAIL: parse.invalid_yaml — good entity id mismatch');
+        assert(model.nodes.length === 1, `FAIL: parse.invalid_yaml — good entity not in model (nodes: ${model.nodes.map(n => n.id).join(',')})`);
+        assert(model.nodes[0]!.id === 'GoodEntity', 'FAIL: parse.invalid_yaml — good entity id mismatch');
 
         // Bad file emits GlobalError
-        console.assert(globalErrors.length === 1, `FAIL: parse.invalid_yaml — expected 1 globalError, got ${globalErrors.length}`);
-        console.assert(globalErrors[0]!.ruleId === 'parse.invalid_yaml', `FAIL: parse.invalid_yaml — wrong ruleId: ${globalErrors[0]!.ruleId}`);
-        console.assert(globalErrors[0]!.severity === 'error', 'FAIL: parse.invalid_yaml — severity should be error');
-        console.assert(globalErrors[0]!.omitted.kind === 'entity', 'FAIL: parse.invalid_yaml — omitted.kind should be entity');
+        assert(globalErrors.length === 1, `FAIL: parse.invalid_yaml — expected 1 globalError, got ${globalErrors.length}`);
+        assert(globalErrors[0]!.ruleId === 'parse.invalid_yaml', `FAIL: parse.invalid_yaml — wrong ruleId: ${globalErrors[0]!.ruleId}`);
+        assert(globalErrors[0]!.severity === 'error', 'FAIL: parse.invalid_yaml — severity should be error');
+        assert(globalErrors[0]!.omitted.kind === 'entity', 'FAIL: parse.invalid_yaml — omitted.kind should be entity');
         console.log('PASS: parse.invalid_yaml — malformed YAML captured in globalErrors, good entity still in model');
     } finally {
         await cleanup(dir);
@@ -126,11 +127,11 @@ Body.
 
         const { model, globalErrors } = await parseModels(dir);
 
-        console.assert(model.nodes.length === 1, `FAIL: parse.missing_id — good entity not in model (nodes: ${model.nodes.map(n => n.id).join(',')})`);
-        console.assert(globalErrors.length === 1, `FAIL: parse.missing_id — expected 1 globalError, got ${globalErrors.length}`);
-        console.assert(globalErrors[0]!.ruleId === 'parse.missing_id', `FAIL: parse.missing_id — wrong ruleId: ${globalErrors[0]!.ruleId}`);
-        console.assert(globalErrors[0]!.severity === 'error', 'FAIL: parse.missing_id — severity should be error');
-        console.assert(globalErrors[0]!.omitted.kind === 'entity', 'FAIL: parse.missing_id — omitted.kind should be entity');
+        assert(model.nodes.length === 1, `FAIL: parse.missing_id — good entity not in model (nodes: ${model.nodes.map(n => n.id).join(',')})`);
+        assert(globalErrors.length === 1, `FAIL: parse.missing_id — expected 1 globalError, got ${globalErrors.length}`);
+        assert(globalErrors[0]!.ruleId === 'parse.missing_id', `FAIL: parse.missing_id — wrong ruleId: ${globalErrors[0]!.ruleId}`);
+        assert(globalErrors[0]!.severity === 'error', 'FAIL: parse.missing_id — severity should be error');
+        assert(globalErrors[0]!.omitted.kind === 'entity', 'FAIL: parse.missing_id — omitted.kind should be entity');
         console.log('PASS: parse.missing_id — file with no entity field captured in globalErrors, good entity still in model');
     } finally {
         await cleanup(dir);
@@ -157,10 +158,10 @@ Body.
 
         const { model, globalErrors } = await parseModels(dir);
 
-        console.assert(model.nodes.length === 1, `FAIL: parse.empty_frontmatter — good entity not in model (nodes: ${model.nodes.map(n => n.id).join(',')})`);
-        console.assert(globalErrors.length === 1, `FAIL: parse.empty_frontmatter — expected 1 globalError, got ${globalErrors.length}`);
-        console.assert(globalErrors[0]!.ruleId === 'parse.empty_frontmatter', `FAIL: parse.empty_frontmatter — wrong ruleId: ${globalErrors[0]!.ruleId}`);
-        console.assert(globalErrors[0]!.severity === 'error', 'FAIL: parse.empty_frontmatter — severity should be error');
+        assert(model.nodes.length === 1, `FAIL: parse.empty_frontmatter — good entity not in model (nodes: ${model.nodes.map(n => n.id).join(',')})`);
+        assert(globalErrors.length === 1, `FAIL: parse.empty_frontmatter — expected 1 globalError, got ${globalErrors.length}`);
+        assert(globalErrors[0]!.ruleId === 'parse.empty_frontmatter', `FAIL: parse.empty_frontmatter — wrong ruleId: ${globalErrors[0]!.ruleId}`);
+        assert(globalErrors[0]!.severity === 'error', 'FAIL: parse.empty_frontmatter — severity should be error');
         console.log('PASS: parse.empty_frontmatter — file with empty fences captured in globalErrors, good entity still in model');
     } finally {
         await cleanup(dir);
@@ -184,14 +185,14 @@ Body.
         await Bun.write(join(dir, 'data', 'Minimal.md'), noPkNoColumns);
         const { model, globalErrors } = await parseModels(dir);
 
-        console.assert(globalErrors.length === 0, `FAIL: pk/columns defaults — unexpected globalErrors: ${JSON.stringify(globalErrors)}`);
-        console.assert(model.nodes.length === 1, 'FAIL: pk/columns defaults — Minimal not in model');
+        assert(globalErrors.length === 0, `FAIL: pk/columns defaults — unexpected globalErrors: ${JSON.stringify(globalErrors)}`);
+        assert(model.nodes.length === 1, 'FAIL: pk/columns defaults — Minimal not in model');
         const node = model.nodes[0]!;
-        console.assert(Array.isArray(node.pk), 'FAIL: pk defaults — pk is not an array');
-        console.assert(node.pk.length === 0, `FAIL: pk defaults — expected empty array, got ${JSON.stringify(node.pk)}`);
-        console.assert(node.columns !== null && typeof node.columns === 'object' && !Array.isArray(node.columns),
+        assert(Array.isArray(node.pk), 'FAIL: pk defaults — pk is not an array');
+        assert(node.pk.length === 0, `FAIL: pk defaults — expected empty array, got ${JSON.stringify(node.pk)}`);
+        assert(node.columns !== null && typeof node.columns === 'object' && !Array.isArray(node.columns),
             'FAIL: columns defaults — columns is not an object');
-        console.assert(Object.keys(node.columns).length === 0, `FAIL: columns defaults — expected empty object, got ${JSON.stringify(node.columns)}`);
+        assert(Object.keys(node.columns).length === 0, `FAIL: columns defaults — expected empty object, got ${JSON.stringify(node.columns)}`);
         console.log('PASS: pk defaults to [] and columns defaults to {} when absent in frontmatter');
     } finally {
         await cleanup(dir);
@@ -221,8 +222,8 @@ columns:
         // An entity with a single-column pk and no identifying parents derives to
         // 'Independent'. Classification is structural + PascalCase — the legacy
         // `classification:` frontmatter field is not lowercased or echoed.
-        console.assert(model.nodes.length === 1, 'FAIL: classification — entity not in model');
-        console.assert(model.nodes[0]!.classification === 'Independent',
+        assert(model.nodes.length === 1, 'FAIL: classification — entity not in model');
+        assert(model.nodes[0]!.classification === 'Independent',
             `FAIL: classification should derive to 'Independent' (got: ${model.nodes[0]!.classification})`);
         console.log('PASS: classification derived as PascalCase Independent');
     } finally {
@@ -243,11 +244,11 @@ columns:
 
         const { model, globalErrors } = await parseModels(dir);
 
-        console.assert(model.nodes.length === 1, `FAIL: multiple malformed — good entity not in model`);
-        console.assert(globalErrors.length === 2, `FAIL: multiple malformed — expected 2 globalErrors, got ${globalErrors.length}`);
+        assert(model.nodes.length === 1, `FAIL: multiple malformed — good entity not in model`);
+        assert(globalErrors.length === 2, `FAIL: multiple malformed — expected 2 globalErrors, got ${globalErrors.length}`);
         const ruleIds = new Set(globalErrors.map(e => e.ruleId));
-        console.assert(ruleIds.has('parse.empty_frontmatter'), 'FAIL: multiple malformed — parse.empty_frontmatter not in errors');
-        console.assert(ruleIds.has('parse.missing_id'), 'FAIL: multiple malformed — parse.missing_id not in errors');
+        assert(ruleIds.has('parse.empty_frontmatter'), 'FAIL: multiple malformed — parse.empty_frontmatter not in errors');
+        assert(ruleIds.has('parse.missing_id'), 'FAIL: multiple malformed — parse.missing_id not in errors');
         console.log('PASS: multiple malformed files — promise resolves with all errors collected');
     } finally {
         await cleanup(dir);
