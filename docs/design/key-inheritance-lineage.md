@@ -148,9 +148,10 @@ None blocking.
   drops 6.5 → 2.7 lines per entity (worst case 15 → 9); `models/key-inherited` is
   **byte-identical under both rules**, so the SSN/SI_Line expectations below are
   untouched. Detection requires 2+ DISTINCT parents so subtype members (one
-  parent, FK == full PK) are never mistaken for junctions. A `?lineage=legacy`
-  URL escape hatch keeps the old walk available for side-by-side comparison in a
-  running viewer; `scripts/compare-lineage-modes.ts` prints the per-entity diff.
+  parent, FK == full PK) are never mistaken for junctions. The pass-through walk
+  is GONE, not configurable — a `?lineage=legacy` escape hatch carried it through
+  review and was dropped once the rule was accepted, so no URL can resurrect the
+  over-connected graph.
 - 2026-06-19 — **Corrected the lineage rule.** Replaced the "identity group =
   subtype-cluster membership + dependent identifying-1:1 (FK == full PK + 1:1),
   then per-member external direct-FK expansion" model with: lineage = the
