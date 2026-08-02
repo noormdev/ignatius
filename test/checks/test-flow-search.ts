@@ -140,14 +140,38 @@ try {
   await page.waitForSelector('[data-token="proc:Record-Order"]', { timeout: 10_000 });
   assert(true, 'SC6: clicking the row navigates to the owning sub-DFD (active diagram + rendered nodes)');
 
+  // The diagram SVG lives in its own React root, and the search-token set
+  // reaches it through an effect that calls root.render() on that root — so the
+  // dim settles one commit AFTER whatever the outer tree just did (the dropdown
+  // opening or closing). Reading opacity straight after an outer-tree wait is a
+  // race that a loaded CI box loses every time. Poll for the settled value; on
+  // timeout fall through with whatever is on screen so the assert below reports
+  // the real numbers instead of a bare Playwright timeout.
+  async function opacitiesOnceSettled(
+    validate: string,
+    record: string,
+  ): Promise<{ validate: string | null | undefined; record: string | null | undefined }> {
+    const read = () => page.evaluate(() => ({
+      validate: document.querySelector('[data-token="proc:Validate-Customer"]')?.getAttribute('opacity'),
+      record: document.querySelector('[data-token="proc:Record-Order"]')?.getAttribute('opacity'),
+    }));
+    try {
+      await page.waitForFunction(
+        ([v, r]) =>
+          document.querySelector('[data-token="proc:Validate-Customer"]')?.getAttribute('opacity') === v &&
+          document.querySelector('[data-token="proc:Record-Order"]')?.getAttribute('opacity') === r,
+        [validate, record],
+        { timeout: 5000 },
+      );
+    } catch {}
+    return read();
+  }
+
   // ---------------------------------------------------------------------
   // SC7 — non-matching node (Record-Order) at DIM_OPACITY, matching node
   // (Validate-Customer) at full opacity.
   // ---------------------------------------------------------------------
-  const opacitiesAfterNav = await page.evaluate(() => ({
-    validate: document.querySelector('[data-token="proc:Validate-Customer"]')?.getAttribute('opacity'),
-    record: document.querySelector('[data-token="proc:Record-Order"]')?.getAttribute('opacity'),
-  }));
+  const opacitiesAfterNav = await opacitiesOnceSettled('1', '0.3');
   assert(opacitiesAfterNav.validate === '1', 'SC7: matching node (Validate Customer) renders at full opacity', JSON.stringify(opacitiesAfterNav));
   assert(opacitiesAfterNav.record === '0.3', 'SC7: non-matching node (Record Order) renders at DIM_OPACITY', JSON.stringify(opacitiesAfterNav));
 
@@ -175,10 +199,7 @@ try {
   await page.fill('.viewer-search-input', '');
   await page.waitForFunction(() => document.querySelectorAll('.viewer-search-results').length === 0, { timeout: 5000 });
 
-  const opacitiesAfterClear = await page.evaluate(() => ({
-    validate: document.querySelector('[data-token="proc:Validate-Customer"]')?.getAttribute('opacity'),
-    record: document.querySelector('[data-token="proc:Record-Order"]')?.getAttribute('opacity'),
-  }));
+  const opacitiesAfterClear = await opacitiesOnceSettled('1', '1');
   assert(opacitiesAfterClear.validate === '1' && opacitiesAfterClear.record === '1', 'clearing the term restores full opacity to every node', JSON.stringify(opacitiesAfterClear));
 
   const breadcrumbHasSubDfd = (await page.locator('body').textContent())?.includes('Create Sales Order') ?? false;
