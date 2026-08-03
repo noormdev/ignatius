@@ -110,7 +110,9 @@ The single `SKILL.md` must encode:
 - The `ignatius.yml` schema (`name`, `version`, `description`, `updated`, `theme:`, `branding:` blocks — single config file per `docs/spec/ignatius-project-config.md`).
 - Pointers to the linter rule catalog so the skill's questions map 1:1 with what the linter would flag.
 
-These are kept in sync with the canonical sources by referencing `docs/spec/schema-lint-and-error-ux.md`, `docs/spec/derive-classification.md`, `docs/spec/ignatius-project-config.md`, and `docs/design/markdown-driven-erd.md` in the skill's frontmatter / inline body. If the linter rules change, the skill author updates the skill — explicit, not automatic.
+These are kept in sync with the canonical sources — `docs/spec/schema-lint-and-error-ux.md`, `docs/spec/derive-classification.md`, `docs/spec/ignatius-project-config.md`, and `docs/design/markdown-driven-erd.md`. If the linter rules change, the skill author updates the skill: explicit, not automatic.
+
+The citation lives HERE, not in the skill. `npx skills add … --skill noorm-modeling` copies only `skills/noorm-modeling/` into the user's `.claude/skills/`, so a repo-relative path written into `SKILL.md` or any `references/*.md` is a dead link on every machine but this one — and Claude will try to Read it. Nothing shipped in the skill may cite `docs/`, `src/`, `spec/`, or any other repo path. A pointer with genuine user value goes in as a full `https://github.com/noormdev/ignatius/blob/main/…` URL; a maintainer-only pointer stays in this document.
 
 
 ## Verification loop
