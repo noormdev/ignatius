@@ -30,7 +30,7 @@ entity flow reads at E3, never a constraint it enforces.
 
 Ask: "Custom theme colors? (y/n, default n — uses parser defaults)"
 
-If yes, collect dark + light palette values (defaults from `src/theme-defaults.ts`):
+If yes, collect dark + light palette values (the defaults below are what ignatius applies when the key is omitted):
 
 | Key | Dark default | Light default |
 |-----|-------------|---------------|
@@ -47,7 +47,7 @@ Ask only for values the user wants to override; others inherit defaults — a us
 Two more theme blocks exist; offer them only when the user's answers point at them:
 
 - `theme.spacing` — layout spacing (`nodeSep`, default 60). Offer when the user mentions node density or layout tightness.
-- `theme.flowKinds` — per-kind DFD store/external colors. Each kind (`db`, `cache`, `queue`, `file`, `doc`, `manual`, `other`, `external`) takes `dark`/`light` entries of `{ bg, fg, border }`, deep-merged so a partial override keeps the rest of the palette. Offer when the model has (or will have) flows and the user wants brand-matched diagrams. See `docs/guides/themes-and-branding.md` for the worked example.
+- `theme.flowKinds` — per-kind DFD store/external colors. Each kind (`db`, `cache`, `queue`, `file`, `doc`, `manual`, `other`, `external`) takes `dark`/`light` entries of `{ bg, fg, border }`, deep-merged so a partial override keeps the rest of the palette. Offer when the model has (or will have) flows and the user wants brand-matched diagrams. See the themes-and-branding guide for the worked example: https://github.com/noormdev/ignatius/blob/main/docs/guides/themes-and-branding.md
 
 ### Step M5 — Branding (optional)
 

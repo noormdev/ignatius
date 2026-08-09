@@ -15,3 +15,4 @@
 - 2026-05-30 bidirectional-edge-predicates — "Forward/reverse predicates flowing parent→child, swap on hover" — *(closed 2026-05-30)*
 - 2026-05-31 github-repo-setup-noormdev — "Push to GitHub as noormdev/ignatius + replace README URL placeholders" — *(closed 2026-05-31)*
 - 2026-06-10 app-tsx-decomposition — "Decompose App.tsx — 5300+ lines hosting all three views" — *(closed 2026-06-10)*
+- 2026-08-02 cut-first-release-v0-1-0 — "Cut the v0.1.0 release after GitHub repo exists" — *(closed 2026-08-02)*

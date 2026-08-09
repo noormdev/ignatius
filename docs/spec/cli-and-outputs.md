@@ -3,7 +3,7 @@
 
 ## Goal
 
-A standalone CLI (`ignatius`) that takes a models directory and produces one of three outputs: interactive server, static data dictionary HTML, or static graph HTML. The CLI is a single compiled Bun binary with the bundled React app embedded — no external dependencies, no server, no browser automation. Visual properties (colors, spacings) are user-configurable via `_theme.yaml`. All surfaces support light and dark themes.
+A standalone CLI (`ignatius`) that takes a models directory and produces one of two outputs: an interactive server (`serve`), or a single self-contained static HTML file carrying all three views — graph, dictionary, and flows (`export`). The CLI is a single compiled Bun binary with the bundled React app embedded — no external dependencies, no server, no browser automation. Visual properties (colors, spacings, branding) are user-configurable via `ignatius.yml`. All surfaces support light and dark themes.
 
 
 ## Non-goals
@@ -131,3 +131,14 @@ Built across 8 iterations of `/subagent-implementation` (7 spec checkpoints + 1 
 None. All 19 follow-ups from CP-1 through CP-7 reviewers were closed in the polish pass. Two new low-severity 🔵 nits from the polish reviewer (vacuous eslint-disable in `file-imports.d.ts`, narrowing cast in dict semantic colors) were judged acceptable; left in place.
 
 **Merged into master as `4a562eb` — 2026-05-28.**
+
+
+## Change log
+
+
+- 2026-08-02 — **Corrected to the shipped surface.** Goal described three outputs
+  (server, dictionary HTML, graph HTML) and `_theme.yaml` config. **Superseded:** the
+  separate `dict` and `graph` commands are removal stubs that point at `export`, which
+  emits ONE static file containing graph + dictionary + flows; configuration moved to a
+  single `ignatius.yml` (see `docs/spec/ignatius-project-config.md`). Found by a wiki
+  scan concern; the code had moved and the spec had not.
