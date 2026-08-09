@@ -1,7 +1,7 @@
 ## Flow reference templates
 
 Templates for the three DFD node files: process, external entity, and non-`db` data store.
-Frontmatter keys and endpoint tokens match the shipped flow format (`docs/spec/process-flows.md`).
+Frontmatter keys and endpoint tokens match the shipped flow format.
 
 Endpoint tokens used in `inputs:`/`outputs:`/`examples:`:
 

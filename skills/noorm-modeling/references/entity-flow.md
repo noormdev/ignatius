@@ -202,7 +202,6 @@ Generate 2–3 example rows for this entity. Do not ask the user to supply them;
 
 Write the approved rows as the `examples:` block in the entity frontmatter (see template in `references/templates.md`).
 
-Canonical source: `docs/spec/example-instance-tables.md`.
 
 ### Step E8 — Reference table
 

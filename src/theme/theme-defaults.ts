@@ -148,6 +148,11 @@ export function mergeTheme(partial: Partial<{
   spacing: Partial<ThemeSpacing>;
   flowKinds: Partial<Record<FlowKindKey, Partial<{ dark: Partial<FlowKindEntry>; light: Partial<FlowKindEntry> }>>>;
 }>): ThemeConfig {
+  // Carried through as the user's RAW overrides — deliberately NOT merged against
+  // the defaults here. `resolveFlowKindPalette()` does that merge per mode, at the
+  // FlowKindEntry level, so a partial `{ bg }` override keeps the default fg/border.
+  // So `ThemeConfig.flowKinds` after this call is the override set, not the
+  // resolved palette; read it through resolveFlowKindPalette(), never directly.
   const mergedFlowKinds: ThemeConfig['flowKinds'] = partial.flowKinds
     ? { ...partial.flowKinds }
     : undefined;
