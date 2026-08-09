@@ -6,6 +6,11 @@ ignatius turns a folder of markdown files into an interactive data model: an IDE
 You write the schema as text. ignatius works out the cardinality, the entity classification, and the subtype clusters from the structure you describe, then draws the crow's-foot notation for you. Add a `flows/` folder and the same entities appear as data stores in process flow diagrams that show how the business actually moves the data.
 
 
+[![Watch the ignatius demo](https://noorm.dev/video/ignatius-poster.jpg)](https://noorm.dev/modeling/)
+
+*[Watch the demo](https://noorm.dev/modeling/) — markdown in, navigable model out.*
+
+
 ## Why markdown
 
 
