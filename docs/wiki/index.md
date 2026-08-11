@@ -79,7 +79,7 @@ No linter or formatter configured in package.json.
 | frontend | [`src/app/`](../../src/app) | React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; views own cy/SVG lifecycle; components/logic/hooks/dom layered underneath | [`docs/wiki/frontend.md`](frontend.md) |
 | generators | [`src/generators/`](../../src/generators) | Unified static HTML export via `generateApp` (single file — graph + dict + flows); sole static generator | [`docs/wiki/generators.md`](generators.md) |
 | theme | [`src/theme/`](../../src/theme) | ThemeConfig + Branding types, default palettes, flow-kind colors, dark/light merging | [`docs/wiki/theme.md`](theme.md) |
-| skill | [`skills/noorm-modeling/`](../../skills/noorm-modeling) | Project-scoped Claude Code skill: Q&A-driven entity/model/DFD authoring, convention-aware, writes files + verifies with `ignatius validate` | [`docs/wiki/skill.md`](skill.md) |
+| skill | [`skills/ignatius-modeling/`](../../skills/ignatius-modeling) | Project-scoped Claude Code skill: Q&A-driven entity/model/DFD authoring, convention-aware, writes files + verifies with `ignatius validate` | [`docs/wiki/skill.md`](skill.md) |
 | docs | [`docs/`](..) (excluding [`docs/wiki/`](.)) | Design docs, user guides, research notes, and implementation-contract specs — 72 markdown files across [`docs/design/`](../design), [`docs/guides/`](../guides), [`docs/research/`](../research), [`docs/spec/`](../spec) | [`docs/wiki/docs.md`](docs.md) |
 | scripts | [`scripts/`](../../scripts) | Build helpers: stable-names.ts, convert-yaml-to-md.ts; perf/diagnostic tooling: probe.ts, screenshot.ts, gen-synthetic-model.ts, perf-harness.ts | [`docs/wiki/scripts.md`](scripts.md) |
 

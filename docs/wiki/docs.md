@@ -24,10 +24,10 @@ description: Design docs, user guides, research notes, and implementation-contra
 - [`docs/design/process-flows.md`](../design/process-flows.md) (218L) — design doc for the SSADM DFD subsystem (processes, externals, stores, sub-DFDs).
 - [`docs/design/schema-lint-and-error-ux.md`](../design/schema-lint-and-error-ux.md) (205L) — design doc for schema lint + error UX.
 - [`docs/design/key-inheritance-lineage.md`](../design/key-inheritance-lineage.md) (175L, grew from 132L) — design doc for the key-inheritance-lineage feature: key-edge rule (FK ⊆ child PK, subset test), transitive connected-component lineage, DD dotted line + DG shift+hover reveal. Change log's newest entries (2026-08-01) record two corrections: associative/junction entities are now traversal BARRIERS (reachable but never passed through, to stop a hub like `Tag` welding every parent it links into one lineage), and the `?lineage=legacy` URL escape hatch used to A/B that fix was removed once the rule was accepted.
-- [`docs/design/noorm-flow-discovery.md`](../design/noorm-flow-discovery.md) (179L) — design doc adding two modes to the `noorm-modeling` skill: `flow` (structured Q&A DFD authoring) and `discover` (Socratic interview generating both ERD entities and DFDs from a business description, including reverse-engineering an external system as an evidence source).
+- [`docs/design/noorm-flow-discovery.md`](../design/noorm-flow-discovery.md) (179L) — design doc adding two modes to the `ignatius-modeling` skill: `flow` (structured Q&A DFD authoring) and `discover` (Socratic interview generating both ERD entities and DFDs from a business description, including reverse-engineering an external system as an evidence source).
 - [`docs/design/unified-app.md`](../design/unified-app.md) (152L) — design doc for the unified SPA collapse.
 - [`docs/design/branding.md`](../design/branding.md) (160L) — design doc for the branding system.
-- [`docs/design/noorm-modeling-skill.md`](../design/noorm-modeling-skill.md) (151L) — design doc for the ignatius modeling skill.
+- [`docs/design/ignatius-modeling-skill.md`](../design/ignatius-modeling-skill.md) (151L) — design doc for the ignatius modeling skill.
 - [`docs/design/viewer-fab-ux.md`](../design/viewer-fab-ux.md) (144L) — design doc for the floating action button UX.
 - [`docs/design/app-tsx-decomposition.md`](../design/app-tsx-decomposition.md) (142L) — design doc for the `src/App.tsx` → [`src/app/`](../../src/app) decomposition.
 - [`docs/design/cli-and-outputs.md`](../design/cli-and-outputs.md) (135L) — design doc for CLI modes and the static output approach.
@@ -64,7 +64,7 @@ All ten are linked from [`README.md`](../../README.md)'s docs table:
 - [`docs/guides/flows.md`](../guides/flows.md) (148L) — DFDs: processes, externals, stores, sub-DFDs, SSADM/Gane-Sarson rendering.
 - [`docs/guides/validation.md`](../guides/validation.md) (113L) — the linter, severity tiers, and where findings surface (live viewer, static dictionary/graph, CLI stderr).
 - [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) (83L) — `theme`/`branding` blocks in `ignatius.yml`, shared across all three subcommands.
-- [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) (71L) — the `/noorm-modeling` Claude Code skill: entity, flow, model, and discover Q&A modes, verified via `ignatius validate`.
+- [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) (71L) — the `/ignatius-modeling` Claude Code skill: entity, flow, model, and discover Q&A modes, verified via `ignatius validate`.
 - [`docs/guides/building-from-source.md`](../guides/building-from-source.md) (50L) — Bun build stages (`bun build --compile`), project layout, tests.
 
 
@@ -85,7 +85,7 @@ All ten are linked from [`README.md`](../../README.md)'s docs table:
 - [`docs/spec/dd-spotlight-grid.md`](../spec/dd-spotlight-grid.md) (239L) — implementation contract for the DD browse-lens spotlight grid (`spotlight.ts`, `flow-spotlight.ts`, `GridCard`, `SpotlightOverlay`).
 - [`docs/spec/render-perf-indexing.md`](../spec/render-perf-indexing.md) (231L) — implementation contract for the render-perf-indexing batch: preset-layout cache-skip, ELK cost scaling, O(n²)→Map indexing, ELK-in-worker, `buildModelIndex`.
 - [`docs/spec/unified-app.md`](../spec/unified-app.md) (216L) — implementation contract for the unified SPA.
-- [`docs/spec/noorm-modeling-skill.md`](../spec/noorm-modeling-skill.md) (204L) — implementation contract for the ignatius modeling skill.
+- [`docs/spec/ignatius-modeling-skill.md`](../spec/ignatius-modeling-skill.md) (204L) — implementation contract for the ignatius modeling skill.
 - [`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) (199L) — implementation contract for Graph/Flows search (SC1–SC12).
 - [`docs/spec/unified-app-polish.md`](../spec/unified-app-polish.md) (194L) — implementation contract for the CP1–CP13 unified-app-polish batch.
 - [`docs/spec/keyboard-nav-shortcuts.md`](../spec/keyboard-nav-shortcuts.md) (189L) — implementation contract for keyboard navigation shortcuts (`resolveShortcut`, `useKeyboardShortcuts`).
@@ -125,9 +125,9 @@ Canonical vocabulary table: DG (Data Graph), DD (Data Dictionary), DFD (Data Flo
 - [`docs/spec/dfd-overhaul.md`](../spec/dfd-overhaul.md) — success criteria C4, C16, C17 are cited by name in the **flow-view** domain ([`src/flow-view/elk-flow-layout.ts`](../../src/flow-view/elk-flow-layout.ts), band-layout contract); all six (C4, C5, C13, C15, C16, C17) are checked directly by tests in **frontend**/root test suites ([`test/checks/test-cp4b-elk-edge-routing.ts`](../../test/checks/test-cp4b-elk-edge-routing.ts), `test-cp4c-single-row-bands.ts`, `test-cp4d-frame-alignment.ts`, `test-elk-flow-positions.ts`, [`test/visual/test-cp2-dfd-edge-labels.ts`](../../test/visual/test-cp2-dfd-edge-labels.ts)).
 - [`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) — SC5 is cited by name in **frontend** ([`src/app/logic/search.ts`](../../src/app/logic/search.ts)) and CP1 by [`test/checks/test-viewer-search.ts`](../../test/checks/test-viewer-search.ts).
 - [`docs/spec/derive-classification.md`](../spec/derive-classification.md) — cited by name in [`test/checks/test-validate-entity.ts`](../../test/checks/test-validate-entity.ts), covering the **parser**/**validate** domains' classification-derivation rules.
-- [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) — named as the "canonical source" by [`skills/noorm-modeling/references/entity-flow.md`](../../skills/noorm-modeling/references/entity-flow.md), coupling this domain to **skill**.
-- [`docs/spec/process-flows.md`](../spec/process-flows.md) — its `flow.*` frontmatter/token grammar is matched by [`skills/noorm-modeling/references/flow-templates.md`](../../skills/noorm-modeling/references/flow-templates.md), coupling this domain to **skill**.
-- [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) — its worked example is pointed to by [`skills/noorm-modeling/references/model-flow.md`](../../skills/noorm-modeling/references/model-flow.md), coupling this domain to **theme** and **skill**.
+- [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) — named as the "canonical source" by [`skills/ignatius-modeling/references/entity-flow.md`](../../skills/ignatius-modeling/references/entity-flow.md), coupling this domain to **skill**.
+- [`docs/spec/process-flows.md`](../spec/process-flows.md) — its `flow.*` frontmatter/token grammar is matched by [`skills/ignatius-modeling/references/flow-templates.md`](../../skills/ignatius-modeling/references/flow-templates.md), coupling this domain to **skill**.
+- [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) — its worked example is pointed to by [`skills/ignatius-modeling/references/model-flow.md`](../../skills/ignatius-modeling/references/model-flow.md), coupling this domain to **theme** and **skill**.
 - [`docs/design/markdown-driven-erd.md`](../design/markdown-driven-erd.md) has no [`docs/spec/`](../spec) counterpart — [`docs/wiki/feature-map.md`](feature-map.md)'s own "Markdown entity / folder format" row lists the Spec column as `—`.
 
 

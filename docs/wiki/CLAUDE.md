@@ -34,7 +34,7 @@ Keep the twelve established domains; do not re-derive or merge them.
 - frontend — src/app/
 - generators — src/generators/
 - theme — src/theme/
-- skill — skills/noorm-modeling/
+- skill — skills/ignatius-modeling/
 - docs — docs/
 - scripts — scripts/
 

@@ -79,7 +79,7 @@ The graph output is the same React app, with the model baked in instead of fetch
 
 **What changed:** New `validate` subcommand: parses + validates a model and prints findings to stderr (same `<sev>  <ruleId>  <location>  <message>` format as `dict`/`graph`) plus a one-line stdout summary, writing no HTML. No `-o` flag. Exit code matches the other commands (1 on global errors, 0 otherwise). Added to the success criteria and approach.
 
-**Why:** A validate-only path is a fast quality gate for authoring loops (no bundle, no file written) — adopted by the noorm-modeling skill's verification loop in place of generating a throwaway dict HTML purely to lint.
+**Why:** A validate-only path is a fast quality gate for authoring loops (no bundle, no file written) — adopted by the ignatius-modeling skill's verification loop in place of generating a throwaway dict HTML purely to lint.
 
 ### 2026-05-28 — Rename CLI from `derek` to `ignatius`
 

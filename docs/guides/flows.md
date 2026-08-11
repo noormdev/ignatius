@@ -145,4 +145,4 @@ Hovering a data flow edge that carries data (the arrow between two nodes) reveal
 ## Authoring with the skill
 
 
-The [`noorm-modeling` skill](modeling-skill.md) has two modes for flows: `/noorm-modeling flow` walks you through authoring a diagram step by step when you already know your processes, and `/noorm-modeling discover` interviews you about how the business runs and generates both the entities and the flows, with examples. Both verify their output with `ignatius validate`.
+The [`ignatius-modeling` skill](modeling-skill.md) has two modes for flows: `/ignatius-modeling flow` walks you through authoring a diagram step by step when you already know your processes, and `/ignatius-modeling discover` interviews you about how the business runs and generates both the entities and the flows, with examples. Both verify their output with `ignatius validate`.

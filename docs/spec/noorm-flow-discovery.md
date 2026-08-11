@@ -3,7 +3,7 @@
 
 ## Goal
 
-Add two modes to the `noorm-modeling` skill: **`flow`** (structured Q&A authoring of SSADM DFD markdown) and **`discover`** (opt-in Socratic interview that generates both ERD entities and DFDs from a business description). Both produce real files verified by `ignatius validate`. No source changes — skill markdown only.
+Add two modes to the `ignatius-modeling` skill: **`flow`** (structured Q&A authoring of SSADM DFD markdown) and **`discover`** (opt-in Socratic interview that generates both ERD entities and DFDs from a business description). Both produce real files verified by `ignatius validate`. No source changes — skill markdown only.
 
 
 ## Non-goals
@@ -39,7 +39,7 @@ Add two modes to the `noorm-modeling` skill: **`flow`** (structured Q&A authorin
 
 | # | Approach | Sketch | Cost | Risk |
 |---|----------|--------|------|------|
-| A | Two new modes on `noorm-modeling`, reusing SKILL.md + references scaffold | `flow` + `discover` references; SKILL router updated | med | SKILL.md routing grows to 4 modes |
+| A | Two new modes on `ignatius-modeling`, reusing SKILL.md + references scaffold | `flow` + `discover` references; SKILL router updated | med | SKILL.md routing grows to 4 modes |
 | B | Separate `noorm-flows` skill | New skill dir | med | Splits model knowledge; discovery straddles two skills |
 | C | New validator rules to enforce examples/richness | `flow.*` rules in code | high | User-rejected; blocks half-authored flows |
 | D | Bake store-kind enum into validator | hard enum | med | User chose skill-side menu |
@@ -54,10 +54,10 @@ Add two modes to the `noorm-modeling` skill: **`flow`** (structured Q&A authorin
 
 | # | Checkpoint | Files/areas | Agent | Est. files | Verifies |
 |---|------------|-------------|-------|------------|----------|
-| 1 | `flow` mode references + templates + e2e trace | `skills/noorm-modeling/references/dfd-authoring.md`, `references/flow-templates.md` | atomic-builder | 2 | F0–F9 present; no mention of store↔store / ext↔store / ext↔ext / process↔process as things "to avoid" (grep clean); store-kind menu lists exactly `db:`/`cache`/`queue`/`file`/`doc`/`manual`; examples-always with all 3 seeding cases; required context sections; templates' tokens + `examples:`/`rows:` shape match `process-flows.md`; a walkthrough produces files passing `ignatius validate` on a scratch model |
-| 2 | `discover` mode reference (five-gate Socratic method) | `skills/noorm-modeling/references/discover-flow.md` | atomic-builder | 1 | Five gates (Identify/Decide/Justify/Derive/Ground) with plain-English forms + internal-only principles; verb-led (entities emitted before flows); incremental write; no banned jargon in user-facing forms (grep clean); emits both entities + flows; routes to reverse-engineering when a real system exists |
-| 2b | Reverse-engineering reference (extract from an existing system) | `skills/noorm-modeling/references/reverse-engineering.md` | atomic-builder | 1 | Phased R0–R4 (inventory → ER → DFDs → ground → reconcile through gates); IDEF1X spirit (read-don't-invent, key-migration detection, derive-never-declare); reads→inputs / writes→outputs at column level; surfaces anti-patterns as user decisions, never silent rewrites |
-| 3 | SKILL.md router update | `skills/noorm-modeling/SKILL.md` | atomic-surgeon | 1 | `argument-hint` = `[entity|model|flow|discover]`; `flow`/`discover` dispatch lines; bare-arg picker lists four; new modes reference the existing core rules |
+| 1 | `flow` mode references + templates + e2e trace | `skills/ignatius-modeling/references/dfd-authoring.md`, `references/flow-templates.md` | atomic-builder | 2 | F0–F9 present; no mention of store↔store / ext↔store / ext↔ext / process↔process as things "to avoid" (grep clean); store-kind menu lists exactly `db:`/`cache`/`queue`/`file`/`doc`/`manual`; examples-always with all 3 seeding cases; required context sections; templates' tokens + `examples:`/`rows:` shape match `process-flows.md`; a walkthrough produces files passing `ignatius validate` on a scratch model |
+| 2 | `discover` mode reference (five-gate Socratic method) | `skills/ignatius-modeling/references/discover-flow.md` | atomic-builder | 1 | Five gates (Identify/Decide/Justify/Derive/Ground) with plain-English forms + internal-only principles; verb-led (entities emitted before flows); incremental write; no banned jargon in user-facing forms (grep clean); emits both entities + flows; routes to reverse-engineering when a real system exists |
+| 2b | Reverse-engineering reference (extract from an existing system) | `skills/ignatius-modeling/references/reverse-engineering.md` | atomic-builder | 1 | Phased R0–R4 (inventory → ER → DFDs → ground → reconcile through gates); IDEF1X spirit (read-don't-invent, key-migration detection, derive-never-declare); reads→inputs / writes→outputs at column level; surfaces anti-patterns as user decisions, never silent rewrites |
+| 3 | SKILL.md router update | `skills/ignatius-modeling/SKILL.md` | atomic-surgeon | 1 | `argument-hint` = `[entity|model|flow|discover]`; `flow`/`discover` dispatch lines; bare-arg picker lists four; new modes reference the existing core rules |
 | 4 | CLAUDE.md feature-map row | `CLAUDE.md` | atomic-surgeon | 1 | Feature-map row added pointing at this spec + design + the new references (cross-refs inside reference files belong to CP1/CP2, not here) |
 
 

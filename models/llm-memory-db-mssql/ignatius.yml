@@ -1,5 +1,5 @@
 # Default key style: orm-oriented
-# (a suggestion the /noorm-modeling skill reads when authoring new entities;
+# (a suggestion the /ignatius-modeling skill reads when authoring new entities;
 #  individual entities may differ — it is not enforced. Base entities use surrogate
 #  IDENTITY keys (orm-oriented); Task and all subtype/associative tables migrate
 #  keys (key-inherited) — reverse-engineered faithfully from the real SQL Server schema.)

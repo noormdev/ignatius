@@ -28,10 +28,10 @@ curl -fsSL https://raw.githubusercontent.com/noormdev/ignatius/main/install.sh |
 
 It installs to `/usr/local/bin` when writable, otherwise `$HOME/.local/bin`. Override with `IGNATIUS_INSTALL_DIR`, or pin a version with `IGNATIUS_VERSION=v0.2.0`. Windows users download `ignatius-windows-x64.exe` from the releases page. Prefer to build from source? See [Getting started](docs/guides/getting-started.md).
 
-To author models from Claude Code with guided Q&A, install the `noorm-modeling` skill ([the modeling skill](docs/guides/modeling-skill.md)):
+To author models from Claude Code with guided Q&A, install the `ignatius-modeling` skill ([the modeling skill](docs/guides/modeling-skill.md)):
 
 ```bash
-npx skills add https://github.com/noormdev/ignatius --skill noorm-modeling
+npx skills add https://github.com/noormdev/ignatius --skill ignatius-modeling
 ```
 
 Add `-g` to install it globally for every project instead of just the current one.
@@ -62,7 +62,7 @@ Edit any file in the folder and the graph reloads in the browser without a refre
 | [Process flows](docs/guides/flows.md) | Data flow diagrams: processes, externals, stores, sub-DFDs |
 | [Validation and findings](docs/guides/validation.md) | The linter, severity tiers, and where findings surface |
 | [Themes and branding](docs/guides/themes-and-branding.md) | Color palettes, the light/dark toggle, logo and copyright |
-| [The modeling skill](docs/guides/modeling-skill.md) | `/noorm-modeling` Q&A authoring in Claude Code |
+| [The modeling skill](docs/guides/modeling-skill.md) | `/ignatius-modeling` Q&A authoring in Claude Code |
 | [Building from source](docs/guides/building-from-source.md) | Build stages, project layout, and tests |
 
 The [glossary](docs/glossary.md) defines the shared vocabulary — DG, DD, DFD, data entity, data store, external entity — used across the app, the docs, and the code.
