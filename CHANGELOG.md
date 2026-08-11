@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/noormdev/ignatius/compare/v0.15.1...v0.16.0) (2026-08-11)
+
+
+### Features
+
+* rename noorm-modeling skill to ignatius-modeling ([f5c0064](https://github.com/noormdev/ignatius/commit/f5c00647dd133bb6aec29e4fb2f618759bfe6e67))
+
 ## [0.15.1](https://github.com/noormdev/ignatius/compare/v0.15.0...v0.15.1) (2026-08-02)
 
 
