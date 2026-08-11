@@ -30,10 +30,10 @@ Authors attach `examples:` to entity frontmatter as an array of row objects. Exa
 - [ ] Tapping any node in the graph viewer opens an entity-detail modal containing id, classification badge, group color, body HTML, columns table, and the examples accordion at the bottom.
 - [ ] ESC or backdrop click closes the modal; hash-router entity selection persists across modal open/close.
 - [ ] Live-mode graph viewer shows `entity.example_unknown_column` warnings in the findings panel; static mode does not.
-- [ ] `skills/noorm-modeling/references/entity-flow.md` lists a new step **E7b — Examples** between E7 (Columns) and E8 (Reference table), with instructions to always generate 2–3 example rows during the entity flow. (The actual entity-flow ordering as of this spec is E0…E10 with E5=Relationships, E6=Alternate keys, E7=Columns, E8=Reference table flag, E9=Business context, E10=Write file. Examples logically belong after columns are defined so the row shape exists, but before the reference-flag / business-context steps so example data can inform those.)
-- [ ] `skills/noorm-modeling/SKILL.md` references the new step where appropriate (e.g. in the high-level outline if one exists).
-- [ ] `docs/design/noorm-modeling-skill.md` mermaid reflects E7b in the entity flow if it currently diagrams E-steps.
-- [ ] `docs/spec/noorm-modeling-skill.md` has a `## Change log` entry recording the E7b amendment.
+- [ ] `skills/ignatius-modeling/references/entity-flow.md` lists a new step **E7b — Examples** between E7 (Columns) and E8 (Reference table), with instructions to always generate 2–3 example rows during the entity flow. (The actual entity-flow ordering as of this spec is E0…E10 with E5=Relationships, E6=Alternate keys, E7=Columns, E8=Reference table flag, E9=Business context, E10=Write file. Examples logically belong after columns are defined so the row shape exists, but before the reference-flag / business-context steps so example data can inform those.)
+- [ ] `skills/ignatius-modeling/SKILL.md` references the new step where appropriate (e.g. in the high-level outline if one exists).
+- [ ] `docs/design/ignatius-modeling-skill.md` mermaid reflects E7b in the entity flow if it currently diagrams E-steps.
+- [ ] `docs/spec/ignatius-modeling-skill.md` has a `## Change log` entry recording the E7b amendment.
 - [ ] All 24 entity files under `models/key-inherited/` have `examples:` blocks with at least 2 rows each. Existing clean-baseline tests still report 0 findings.
 - [ ] `models/broken-demo/` amends an **existing** entity (not a new one — keeps the pin count deterministic) to add an `examples:` block containing one row with a key outside `columns ∪ pk`. The broken-pin test (`test/checks/test-validate-entity.ts`) sees exactly +1 entity error in live mode; CLI stderr counts (`test/checks/test-validate-refs.ts` or similar) are unchanged.
 - [ ] Playwright visual checks for the dict accordion and the graph modal exist in `test/visual/`. These are manual-only — not wired into `bun run test` or CI.
@@ -76,7 +76,7 @@ Live-only validation:
 | 2 | Validator rule + `liveOnly` filter | `src/validate.ts`; `test/checks/test-validate-examples.ts` | atomic-builder | ~2 | New check passes (asserts firing + non-firing cases + `formatFindingsForStderr` drops live-only); existing validator checks unchanged |
 | 3 | Dict accordion render | `src/generators/dict.ts`; possibly `src/styles.css` if dict styles inline; `test/visual/screenshot-dict-examples.ts` | atomic-builder | ~3 | Playwright screenshot shows accordion under body; static-mode findings banner omits live-only warnings |
 | 4 | Graph entity-detail modal + examples accordion | `src/App.tsx`; `src/styles.css`; `test/visual/screenshot-entity-modal.ts` | atomic-builder | ~3 | Playwright screenshot shows modal on tap; ESC/backdrop close works; hash selection preserved; live-mode shows warning, static does not |
-| 5 | Modeling skill: always-on E7b examples step | `skills/noorm-modeling/references/entity-flow.md` (primary surface); `skills/noorm-modeling/SKILL.md` (high-level outline if present); `docs/design/noorm-modeling-skill.md` (mermaid, if it diagrams E-steps); `docs/spec/noorm-modeling-skill.md` (change log) | atomic-builder | 2–4 | entity-flow.md lists E7b between E7 and E8; design mermaid updated if applicable; spec change log records amendment |
+| 5 | Modeling skill: always-on E7b examples step | `skills/ignatius-modeling/references/entity-flow.md` (primary surface); `skills/ignatius-modeling/SKILL.md` (high-level outline if present); `docs/design/ignatius-modeling-skill.md` (mermaid, if it diagrams E-steps); `docs/spec/ignatius-modeling-skill.md` (change log) | atomic-builder | 2–4 | entity-flow.md lists E7b between E7 and E8; design mermaid updated if applicable; spec change log records amendment |
 | 6 | Broken-demo fixture + test pin-count update | one existing entity under `models/broken-demo/`; `test/checks/test-validate-entity.ts`; any other pinned-count check that asserts broken-demo finding totals | atomic-surgeon | 2–3 | Broken-pin live-mode test count increases by exactly 1; static stderr count unchanged |
 | 7 | Backfill examples across all 24 `key-inherited` entities | `models/key-inherited/{catalog,identity,reference,transactional}/*.md` | atomic-builder | 24 | Clean-baseline test still reports 0 findings; entity files retain existing frontmatter; each `examples:` block has ≥2 rows with values drawn from the entity's domain (not "foo/bar") |
 
@@ -121,7 +121,7 @@ Built across 7 checkpoint iterations of `/subagent-implementation`, then squashe
     - CP-2 validator rule + `liveOnly` filter (`src/validate.ts`, `test/checks/test-validate-examples.ts`)
     - CP-3 dict accordion + static-surface findings filter (`src/generators/dict.ts`, `src/server.ts`, `test/checks/test-dict-examples.ts`, `test/visual/screenshot-dict-examples.ts`)
     - CP-4 graph entity-detail modal accordion + decoupled close (`src/App.tsx`, `src/styles.css`, `test/visual/screenshot-entity-modal.ts`)
-    - CP-5 always-on E7b skill step (`skills/noorm-modeling/references/entity-flow.md`, `skills/noorm-modeling/references/verification.md`, `docs/design/noorm-modeling-skill.md`, `docs/spec/noorm-modeling-skill.md` change log)
+    - CP-5 always-on E7b skill step (`skills/ignatius-modeling/references/entity-flow.md`, `skills/ignatius-modeling/references/verification.md`, `docs/design/ignatius-modeling-skill.md`, `docs/spec/ignatius-modeling-skill.md` change log)
     - CP-6 broken-demo Customer.md amend + test pin update (`models/broken-demo/Customer.md`, `test/checks/test-validate-refs.ts`, `test/checks/test-api-model.ts`)
     - CP-7 24-entity backfill under `models/key-inherited/{catalog,identity,reference,transactional}/`
 
@@ -132,7 +132,7 @@ Built across 7 checkpoint iterations of `/subagent-implementation`, then squashe
 **Unforeseens — surprises that emerged during implementation:**
 - An entity-detail modal already existed in `src/App.tsx:276` (`SelectedEntityModal`); CP-4 reduced from "build the modal" to "add the examples accordion + decouple close from selection".
 - `generateDict`'s `mode` param turned out to be theme (`dark`/`light`), not surface — CP-3 required adding an explicit `surface?: 'live' | 'static'` opt to distinguish CLI-static from server-live.
-- `origin/main` had advanced ten commits past the branch base while the loop was running, including a rename of `skills/ignatius-modeling/` → `skills/noorm-modeling/` and a `feat(cli): add validate subcommand`. The rebase merged my CP-5 edits into the renamed paths automatically.
+- `origin/main` had advanced ten commits past the branch base while the loop was running, including a rename of `skills/ignatius-modeling/` → `skills/ignatius-modeling/` and a `feat(cli): add validate subcommand`. The rebase merged my CP-5 edits into the renamed paths automatically.
 
 **Deferred items still open:**
 - None. The four cosmetic nits (F-2 through F-5) in the in-loop FOLLOWUPS ledger were stylistic and dropped — they all reflected choices consistent with the file's existing conventions. The scratchpad is deleted at the end of finalization.

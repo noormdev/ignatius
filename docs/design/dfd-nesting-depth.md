@@ -22,7 +22,7 @@ number (e.g. `4.1`) and never receives the `N.` prefix → renders `4.1` instead
 `5.4.1`. (Even if it were reached, taking only the last segment would collapse
 `5.4.1` → `5.1`.) The defect is entirely in `deriveLevels`; the parser is correct.
 
-A second, separate gap: `skills/noorm-modeling/references/dfd-authoring.md` Step F8
+A second, separate gap: `skills/ignatius-modeling/references/dfd-authoring.md` Step F8
 + the folder-layout sketch show a single sub-DFD level and never state that a
 child process can itself be decomposed — the skill's implicit one-level cap.
 
@@ -31,7 +31,7 @@ child process can itself be decomposed — the skill's implicit one-level cap.
 - **Goals**
   - Dotted process numbers preserve the full ancestor chain at any depth: `N.a`,
     `N.a.b`, `N.a.b.c`, …
-  - The `noorm-modeling` skill's `flow` mode authors/organizes nested DFDs down
+  - The `ignatius-modeling` skill's `flow` mode authors/organizes nested DFDs down
     arbitrarily many layers (F8 is explicitly recursive).
 - **Non-goals**
   - Parser changes — recursion and relative numbering are already correct.

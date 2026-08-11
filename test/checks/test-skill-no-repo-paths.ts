@@ -1,8 +1,8 @@
 /**
  * test-skill-no-repo-paths.ts — the distributed skill may not cite repo paths.
  *
- * `npx skills add https://github.com/noormdev/ignatius --skill noorm-modeling`
- * copies ONLY `skills/noorm-modeling/` into the user's `.claude/skills/`. Nothing
+ * `npx skills add https://github.com/noormdev/ignatius --skill ignatius-modeling`
+ * copies ONLY `skills/ignatius-modeling/` into the user's `.claude/skills/`. Nothing
  * else from this repository lands on their machine, so a `docs/…`, `src/…`, or
  * `spec/…` path written into SKILL.md or any reference file is a dead link
  * everywhere but here — and Claude will try to Read it before discovering that.

@@ -205,7 +205,7 @@ Genuinely still open:
 - **Queue/message payload validation.** v1 treats every non-`db:` flow as an opaque label. A `queue:` message often has a known payload shape worth checking — validating it against a declared schema is a separate, larger feature than `stores/` descriptions. Out of scope for v1; decide if/when it's wanted.
 - **Numbering gaps.** Sibling-local uniqueness is enforced (`flow.duplicate_number`); whether a gap (`1, 2, 4`) should also warn is undecided. Left silent for now.
 - **Usage index (deferred).** A derived back-reference — for any store or entity, every flow/process that reads or writes it (the reverse of the demand list). Filed as a `kind: plan` follow-up (`.claude/project/followups/usage-index-back-reference.md`); deliberately not specced so it isn't half-built as a side effect of `stores/`.
-- **Surfaces to update on landing.** New signals domain, a `Feature ↔ documentation ↔ skill map` row, and likely a `noorm-modeling` skill mode for authoring flows.
+- **Surfaces to update on landing.** New signals domain, a `Feature ↔ documentation ↔ skill map` row, and likely a `ignatius-modeling` skill mode for authoring flows.
 
 
 ## Change log

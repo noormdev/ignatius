@@ -1,7 +1,7 @@
 # The modeling skill
 
 
-`/noorm-modeling` is a Claude Code skill that guides you through authoring a model via Q&A — one entity, a data flow diagram, a fresh model skeleton, or a full Socratic discovery session that works the model out from how your business runs — then verifies the result with `ignatius validate`.
+`/ignatius-modeling` is a Claude Code skill that guides you through authoring a model via Q&A — one entity, a data flow diagram, a fresh model skeleton, or a full Socratic discovery session that works the model out from how your business runs — then verifies the result with `ignatius validate`.
 
 **Prerequisites:** Claude Code with skill support, and the `ignatius` binary on your `$PATH` or built locally (`bun run build:cli` produces `dist/ignatius`).
 
@@ -12,10 +12,10 @@
 Install the skill into the current project with the [`skills`](https://www.npmjs.com/package/skills) CLI:
 
 ```bash
-npx skills add https://github.com/noormdev/ignatius --skill noorm-modeling
+npx skills add https://github.com/noormdev/ignatius --skill ignatius-modeling
 ```
 
-This adds `noorm-modeling` to the project's `.claude/skills/`. Add `-g` to install it globally so it is available in every project on the machine. Reload skills in Claude Code and `/noorm-modeling` becomes available.
+This adds `ignatius-modeling` to the project's `.claude/skills/`. Add `-g` to install it globally so it is available in every project on the machine. Reload skills in Claude Code and `/ignatius-modeling` becomes available.
 
 
 ## Modes
@@ -23,24 +23,24 @@ This adds `noorm-modeling` to the project's `.claude/skills/`. Add `-g` to insta
 
 | Invocation | What it does |
 |---|---|
-| `/noorm-modeling entity` | Interactive Q&A to author one entity `.md` file |
-| `/noorm-modeling model` | Bootstrap a new model skeleton (`ignatius.yml`, group files, directories) |
-| `/noorm-modeling flow` | Interactive Q&A to author a [data flow diagram](flows.md) — for when you already know your processes |
-| `/noorm-modeling discover` | Socratic interview that works out the model from how your business runs, generating both entities and flows |
-| `/noorm-modeling` (no arg) | Prompts you to choose a mode |
+| `/ignatius-modeling entity` | Interactive Q&A to author one entity `.md` file |
+| `/ignatius-modeling model` | Bootstrap a new model skeleton (`ignatius.yml`, group files, directories) |
+| `/ignatius-modeling flow` | Interactive Q&A to author a [data flow diagram](flows.md) — for when you already know your processes |
+| `/ignatius-modeling discover` | Socratic interview that works out the model from how your business runs, generating both entities and flows |
+| `/ignatius-modeling` (no arg) | Prompts you to choose a mode |
 
 ```bash
 # Add a new entity to an existing model
-/noorm-modeling entity
+/ignatius-modeling entity
 
 # Start a new model from scratch
-/noorm-modeling model
+/ignatius-modeling model
 
 # Author a DFD for processes you already know
-/noorm-modeling flow
+/ignatius-modeling flow
 
 # Work out the model from a business description
-/noorm-modeling discover
+/ignatius-modeling discover
 ```
 
 

@@ -1,11 +1,11 @@
 ---
-name: noorm-modeling
+name: ignatius-modeling
 description: Guided Q&A authoring of ignatius entities, data flow diagrams, and models, plus Socratic discovery. Use when adding entities, flows, or models.
 argument-hint: "[entity|model|flow|discover]"
 allowed-tools: Read Write Edit Bash Glob AskUserQuestion
 ---
 
-# Noorm modeling
+# Ignatius modeling
 
 Guide the user through authoring an ignatius model — entities, data flow diagrams, a new-model bootstrap, or a Socratic discovery session that generates both — writing real files to disk and verifying them with the `ignatius` CLI.
 

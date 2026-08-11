@@ -4,7 +4,7 @@
 
 DFD dotted process numbers preserve the full ancestor chain at any nesting depth
 (`N.a`, `N.a.b`, `N.a.b.c`, …) instead of dropping ancestor segments beyond ~2
-levels (the user-observed `5.4.1` → `4.1` bug). The `noorm-modeling` skill's
+levels (the user-observed `5.4.1` → `4.1` bug). The `ignatius-modeling` skill's
 `flow` mode authors nested DFDs down arbitrarily many layers. Implements issue #15.
 
 ## Non-goals
@@ -29,7 +29,7 @@ number.
 - [ ] The existing `test/fixtures/flows-leveling/` fixture (auth → Authenticate → Login → VerifyToken/CreateSession, 3 process levels deep) is used by a new check in `test/checks/` that parses it via `parseFlows` and asserts the full-depth dotted numbers: `Authenticate` = `1.1`, `Login` = `1.1.1`, `VerifyToken` = `1.1.1.1`, `CreateSession` = `1.1.1.2` (auth is the sole top-level diagram → L1 process `1`). The test must FAIL against the pre-fix `renumberLeaf` — which currently yields `Login = 1.1` (colliding with `Authenticate`), `VerifyToken = 1.1.1`, `CreateSession = 1.1.2`, all missing the ancestor prefix.
 - [ ] No regression: `test/checks/test-leveling.ts`, `test/checks/test-flow-leveling.ts`, and `test/checks/test-parse-flows.ts` still pass (existing 1–2 level dotted numbers unchanged).
 - [ ] The `test/fixtures/flows-leveling/` fixture is made servable (minimal `ignatius.yml` + a minimal `Party` entity so its `db:Party` endpoints resolve cleanly), and a `test/visual/` screenshot script serves it and captures the DD process list (and/or the drilled Login sub-DFD) showing the full-depth numbers `1.1`, `1.1.1`, `1.1.1.1`, `1.1.1.2`. Additions live entirely inside the fixture dir; `parseFlows`-based checks (`test-deep-nesting.ts`, `test-flow-leveling.ts`) are unaffected.
-- [ ] `skills/noorm-modeling/references/dfd-authoring.md` Step F8 is rewritten so decomposition is explicitly recursive — a child process may itself become a sub-DFD parent, down as many layers as warranted — and the folder-layout sketch shows a second nesting level. Any other skill surface that caps depth (e.g. `flow-templates.md`) is reconciled.
+- [ ] `skills/ignatius-modeling/references/dfd-authoring.md` Step F8 is rewritten so decomposition is explicitly recursive — a child process may itself become a sub-DFD parent, down as many layers as warranted — and the folder-layout sketch shows a second nesting level. Any other skill surface that caps depth (e.g. `flow-templates.md`) is reconciled.
 - [ ] `bun run test` passes (all `test/checks/*.ts`, exit 0). `bun run build:cli` succeeds.
 - [ ] Touched source files introduce **zero** new `tsc --noEmit` errors vs. the baseline.
 - [ ] CLAUDE.md feature map + `docs/guides/flows.md` reflect arbitrary nesting depth (the "Sub-DFDs" section already says "recurses as deep as it needs to" — confirm it's accurate and add the dotted-number depth note if missing).
@@ -40,7 +40,7 @@ number.
 |---|------------|-------------|-------|------------|----------|
 | 1 | Fix `renumberLeaf` (recurse + full prefix) + failing check on the existing deep fixture | `src/flows/flow-derive-levels.ts`, `test/checks/test-deep-nesting.ts` (new, uses existing `test/fixtures/flows-leveling/`) | atomic-implementer (feature) | 2 | `Authenticate=1.1`, `Login=1.1.1`, `VerifyToken=1.1.1.1`, `CreateSession=1.1.1.2`; no regression |
 | 2 | Make `flows-leveling` servable + screenshot rendered deep numbers | `test/fixtures/flows-leveling/ignatius.yml` (new), minimal `Party` entity (new), `test/visual/test-deep-nesting.ts` (new) | atomic-implementer (feature) | 3-4 | served deep fixture shows `1.1.1.1` in DD process list / drilled sub-DFD |
-| 3 | Skill: recursive F8 + folder-layout depth; docs reconciliation | `skills/noorm-modeling/references/dfd-authoring.md`, `CLAUDE.md`, `docs/guides/flows.md` | atomic-implementer (surgical) | 2-3 | F8 explicitly recursive; layout shows ≥2 nesting levels; guide/map accurate |
+| 3 | Skill: recursive F8 + folder-layout depth; docs reconciliation | `skills/ignatius-modeling/references/dfd-authoring.md`, `CLAUDE.md`, `docs/guides/flows.md` | atomic-implementer (surgical) | 2-3 | F8 explicitly recursive; layout shows ≥2 nesting levels; guide/map accurate |
 
 ## Risks
 

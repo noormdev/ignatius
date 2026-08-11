@@ -3,7 +3,7 @@
 
 ## Problem
 
-The `noorm-modeling` skill authors ERD entities (`entity` mode) and bootstraps models (`model` mode). It has **no mode for authoring SSADM data flow diagrams** — the flows feature ships parsing, validation, and an in-app viewer, but a user writes flow markdown by hand against `docs/spec/process-flows.md`. Two distinct gaps:
+The `ignatius-modeling` skill authors ERD entities (`entity` mode) and bootstraps models (`model` mode). It has **no mode for authoring SSADM data flow diagrams** — the flows feature ships parsing, validation, and an in-app viewer, but a user writes flow markdown by hand against `docs/spec/process-flows.md`. Two distinct gaps:
 
 1. **No structured flow-authoring path.** A user who already knows their processes still hand-writes `process:`/`inputs:`/`outputs:`/`examples:` frontmatter, the `externals/` and `stores/` folder layout at the model root, and the `db:`/`kind:` store taxonomy — with no guide and no first-run verification.
 
@@ -146,7 +146,7 @@ Lives in `references/reverse-engineering.md`, routed to from `discover` when a s
 
 | # | Approach | Pros | Cons |
 |---|----------|------|------|
-| A | Two new modes on `noorm-modeling` (`flow` + `discover`), reusing the SKILL.md + references scaffold | Single skill knows both ERD and flows, so `db:` resolution and discovery's entity-derivation stay coherent; matches existing two-mode structure | SKILL.md grows; four modes to route |
+| A | Two new modes on `ignatius-modeling` (`flow` + `discover`), reusing the SKILL.md + references scaffold | Single skill knows both ERD and flows, so `db:` resolution and discovery's entity-derivation stay coherent; matches existing two-mode structure | SKILL.md grows; four modes to route |
 | B | A separate `noorm-flows` skill | Smaller per-skill surface | Splits the model knowledge in two; discovery (which emits entities) would straddle both skills; `db:` store resolution needs the ERD anyway |
 | C | New validator rules to enforce examples + context richness | Code-guaranteed | User explicitly rejected: LLMs remember; "be and maybe be" not a code problem; blocks half-authored flows from validating |
 | D | Bake the store-kind taxonomy into the validator as an enum | Standardized in code | User chose skill-side menu; keeps the kind list a suggestion, not a hard contract |
@@ -156,7 +156,7 @@ Lives in `references/reverse-engineering.md`, routed to from `discover` when a s
 
 **Approach A.** Discovery's defining move — deriving entities from processes (gate 4) and writing the ERD before the DFD — only works if one skill owns both entity and flow authoring. Splitting (B) would force discovery to straddle two skills. Code-side enforcement (C, D) was settled against with the user: the method enforces examples and richness; the existing `flow-validate.ts` rules are the backstop, unchanged.
 
-Evidence: existing skill scaffold (`skills/noorm-modeling/SKILL.md` + `references/*.md`) already carries two modes and the core rules `flow` mode inherits verbatim (positive form, act-don't-suggest, infer-before-asking, derive-never-ask). The logical apparatus is modeled on `~/.claude/commands/pressure-test.md` lines 73–102 (three laws, four causes, sufficient reason) — translated to a generative posture, not cloned. Canonical rules and the existing ignatius adoption decisions live in `docs/research/ssadm-dfd-rules.md`.
+Evidence: existing skill scaffold (`skills/ignatius-modeling/SKILL.md` + `references/*.md`) already carries two modes and the core rules `flow` mode inherits verbatim (positive form, act-don't-suggest, infer-before-asking, derive-never-ask). The logical apparatus is modeled on `~/.claude/commands/pressure-test.md` lines 73–102 (three laws, four causes, sufficient reason) — translated to a generative posture, not cloned. Canonical rules and the existing ignatius adoption decisions live in `docs/research/ssadm-dfd-rules.md`.
 
 
 ## Resolved decisions
