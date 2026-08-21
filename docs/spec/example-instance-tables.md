@@ -94,6 +94,36 @@ Live-only validation:
 
 ## Change log
 
+### 2026-08-21 — Structured (`json`) example values
+
+**What changed:** `json` (and its `jsonb` spelling) joins the column-type vocabulary, and an example cell holding a structured value now renders as a truncated monospace preview with an expander that opens the pretty-printed document in its own dialog. Added criteria:
+
+- [ ] A cell whose value is a nested object or array renders via `JsonValue` on any declared type; a cell whose value is a *string* is parsed only when the column declares `json`/`jsonb`.
+- [ ] The preview is compact single-line JSON clipped on a character budget (48 default), not a CSS ellipsis — these cells live in horizontally scrolling tables where full text sets the column width from the longest document.
+- [ ] The expander's dialog is always `stacked`: from the dictionary it is the only dialog on screen, from an entity or process dialog it layers over the opener.
+- [ ] `Modal` keeps a module-level stack and answers ESC only in the top-most instance, so a stacked dialog closes itself and leaves its opener open.
+- [ ] Entity and process example tables share one `ExampleCell`, so a structured value renders identically on both surfaces.
+- [ ] Formatting degrades rather than throwing on a self-referential value — YAML aliases can reach an ancestor node, and an exception inside a table cell takes the view down.
+
+**Why:** `String(value)` rendered every nested value as `[object Object]`, so the frontmatter format accepted structured example data that no surface could display. The declared type is what licenses parsing a *string* as a document; recognising nested values unconditionally means an author who omits the type still gets a readable cell.
+
+**Superseded:** the criterion "Missing values render as a muted en-dash" now also covers the empty string on the dict surface, which previously rendered `''` as an empty cell while the modal surface rendered the en-dash. One `ExampleCell` gives both the en-dash.
+
+### 2026-08-21 — Syntax highlighting via shiki
+
+**What changed:** the expanded JSON document is syntax-highlighted, and tagged code fences in entity and flow bodies are too. Added criteria:
+
+- [ ] Highlighting uses shiki with `createHighlighterCoreSync` and `createJavaScriptRawEngine()` over precompiled grammars — never the default Oniguruma engine, whose WebAssembly payload would break both the single-file `export` and the zero-network guarantee.
+- [ ] Two entry points, not one: `src/model/markdown-highlight.ts` (json, sql, javascript, typescript, python, bash) is reached only from `parse.ts` / `flow-parse.ts` and never crosses into the browser bundle; `src/app/logic/json-highlight.ts` loads json alone.
+- [ ] Both run with `defaultColor: false`, so tokens carry `--shiki-light` and `--shiki-dark` and commit to neither; `styles.css` resolves them off the `.theme-*` root class so blocks follow the in-app toggle.
+- [ ] `highlightCodeFence` returns `''` for an untagged fence, an unbundled language, or a grammar error, handing the block back to markdown-it's default escaping. A body must never fail to render over a code fence.
+- [ ] Both producers escape HTML in the source; output is injected via `dangerouslySetInnerHTML` and the source is model data.
+- [ ] The JSON document is highlighted only once its dialog opens — a dictionary page can hold hundreds of unexpanded cells.
+
+**Why:** the split exists because grammars are static imports that no bundler can tree-shake. A single shared module would put roughly 620KB of grammar into the browser bundle; keeping the six-language set on the parse side holds the browser cost to about 140KB, since body markdown reaches the client as already-rendered `bodyHtml`. Measured: browser bundle 4.22MB → 4.36MB.
+
+**Superseded:** the previous entry's criterion that the expanded document renders in a plain `<pre>` — it is now shiki's `<pre class="shiki">`, and `.json-value-full` is the scroll container around it rather than the styled block itself.
+
 ### 2026-05-31 — Re-number CP-5 step to E7b (was E5b)
 
 **What changed:** the new examples step in the modeling skill is renamed from **E5b** to **E7b** and re-anchored as "between E7 (Columns) and E8 (Reference table)" instead of "between E5 (columns) and E6 (description)".

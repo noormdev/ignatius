@@ -27,6 +27,8 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.5.0",
+    "@shikijs/langs-precompiled": "^4.4.3",
+    "@shikijs/themes": "^4.4.3",
     "citty": "^0.2.2",
     "cytoscape": "^3.31.0",
     "cytoscape-elk": "^2.2.0",
@@ -36,6 +38,7 @@
     "markdown-it": "^14.1.0",
     "react": "^19",
     "react-dom": "^19",
+    "shiki": "^4.4.3",
     "web-worker": "^1.5.0",
     "yaml": "^2.8.4"
   },

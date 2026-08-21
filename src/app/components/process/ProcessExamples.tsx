@@ -1,4 +1,5 @@
 import type { FlowProcess, FlowExample } from '../../../flows/flow-parse';
+import { ExampleCell } from '../ui/ExampleCell';
 
 /**
  * Renders the `examples: { in, out }` data from a FlowProcess as a series of
@@ -47,10 +48,7 @@ export function ProcessExamples({ examples }: { examples: FlowProcess['examples'
                     <tr key={ri}>
                       {cols.map(c => (
                         <td key={c}>
-                          {row[c] !== undefined && row[c] !== null && row[c] !== ''
-                            ? String(row[c])
-                            : <span className="example-empty">–</span>
-                          }
+                          <ExampleCell value={row[c]} label={c} emptyClassName="example-empty" />
                         </td>
                       ))}
                     </tr>

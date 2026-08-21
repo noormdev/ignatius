@@ -175,7 +175,7 @@ If yes, collect: rule name + columns array. Repeat for each AK.
 
 Ask: "List the non-PK columns. For each: name, type, nullable? (default false), optional default, optional desc."
 
-Valid types: `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary`
+Valid types: `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary`, `json`
 
 Note: PK columns must also appear in `columns` with their types.
 

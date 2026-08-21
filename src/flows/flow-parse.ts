@@ -19,10 +19,11 @@ import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import type { GlobalError } from '../model/validate';
 import { wikiLinkPlugin } from '../model/wikilink';
+import { highlightCodeFence } from '../model/markdown-highlight';
 import { titlelize } from './titlelize';
 import { deriveLevels } from './flow-derive-levels';
 
-const md = new MarkdownIt();
+const md = new MarkdownIt({ highlight: highlightCodeFence });
 // `[[Target]]` links in flow markdown (process / external / store bodies) render
 // as `a.entity-link[data-entity]` anchors, same as ERD entity bodies. Rendered
 // optimistically (no knownIds) — every target becomes a navigable anchor and the
