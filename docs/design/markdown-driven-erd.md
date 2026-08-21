@@ -90,7 +90,7 @@ No attributes table here — that's generated from the frontmatter.
 
 | Property | Required | Description |
 |---|---|---|
-| `type` | Yes | Logical type: text, integer, decimal, boolean, date, datetime, binary |
+| `type` | Yes | Logical type: text, integer, decimal, boolean, date, datetime, binary, json |
 | `nullable` | No | Default false. Opt-in only. |
 | `default` | No | Logical default value (literal or function name like `now`). Shown in its own column in the UI. |
 | `desc` | No | Brief purpose of this column — what function it serves, why it exists. Not a repeat of the column name. |

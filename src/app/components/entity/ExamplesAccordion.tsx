@@ -1,4 +1,5 @@
 import type { ModelNode } from '../../../model/parse';
+import { ExampleCell } from '../ui/ExampleCell';
 
 export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode; variant?: 'modal' | 'dict' }) {
   const examples = node.examples;
@@ -9,6 +10,15 @@ export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode
   const declaredCols = Object.keys(node.columns).filter(k => !pkSet[k]);
   const headers = [...node.pk, ...declaredCols];
   const isOpen = examples.length <= 3;
+
+  const cell = (row: Record<string, unknown>, h: string, emptyClassName: string) => (
+    <ExampleCell
+      value={row[h]}
+      columnType={node.columns[h]?.type}
+      label={`${node.id} · ${h}`}
+      emptyClassName={emptyClassName}
+    />
+  );
 
   if (variant === 'dict') {
     return (
@@ -23,11 +33,7 @@ export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode
               {examples.map((row, i) => (
                 <tr key={i}>
                   {headers.map(h => (
-                    <td key={h}>
-                      {row[h] !== undefined && row[h] !== null
-                        ? String(row[h])
-                        : <span className="dict-example-empty">–</span>}
-                    </td>
+                    <td key={h}>{cell(row, h, 'dict-example-empty')}</td>
                   ))}
                 </tr>
               ))}
@@ -52,12 +58,7 @@ export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode
             {examples.map((row, i) => (
               <tr key={i}>
                 {headers.map(h => (
-                  <td key={h}>
-                    {row[h] !== undefined && row[h] !== null && row[h] !== ''
-                      ? String(row[h])
-                      : <span className="example-empty">–</span>
-                    }
-                  </td>
+                  <td key={h}>{cell(row, h, 'example-empty')}</td>
                 ))}
               </tr>
             ))}

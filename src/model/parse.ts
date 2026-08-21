@@ -4,9 +4,10 @@ import MarkdownIt from 'markdown-it';
 import { defaultTheme, mergeTheme, type ThemeConfig } from '../theme/theme-defaults';
 import { defaultBranding, mergeBranding, inlineBrandingLogos, type Branding } from '../theme/branding-defaults';
 import { wikiLinkPlugin, type WikiLinkEnv } from './wikilink';
+import { highlightCodeFence } from './markdown-highlight';
 import type { GlobalError } from './validate';
 
-const md = new MarkdownIt();
+const md = new MarkdownIt({ highlight: highlightCodeFence });
 md.use(wikiLinkPlugin);
 
 function isRecord(v: unknown): v is Record<string, unknown> {

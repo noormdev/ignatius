@@ -91,6 +91,26 @@ A customer settles invoices with a [[PaymentMethod|payment method]] on file.
 The target must match an entity id exactly (case-sensitive). A link to an entity that does not exist renders as muted, non-clickable text and is reported as a `body.unknown_link` finding, so a typo never passes silently. See [Validation and findings](validation.md).
 
 
+### Code in the body
+
+
+A tagged code fence is syntax-highlighted, in entity bodies and flow bodies alike:
+
+~~~markdown
+Selecting a party's usable methods:
+
+```sql
+select payment_method_id, type, label
+from PaymentMethod
+where party_id = @party_id;
+```
+~~~
+
+Six languages ship with the viewer — `json`, `sql`, `javascript`, `typescript`, `python`, `bash` — along with their usual fence aliases (`js`, `ts`, `py`, `sh`, `shell`, `zsh`). An untagged fence, or one tagged with a language that is not bundled, renders as plain preformatted text rather than failing.
+
+Highlighting is applied when the model is parsed, not in the browser, so a static `export` carries it with no extra work. Colours follow the viewer's own light/dark toggle.
+
+
 ### Columns
 
 
@@ -98,7 +118,7 @@ Each column takes a logical `type` and three optional fields.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `type` | required | One of `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary` |
+| `type` | required | One of `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary`, `json` |
 | `nullable` | `false` | Whether the column accepts null |
 | `default` | none | A default value note |
 | `desc` | none | A short note on what the column is for |
@@ -134,6 +154,30 @@ examples:
 ```
 
 The rows render as a collapsible table in the entity dialog and the dictionary. Two or three realistic rows are enough; their job is to make the rules concrete — a sample row that violates a constraint you believe in reveals a modeling error no structural check can catch. Every key must be a real column (or PK column); the live server flags unknown keys with an `entity.example_unknown_column` warning.
+
+
+### Structured values
+
+
+A `json` column carries a document rather than a scalar. Write the value as nested YAML:
+
+```yaml
+columns:
+  details:
+    type: json
+    nullable: true
+    desc: "Instrument details, whose shape differs per method type."
+examples:
+  - payment_method_id: 1
+    details:
+      network: visa
+      last4: "4471"
+      exp_month: 11
+```
+
+The cell renders as a truncated monospace preview with an expander beside it; the expander opens the pretty-printed document in a dialog, layered over the entity dialog when you are already in one. A nested value renders this way on any column, so an author who omits the `json` type still gets a readable cell — declaring it is what additionally lets a value written as a quoted JSON string be recognised as a document.
+
+Reach for `json` only where the shape is genuinely open-ended. A fixed set of known fields is columns, and a repeating group is a child entity; a `json` column with a stable shape is a modeling miss the viewer cannot help you with.
 
 
 ## A group file

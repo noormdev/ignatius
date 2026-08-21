@@ -431,6 +431,12 @@ a {
   z-index: 100;
 }
 
+/* A dialog opened from inside another one. It renders within the opener's
+   `.modal`, so it needs to clear that subtree's stacking order to sit on top. */
+.modal-backdrop-stacked {
+  z-index: 110;
+}
+
 .modal {
   position: relative;
   background: var(--color-background);
@@ -1887,6 +1893,101 @@ code {
 .dict-example-empty {
   color: var(--color-text-muted);
   font-size: 0.85em;
+}
+
+/* ── Structured (json) example values ── */
+
+.json-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+}
+
+/* Truncation happens in JS on a character budget, so this only has to keep the
+   preview on one line. Ligatures are off because `-->`, `=>` and `!=` inside a
+   JSON string kern into glyphs that misrepresent the underlying text. */
+.json-value-preview {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-ligatures: none;
+  font-feature-settings: "calt" 0;
+  font-size: 0.85em;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+.json-value-expand {
+  flex: none;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.7em;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.json-value-expand:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.json-value-shape {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.modal-json {
+  max-width: 860px;
+}
+
+/* ── Highlighted code blocks (shiki) ──
+   Two producers, one appearance: body code fences, highlighted at parse time
+   by src/model/markdown-highlight.ts, and the expanded JSON document,
+   highlighted in the browser by src/app/logic/json-highlight.ts. */
+
+.shiki {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-ligatures: none;
+  font-feature-settings: "calt" 0;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  overflow-x: auto;
+  padding: 16px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  tab-size: 2;
+}
+
+/* The global `code` rule paints a background and padding for inline snippets.
+   Inside a block it repeats per line box and stripes the document. */
+.shiki code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font: inherit;
+}
+
+/* Shiki runs with defaultColor:false, so every token carries both theme values
+   as custom properties and commits to neither. The app's own theme class picks
+   one, which is what keeps these blocks on the in-app theme toggle rather than
+   on the OS colour scheme. */
+.theme-light .shiki,
+.theme-light .shiki span {
+  color: var(--shiki-light);
+}
+
+.theme-dark .shiki,
+.theme-dark .shiki span {
+  color: var(--shiki-dark);
+}
+
+.json-value-full .shiki {
+  max-height: 60vh;
+  overflow: auto;
 }
 
 /* ── CP7: Entity ↔ Process cross-reference ── */

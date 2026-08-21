@@ -17,15 +17,31 @@ columns:
   label:
     type: text
     desc: "User-facing label (e.g. 'Visa ending 4242')."
+  details:
+    type: json
+    nullable: true
+    desc: "Instrument details, whose shape is set by the gateway and differs per type — no two method types carry the same fields."
 examples:
   - party_id: 2
     payment_method_id: 1
     type: CREDIT_CARD
     label: Visa ending 4471
+    details:
+      network: visa
+      last4: "4471"
+      exp_month: 11
+      exp_year: 2028
+      billing_zip: "33139"
+      wallet: apple_pay
   - party_id: 1
     payment_method_id: 1
     type: BANK_TRANSFER
     label: Silicon Valley Bank ••1847
+    details:
+      account_type: checking
+      routing_last4: "0114"
+      account_last4: "1847"
+      verified_by: micro_deposits
   - party_id: 3
     payment_method_id: 1
     type: CHECK
@@ -46,3 +62,12 @@ relationships:
 A **PaymentMethod** is a means by which a Party can pay — a card, bank account, or check on file. It belongs to the party that holds it and is classified by a `PaymentMethodType`.
 
 It exists as a stored, reusable record so a party can pay repeatedly without re-entering details, and so each `Payment` can point at exactly the instrument that settled it.
+
+Selecting a party's usable methods:
+
+```sql
+select payment_method_id, type, label
+from PaymentMethod
+where party_id = @party_id
+order by payment_method_id;
+```

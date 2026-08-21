@@ -2,7 +2,26 @@
 
 ### Column types
 
-`text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary`
+`text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary`, `json`
+
+`json` holds a structured document. Reach for it only when the shape is genuinely open-ended — a fixed set of known fields is columns, and a repeating group is a child entity. A `json` column that turns out to have a stable shape is a modeling miss, not a shortcut.
+
+Write `json` example values as nested YAML. A quoted JSON string parses too, but nested YAML is what the rest of the file already reads like:
+
+    examples:
+      - account_id: 1
+        settings:
+          theme: dark
+          digest: weekly
+          muted_tags: [billing, marketing]
+
+### Code in bodies
+
+A tagged code fence in an entity or flow body is syntax-highlighted by the viewer. Bundled languages:
+
+`json`, `sql`, `javascript`, `typescript`, `python`, `bash` — plus the aliases `js`, `ts`, `py`, `sh`, `shell`, `zsh`
+
+Tag every fence you write; an untagged one, or one tagged with a language outside that set, renders as plain preformatted text. Prefer `sql` for the query snippets that most often earn a place in an entity body.
 
 ### Column properties
 
