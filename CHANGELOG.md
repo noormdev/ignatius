@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/noormdev/ignatius/compare/v0.16.0...v0.17.0) (2026-08-22)
+
+
+### Features
+
+* json column type, structured example cells, syntax highlighting ([8dd5503](https://github.com/noormdev/ignatius/commit/8dd5503a12483830595468c4d0d0920ae68eec68))
+
 ## [0.16.0](https://github.com/noormdev/ignatius/compare/v0.15.1...v0.16.0) (2026-08-11)
 
 
