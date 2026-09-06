@@ -1,6 +1,7 @@
 ---
 entity: Project_Tag
 group: tagging
+description: Junction attaching a tag to a project; cascades on tag delete.
 pk:
   - tag_id
   - project_id

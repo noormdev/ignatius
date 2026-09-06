@@ -1,6 +1,7 @@
 ---
 entity: Memory_Tag
 group: tagging
+description: Junction attaching a tag to a memory; cascades on tag delete.
 pk:
   - tag_id
   - memory_id

@@ -1,6 +1,7 @@
 ---
 process: Set Note Relevance
 number: 4
+description: Archives, restores, or soft-deletes a note through a gated transition
 inputs:
   - from: ext:LLM-Agent
     data: note_id, to_status, reason

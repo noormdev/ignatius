@@ -79,6 +79,7 @@ invoice line it pays. A receipt is returned to the [[Customer]].
 | `number` | no | Local rank among sibling processes; falls back to file order. Full SSADM numbers (`1.2.1`) are composed from the folder nesting automatically |
 | `inputs` / `outputs` | yes | The flows. Each names an endpoint (`from:`/`to:`) and the `data:` it carries |
 | `examples` | no | Sample in/out rows rendered as tables in the process dialog, one entry per flow |
+| `description` | no | One line saying what the process does and when it runs. It is the Description cell in the flow folder's generated router, so a reader can open or skip the process without reading its body |
 
 The `data:` field is the flow's label and its contract. On a `db:` endpoint it is **always column names** — a string for one column, a list for several — and every name is checked against the entity's `pk` and `columns` (the `flow.unknown_attribute` rule). On any other endpoint it is an opaque label; make it enumerate everything the flow carries rather than a one-word summary.
 
@@ -103,18 +104,19 @@ This prefix set is closed. A store that fits none of the named kinds is authored
 ### Externals
 
 
-An external is described once in `externals/<Name>.md` at the model root with an `external:` label in frontmatter and a body covering its role, what it does, and what it expects back. Every diagram at any nesting depth can reference `ext:<Name>` — there is no per-DFD override.
+An external is described once in `externals/<Name>.md` at the model root with an `external:` label in frontmatter, an optional one-line `description:` that becomes its row in the `externals/` router, and a body covering its role, what it does, and what it expects back. Every diagram at any nesting depth can reference `ext:<Name>` — there is no per-DFD override.
 
 
 ### Stores
 
 
-A `db:` store needs no extra file — it *is* the entity, documented in the entity's own `.md`. A non-`db` store exists simply by being referenced; an optional `stores/<name>.md` file at the model root adds a `kind:`, an optional `title:` display override, and a body explaining why the store exists:
+A `db:` store needs no extra file — it *is* the entity, documented in the entity's own `.md`. A non-`db` store exists simply by being referenced; an optional `stores/<name>.md` file at the model root adds a `kind:`, an optional `title:` display override, an optional `description:` for the `stores/` router, and a body explaining why the store exists:
 
 ```markdown
 ---
 kind: file
 title: Payment Gateway Log
+description: Raw gateway responses kept for reconciliation and disputes, never read in normal processing.
 ---
 
 Append-only log of raw gateway responses. Used for reconciliation and dispute

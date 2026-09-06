@@ -1,6 +1,7 @@
 ---
 process: Set Memory Relevance
 number: 3
+description: Advances a memory's relevance status through a gated, journaled transition
 inputs:
   - from: ext:LLM-Agent
     data: relevance change request (memory_id, target status, reason)

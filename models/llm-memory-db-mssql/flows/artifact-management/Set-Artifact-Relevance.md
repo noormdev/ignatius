@@ -1,6 +1,7 @@
 ---
 process: Set Artifact Relevance
 number: 4
+description: Archives, restores, or soft-deletes an artifact through a gated transition
 inputs:
   - from: ext:LLM-Agent
     data: artifact_id, target status, reason

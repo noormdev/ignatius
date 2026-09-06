@@ -1,5 +1,9 @@
 ## Conventions reference
 
+### Reserved filename: `index_file`
+
+`ignatius.yml` names a router file the CLI generates into every organizing folder — `index_file:` (default `index.md`). That basename is reserved: no entity, process, external, or store file may use it. A file with that name under `data/` that declares `entity:` fails `config.index_file_entity`; one that doesn't declare `entity:` is treated as a router and silently skipped, not scanned. The reservation is on the basename, not a suffix — an entity named `Reindex.md` is unaffected.
+
 ### Column types
 
 `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary`, `json`

@@ -1,6 +1,7 @@
 ---
 process: Add Task Dependency
 number: 4
+description: Wires a directed, cycle-checked dependency edge between two tasks
 inputs:
   - from: ext:LLM-Agent
     data: dependency request (milestone_id, task_no, dep_milestone_id, dep_task_no, dependency_verb, reason)

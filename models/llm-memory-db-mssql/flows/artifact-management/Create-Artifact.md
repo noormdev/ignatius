@@ -1,6 +1,7 @@
 ---
 process: Create Artifact
 number: 1
+description: Registers a file the agent produced and returns its new artifact_id
 inputs:
   - from: ext:LLM-Agent
     data: title, description, filepath, reason, provenance project

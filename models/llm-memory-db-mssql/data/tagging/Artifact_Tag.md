@@ -1,6 +1,7 @@
 ---
 entity: Artifact_Tag
 group: tagging
+description: Junction attaching a tag to an artifact; cascades on tag delete.
 pk:
   - tag_id
   - artifact_id

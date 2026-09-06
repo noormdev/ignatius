@@ -1,6 +1,7 @@
 ---
 entity: Task_Dependency
 group: planning
+description: Directed edge recording that one task depends on another, both endpoints composite-keyed task references.
 pk:
   - milestone_id
   - task_no

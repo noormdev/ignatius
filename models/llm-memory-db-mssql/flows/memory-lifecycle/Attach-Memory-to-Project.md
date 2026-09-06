@@ -1,6 +1,7 @@
 ---
 process: Attach Memory to Project
 number: 5
+description: Idempotently scopes a memory to a project context
 inputs:
   - from: ext:LLM-Agent
     data: attachment request (memory_id, project_id)

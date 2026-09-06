@@ -1,6 +1,7 @@
 ---
 process: Create Project Note
 number: 1
+description: Records a free-form observation against a project
 inputs:
   - from: ext:LLM-Agent
     data: content, reason, project_id

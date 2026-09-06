@@ -9,6 +9,19 @@ ignatius validate <model-root>
 authoring loops. It prints findings to stderr and a one-line summary to stdout,
 and exits non-zero when global (Class B) errors are present.
 
+Then run the router-staleness gate:
+```
+ignatius validate --index <model-root>
+```
+`--index` recomputes the digest of every generated router against the current files
+and reports drift as `index.stale` — nothing is written. Run it whenever the model
+has been indexed before (`ignatius index` has run at least once); a model that has
+never been indexed has no routers to go stale. Fix a stale-router finding by running
+`ignatius index <model-root>` to regenerate, then re-run `--index` to confirm clean.
+`ignatius index --agents` additionally writes in-folder agent guidance (`AGENTS.md`,
+a `CLAUDE.md` shim, `SKILL.md`) into the model root. Run it when the model is meant
+to orient an agent that opens it; plain `ignatius index` is enough for the routers.
+
 Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces between fields).
 
 **Rule reference table** (for reporting fix hints without grepping source):
@@ -29,6 +42,12 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 | `cluster.missing_member` | warn | A | Subtype cluster member not in model | Add the member entity file or remove it from `members:` |
 | `cluster.no_discriminator` | warn | A | Exclusive subtype cluster has no discriminator | Convert `members:` from list form to map form with discriminator values |
 | `entity.example_unknown_column` | warn | A | Example row contains unknown key | Remove or rename the key — every key in an `examples:` row must be in `pk ∪ columns`. **This rule is live-server-only: `ignatius validate` never prints it.** Self-check example keys manually when writing (Step E7b); the warning only appears in the running app |
+| `config.index_file_ext` | error | B | `index_file` value doesn't end in `.md` | Change `index_file:` in `ignatius.yml` to a `.md` filename |
+| `config.index_file_path` | error | B | `index_file` value is a path, not a bare filename | Use a bare filename (e.g. `index.md`), no `/` or `..` |
+| `config.index_file_entity` | error | B | Entity file uses the reserved `index_file` name | Rename the entity file — that basename is reserved for the generated router (Step E1) |
+| `index.stale` | error | B | A router's digest doesn't match its current files (`validate --index` only) | Run `ignatius index <model-root>` to regenerate, then re-run `validate --index` |
+| `index.orphaned` | warn | A | A router file left behind after `index_file` changed (`validate --index` only) | Delete the orphaned file, or restore the prior `index_file` value |
+| `index.unreadable_target` | error | B | A file a router row points at could not be read, so its digest cannot be trusted (`validate --index` only) | Fix file access or remove the stale reference, then run `ignatius index <model-root>` |
 
 **Flow rule reference table** (`flow.*` findings appear when the model has a `flows/` directory; each maps back to a DFD authoring step in `references/dfd-authoring.md`):
 

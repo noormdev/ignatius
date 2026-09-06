@@ -1,6 +1,7 @@
 ---
 process: Create Agent
 number: 1
+description: Registers a new LLM agent identity and returns the assigned agent_id
 inputs:
   - from: ext:LLM-Agent
     data: agent name and description

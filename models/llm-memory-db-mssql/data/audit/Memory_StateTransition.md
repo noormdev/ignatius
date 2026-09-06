@@ -1,6 +1,7 @@
 ---
 entity: Memory_StateTransition
 group: audit
+description: Subtype pinning a StateTransition journal row to the memory whose relevance status changed.
 pk:
   - transition_id
 columns:

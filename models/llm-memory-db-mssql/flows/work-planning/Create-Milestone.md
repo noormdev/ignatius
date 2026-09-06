@@ -1,6 +1,7 @@
 ---
 process: Create Milestone
 number: 1
+description: Creates a planned unit of work and returns its new milestone_id
 inputs:
   - from: ext:LLM-Agent
     data: new milestone (title, content, reason, provenance project)

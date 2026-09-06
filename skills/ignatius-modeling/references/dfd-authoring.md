@@ -169,6 +169,10 @@ Write the rows as the `examples:` block in the process frontmatter, split into `
 each entry titled by its `from`/`to` endpoint and a `label`. See the worked example in
 `references/flow-templates.md`.
 
+### Step F6a — Descriptions (always, per node)
+
+Always run this step — do not skip it. Every process, external, and store carries a one-line `description:` frontmatter field: the router table's payload, not documentation. Generate it yourself for each node from what the flow has established so far (the process's verb phrase, the external's role, the store's purpose), show it, and let the user adjust. One sentence; the full story is Step F7's body.
+
 ### Step F7 — Bodies: the business context (per node)
 
 Every node carries a markdown body. This is where the *why* lives — the reason the thing exists.

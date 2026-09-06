@@ -1,6 +1,7 @@
 ---
 process: Attach Artifact To Milestone
 number: 2
+description: Idempotently links an artifact to the milestone it supports
 inputs:
   - from: ext:LLM-Agent
     data: artifact_id, milestone_id

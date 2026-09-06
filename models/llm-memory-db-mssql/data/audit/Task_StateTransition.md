@@ -1,6 +1,7 @@
 ---
 entity: Task_StateTransition
 group: audit
+description: Subtype pinning a StateTransition journal row to the composite-keyed task whose tracking status changed.
 pk:
   - transition_id
 columns:

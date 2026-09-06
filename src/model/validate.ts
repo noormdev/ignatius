@@ -25,6 +25,14 @@ export type RuleId =
   | 'parse.invalid_yaml'
   | 'parse.missing_id'
   | 'parse.empty_frontmatter'
+  // config (model index routing)
+  | 'config.index_file_ext'
+  | 'config.index_file_path'
+  | 'config.index_file_entity'
+  // router index drift
+  | 'index.stale'
+  | 'index.orphaned'
+  | 'index.unreadable_target'
   // entity (CP-1)
   | 'entity.missing_pk'
   | 'entity.missing_columns'
@@ -163,6 +171,36 @@ export const RULES: Record<RuleId, RuleEntry> = {
   'parse.empty_frontmatter': {
     title: 'Empty frontmatter',
     explanation: 'The file has YAML fences (`---`) but no content between them. Every entity file must have frontmatter with at least an `entity` field. The file is excluded from the model.',
+    class: 'B',
+  },
+  'config.index_file_ext': {
+    title: 'index_file must end in .md',
+    explanation: '`ignatius.yml`\'s `index_file` value does not end in ".md". The router writer only ever produces markdown files; correct the value.',
+    class: 'B',
+  },
+  'config.index_file_path': {
+    title: 'index_file must be a bare filename',
+    explanation: '`ignatius.yml`\'s `index_file` value contains a path separator or "..". It must be a bare filename (e.g. "index.md"), matched by basename in every organizing folder, not a path.',
+    class: 'B',
+  },
+  'config.index_file_entity': {
+    title: 'Reserved index filename used as an entity file',
+    explanation: 'A file under `data/` matches the configured `index_file` name but declares an `entity` field. Its frontmatter is read to detect this, and once detected the entity is dropped from the model. Rename the entity file or change `index_file` in `ignatius.yml`.',
+    class: 'B',
+  },
+  'index.stale': {
+    title: 'Router digest is out of date',
+    explanation: 'A generated router\'s stored digest no longer matches the folder it describes — the model changed since `ignatius index` last ran. Run `ignatius index` to regenerate.',
+    class: 'B',
+  },
+  'index.orphaned': {
+    title: 'Orphaned router file',
+    explanation: 'A file carrying an <ignatius-index> region sits in this folder under a name other than the configured index_file. It is likely left behind by a prior index_file change and can be deleted.',
+    class: 'A',
+  },
+  'index.unreadable_target': {
+    title: 'Router target could not be read',
+    explanation: 'A file a router row points at could not be read while recomputing digests, so its digest cannot be trusted. Fix file access (or remove the stale reference) and run `ignatius index` again.',
     class: 'B',
   },
   'edge.unknown_target': {
@@ -570,6 +608,95 @@ export function validateModel(model: Model): ValidationResult {
     globalErrors,
     cleanedModel,
   };
+}
+
+// ---------------------------------------------------------------------------
+// validateIndex — router digest drift (SC9)
+//
+// Unlike `validateModel`, this one does real I/O: it reuses `buildRouters` to
+// recompute every folder's digest from the current files, so the comparison
+// can never drift from what `ignatius index` actually writes. Dynamic imports
+// keep `router/build` and `node:fs` out of this module's static graph, since
+// `validateModel`/`RULES` are also imported by the browser-side app.
+// ---------------------------------------------------------------------------
+
+export type IndexValidationResult = {
+  globalErrors: GlobalError[];
+  entityErrors: EntityError[];
+};
+
+const STORED_DIGEST_RE = /^<ignatius-index[\s>][^>]*\sdigest="([^"]*)"/m;
+
+export async function validateIndex(
+  root: string,
+  model: Model,
+  flowModel: import('../flows/flow-parse').FlowModel,
+): Promise<IndexValidationResult> {
+  const { buildRouters } = await import('../router/build');
+  const { readFileSync, readdirSync } = await import('node:fs');
+
+  const unreadable: import('../router/build').UnreadableTarget[] = [];
+  const routers = await buildRouters(root, model, flowModel, unreadable);
+
+  const globalErrors: GlobalError[] = unreadable.map(target => ({
+    ruleId: 'index.unreadable_target',
+    severity: 'error',
+    omitted: { kind: 'file', id: target.path },
+    reason: `Could not read router target for digest computation: ${target.message}`,
+  }));
+  const entityErrors: EntityError[] = [];
+
+  const indexFile = model._meta?.indexFile ?? 'index.md';
+
+  for (const file of routers) {
+    const path = `${root}/${file.relPath}`;
+    let content: string | null;
+    try {
+      content = readFileSync(path, 'utf8');
+    } catch {
+      content = null;
+    }
+    const storedDigest = content?.match(STORED_DIGEST_RE)?.[1] ?? null;
+
+    if (storedDigest !== file.digest) {
+      globalErrors.push({
+        ruleId: 'index.stale',
+        severity: 'error',
+        omitted: { kind: 'file', id: file.relPath },
+        reason: content === null
+          ? `Router '${file.relPath}' has not been generated yet — run \`ignatius index\`.`
+          : `Router '${file.relPath}' digest no longer matches the current model — run \`ignatius index\` to regenerate.`,
+      });
+    }
+
+    const relDir = file.attrs.path === '.' ? '' : file.attrs.path;
+    const dir = relDir === '' ? root : `${root}/${relDir}`;
+    const expectedBasename = file.relPath.slice(file.relPath.lastIndexOf('/') + 1);
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      entries = [];
+    }
+    for (const entry of entries) {
+      if (entry === expectedBasename) continue;
+      let entryContent: string;
+      try {
+        entryContent = readFileSync(`${dir}/${entry}`, 'utf8');
+      } catch {
+        continue;
+      }
+      if (!/^<ignatius-index[\s>]/m.test(entryContent)) continue;
+      entityErrors.push({
+        ruleId: 'index.orphaned',
+        entityId: relDir === '' ? entry : `${relDir}/${entry}`,
+        severity: 'warning',
+        message: `'${entry}' carries an <ignatius-index> region but does not match the configured index_file ('${indexFile}') — likely left behind by a prior index_file change.`,
+      });
+    }
+  }
+
+  return { globalErrors, entityErrors };
 }
 
 // ---------------------------------------------------------------------------

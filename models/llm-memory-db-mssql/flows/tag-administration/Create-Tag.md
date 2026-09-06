@@ -1,6 +1,7 @@
 ---
 process: Create Tag
 number: 1
+description: Mints a new uniquely-named tag and returns its tag_id
 inputs:
   - from: ext:LLM-Agent
     data: new tag (name, description, reason, provenance_id)

@@ -1,6 +1,7 @@
 ---
 entity: Task_Tag
 group: tagging
+description: Junction attaching a tag to a composite-keyed task, the only tagging junction with a two-column FK.
 pk:
   - tag_id
   - milestone_id

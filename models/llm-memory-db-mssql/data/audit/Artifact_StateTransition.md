@@ -1,6 +1,7 @@
 ---
 entity: Artifact_StateTransition
 group: audit
+description: Subtype pinning a StateTransition journal row to the artifact whose relevance status changed.
 pk:
   - transition_id
 columns:

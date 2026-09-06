@@ -1,6 +1,7 @@
 ---
 entity: Milestone_Note
 group: knowledge
+description: Subtype record attaching a note to the milestone it annotates.
 pk:
   - note_id
 columns:

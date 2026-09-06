@@ -1,5 +1,6 @@
 ---
 external: LLM-Agent
+description: The AI coding agent (Claude, Cursor, etc.) that calls MCP operations to read and write its own long-term memory
 title: LLM Agent
 ---
 

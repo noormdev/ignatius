@@ -1,6 +1,7 @@
 ---
 entity: Milestone_Artifact
 group: artifact
+description: Junction linking a milestone to the artifacts produced under it; cascades on delete.
 pk:
   - milestone_id
   - artifact_id

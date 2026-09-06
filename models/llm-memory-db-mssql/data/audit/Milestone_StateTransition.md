@@ -1,6 +1,7 @@
 ---
 entity: Milestone_StateTransition
 group: audit
+description: Subtype pinning a StateTransition journal row to a milestone's tracking or relevance status change.
 pk:
   - transition_id
 columns:

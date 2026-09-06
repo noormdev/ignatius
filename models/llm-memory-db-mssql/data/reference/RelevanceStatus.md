@@ -1,6 +1,7 @@
 ---
 entity: RelevanceStatus
 group: reference
+description: Controlled vocabulary for lifecycle relevance states (active, archived, deleted) of memories, artifacts, and notes.
 pk:
   - relevance_status
 columns:

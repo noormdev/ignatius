@@ -1,6 +1,7 @@
 ---
 entity: Tag
 group: tagging
+description: A reusable, uniquely-named label an agent applies to classify memories, artifacts, milestones, tasks, and projects.
 pk:
   - tag_id
 columns:

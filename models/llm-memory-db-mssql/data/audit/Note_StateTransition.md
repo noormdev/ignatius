@@ -1,6 +1,7 @@
 ---
 entity: Note_StateTransition
 group: audit
+description: Subtype pinning a StateTransition journal row to the note whose relevance status changed.
 pk:
   - transition_id
 columns:

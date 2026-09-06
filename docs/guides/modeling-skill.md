@@ -69,3 +69,5 @@ You never set `classification` or `identifying` manually. The parser derives bot
 
 
 After writing each file the skill runs `ignatius validate <model-root>` and parses the lint findings from stderr. Findings are reported with fix hints, and you can ask the skill to revise and re-run (up to five attempts). A clean run with no findings confirms the file is valid. See [Validation and findings](validation.md) for the rules it checks against.
+
+When the model carries generated routers, the loop also runs `ignatius validate --index`, which reports them as `index.stale` after any authoring change, and then `ignatius index` to regenerate them. Every file the skill writes gets a one-line `description:`, since that field is what the routers show a reader deciding whether to open the file.

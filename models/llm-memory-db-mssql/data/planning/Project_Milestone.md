@@ -1,6 +1,7 @@
 ---
 entity: Project_Milestone
 group: planning
+description: Junction attaching a milestone to one or more projects.
 pk:
   - project_id
   - milestone_id

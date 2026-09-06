@@ -1,6 +1,7 @@
 ---
 entity: Note
 group: knowledge
+description: Free-form text recorded by an agent, attached to exactly one project, milestone, or task.
 pk:
   - note_id
 columns:

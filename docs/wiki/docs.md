@@ -1,6 +1,7 @@
 ---
 type: Domain
-description: Design docs, user guides, research notes, and implementation-contract specs for ignatius — the layered documentation corpus other domains' code and tests cite for coupling.
+description: The docs corpus (design, spec, guide, research, glossary) that states a feature's why, contract, how, and vocabulary.
+tags: [design, spec, guide]
 ---
 
 # docs
@@ -9,132 +10,179 @@ description: Design docs, user guides, research notes, and implementation-contra
 ## What it does
 
 
-- Houses ignatius's documentation corpus: [`docs/design/`](../design) (conceptual/approach docs), [`docs/guides/`](../guides) (user-facing how-to), [`docs/research/`](../research) (background investigation notes), and [`docs/spec/`](../spec) (implementation contracts) — 72 markdown files total (27 + 10 + 2 + 33). [`docs/glossary.md`](../glossary.md) sits directly under [`docs/`](..) as the shared-vocabulary reference.
-- [`README.md`](../../README.md) states the design/spec relationship directly: "Conceptual designs live in [`docs/design/`](../design); the implementation contracts derived from them live in [`docs/spec/`](../spec). Start with [`docs/design/markdown-driven-erd.md`](../design/markdown-driven-erd.md) for the entity format and the derivation rules."
-- [`docs/wiki/`](.) also lives under [`docs/`](..) as the generated signals wiki — out of scope for this domain file.
+[`docs/`](..) (excluding the generated [`docs/wiki/`](.)) is ignatius's documentation corpus: 76 markdown files plus [`docs/glossary.md`](../glossary.md), split across four directories that each answer a different question about a feature. [`docs/design/`](../design) (29 files) states why a feature exists and which approach was chosen over its alternatives. [`docs/spec/`](../spec) (35 files) is the implementation contract derived from a design: checkpoints, success criteria, and (for two specs so far) a change-tree/outline/flows triad. [`docs/guides/`](../guides) (10 files) teaches a user how to drive the built feature. [`docs/research/`](../research) (2 files) records background investigation that fed a design's option table. None of these files execute; every other domain's code and tests point back at them by name for the "why is it built this way" and "what is the contract" questions code alone can't answer.
+
+[`README.md`](../../README.md) states the design/spec relationship directly: "Conceptual designs live in [`docs/design/`](../design); the implementation contracts derived from them live in [`docs/spec/`](../spec)."
 
 
-## Docs
+## How it works
 
 
-### [`docs/design/`](../design) — conceptual/approach docs (27 files)
+A feature's four surfaces are written by hand, in sequence, and kept in sync by a fifth file that is neither generated nor derived from any of them.
+
+```mermaid
+flowchart LR
+    A[design doc: the why] --> B[spec: the contract]
+    B --> C[guide: the how]
+    C --> D[skill reference: the authoring loop]
+    A -.tracked in.-> E[feature-map.md]
+    B -.tracked in.-> E
+    C -.tracked in.-> E
+    D -.tracked in.-> E
+```
+
+A design doc that never gets a spec (`markdown-driven-erd.md`) or a spec with no design doc (seven of them, see Where it lives) are both valid end states; `feature-map.md` records the actual per-feature surface set rather than assuming every feature has all four.
+
+### A spec's body describes only current truth; correction and rename are explicit states
+
+[`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) alone carries four dated `## Change log` entries that append a **Superseded:** line rather than leaving the old text in place ("Reserved-name skip covers every scan, not just `data/`", "Correction: routers follow the folder tree, not declared groups", "Audit corrections", "Region boundaries are position-based"); a fifth entry, "Correction: `build.ts` does I/O", amends the body but carries no **Superseded:** line. [`docs/spec/noorm-modeling-skill.md`](../spec/noorm-modeling-skill.md) and [`docs/design/noorm-modeling-skill.md`](../design/noorm-modeling-skill.md) show the renamed-file end state: both are 12-line stubs whose body is one sentence pointing at `ignatius-modeling-skill.md`, kept only so a rename-era grep still finds them.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Current: initial spec drafted
+    Current --> Amended: behavior added, changed, or corrected
+    Amended --> Current: body rewritten, log entry appended
+    Current --> Renamed: topic renamed or split
+    Renamed --> [*]: stub kept one commit, new file is current
+```
+
+### The change-tree / outline / flows triad is opt-in by spec age, not by feature size
+
+[`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) and [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) are the only two of 35 specs carrying `## Change tree`, `## Outline`, and `## Flows` sections; the other 33 predate the rule that requires them and are not backfilled by an unrelated amendment. 28 of 35 specs also carry a `## Implementation log` (narrative build history: checkpoints landed, out-of-scope work performed, unforeseens, deferred items) — a section distinct from `## Change log`, which records contract amendments, not build narrative.
 
 
-- [`docs/design/markdown-driven-erd.md`](../design/markdown-driven-erd.md) (333L) — largest design doc; canonical source for the markdown-driven entity file format. No matching [`docs/spec/`](../spec) file of its own exists — [`docs/wiki/feature-map.md`](feature-map.md)'s own "Markdown entity / folder format" row lists the Spec column as `—`.
-- [`docs/design/process-flows.md`](../design/process-flows.md) (218L) — design doc for the SSADM DFD subsystem (processes, externals, stores, sub-DFDs).
-- [`docs/design/schema-lint-and-error-ux.md`](../design/schema-lint-and-error-ux.md) (205L) — design doc for schema lint + error UX.
-- [`docs/design/key-inheritance-lineage.md`](../design/key-inheritance-lineage.md) (175L, grew from 132L) — design doc for the key-inheritance-lineage feature: key-edge rule (FK ⊆ child PK, subset test), transitive connected-component lineage, DD dotted line + DG shift+hover reveal. Change log's newest entries (2026-08-01) record two corrections: associative/junction entities are now traversal BARRIERS (reachable but never passed through, to stop a hub like `Tag` welding every parent it links into one lineage), and the `?lineage=legacy` URL escape hatch used to A/B that fix was removed once the rule was accepted.
-- [`docs/design/noorm-flow-discovery.md`](../design/noorm-flow-discovery.md) (179L) — design doc adding two modes to the `ignatius-modeling` skill: `flow` (structured Q&A DFD authoring) and `discover` (Socratic interview generating both ERD entities and DFDs from a business description, including reverse-engineering an external system as an evidence source).
-- [`docs/design/unified-app.md`](../design/unified-app.md) (152L) — design doc for the unified SPA collapse.
-- [`docs/design/branding.md`](../design/branding.md) (160L) — design doc for the branding system.
-- [`docs/design/ignatius-modeling-skill.md`](../design/ignatius-modeling-skill.md) (151L) — design doc for the ignatius modeling skill.
-- [`docs/design/viewer-fab-ux.md`](../design/viewer-fab-ux.md) (144L) — design doc for the floating action button UX.
-- [`docs/design/app-tsx-decomposition.md`](../design/app-tsx-decomposition.md) (142L) — design doc for the `src/App.tsx` → [`src/app/`](../../src/app) decomposition.
-- [`docs/design/cli-and-outputs.md`](../design/cli-and-outputs.md) (135L) — design doc for CLI modes and the static output approach.
-- [`docs/design/example-instance-tables.md`](../design/example-instance-tables.md) (135L) — design doc for example/sample-row instance tables.
-- [`docs/design/viewer-ux-polish.md`](../design/viewer-ux-polish.md) (133L) — design doc for a 6-fix viewer-ux-polish batch (HTML title, spotlight line separation, native 1:1 zoom, Cmd/Ctrl+/-/0 canvas zoom, process node sizing, entity modal history).
-- [`docs/design/folder-model.md`](../design/folder-model.md) (104L) — design doc for the folder-model migration: `_*`-prefix vs hoisted top-level folders, hard-cut migration strategy.
-- [`docs/design/keyboard-nav-shortcuts.md`](../design/keyboard-nav-shortcuts.md) (110L) — design doc for single-key keyboard navigation shortcuts (keymap rationale, guard philosophy, `kbd-hint` badge UX).
-- [`docs/design/ignatius-project-config.md`](../design/ignatius-project-config.md) (107L) — design doc for `ignatius.yml` config + model discovery.
-- [`docs/design/graph-position-persistence.md`](../design/graph-position-persistence.md) (118L) — design doc for graph node position persistence.
-- [`docs/design/dict-navigation.md`](../design/dict-navigation.md) (100L) — design doc for data-dictionary side navigation.
-- [`docs/design/dfd-edge-hover-data.md`](../design/dfd-edge-hover-data.md) (100L) — design doc for DFD edge-hover data reveal (HTML overlay tooltip chosen for zoom-independence).
-- [`docs/design/dfd-overhaul.md`](../design/dfd-overhaul.md) (93L) — design doc for the DFD viewer overhaul: Yourdon/SSADM leveling, ELK-driven layout, 5-band partitioning, orthogonal edge routing.
-- [`docs/design/graph-flow-search.md`](../design/graph-flow-search.md) (84L) — design doc for search on the Graph and Flows views: dim-don't-filter approach, title-first matching with an "Include descriptions" toggle, shared `SearchBar` component.
-- [`docs/design/dfd-nesting-depth.md`](../design/dfd-nesting-depth.md) (75L) — design doc for the arbitrary DFD nesting depth fix (root-cause: `renumberLeaf`'s last-segment-only prefix bug).
-- [`docs/design/bidirectional-predicates.md`](../design/bidirectional-predicates.md) (67L) — design doc for the bidirectional predicate feature.
-- [`docs/design/help-overlay.md`](../design/help-overlay.md) (62L) — design doc for the view-aware help overlay.
-- [`docs/design/dd-spotlight-grid.md`](../design/dd-spotlight-grid.md) (60L) — design doc for the DD browse-lens spotlight grid.
-- [`docs/design/wiki-entity-links.md`](../design/wiki-entity-links.md) (59L) — design doc for wiki-style `[[Entity]]` body links.
-- [`docs/design/src-root-organization.md`](../design/src-root-organization.md) (49L) — design doc for the [`src/`](../../src) top-level subdirectory split.
-- `docs/design/dict-polish.md`, `docs/design/dfd-polish-round2/3/4.md`, `docs/design/render-perf-indexing.md`, `docs/design/unified-app-polish.md`, `docs/design/derive-classification.md` do NOT exist — their specs (below) shipped without a separate design doc.
+## Where it lives
 
+
+### [`docs/design/`](../design) — conceptual/approach docs (29 files)
+
+| Path | Lines | Covers |
+|------|-------|--------|
+| [`docs/design/model-index-routing.md`](../design/model-index-routing.md) | 476 | Per-folder generated routers (`index.md`), rolled-up SHA digests, `<ignatius-*>` managed regions, `index_file:`/`harness:` config, in-folder `AGENTS.md`/[`CLAUDE.md`](../../CLAUDE.md)/`SKILL.md` agent guidance |
+| [`docs/design/markdown-driven-erd.md`](../design/markdown-driven-erd.md) | 333 | Canonical source for the markdown-driven entity file format; no [`docs/spec/`](../spec) counterpart |
+| [`docs/design/process-flows.md`](../design/process-flows.md) | 218 | SSADM DFD subsystem: processes, externals, stores, sub-DFDs |
+| [`docs/design/schema-lint-and-error-ux.md`](../design/schema-lint-and-error-ux.md) | 205 | Schema lint + error UX |
+| [`docs/design/noorm-flow-discovery.md`](../design/noorm-flow-discovery.md) | 179 | `ignatius-modeling` skill's `flow` and `discover` Q&A modes |
+| [`docs/design/key-inheritance-lineage.md`](../design/key-inheritance-lineage.md) | 175 | Key-edge connected-component lineage (FK ⊆ child PK), associative-entity traversal barriers |
+| [`docs/design/ignatius-modeling-skill.md`](../design/ignatius-modeling-skill.md) | 160 | The `ignatius-modeling` skill itself |
+| [`docs/design/branding.md`](../design/branding.md) | 160 | Branding system |
+| [`docs/design/unified-app.md`](../design/unified-app.md) | 152 | Unified SPA collapse (Graph/Dictionary/Flows in one app) |
+| [`docs/design/viewer-fab-ux.md`](../design/viewer-fab-ux.md) | 144 | Floating action button UX |
+| [`docs/design/app-tsx-decomposition.md`](../design/app-tsx-decomposition.md) | 142 | `src/App.tsx` → [`src/app/`](../../src/app) decomposition |
+| [`docs/design/cli-and-outputs.md`](../design/cli-and-outputs.md) | 135 | CLI modes and the static output approach |
+| [`docs/design/example-instance-tables.md`](../design/example-instance-tables.md) | 135 | Example/sample-row instance tables |
+| [`docs/design/viewer-ux-polish.md`](../design/viewer-ux-polish.md) | 133 | 6-fix viewer-ux-polish batch |
+| [`docs/design/folder-model.md`](../design/folder-model.md) | 104 | Folder-model migration (`_*`-prefix vs hoisted top-level folders) |
+| [`docs/design/keyboard-nav-shortcuts.md`](../design/keyboard-nav-shortcuts.md) | 110 | Single-key keyboard navigation shortcuts |
+| [`docs/design/ignatius-project-config.md`](../design/ignatius-project-config.md) | 107 | `ignatius.yml` config + model discovery |
+| [`docs/design/graph-position-persistence.md`](../design/graph-position-persistence.md) | 118 | Graph node position persistence |
+| [`docs/design/dict-navigation.md`](../design/dict-navigation.md) | 100 | Data-dictionary side navigation |
+| [`docs/design/dfd-edge-hover-data.md`](../design/dfd-edge-hover-data.md) | 100 | DFD edge-hover data reveal |
+| [`docs/design/dfd-overhaul.md`](../design/dfd-overhaul.md) | 93 | DFD viewer overhaul: Yourdon/SSADM leveling, ELK layout, 5-band partitioning |
+| [`docs/design/graph-flow-search.md`](../design/graph-flow-search.md) | 84 | Search on Graph and Flows views |
+| [`docs/design/dfd-nesting-depth.md`](../design/dfd-nesting-depth.md) | 75 | Arbitrary DFD nesting depth fix |
+| [`docs/design/bidirectional-predicates.md`](../design/bidirectional-predicates.md) | 67 | Bidirectional predicate feature |
+| [`docs/design/help-overlay.md`](../design/help-overlay.md) | 62 | View-aware help overlay |
+| [`docs/design/dd-spotlight-grid.md`](../design/dd-spotlight-grid.md) | 60 | DD browse-lens spotlight grid |
+| [`docs/design/wiki-entity-links.md`](../design/wiki-entity-links.md) | 59 | Wiki-style `[[Entity]]` body links |
+| [`docs/design/src-root-organization.md`](../design/src-root-organization.md) | 49 | [`src/`](../../src) top-level subdirectory split |
+| [`docs/design/noorm-modeling-skill.md`](../design/noorm-modeling-skill.md) | 12 | Rename stub; points to `ignatius-modeling-skill.md` |
+
+### [`docs/spec/`](../spec) — implementation contracts (35 files)
+
+| Path | Lines | Covers |
+|------|-------|--------|
+| [`docs/spec/process-flows.md`](../spec/process-flows.md) | 682 | Largest spec; SSADM DFD: parse, 11 `flow.*` rules, viewer, sub-DFD drill-down, `db:` store dialog |
+| [`docs/spec/key-inheritance-lineage.md`](../spec/key-inheritance-lineage.md) | 372 | `buildInheritedConnections` key-edge connected-component algorithm, DG/DD lineage reveal |
+| [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) | 270 | Router build/write, fingerprint roll-up, `index_file`/`harness` config, four `config.index_file_*`/`index.*` rules, `--agents` guidance files |
+| [`docs/spec/app-tsx-decomposition.md`](../spec/app-tsx-decomposition.md) | 246 | `App.tsx` decomposition |
+| [`docs/spec/dd-spotlight-grid.md`](../spec/dd-spotlight-grid.md) | 239 | DD browse-lens spotlight grid |
+| [`docs/spec/dfd-polish-round3.md`](../spec/dfd-polish-round3.md) | 238 | CP18–23 |
+| [`docs/spec/render-perf-indexing.md`](../spec/render-perf-indexing.md) | 231 | Preset-layout cache-skip, ELK cost scaling, `buildModelIndex` |
+| [`docs/spec/unified-app.md`](../spec/unified-app.md) | 216 | Unified SPA |
+| [`docs/spec/ignatius-modeling-skill.md`](../spec/ignatius-modeling-skill.md) | 211 | `ignatius-modeling` skill contract |
+| [`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) | 199 | Graph/Flows search (SC1–SC12) |
+| [`docs/spec/unified-app-polish.md`](../spec/unified-app-polish.md) | 194 | CP1–CP13 unified-app-polish batch |
+| [`docs/spec/keyboard-nav-shortcuts.md`](../spec/keyboard-nav-shortcuts.md) | 189 | `resolveShortcut`, `useKeyboardShortcuts` |
+| [`docs/spec/viewer-ux-polish.md`](../spec/viewer-ux-polish.md) | 180 | viewer-ux-polish batch |
+| [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) | 170 | Example/sample-row instance tables |
+| [`docs/spec/dfd-polish-round2.md`](../spec/dfd-polish-round2.md) | 169 | CP14–17 |
+| [`docs/spec/dfd-polish-round4.md`](../spec/dfd-polish-round4.md) | 159 | CP24–26 |
+| [`docs/spec/bidirectional-predicates.md`](../spec/bidirectional-predicates.md) | 157 | Bidirectional predicates |
+| [`docs/spec/dfd-overhaul.md`](../spec/dfd-overhaul.md) | 155 | DFD viewer overhaul; success criteria C1–C18 |
+| [`docs/spec/cli-and-outputs.md`](../spec/cli-and-outputs.md) | 144 | CLI output modes and theme system |
+| [`docs/spec/schema-lint-and-error-ux.md`](../spec/schema-lint-and-error-ux.md) | 141 | Schema lint + error UX |
+| [`docs/spec/folder-model.md`](../spec/folder-model.md) | 117 | Folder-model migration |
+| [`docs/spec/ignatius-project-config.md`](../spec/ignatius-project-config.md) | 108 | `ignatius.yml` config loading + model discovery |
+| [`docs/spec/graph-position-persistence.md`](../spec/graph-position-persistence.md) | 106 | Graph node position persistence |
+| [`docs/spec/branding.md`](../spec/branding.md) | 102 | Branding |
+| [`docs/spec/viewer-fab-ux.md`](../spec/viewer-fab-ux.md) | 101 | FAB UX |
+| [`docs/spec/dict-navigation.md`](../spec/dict-navigation.md) | 90 | Dict side nav |
+| [`docs/spec/dict-polish.md`](../spec/dict-polish.md) | 87 | Dict visual polish; no design-doc counterpart |
+| [`docs/spec/noorm-flow-discovery.md`](../spec/noorm-flow-discovery.md) | 83 | `flow`/`discover` skill modes; skill-markdown-only |
+| [`docs/spec/dfd-edge-hover-data.md`](../spec/dfd-edge-hover-data.md) | 83 | DFD edge-hover data reveal |
+| [`docs/spec/src-root-organization.md`](../spec/src-root-organization.md) | 82 | [`src/`](../../src) directory split |
+| [`docs/spec/wiki-entity-links.md`](../spec/wiki-entity-links.md) | 79 | Wiki-entity links |
+| [`docs/spec/derive-classification.md`](../spec/derive-classification.md) | 72 | 5-rule classification derivation; no design-doc counterpart |
+| [`docs/spec/dfd-nesting-depth.md`](../spec/dfd-nesting-depth.md) | 69 | DFD nesting-depth fix |
+| [`docs/spec/help-overlay.md`](../spec/help-overlay.md) | 64 | Help overlay |
+| [`docs/spec/noorm-modeling-skill.md`](../spec/noorm-modeling-skill.md) | 12 | Rename stub; points to `ignatius-modeling-skill.md` |
+
+Seven specs ship without a design-doc counterpart: `dict-polish.md`, `derive-classification.md`, `render-perf-indexing.md`, `unified-app-polish.md`, `dfd-polish-round2.md`, `dfd-polish-round3.md`, `dfd-polish-round4.md`. Exactly one design doc ships without a spec: `markdown-driven-erd.md`.
 
 ### [`docs/guides/`](../guides) — user-facing how-to (10 files)
 
+All ten are linked from [`README.md`](../../README.md)'s docs table. Six were updated for model-index-routing (marked below).
 
-All ten are linked from [`README.md`](../../README.md)'s docs table:
-
-
-- [`docs/guides/getting-started.md`](../guides/getting-started.md) (93L) — install, build from source, serve the first model.
-- [`docs/guides/commands.md`](../guides/commands.md) (156L) — the five CLI subcommands (three model commands + two utility commands) and the full keyboard-shortcut table, including search-focus and canvas-pan chords.
-- [`docs/guides/folder-format.md`](../guides/folder-format.md) (159L) — `ignatius.yml`, the five recognized top-level folders (`data/`, `flows/`, `groups/`, `externals/`, `stores/`), entity/column/relationship authoring.
-- [`docs/guides/derivation.md`](../guides/derivation.md) (45L) — what gets derived (cardinality, classification, subtype clusters) vs authored by hand.
-- [`docs/guides/predicates.md`](../guides/predicates.md) (83L) — bidirectional relationship-edge label authoring.
-- [`docs/guides/flows.md`](../guides/flows.md) (148L) — DFDs: processes, externals, stores, sub-DFDs, SSADM/Gane-Sarson rendering.
-- [`docs/guides/validation.md`](../guides/validation.md) (113L) — the linter, severity tiers, and where findings surface (live viewer, static dictionary/graph, CLI stderr).
-- [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) (83L) — `theme`/`branding` blocks in `ignatius.yml`, shared across all three subcommands.
-- [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) (71L) — the `/ignatius-modeling` Claude Code skill: entity, flow, model, and discover Q&A modes, verified via `ignatius validate`.
-- [`docs/guides/building-from-source.md`](../guides/building-from-source.md) (50L) — Bun build stages (`bun build --compile`), project layout, tests.
-
+| Path | Lines | Covers |
+|------|-------|--------|
+| [`docs/guides/folder-format.md`](../guides/folder-format.md) | 256 | ★ `ignatius.yml`, the five top-level folders, entity/column/relationship authoring, `index_file:`/`harness:` config, generated routers, `description:` frontmatter |
+| [`docs/guides/commands.md`](../guides/commands.md) | 174 | ★ The CLI subcommands including `index`/`index --agents`, `validate --index`, and the full keyboard-shortcut table |
+| [`docs/guides/flows.md`](../guides/flows.md) | 150 | ★ DFDs: processes, externals, stores, sub-DFDs, `description:` on process/external/store |
+| [`docs/guides/validation.md`](../guides/validation.md) | 137 | ★ The linter, severity tiers, and the new Config-rules/Index-rules tables (`config.index_file_*`, `index.stale`, `index.orphaned`, `index.unreadable_target`) |
+| [`docs/guides/getting-started.md`](../guides/getting-started.md) | 93 | ★ Install, build from source, serve the first model; command list now names `index` |
+| [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) | 73 | ★ The `/ignatius-modeling` skill's Q&A modes; verification loop now runs `ignatius validate --index` |
+| [`docs/guides/derivation.md`](../guides/derivation.md) | 45 | What gets derived (cardinality, classification, subtype clusters) vs authored by hand |
+| [`docs/guides/predicates.md`](../guides/predicates.md) | 83 | Bidirectional relationship-edge label authoring |
+| [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) | 83 | `theme`/`branding` blocks in `ignatius.yml` |
+| [`docs/guides/building-from-source.md`](../guides/building-from-source.md) | 50 | Bun build stages, project layout, tests |
 
 ### [`docs/research/`](../research) (2 files)
 
+| Path | Lines | Covers |
+|------|-------|--------|
+| [`docs/research/dfd-layout-and-leveling.md`](../research/dfd-layout-and-leveling.md) | 129 | DFD layout engines and Yourdon leveling; primary source for `dfd-overhaul`'s ELK algorithm choice |
+| [`docs/research/ssadm-dfd-rules.md`](../research/ssadm-dfd-rules.md) | 118 | SSADM DFD rules |
 
-- [`docs/research/ssadm-dfd-rules.md`](../research/ssadm-dfd-rules.md) (118L) — research notes on SSADM DFD rules.
-- [`docs/research/dfd-layout-and-leveling.md`](../research/dfd-layout-and-leveling.md) (129L) — research notes on DFD layout engines and Yourdon leveling; primary source for the dfd-overhaul design doc's ELK algorithm selection and band-partitioning option names.
+### [`docs/glossary.md`](../glossary.md) (52 lines)
 
+Canonical vocabulary table: DG (Data Graph), DD (Data Dictionary), DFD (Data Flow Diagram), DE (Data Entity), DS (Data Store), EE (External Entity), Process, Data Flow, plus the DS ⊃ DE relationship note and the `kind:` store taxonomy (`db`/`cache`/`queue`/`file`/`doc`/`manual`/`other`).
 
-### [`docs/spec/`](../spec) — implementation contracts (33 files)
-
-
-- [`docs/spec/process-flows.md`](../spec/process-flows.md) (682L) — largest spec in the corpus; comprehensive implementation contract for SSADM DFD: parse, 11 `flow.*` rules, flow viewer, sub-DFD drill-down, `db:` store → entity dialog, non-entity store kinds, entity↔process cross-reference, DFD URL navigability.
-- [`docs/spec/key-inheritance-lineage.md`](../spec/key-inheritance-lineage.md) (372L) — implementation contract for key-inheritance-lineage: `buildInheritedConnections` key-edge connected-component algorithm, DG ephemeral `edge.inherited` lifecycle, DD `SpotlightOverlay` dotted lines, shift-gated reveal on both surfaces. Its own change log runs through 2026-06-20 only — the design doc's 2026-08-01 associative-entity-barrier and legacy-escape-hatch entries are NOT yet mirrored here (see Concerns).
-- [`docs/spec/app-tsx-decomposition.md`](../spec/app-tsx-decomposition.md) (246L) — implementation contract for the `App.tsx` decomposition.
-- [`docs/spec/dfd-polish-round3.md`](../spec/dfd-polish-round3.md) (238L) — implementation contract for CP18–23.
-- [`docs/spec/dd-spotlight-grid.md`](../spec/dd-spotlight-grid.md) (239L) — implementation contract for the DD browse-lens spotlight grid (`spotlight.ts`, `flow-spotlight.ts`, `GridCard`, `SpotlightOverlay`).
-- [`docs/spec/render-perf-indexing.md`](../spec/render-perf-indexing.md) (231L) — implementation contract for the render-perf-indexing batch: preset-layout cache-skip, ELK cost scaling, O(n²)→Map indexing, ELK-in-worker, `buildModelIndex`.
-- [`docs/spec/unified-app.md`](../spec/unified-app.md) (216L) — implementation contract for the unified SPA.
-- [`docs/spec/ignatius-modeling-skill.md`](../spec/ignatius-modeling-skill.md) (204L) — implementation contract for the ignatius modeling skill.
-- [`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) (199L) — implementation contract for Graph/Flows search (SC1–SC12).
-- [`docs/spec/unified-app-polish.md`](../spec/unified-app-polish.md) (194L) — implementation contract for the CP1–CP13 unified-app-polish batch.
-- [`docs/spec/keyboard-nav-shortcuts.md`](../spec/keyboard-nav-shortcuts.md) (189L) — implementation contract for keyboard navigation shortcuts (`resolveShortcut`, `useKeyboardShortcuts`).
-- [`docs/spec/viewer-ux-polish.md`](../spec/viewer-ux-polish.md) (180L) — implementation contract for the viewer-ux-polish batch.
-- [`docs/spec/dfd-polish-round2.md`](../spec/dfd-polish-round2.md) (169L) — implementation contract for CP14–17.
-- [`docs/spec/dfd-polish-round4.md`](../spec/dfd-polish-round4.md) (159L) — implementation contract for CP24–26 (DD sidebar process nesting, IO endpoint clickability, sample-data tables).
-- [`docs/spec/dfd-overhaul.md`](../spec/dfd-overhaul.md) (155L) — implementation contract for the DFD viewer overhaul; success criteria C1–C18.
-- [`docs/spec/bidirectional-predicates.md`](../spec/bidirectional-predicates.md) (157L) — implementation contract for bidirectional predicates.
-- [`docs/spec/schema-lint-and-error-ux.md`](../spec/schema-lint-and-error-ux.md) (141L) — implementation contract for schema lint + error UX.
-- [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) (140L) — implementation contract for example/sample-row instance tables.
-- [`docs/spec/cli-and-outputs.md`](../spec/cli-and-outputs.md) (133L) — implementation contract for CLI output modes and the theme system.
-- [`docs/spec/folder-model.md`](../spec/folder-model.md) (117L) — implementation contract for the folder-model migration.
-- [`docs/spec/ignatius-project-config.md`](../spec/ignatius-project-config.md) (108L) — implementation contract for `ignatius.yml` config loading + model discovery.
-- [`docs/spec/graph-position-persistence.md`](../spec/graph-position-persistence.md) (106L) — implementation contract for graph node position persistence.
-- [`docs/spec/viewer-fab-ux.md`](../spec/viewer-fab-ux.md) (101L) — implementation contract for FAB UX.
-- [`docs/spec/branding.md`](../spec/branding.md) (102L) — implementation contract for branding.
-- [`docs/spec/dict-navigation.md`](../spec/dict-navigation.md) (90L) — implementation contract for the dict side nav.
-- [`docs/spec/dict-polish.md`](../spec/dict-polish.md) (87L) — implementation contract for dict visual polish; no design-doc counterpart.
-- [`docs/spec/noorm-flow-discovery.md`](../spec/noorm-flow-discovery.md) (83L) — implementation contract for the `flow`/`discover` skill modes; skill-markdown-only, no [`src/`](../../src) changes.
-- [`docs/spec/dfd-edge-hover-data.md`](../spec/dfd-edge-hover-data.md) (83L) — implementation contract for DFD edge-hover data reveal.
-- [`docs/spec/src-root-organization.md`](../spec/src-root-organization.md) (82L) — implementation contract for the [`src/`](../../src) directory split.
-- [`docs/spec/wiki-entity-links.md`](../spec/wiki-entity-links.md) (79L) — implementation contract for wiki-entity links.
-- [`docs/spec/derive-classification.md`](../spec/derive-classification.md) (72L) — implementation contract for the 5-rule classification derivation; no design-doc counterpart.
-- [`docs/spec/dfd-nesting-depth.md`](../spec/dfd-nesting-depth.md) (69L) — implementation contract for the DFD nesting-depth fix.
-- [`docs/spec/help-overlay.md`](../spec/help-overlay.md) (64L) — implementation contract for the help overlay.
+[`docs/wiki/`](.) also lives under [`docs/`](..) as the generated signals wiki; it is separate, self-referential infrastructure, out of scope for this domain.
 
 
-### [`docs/glossary.md`](../glossary.md) (52L)
+## Constraints
 
 
-Canonical vocabulary table: DG (Data Graph), DD (Data Dictionary), DFD (Data Flow Diagram), DE (Data Entity), DS (Data Store), EE (External Entity), Process, Data Flow — plus the DS ⊃ DE and EE-vs-DS relationship notes and the `kind:` store taxonomy (`db`/`cache`/`queue`/`file`/`doc`/`manual`/`other`).
+| Constraint | Detail |
+|------------|--------|
+| Spec body is forward-only | `docs/spec/<topic>.md` must describe only the current decision; superseded content moves to a dated `## Change log` entry with a **Superseded:** line. Leaving old text in the body instead means a subagent implementing from the spec reads a contradicted or stale contract as current truth |
+| Change-tree/outline/flows apply forward only | The three required sections apply to specs drafted after the rule shipped; only 2 of 35 specs (`graph-flow-search.md`, `model-index-routing.md`) carry them. Backfilling them onto a pre-existing spec via an unrelated amendment would bundle an unrelated structural change into that amendment's `## Change log` entry, misstating what the amendment actually changed |
+| Reserved router filename | `index_file:` (default `index.md`) is reserved model-wide: an entity file under `data/` sharing that basename and declaring `entity:` fails `config.index_file_entity` ([`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) SC3) |
+| Guidance files stay under 200 lines | `AGENTS.md`, [`CLAUDE.md`](../../CLAUDE.md), `SKILL.md` generated by `ignatius index --agents` carry only model name, description, router filename, key-style convention, and the `[[Entity]]` rule (SC11); adding entity/column/relationship content would make the file grow with the model and fail SC11 |
+| Managed-region writes are byte-scoped | A generator (routers, or the `--agents` guidance files) owns only the bytes inside its own `<ignatius-*>` tag; a boundary is a tag starting at column 0 and ending its line, and mismatched/nested/orphan/unclosed tags throw with a line number rather than silently corrupting the file |
 
 
 ## Coupling
 
 
-- [`docs/spec/dfd-overhaul.md`](../spec/dfd-overhaul.md) — success criteria C4, C16, C17 are cited by name in the **flow-view** domain ([`src/flow-view/elk-flow-layout.ts`](../../src/flow-view/elk-flow-layout.ts), band-layout contract); all six (C4, C5, C13, C15, C16, C17) are checked directly by tests in **frontend**/root test suites ([`test/checks/test-cp4b-elk-edge-routing.ts`](../../test/checks/test-cp4b-elk-edge-routing.ts), `test-cp4c-single-row-bands.ts`, `test-cp4d-frame-alignment.ts`, `test-elk-flow-positions.ts`, [`test/visual/test-cp2-dfd-edge-labels.ts`](../../test/visual/test-cp2-dfd-edge-labels.ts)).
-- [`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) — SC5 is cited by name in **frontend** ([`src/app/logic/search.ts`](../../src/app/logic/search.ts)) and CP1 by [`test/checks/test-viewer-search.ts`](../../test/checks/test-viewer-search.ts).
-- [`docs/spec/derive-classification.md`](../spec/derive-classification.md) — cited by name in [`test/checks/test-validate-entity.ts`](../../test/checks/test-validate-entity.ts), covering the **parser**/**validate** domains' classification-derivation rules.
-- [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) — named as the "canonical source" by [`skills/ignatius-modeling/references/entity-flow.md`](../../skills/ignatius-modeling/references/entity-flow.md), coupling this domain to **skill**.
-- [`docs/spec/process-flows.md`](../spec/process-flows.md) — its `flow.*` frontmatter/token grammar is matched by [`skills/ignatius-modeling/references/flow-templates.md`](../../skills/ignatius-modeling/references/flow-templates.md), coupling this domain to **skill**.
-- [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) — its worked example is pointed to by [`skills/ignatius-modeling/references/model-flow.md`](../../skills/ignatius-modeling/references/model-flow.md), coupling this domain to **theme** and **skill**.
-- [`docs/design/markdown-driven-erd.md`](../design/markdown-driven-erd.md) has no [`docs/spec/`](../spec) counterpart — [`docs/wiki/feature-map.md`](feature-map.md)'s own "Markdown entity / folder format" row lists the Spec column as `—`.
-
-
-## Conventions worth knowing
-
-
-- Design and spec docs are usually paired 1:1 by filename (`docs/design/X.md` ↔ `docs/spec/X.md`) — design states the problem/approach, spec is the checkpoint-and-success-criteria build contract. Seven specs ship without a design-doc counterpart (`derive-classification.md`, `dict-polish.md`, `render-perf-indexing.md`, `unified-app-polish.md`, `dfd-polish-round2/3/4.md` — all follow-up polish/perf batches or a small derivation rule). Exactly one design doc has no spec counterpart of its own: `markdown-driven-erd.md` — no [`docs/spec/`](../spec) file exists for it ([`docs/wiki/feature-map.md`](feature-map.md)'s Spec column reads `—` for the markdown entity/folder format row).
-- Specs carry a dated `## Change log` section (see [`docs/spec/key-inheritance-lineage.md`](../spec/key-inheritance-lineage.md)'s 5-entry log) recording corrections and superseded behavior, rather than editing history away silently.
-- [`docs/glossary.md`](../glossary.md) is the single canonical abbreviation source; specs, code comments, and UI labels are expected to reuse its terms (DG/DD/DFD/DE/DS/EE) rather than coin new ones.
-- [`docs/wiki/`](.) is the generated signals wiki and lives under [`docs/`](..) but is separate, self-referential infrastructure — not part of this domain's content.
+| Docs surface | Coupled domain | Coupling |
+|---|---|---|
+| [`docs/design/model-index-routing.md`](../design/model-index-routing.md) + [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) | **router** (new) | The pair is the sole source for [`src/router/`](../../src/router) (`region.ts`, `fingerprint.ts`, `build.ts`, `write.ts`, `detect.ts`, `agents.ts`); the spec's Change tree also names edits to **parser** ([`src/model/parse.ts`](../../src/model/parse.ts)), **validate** ([`src/model/validate.ts`](../../src/model/validate.ts)), **flows** ([`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts)), **cli** ([`src/cli/cli.ts`](../../src/cli/cli.ts)), and **skill** (`skills/ignatius-modeling/**`) |
+| [`docs/spec/dfd-overhaul.md`](../spec/dfd-overhaul.md) | **flow-view**, **frontend** | Success criteria C4/C16/C17 cited by name in [`src/flow-view/elk-flow-layout.ts`](../../src/flow-view/elk-flow-layout.ts); all six (C4/C5/C13/C15/C16/C17) checked directly by [`test/checks/test-cp4b-elk-edge-routing.ts`](../../test/checks/test-cp4b-elk-edge-routing.ts) and siblings |
+| [`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) | **frontend** | SC5 cited by name in [`src/app/logic/search.ts`](../../src/app/logic/search.ts); CP1 checked by [`test/checks/test-viewer-search.ts`](../../test/checks/test-viewer-search.ts) |
+| [`docs/spec/derive-classification.md`](../spec/derive-classification.md) | **parser**, **validate** | Cited by name in [`test/checks/test-validate-entity.ts`](../../test/checks/test-validate-entity.ts) for classification-derivation rules |
+| [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) | **skill** | Names [`skills/ignatius-modeling/references/entity-flow.md`](../../skills/ignatius-modeling/references/entity-flow.md) and directs it to add Step E7b — Examples, between E7 (Columns) and E8 (Reference table) |
+| [`docs/spec/process-flows.md`](../spec/process-flows.md) | **skill** | Its `flow.*` frontmatter/token grammar is matched by [`skills/ignatius-modeling/references/flow-templates.md`](../../skills/ignatius-modeling/references/flow-templates.md) |
+| [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) | **theme**, **skill** | Its worked example is pointed to by [`skills/ignatius-modeling/references/model-flow.md`](../../skills/ignatius-modeling/references/model-flow.md) |
+| [`docs/wiki/feature-map.md`](feature-map.md) | all domains | Hand-authored feature-to-doc-to-skill cross-reference table; not generated by this signals pipeline, maintained separately |

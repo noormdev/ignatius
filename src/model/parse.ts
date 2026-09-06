@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { basename } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import { defaultTheme, mergeTheme, type ThemeConfig } from '../theme/theme-defaults';
@@ -39,6 +40,7 @@ type SubtypeClusterDef = {
 type Frontmatter = {
   // Optional so the per-file try/catch can detect parse.missing_id at runtime.
   entity?: string;
+  description?: string;
   // Optional in CP-1 for backward compat; CP-2 will remove hand-authored values.
   // Used only as a legacy Classifier signal — parser derives all other values.
   classification?: string;
@@ -61,7 +63,7 @@ type Frontmatter = {
   examples?: Record<string, unknown>[];
 };
 
-export type GroupConfig = { label: string; color: string; desc?: string; sort_key?: number };
+export type GroupConfig = { label: string; color: string; desc?: string; description?: string; sort_key?: number };
 
 export type Cardinality = '1' | '0..1' | 'many';
 
@@ -69,12 +71,15 @@ export type ModelNode = {
   id: string;
   classification: string;
   group?: string;
+  /** Path to the source file, relative to the model root, e.g. `data/catalog/Product.md`. Always set by `parseModels`; optional only for hand-built test fixtures. */
+  sourcePath?: string;
   pk: string[];
   columns: Record<string, ColumnDef>;
   alternateKeys: { rule: string; columns: string[] }[];
   bodyHtml: string;
   /** Entity ids referenced via `[[…]]` wiki-links in the body, in source order. */
   bodyLinks?: string[];
+  description?: string;
   examples?: Record<string, unknown>[];
   /** singleton: true marks a one-row entity (config/settings); suppresses entity.missing_pk. */
   singleton?: boolean;
@@ -100,11 +105,17 @@ export type SubtypeCluster = {
 export type { ThemeConfig } from '../theme/theme-defaults';
 export type { Branding } from '../theme/branding-defaults';
 
+export type HarnessMode = 'auto' | 'claude' | 'agents' | 'both';
+
+const HARNESS_MODES: readonly HarnessMode[] = ['auto', 'claude', 'agents', 'both'];
+
 export type ModelMeta = {
   name?: string;
   version?: string;
   desc?: string;
   updated?: string;
+  indexFile?: string;
+  harness?: HarnessMode;
   /** Loaded from ignatius.yml `flow_rules:` block; passed to validateFlows. */
   flowRules?: import('../flows/flow-validate').FlowRulesConfig;
 };
@@ -118,6 +129,10 @@ export type Model = {
   branding: Branding;
   _meta?: ModelMeta;
 };
+
+function isHarnessMode(x: string): x is HarnessMode {
+  return HARNESS_MODES.some(mode => mode === x);
+}
 
 function parseFrontmatter(content: string): { frontmatter: Frontmatter; body: string } {
   const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
@@ -169,17 +184,21 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   let theme: ThemeConfig = defaultTheme;
   let branding: Branding = defaultBranding;
   let _meta: ModelMeta | undefined;
+  const globalErrors: GlobalError[] = [];
 
   const configFile = Bun.file(`${dir}/ignatius.yml`);
   if (await configFile.exists()) {
     const parsed: unknown = parseYaml(await configFile.text());
     const raw: Record<string, unknown> = isRecord(parsed) ? parsed : {};
     // Meta lives at top-level keys (name, version, description, updated)
-    const { name, version, description, updated, theme: themeRaw, branding: brandingRaw, flow_rules: flowRulesRaw } = raw;
+    const { name, version, description, updated, theme: themeRaw, branding: brandingRaw, flow_rules: flowRulesRaw, index_file: indexFileRaw, harness: harnessRaw } = raw;
     const metaName = typeof name === 'string' ? name : undefined;
     const metaVersion = typeof version === 'string' ? version : undefined;
     const metaDescription = typeof description === 'string' ? description : undefined;
     const metaUpdated = typeof updated === 'string' ? updated : undefined;
+    const metaIndexFile = typeof indexFileRaw === 'string' ? indexFileRaw : undefined;
+    const metaHarness =
+      typeof harnessRaw === 'string' && isHarnessMode(harnessRaw) ? harnessRaw : undefined;
     // Load flow_rules: block into _meta.flowRules
     const flowRules: import('../flows/flow-validate').FlowRulesConfig | undefined =
       isRecord(flowRulesRaw)
@@ -189,13 +208,31 @@ export async function parseModels(dir: string): Promise<ParseResult> {
               : {}),
           }
         : undefined;
+    if (metaIndexFile !== undefined && !metaIndexFile.endsWith('.md')) {
+      globalErrors.push({
+        ruleId: 'config.index_file_ext',
+        severity: 'error',
+        omitted: { kind: 'file', id: `${dir}/ignatius.yml` },
+        reason: `"index_file" value "${metaIndexFile}" must end in ".md".`,
+      });
+    }
+    if (metaIndexFile !== undefined && (metaIndexFile.includes('/') || metaIndexFile.includes('\\') || metaIndexFile.includes('..'))) {
+      globalErrors.push({
+        ruleId: 'config.index_file_path',
+        severity: 'error',
+        omitted: { kind: 'file', id: `${dir}/ignatius.yml` },
+        reason: `"index_file" value "${metaIndexFile}" must be a bare filename, not a path.`,
+      });
+    }
     // _meta is only populated when at least one meta key is present; remains undefined if all are absent
-    if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined || flowRules !== undefined) {
+    if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined || flowRules !== undefined || metaIndexFile !== undefined || metaHarness !== undefined) {
       _meta = {
         ...(metaName !== undefined ? { name: metaName } : {}),
         ...(metaVersion !== undefined ? { version: metaVersion } : {}),
         ...(metaDescription !== undefined ? { desc: metaDescription } : {}),
         ...(metaUpdated !== undefined ? { updated: metaUpdated } : {}),
+        ...(metaIndexFile !== undefined ? { indexFile: metaIndexFile } : {}),
+        ...(metaHarness !== undefined ? { harness: metaHarness } : {}),
         ...(flowRules !== undefined ? { flowRules } : {}),
       };
     }
@@ -212,14 +249,17 @@ export async function parseModels(dir: string): Promise<ParseResult> {
     }
   }
 
+  const indexFileName = _meta?.indexFile ?? 'index.md';
+
   const groups: Record<string, GroupConfig> = {};
   const groupsDir = `${dir}/groups`;
   const groupGlob = new Bun.Glob('*.md');
   if (existsSync(groupsDir)) for await (const path of groupGlob.scan(groupsDir)) {
+    if (path === indexFileName) continue;
     const name = path.replace(/\.md$/, '');
     const content = await Bun.file(`${groupsDir}/${path}`).text();
     const { frontmatter, body } = parseFrontmatter(content);
-    const fm = frontmatter as unknown as { label: string; color: string; sort_key?: unknown };
+    const fm = frontmatter as unknown as { label: string; color: string; description?: unknown; sort_key?: unknown };
     if (fm.sort_key !== undefined && typeof fm.sort_key !== 'number') {
       throw new Error(`Group "${name}": sort_key must be a number, got ${JSON.stringify(fm.sort_key)}`);
     }
@@ -227,6 +267,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       label: fm.label,
       color: fm.color,
       desc: md.render(body),
+      ...(typeof fm.description === 'string' ? { description: fm.description } : {}),
       ...(fm.sort_key !== undefined ? { sort_key: fm.sort_key } : {}),
     };
   }
@@ -252,10 +293,36 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   const rawNodes: RawNode[] = [];
   const rawEdges: RawEdge[] = [];
   const subtypeClusters: SubtypeCluster[] = [];
-  const globalErrors: GlobalError[] = [];
 
   if (existsSync(dataDir)) for await (const path of glob.scan(dataDir)) {
     const filePath = `${dataDir}/${path}`;
+
+    if (basename(path) === indexFileName) {
+      const reservedContent = await Bun.file(filePath).text();
+      if (/^---\n[\s\S]*?\n---\n/.test(reservedContent)) {
+        let reservedFrontmatter: Frontmatter;
+        try {
+          reservedFrontmatter = parseFrontmatter(reservedContent).frontmatter;
+        } catch (err) {
+          globalErrors.push({
+            ruleId: 'parse.invalid_yaml',
+            severity: 'error',
+            omitted: { kind: 'entity', id: filePath },
+            reason: `Cannot parse YAML frontmatter in "${filePath}": ${err instanceof Error ? err.message : String(err)}`,
+          });
+          continue;
+        }
+        if (reservedFrontmatter?.entity) {
+          globalErrors.push({
+            ruleId: 'config.index_file_entity',
+            severity: 'error',
+            omitted: { kind: 'entity', id: filePath },
+            reason: `File "${filePath}" is the reserved index file ("${indexFileName}") but declares an "entity" field. Reserved index filenames cannot be entity files — rename the entity file or change "index_file" in ignatius.yml.`,
+          });
+        }
+      }
+      continue;
+    }
 
     let frontmatter: Frontmatter;
     let body: string;
@@ -303,11 +370,13 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       referenceFlag: frontmatter.reference === true,
       singleton: frontmatter.singleton === true,
       group: frontmatter.group,
+      sourcePath: `data/${path}`,
       // Default pk to [] and columns to {} when absent
       pk: frontmatter.pk ?? [],
       columns: frontmatter.columns ?? {},
       alternateKeys: frontmatter.ak ?? [],
       body,
+      ...(typeof frontmatter.description === 'string' ? { description: frontmatter.description } : {}),
       ...(frontmatter.examples !== undefined ? { examples: frontmatter.examples } : {}),
     });
 
@@ -410,11 +479,13 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       id: rawNode.id,
       classification: deriveClassification(rawNode),
       group: rawNode.group,
+      sourcePath: rawNode.sourcePath,
       pk: rawNode.pk,
       columns: rawNode.columns,
       alternateKeys: rawNode.alternateKeys,
       bodyHtml,
       bodyLinks: env.links,
+      ...(rawNode.description !== undefined ? { description: rawNode.description } : {}),
       ...(rawNode.examples !== undefined ? { examples: rawNode.examples } : {}),
       ...(rawNode.singleton ? { singleton: true } : {}),
     };

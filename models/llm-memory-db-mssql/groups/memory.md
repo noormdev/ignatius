@@ -1,5 +1,6 @@
 ---
 label: Memory
+description: The long-term memory entity, its self-referential relation graph, and its project attachment.
 color: "#a371f7"
 ---
 

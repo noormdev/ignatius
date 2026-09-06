@@ -37,6 +37,59 @@ name: My Schema
 
 Top-level keys `name`, `version`, `description`, and `updated` populate the model metadata. You can add a `theme` block to override colors and spacing and a `branding` block to set a logo, title, or copyright line. When the file has only `name`, ignatius uses its built-in defaults for everything else. See [Themes and branding](themes-and-branding.md).
 
+Two more keys control the generated routers described below:
+
+```yaml
+index_file: index.md   # default; the router filename written into every organizing folder
+harness: auto           # auto | claude | agents | both — which agent guidance files `index --agents` writes
+```
+
+`index_file` names the router file `ignatius index` writes into `data/`, every subdirectory of `data/` that holds entity files, `groups/`, `flows/`, each flow folder, each sub-DFD folder, `externals/`, and `stores/`. It must be a bare filename ending in `.md` — a path or a different extension fails validation (`config.index_file_ext`, `config.index_file_path`).
+
+That filename is reserved. No entity file may use it: a `data/**/*.md` file matching `index_file` that also declares `entity:` fails validation (`config.index_file_entity`), naming the reserved filename directly rather than the generic "missing id" error. A file matching `index_file` that declares no `entity:` is treated as a router and skipped by the scan, not read as a broken entity.
+
+
+## Generated routers
+
+
+`ignatius index <model-root>` writes one router file per organizing folder, so a reader descends the tree one small table at a time instead of opening every file. Each router carries a `Name | Kind | Description | Go` table — `Kind` is `folder` for a subdirectory row or the entity/node classification for a leaf, `Description` is that file's own `description:` frontmatter, and `Go` is a clickable relative link ending in `.md`.
+
+Every row also carries the SHA-256 of its target. A folder's digest hashes its own row hashes, and a parent's row for a child folder carries that child's digest — so editing one entity file changes exactly the digests on its ancestor path and nothing else.
+
+Generated content sits inside an `<ignatius-index>` region, with a `<ignatius-breadcrumb>` region for the `↑` navigation line directly above it:
+
+```markdown
+<ignatius-breadcrumb>
+
+↑ [Data](../index.md) · [My Schema](../../index.md)
+
+</ignatius-breadcrumb>
+
+<ignatius-index scope="entity-group" path="data/identity" count="3" depth="2" digest="sha256:…">
+
+| Name | Kind | Description | Go |
+|---|---|---|---|
+| Party | Independent | Root actor; every customer resolves to one. | [Party](Party.md) |
+
+</ignatius-index>
+```
+
+**The generator owns only the bytes between its own tags.** A run replaces each `<ignatius-*>` region in place and leaves every byte outside it untouched — prose, headings, and a hand-authored `<ignatius-rules>` block all survive regeneration verbatim:
+
+```markdown
+<ignatius-rules>
+A new entity here carries `party_id` as its first PK column.
+</ignatius-rules>
+```
+
+That is what makes the router files safe to hand-edit: add a rules block once, and `ignatius index` never touches it. A file with no region gets one appended; a missing file is created. Running `ignatius index` twice over an unchanged model produces byte-identical output.
+
+One constraint follows from how the generator finds its regions: **a line that starts with `<ignatius-` is always a region boundary**, and column-0 boundaries must pair open and close by name. Anywhere else on a line, the tag is text. To mention a tag inside a hand-authored `<ignatius-rules>` block, keep it off column 0: inline code, an indented line, or `&lt;ignatius-index&gt;`. A nested opener, an orphan or mismatched closer, an unclosed opener, or a duplicate region makes `ignatius index` refuse the file and name the line and the fix.
+
+`ignatius validate --index <model-root>` recomputes every digest and reports drift as `index.stale`, writing nothing — the CI gate for "routers match the files on disk". `index.orphaned` warns when a router file left over from a previous `index_file` value is still on disk. A plain `ignatius validate` never pays this hashing cost; `--index` is opt-in.
+
+`ignatius index --agents` additionally writes in-folder agent guidance into the model root: `AGENTS.md` (how to walk the model), `SKILL.md` (frontmatter that makes the folder a discoverable skill once it is symlinked into `.claude/skills/`), and, when `harness:` resolves to Claude, a `CLAUDE.md` that imports `AGENTS.md`. Nothing is written outside the model root. See [Commands](commands.md) for the flag, and `harness:` above for which files land.
+
 
 ## An entity file
 

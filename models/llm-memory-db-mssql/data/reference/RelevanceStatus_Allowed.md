@@ -1,6 +1,7 @@
 ---
 entity: RelevanceStatus_Allowed
 group: reference
+description: Legal from/to edges of the RelevanceStatus transition graph, checked before journaling a relevance change.
 pk:
   - from_status
   - to_status

@@ -1,5 +1,6 @@
 ---
 label: Planning & Work
+description: Milestones, the tasks that fulfill them, their dependency graph, and project attachment.
 color: "#d29922"
 ---
 

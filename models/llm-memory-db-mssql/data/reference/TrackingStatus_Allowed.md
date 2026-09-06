@@ -1,6 +1,7 @@
 ---
 entity: TrackingStatus_Allowed
 group: reference
+description: Legal from/to edges of the TrackingStatus transition graph, checked before journaling a tracking change.
 pk:
   - from_status
   - to_status

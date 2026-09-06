@@ -64,16 +64,34 @@ The exit code merges entity global errors, entity Class-B findings, and flow Cla
 Note: the older `dict`, `graph`, and `flow` subcommands have been removed. Invoking one prints a one-line error pointing to `export`.
 
 
+## index
+
+
+Writes a navigable router file into every organizing folder of the model root: the root itself, `groups/`, `data/` and every subdirectory holding entity files, `flows/` and every flow and sub-DFD folder, `externals/`, and `stores/`. Each router is a markdown table of the folder's children with their name, kind, description, and a relative link, so a reader descends the model one small table at a time instead of globbing it. The filename comes from `index_file:` in `ignatius.yml` (default `index.md`).
+
+```bash
+ignatius index [path] [--model <key>] [--agents]
+```
+
+Every row carries the SHA-256 of its target, and each folder's digest rolls up to the root, so one hash at the top proves the whole tree is current. The generator owns only the bytes inside its own `<ignatius-index>` and `<ignatius-breadcrumb>` tags; prose, headings, and a hand-authored `<ignatius-rules>` block outside them survive regeneration verbatim. Running it twice over an unchanged model is byte-identical.
+
+`--agents` additionally writes three guidance files into the model root: `AGENTS.md` (how to walk the model and its conventions), `SKILL.md` (frontmatter that lets a harness discover the folder as a skill once it is symlinked into `.claude/skills/`), and, when `harness:` resolves to Claude, a `CLAUDE.md` that imports `AGENTS.md`. The guidance carries no entity content, only how to navigate. Which files land is set by `harness:` in `ignatius.yml` (`auto | claude | agents | both`). Nothing is written outside the model root.
+
+Findings print to stderr the same way `export` does, routers are still written, and the exit code is `1` on any Class B finding, `0` otherwise. See [The folder format](folder-format.md) for the router shape and the region contract.
+
+
 ## validate
 
 
 Checks the model and reports findings without generating any HTML. This is the fast path when you only want to know whether the model is sound: no bundle, no file written.
 
 ```bash
-ignatius validate [path] [--model <key>]
+ignatius validate [path] [--model <key>] [--index]
 ```
 
 It prints each finding to stderr in the same format as `export` and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. When the model has a `flows/` directory, the flow rules run too and their findings are included. Use it as a lightweight quality gate while authoring or in CI.
+
+`--index` also recomputes every router digest and reports drift as `index.stale`, a Class B finding, so a model whose routers no longer match its files fails the gate. It writes nothing; the fix is `ignatius index`. A plain `validate` never hashes, so the check costs nothing unless asked for.
 
 
 ## version
@@ -153,4 +171,4 @@ These work even while a text field is focused, since they are not typed characte
 ## Exit codes
 
 
-`export` and `validate` print any schema findings to stderr and exit `1` when the model has errors (omitted edges, dangling targets, unparseable files), `0` otherwise. Warnings alone do not fail the command. This makes the commands usable as a CI gate. See [Validation and findings](validation.md) for the rule catalog.
+`export`, `validate`, and `index` print any schema findings to stderr and exit `1` when the model has errors (omitted edges, dangling targets, unparseable files, a malformed `index_file`), `0` otherwise. Warnings alone do not fail the command. `validate --index` adds router drift (`index.stale`) to the errors, so running it in CI fails the build when committed routers no longer match the files they describe. See [Validation and findings](validation.md) for the rule catalog.

@@ -5,6 +5,7 @@ import { serveWithPortFallback } from './serve-port';
 import { parseModels } from '../model/parse';
 import { pickModel } from './resolve-model';
 import { VERSION } from './version';
+import type { RouterFile } from '../router/build';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // serve
@@ -104,6 +105,11 @@ const validateCmd = defineCommand({
       type: 'string',
       description: 'Model key to use when multiple models are found',
     },
+    index: {
+      type: 'boolean',
+      description: 'Recompute router digests and report drift (index.stale / index.orphaned) without writing anything',
+      default: false,
+    },
   },
   async run({ args }) {
     const base = args.path ? resolve(args.path) : process.cwd();
@@ -118,18 +124,31 @@ const validateCmd = defineCommand({
     // Guard with existsSync so models without flows/ are unaffected (no latency).
     let flowErrors: import('../flows/flow-validate').FlowError[] = [];
     let hasClassBFlowErrors = false;
+    let flowModel: import('../flows/flow-parse').FlowModel | null = null;
     const flowsDir = `${dir}/flows`;
     if (existsSync(flowsDir)) {
       const { parseFlows } = await import('../flows/flow-parse');
       const { validateFlows } = await import('../flows/flow-validate');
-      const { flowModel, globalErrors: flowParseErrors } = await parseFlows(dir);
-      allGlobalErrors.push(...flowParseErrors);
+      const parsed = await parseFlows(dir);
+      flowModel = parsed.flowModel;
+      allGlobalErrors.push(...parsed.globalErrors);
       const flowConfig = model._meta?.flowRules;
       const flowValidation = validateFlows(flowModel, model, flowConfig);
       flowErrors = flowValidation.flowErrors;
       // Class B is the authoritative signal for a hard exit — derived from the rule
       // registry, not from the severity field, so the two can't silently diverge.
       hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
+    }
+
+    // --index is what triggers hashing at all — a plain `validate` never reads
+    // router targets, so it stays cheap and never reports index.stale/orphaned.
+    if (args.index) {
+      const { parseFlows } = await import('../flows/flow-parse');
+      const { validateIndex } = await import('../model/validate');
+      const resolvedFlowModel = flowModel ?? (await parseFlows(dir)).flowModel;
+      const indexResult = await validateIndex(dir, model, resolvedFlowModel);
+      allGlobalErrors.push(...indexResult.globalErrors);
+      validation.entityErrors.push(...indexResult.entityErrors);
     }
 
     const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors, flowErrors);
@@ -152,6 +171,85 @@ const validateCmd = defineCommand({
     }
 
     process.exit(errorCount > 0 || hasClassBFlowErrors ? 1 : 0);
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// index — router build + write
+// ──────────────────────────────────────────────────────────────────────────────
+
+const indexCmd = defineCommand({
+  meta: {
+    name: 'index',
+    description: 'Generate navigable index.md routers into every organizing folder of a model root',
+  },
+  args: {
+    path: {
+      type: 'positional',
+      description: 'Path to search for a model root (default: cwd)',
+      required: false,
+    },
+    model: {
+      type: 'string',
+      description: 'Model key to use when multiple models are found',
+    },
+    agents: {
+      type: 'boolean',
+      description: 'Also write in-folder agent guidance (AGENTS.md / CLAUDE.md / SKILL.md)',
+      default: false,
+    },
+  },
+  async run({ args }) {
+    const base = args.path ? resolve(args.path) : process.cwd();
+    const dir = await pickModel(base, args.model);
+
+    // Findings are reported, not fatal: routers still get written, and the
+    // exit code reflects Class B findings, matching `export`'s posture.
+    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
+    const { validateModel, formatFindingsForStderr, RULES } = await import('../model/validate');
+    const validation = validateModel(model);
+    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
+
+    const { parseFlows } = await import('../flows/flow-parse');
+    const { flowModel, globalErrors: flowParseErrors } = await parseFlows(dir);
+    allGlobalErrors.push(...flowParseErrors);
+    const { validateFlows } = await import('../flows/flow-validate');
+    const flowConfig = model._meta?.flowRules;
+    const flowValidation = validateFlows(flowModel, model, flowConfig);
+    const flowErrors = flowValidation.flowErrors;
+    const hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
+
+    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors, flowErrors);
+    for (const line of stderrLines) process.stderr.write(line + '\n');
+
+    const { buildRouters } = await import('../router/build');
+    const { writeRouters } = await import('../router/write');
+    let routers: RouterFile[];
+    let writeClaude = false;
+    try {
+      routers = await buildRouters(dir, model, flowModel);
+      await writeRouters(dir, routers);
+
+      if (args.agents) {
+        const { resolveHarness } = await import('../router/detect');
+        const { writeGuidance } = await import('../router/agents');
+        const indexFile = model._meta?.indexFile ?? 'index.md';
+        const rootFile = routers.find(f => f.relPath === indexFile);
+        writeClaude = resolveHarness(dir, model._meta?.harness);
+        await writeGuidance(dir, model, rootFile?.digest ?? '', writeClaude);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Error: ${msg}\n`);
+      process.exit(1);
+    }
+
+    console.log(`Wrote ${routers.length} router(s) into ${dir}`);
+    if (args.agents) {
+      console.log(`Wrote agent guidance (AGENTS.md, SKILL.md${writeClaude ? ', CLAUDE.md' : ''}) into ${dir}`);
+    }
+
+    process.exit(allGlobalErrors.length > 0 || hasClassBFlowErrors ? 1 : 0);
   },
 });
 
@@ -326,6 +424,7 @@ const main = defineCommand({
     dict: dictCmd,
     graph: graphCmd,
     validate: validateCmd,
+    index: indexCmd,
     flow: flowCmd,
     export: exportCmd,
     version: versionCmd,

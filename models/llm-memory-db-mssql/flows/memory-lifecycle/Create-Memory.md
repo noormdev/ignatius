@@ -1,6 +1,7 @@
 ---
 process: Create Memory
 number: 1
+description: Persists a new long-term memory fact after validating domain and category
 inputs:
   - from: ext:LLM-Agent
     data: new memory fact (content, domain, category, reason, was_inferred, was_observed, was_evidenced, was_user_provided)

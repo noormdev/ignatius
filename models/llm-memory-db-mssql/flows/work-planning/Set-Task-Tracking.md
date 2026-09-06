@@ -1,6 +1,7 @@
 ---
 process: Set Task Tracking
 number: 3
+description: Advances or regresses a task's tracking status through a gated transition
 inputs:
   - from: ext:LLM-Agent
     data: status transition request (milestone_id, task_no, target status, reason)

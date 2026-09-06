@@ -1,6 +1,7 @@
 ---
 process: Create Milestone Note
 number: 2
+description: Records a progress note against a milestone
 inputs:
   - from: ext:LLM-Agent
     data: content, reason, milestone_id
