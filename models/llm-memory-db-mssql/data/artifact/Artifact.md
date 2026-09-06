@@ -1,6 +1,7 @@
 ---
 entity: Artifact
 group: artifact
+description: A file or document produced by an agent during work on a project, versioned through RelevanceStatus.
 pk:
   - artifact_id
 columns:

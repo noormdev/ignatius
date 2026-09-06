@@ -1,6 +1,7 @@
 ---
 entity: Project_Note
 group: knowledge
+description: Subtype record attaching a note to the project it annotates.
 pk:
   - note_id
 columns:

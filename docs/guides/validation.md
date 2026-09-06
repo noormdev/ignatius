@@ -101,6 +101,30 @@ These run whenever the model has a `flows/` directory (see [Process flows](flows
 | `flow.unbalanced_decomposition` | A | A sub-DFD's boundary flows do not match the parent process's declared inputs and outputs. |
 
 
+### Config rules
+
+
+These check `ignatius.yml` and the reserved router filename it declares. They are Class B for the exit code because a malformed `index_file` means routers cannot be generated or verified. Only `config.index_file_entity` omits anything: the misnamed entity is dropped, since every scan skips the reserved name before reading it as an entity.
+
+| Rule ID | Class | Meaning |
+|---|---|---|
+| `config.index_file_ext` | B | `index_file` does not end in `.md`. |
+| `config.index_file_path` | B | `index_file` contains a path separator or `..`; it must be a bare filename. |
+| `config.index_file_entity` | B | A file under `data/` uses the reserved `index_file` name but declares `entity:`. Every scan skips that name, so the entity is dropped; rename the file. |
+
+
+### Index rules
+
+
+These run only under `ignatius validate --index` (see [Commands](commands.md)). They compare each router's stored digest against a fresh recomputation and write nothing. `index.stale` is Class B so a drifted router fails a CI gate; the fix is `ignatius index`.
+
+| Rule ID | Class | Meaning |
+|---|---|---|
+| `index.stale` | B | A router's digest no longer matches its folder's current files, or the router is missing. |
+| `index.orphaned` | A | A router file left behind by an `index_file` change is still on disk. |
+| `index.unreadable_target` | B | A file a router row points at could not be read while recomputing, so its digest cannot be trusted. |
+
+
 ## Trying it out
 
 

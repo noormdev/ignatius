@@ -1,6 +1,7 @@
 ---
 entity: Memory
 group: memory
+description: A durable fact, decision, convention, or gotcha an agent has learned, with provenance flags for how it was acquired.
 pk:
   - memory_id
 columns:

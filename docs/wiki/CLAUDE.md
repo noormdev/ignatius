@@ -23,7 +23,7 @@ Server is `Bun.serve()` with HTML imports. No Express, no Vite, no webpack, no N
 
 ## Domains
 
-Keep the twelve established domains; do not re-derive or merge them.
+Keep these thirteen domains; do not re-derive or merge them. `router` was added 2026-09 for the model-index-routing feature (`src/router/`); the other twelve are unchanged.
 
 - cli — src/cli/
 - server — src/server/
@@ -37,6 +37,7 @@ Keep the twelve established domains; do not re-derive or merge them.
 - skill — skills/ignatius-modeling/
 - docs — docs/
 - scripts — scripts/
+- router — src/router/  (per-folder generated index.md routers, agent-guidance files, region parser)
 
 ## Ignore for domains
 

@@ -1,6 +1,7 @@
 ---
 entity: NoteType
 group: reference
+description: Controlled vocabulary classifying a note's structural role — project, milestone, or task.
 pk:
   - note_type
 columns:

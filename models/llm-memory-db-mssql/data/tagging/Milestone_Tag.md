@@ -1,6 +1,7 @@
 ---
 entity: Milestone_Tag
 group: tagging
+description: Junction attaching a tag to a milestone; cascades on tag delete.
 pk:
   - tag_id
   - milestone_id

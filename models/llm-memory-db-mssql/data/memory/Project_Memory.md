@@ -1,6 +1,7 @@
 ---
 entity: Project_Memory
 group: memory
+description: Junction attaching a memory to a project, recording which facts and decisions are relevant to it.
 pk:
   - project_id
   - memory_id

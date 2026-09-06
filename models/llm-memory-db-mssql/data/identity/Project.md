@@ -1,6 +1,7 @@
 ---
 entity: Project
 group: identity
+description: A code repository workspace that scopes an agent's memories, notes, milestones, tasks, and artifacts.
 pk:
   - project_id
 columns:

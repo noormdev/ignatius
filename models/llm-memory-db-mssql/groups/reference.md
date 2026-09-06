@@ -1,5 +1,6 @@
 ---
 label: Reference & Codes
+description: Status and type vocabularies plus the tables encoding which state transitions are legal.
 color: "#8b949e"
 ---
 

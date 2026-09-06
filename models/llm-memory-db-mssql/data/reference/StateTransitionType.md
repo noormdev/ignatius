@@ -1,6 +1,7 @@
 ---
 entity: StateTransitionType
 group: reference
+description: Controlled vocabulary classifying which entity and state dimension a journal entry belongs to.
 pk:
   - state_transition_type
 columns:

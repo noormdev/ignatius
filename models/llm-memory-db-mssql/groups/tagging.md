@@ -1,5 +1,6 @@
 ---
 label: Tagging
+description: The cross-cutting tag vocabulary and the five junctions that attach tags to other entities.
 color: "#ec6cb9"
 ---
 

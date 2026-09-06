@@ -1,6 +1,7 @@
 ---
 process: Relate Memories
 number: 2
+description: Creates a directed semantic edge between two memories using a controlled verb
 inputs:
   - from: ext:LLM-Agent
     data: semantic link request (source memory_id, target related_memory_id, relation_verb, reason)

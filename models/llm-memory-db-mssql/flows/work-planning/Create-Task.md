@@ -1,6 +1,7 @@
 ---
 process: Create Task
 number: 2
+description: Adds a task to a milestone, assigning the next milestone-scoped task_no
 inputs:
   - from: ext:LLM-Agent
     data: new task (milestone_id, title, content, reason)

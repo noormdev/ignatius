@@ -1,6 +1,7 @@
 ---
 process: Merge Tag
 number: 4
+description: Folds a duplicate tag into a canonical one across all junction tables
 inputs:
   - from: ext:LLM-Agent
     data: source and target tag references (source_tag_id, target_tag_id)

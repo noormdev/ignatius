@@ -1,6 +1,7 @@
 ---
 process: Close Milestone
 number: 5
+description: Closes a milestone and cascades abandonment to its open child tasks
 inputs:
   - from: ext:LLM-Agent
     data: close request (milestone_id)

@@ -1,5 +1,6 @@
 ---
 label: Identity & Workspace
+description: The agents that own records and the project workspaces that scope work, referenced as provenance nearly everywhere.
 color: "#2ea043"
 ---
 

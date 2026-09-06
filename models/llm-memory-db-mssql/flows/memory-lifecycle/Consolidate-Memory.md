@@ -1,6 +1,7 @@
 ---
 process: Consolidate Memory
 number: 4
+description: Folds a duplicate memory into a canonical one and marks it superseded
 inputs:
   - from: ext:LLM-Agent
     data: consolidation request (duplicate memory_id, canonical memory_id)

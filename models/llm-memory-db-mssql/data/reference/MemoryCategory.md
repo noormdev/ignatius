@@ -1,6 +1,7 @@
 ---
 entity: MemoryCategory
 group: reference
+description: Controlled vocabulary for the epistemic kind of a memory entry (fact, decision, convention).
 pk:
   - category
 columns:

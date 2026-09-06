@@ -1,6 +1,7 @@
 ---
 process: Delete Agent
 number: 4
+description: Retires an agent, reassigning its dependent rows to a sentinel agent
 inputs:
   - from: ext:LLM-Agent
     data: agent_id of the agent to be removed

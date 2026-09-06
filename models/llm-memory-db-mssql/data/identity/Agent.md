@@ -1,6 +1,7 @@
 ---
 entity: Agent
 group: identity
+description: An AI coding assistant (e.g. Claude, Cursor) whose identity anchors every memory, note, task, and artifact it creates.
 pk:
   - agent_id
 columns:

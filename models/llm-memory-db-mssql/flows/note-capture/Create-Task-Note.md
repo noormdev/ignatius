@@ -1,6 +1,7 @@
 ---
 process: Create Task Note
 number: 3
+description: Records a decision or observation against a specific task
 inputs:
   - from: ext:LLM-Agent
     data: content, reason, milestone_id, task_no

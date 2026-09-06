@@ -1,6 +1,7 @@
 ---
 entity: TrackingStatus
 group: reference
+description: Controlled vocabulary for progress states (pending, in_progress, done) applied to tasks and milestones.
 pk:
   - tracking_status
 columns:

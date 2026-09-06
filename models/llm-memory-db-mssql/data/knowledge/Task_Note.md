@@ -1,6 +1,7 @@
 ---
 entity: Task_Note
 group: knowledge
+description: Subtype record attaching a note to the composite-keyed task it annotates.
 pk:
   - note_id
 columns:

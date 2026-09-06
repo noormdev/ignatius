@@ -1,6 +1,7 @@
 ---
 process: Attach Tag to Memory
 number: 2
+description: Idempotently links one tag to one memory
 inputs:
   - from: ext:LLM-Agent
     data: tag and memory reference (tag_id, memory_id)

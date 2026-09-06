@@ -1,6 +1,7 @@
 ---
 entity: StateTransition
 group: audit
+description: The immutable, write-once audit journal of every relevance and tracking status change in the system.
 pk:
   - transition_id
 columns:

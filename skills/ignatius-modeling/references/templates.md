@@ -6,6 +6,7 @@
 ---
 entity: <EntityName>
 group: <group-slug>
+description: "<one-line description — the router table's payload, not a summary of the body>"
 pk:
   - <pk_col_1>
   # - <pk_col_2>  # key-inherited: add parent PK cols before local discriminator
@@ -380,6 +381,7 @@ the surrogate key verbatim, never introducing a renamed `<base>_id` column._
 ---
 label: <Human Readable Label>
 color: "#<hex>"
+description: "<one-line description — the router table's payload>"
 ---
 
 <Optional one-line description of what this group contains.>

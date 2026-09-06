@@ -1,6 +1,7 @@
 ---
 process: Filter Memories by Tags
 number: 6
+description: Returns active memories carrying every requested tag, newest-recalled first
 inputs:
   - from: ext:LLM-Agent
     data: tag filter set (one or more tag_ids to intersect)

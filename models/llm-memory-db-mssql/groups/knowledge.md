@@ -1,5 +1,6 @@
 ---
 label: Notes
+description: Free-form notes attached to a single project, milestone, or task.
 color: "#58a6ff"
 ---
 

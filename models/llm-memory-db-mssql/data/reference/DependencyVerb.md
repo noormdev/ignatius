@@ -1,6 +1,7 @@
 ---
 entity: DependencyVerb
 group: reference
+description: Controlled vocabulary of edge labels (blocks, requires, follows) for the task dependency graph.
 pk:
   - dependency_verb
 columns:

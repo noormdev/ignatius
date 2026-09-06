@@ -17,6 +17,7 @@ Endpoint tokens used in `inputs:`/`outputs:`/`examples:`:
 ---
 process: <Imperative Verb Phrase>   # e.g. Collect Payment
 number: <n>                         # process id within the diagram
+description: "<one-line description — the router table's payload>"
 inputs:
   - from: ext:<Name>
     data: <full payload phrase>     # name every field that crosses
@@ -104,6 +105,7 @@ relationship with the business.
 ```markdown
 ---
 external: <Name>
+description: "<one-line description — the router table's payload>"
 # title: <Display Label>   # optional; omit to derive the label from the name
 ---
 
@@ -154,6 +156,7 @@ Body is required: state why the store exists and show sample values.
 ---
 kind: <cache|queue|file|doc|manual|other>
 title: <Display Label>   # optional; omit to derive from the slug
+description: "<one-line description — the router table's payload>"
 ---
 
 <Why this store exists — the reason it is a resting place distinct from the

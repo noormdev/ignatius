@@ -75,6 +75,7 @@ export type FlowProcess = {
     bodyHtml: string;
     hasSubDfd: boolean;
     flowId: string;
+    description?: string;
     /** Optional in/out data examples for rendering as tables in the process dialog. */
     examples?: { in: FlowExample[]; out: FlowExample[] };
 };
@@ -87,6 +88,7 @@ export type FlowExternal = {
     body: string;
     bodyHtml: string;
     flowId: string;
+    description?: string;
 };
 
 export type FlowStoreRef = {
@@ -99,6 +101,7 @@ export type FlowStoreRef = {
     body?: string;
     bodyHtml?: string;
     flowId: string;
+    description?: string;
 };
 
 export type FlowDiagram = {
@@ -352,7 +355,7 @@ function buildEdgeFromOutput(
 function collectStoreRefsFromEdges(
     edges: FlowEdge[],
     flowId: string,
-    storeBodyByKindName: Map<string, { displayName: string; body: string; bodyHtml: string }>,
+    storeBodyByKindName: Map<string, { displayName: string; body: string; bodyHtml: string; description?: string }>,
 ): FlowStoreRef[] {
     const seen = new Map<string, FlowStoreRef>();
     for (const edge of edges) {
@@ -368,6 +371,7 @@ function collectStoreRefsFromEdges(
                 displayName: stored?.displayName ?? titlelize(ep.name),
                 flowId,
                 ...(stored !== undefined ? { body: stored.body, bodyHtml: stored.bodyHtml } : {}),
+                ...(stored?.description !== undefined ? { description: stored.description } : {}),
             };
             seen.set(key, ref);
         }
@@ -379,7 +383,7 @@ function collectStoreRefsFromEdges(
 // External description loading
 // ---------------------------------------------------------------------------
 
-type ExternalDef = { label: string; kind?: FlowStoreRef['kind']; body: string; bodyHtml: string };
+type ExternalDef = { label: string; kind?: FlowStoreRef['kind']; body: string; bodyHtml: string; description?: string };
 
 /**
  * Read an `externals/*.md` folder into a map of `extId → {label, body, html}`.
@@ -389,11 +393,13 @@ type ExternalDef = { label: string; kind?: FlowStoreRef['kind']; body: string; b
 async function readExternalsDir(
     dir: string,
     globalErrors: GlobalError[],
+    indexFileName: string,
 ): Promise<Map<string, ExternalDef>> {
     const map = new Map<string, ExternalDef>();
     const glob = new Bun.Glob('*.md');
     try {
         for await (const extPath of glob.scan(dir)) {
+            if (extPath === indexFileName) continue;
             const extFilePath = `${dir}/${extPath}`;
             try {
                 const content = await Bun.file(extFilePath).text();
@@ -419,7 +425,15 @@ async function readExternalsDir(
                 const extRawKind = frontmatter['kind'];
                 const extKind: FlowStoreRef['kind'] | undefined =
                     isKnownStoreKind(extRawKind) ? extRawKind : undefined;
-                map.set(extId, { label: resolvedExtLabel, kind: extKind, body, bodyHtml: md.render(body) });
+                const extRawDescription = frontmatter['description'];
+                const extDescription = typeof extRawDescription === 'string' ? extRawDescription : undefined;
+                map.set(extId, {
+                    label: resolvedExtLabel,
+                    kind: extKind,
+                    body,
+                    bodyHtml: md.render(body),
+                    ...(extDescription !== undefined ? { description: extDescription } : {}),
+                });
             } catch (err) {
                 globalErrors.push({
                     ruleId: 'parse.invalid_yaml',
@@ -445,8 +459,9 @@ async function parseDiagramFolder(
     parentDottedNumbers: number[],
     visitedPaths: Set<string>,
     rootExternals: Map<string, ExternalDef>,
-    rootStoreBodyByKindName: Map<string, { displayName: string; body: string; bodyHtml: string }>,
+    rootStoreBodyByKindName: Map<string, { displayName: string; body: string; bodyHtml: string; description?: string }>,
     globalErrors: GlobalError[],
+    indexFileName: string,
 ): Promise<FlowDiagram> {
     // Cycle guard: refuse to re-enter an ancestor folder
     const resolved = folderPath;
@@ -488,6 +503,7 @@ async function parseDiagramFolder(
 
     for (let i = 0; i < processFiles.length; i++) {
         const fileName = processFiles[i]!;
+        if (fileName === indexFileName) continue;
         const filePath = `${folderPath}/${fileName}`;
         const processId = fileName.replace(/\.md$/, '');
 
@@ -514,6 +530,9 @@ async function parseDiagramFolder(
             // (could be a README.md or other doc)
             continue;
         }
+
+        const rawDescription = frontmatter['description'];
+        const processDescription = typeof rawDescription === 'string' ? rawDescription : undefined;
 
         // Resolve display label: title: (explicit) → process: value → titlelize(id)
         const titleOverride = frontmatter['title'];
@@ -605,6 +624,7 @@ async function parseDiagramFolder(
             bodyHtml: md.render(body),
             hasSubDfd,
             flowId,
+            ...(processDescription !== undefined ? { description: processDescription } : {}),
             ...(parsedExamples ? { examples: parsedExamples } : {}),
         });
 
@@ -618,6 +638,7 @@ async function parseDiagramFolder(
                 rootExternals,
                 rootStoreBodyByKindName,
                 globalErrors,
+                indexFileName,
             );
             subDfds.push(subDiagram);
         }
@@ -638,7 +659,15 @@ async function parseDiagramFolder(
     for (const name of referencedExtNames) {
         const def = rootExternals.get(name);
         if (!def) continue; // referenced but not defined → validator flags unknown_external
-        externals.push({ id: name, label: def.label, kind: def.kind, body: def.body, bodyHtml: def.bodyHtml, flowId });
+        externals.push({
+            id: name,
+            label: def.label,
+            kind: def.kind,
+            body: def.body,
+            bodyHtml: def.bodyHtml,
+            flowId,
+            ...(def.description !== undefined ? { description: def.description } : {}),
+        });
     }
 
     // Build deduplicated store refs from all collected edges using the shared root store registry
@@ -659,7 +688,7 @@ async function parseDiagramFolder(
 // parseFlows — top-level entry
 // ---------------------------------------------------------------------------
 
-export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
+export async function parseFlows(modelDir: string, indexFileName = 'index.md'): Promise<FlowParseResult> {
     const globalErrors: GlobalError[] = [];
     const diagrams: FlowDiagram[] = [];
 
@@ -688,14 +717,15 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
 
     // Shared externals declared once at <modelDir>/externals/ — usable by any DFD
     // at any depth (passed down the recursion).
-    const rootExternals = await readExternalsDir(`${modelDir}/externals`, globalErrors);
+    const rootExternals = await readExternalsDir(`${modelDir}/externals`, globalErrors, indexFileName);
 
     // Shared stores declared once at <modelDir>/stores/ — usable by any DFD.
-    const rootStoreBodyByKindName = new Map<string, { displayName: string; body: string; bodyHtml: string }>();
+    const rootStoreBodyByKindName = new Map<string, { displayName: string; body: string; bodyHtml: string; description?: string }>();
     const storeGlob = new Bun.Glob('*.md');
     const storesDir = `${modelDir}/stores`;
     try {
         for await (const storePath of storeGlob.scan(storesDir)) {
+            if (storePath === indexFileName) continue;
             const storeFilePath = `${storesDir}/${storePath}`;
             try {
                 const content = await Bun.file(storeFilePath).text();
@@ -711,7 +741,14 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
                     typeof storeTitleOverride === 'string' && storeTitleOverride.trim()
                         ? storeTitleOverride.trim()
                         : titlelize(storeName);
-                rootStoreBodyByKindName.set(key, { displayName: resolvedDisplayName, body, bodyHtml: md.render(body) });
+                const storeRawDescription = frontmatter['description'];
+                const storeDescription = typeof storeRawDescription === 'string' ? storeRawDescription : undefined;
+                rootStoreBodyByKindName.set(key, {
+                    displayName: resolvedDisplayName,
+                    body,
+                    bodyHtml: md.render(body),
+                    ...(storeDescription !== undefined ? { description: storeDescription } : {}),
+                });
             } catch (err) {
                 globalErrors.push({
                     ruleId: 'parse.invalid_yaml',
@@ -750,6 +787,7 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
             rootExternals,
             rootStoreBodyByKindName,
             globalErrors,
+            indexFileName,
         );
         diagrams.push(diagram);
     }
@@ -759,7 +797,15 @@ export async function parseFlows(modelDir: string): Promise<FlowParseResult> {
     // defined externals regardless of which ones each diagram references.
     const rootExternalsList: FlowExternal[] = [];
     for (const [name, def] of rootExternals) {
-        rootExternalsList.push({ id: name, label: def.label, kind: def.kind, body: def.body, bodyHtml: def.bodyHtml, flowId: '' });
+        rootExternalsList.push({
+            id: name,
+            label: def.label,
+            kind: def.kind,
+            body: def.body,
+            bodyHtml: def.bodyHtml,
+            flowId: '',
+            ...(def.description !== undefined ? { description: def.description } : {}),
+        });
     }
 
     const rawFlowModel: FlowModel = { diagrams, modelDir, externals: rootExternalsList };

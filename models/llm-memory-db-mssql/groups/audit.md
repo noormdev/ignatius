@@ -1,5 +1,6 @@
 ---
 label: State & Audit
+description: The immutable, write-once journal of every relevance and tracking status change.
 color: "#f85149"
 ---
 

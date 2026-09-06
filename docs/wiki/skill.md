@@ -1,59 +1,96 @@
 ---
 type: Domain
-description: Project-scoped Claude Code skill (`/ignatius-modeling`) that Q&A-authors ignatius entities, models, DFD flows, and Socratic-discovery models, then verifies with `ignatius validate`.
+description: Project-scoped Claude Code skill that Q&A-authors ignatius entities, models, DFD flows, and Socratic-discovery models, then verifies with `ignatius validate`.
+tags: [skill, parser, validate]
 ---
 
 # skill
 
 ## What it does
 
-[`skills/ignatius-modeling/SKILL.md`](../../skills/ignatius-modeling/SKILL.md) frontmatter: `name: ignatius-modeling`, `description: Guided Q&A authoring of ignatius entities, data flow diagrams, and models, plus Socratic discovery. Use when adding entities, flows, or models.`, `argument-hint: "[entity|model|flow|discover]"`, `allowed-tools: Read Write Edit Bash Glob AskUserQuestion`.
+[`skills/ignatius-modeling/`](../../skills/ignatius-modeling) is a Claude Code skill (`name: ignatius-modeling`, invoked as `/ignatius-modeling [entity|model|flow|discover]`) that turns a Q&A conversation into real ignatius model files on disk, then checks its own output by shelling out to `ignatius validate`. Without it, an entity, flow, or model file has to be hand-written against the parser's YAML frontmatter rules and the IDEF1X key-shape conventions in `references/conventions.md`, with no in-conversation check that the result parses or validates.
 
-Four modes selected by `$ARGUMENTS`: `entity` (add one entity file), `model` (bootstrap a new model skeleton), `flow` (author a DFD for a user who already knows their processes), `discover` (Socratic five-gate interview that generates both entities and flows; routes to `references/reverse-engineering.md` when a real database/codebase/schema exists to read instead of a user description).
+It never invents structure: PK shape, classification, and cardinality are always derived from what the user's data already implies (`references/conventions.md`), and every write is checked against the same `validateModel` logic the CLI's `validate` command and the test suite exercise, so a file the skill produces is held to the same bar as one a human wrote by hand.
 
-Writes real files to disk and, after every write, runs the verification loop in `references/verification.md`, which shells out to `ignatius validate <model-root>` and parses its stderr (`<sev>  <ruleId>  <location>  <message>`) against a hardcoded rule-reference table to report fix hints.
+## How it works
 
-## Artifacts
+`SKILL.md`'s frontmatter declares `allowed-tools: Read Write Edit Bash Glob AskUserQuestion` and reads `$ARGUMENTS` to pick one of four modes, each delegating to its own reference file.
 
-- [`skills/ignatius-modeling/SKILL.md`](../../skills/ignatius-modeling/SKILL.md) — entry point: frontmatter, mode-dispatch list, the eight "Core rules" that apply to all four modes (derive-never-ask, convention-is-derived, adapt-to-user-conventions, existence-rules-survive-key-style, subtype-independence, predicates-carry-meaning, examples-always, capture-the-business-story), and the reference-file index.
-- [`skills/ignatius-modeling/references/interviewing.md`](../../skills/ignatius-modeling/references/interviewing.md) — how to conduct the Q&A, read first, applies to every mode: one question at a time, explain the why, act (write files) rather than just propose, infer from existing files before asking, reflect after verification instead of blind regeneration, self-check before declaring done, prefer the positive form.
-- [`skills/ignatius-modeling/references/entity-flow.md`](../../skills/ignatius-modeling/references/entity-flow.md) — `entity` mode steps E0–E10: locate model root, entity id, group (with a group-creation sub-flow E2a), convention detection (E3, derived default not a mode), PK columns, relationships/predicates with a one-time convention nudge, conditional subtype-cluster step (E5a), alternate keys, columns, always-run examples step (E7b), reference-table flag (E8), business context/rules/lifecycle (E9), write file (E10).
-- [`skills/ignatius-modeling/references/model-flow.md`](../../skills/ignatius-modeling/references/model-flow.md) — `model` mode steps M1–M8: target directory, model name, model purpose (`description:`), default key-style suggestion recorded as an `ignatius.yml` comment, optional theme (dark/light palette, spacing, per-kind flow colors), optional branding, groups, optional bootstrap entity, write skeleton files.
-- [`skills/ignatius-modeling/references/dfd-authoring.md`](../../skills/ignatius-modeling/references/dfd-authoring.md) — `flow` mode steps F0–F9: locate model root and read entities, diagram identity and standalone-vs-decomposition choice, name processes (Title-Case filename = process id), external sources/sinks, the `db:`/`kind:` store fork, per-field data labels, always-run examples (F6), required bodies per node type (F7), recursive sub-DFD decomposition with no depth cap (F8), write + verify (F9).
-- [`skills/ignatius-modeling/references/flow-templates.md`](../../skills/ignatius-modeling/references/flow-templates.md) — the three DFD node file templates (process, external entity at `externals/<Name>.md`, non-`db` store at `stores/<slug>.md`) plus worked examples (`Collect-Payment.md`, `Customer.md`, `gateway-log.md`); states its frontmatter keys and endpoint tokens match [`docs/spec/process-flows.md`](../spec/process-flows.md).
-- [`skills/ignatius-modeling/references/discover-flow.md`](../../skills/ignatius-modeling/references/discover-flow.md) — `discover` mode: verbs-first shape (find the verbs, derive the nouns, write nouns then verbs), the five gates (Identify, Decide, Justify, Derive, Ground) as plain-English questions, a `<constraints>` block banning the gates' underlying formal-logic names (excluded middle, law of identity, non-contradiction, sufficient reason, four causes, three-valued logic, falsifiable, syllogism, a priori, ontology) from ever reaching the user, and "crystallize as you go" incremental file-writing.
-- [`skills/ignatius-modeling/references/reverse-engineering.md`](../../skills/ignatius-modeling/references/reverse-engineering.md) — extracting a model from an existing system (live DB/DDL, ORM models, codebase, stored procedures, API spec, sample data) in five IDEF1X-spirit phases R0–R4; explicitly faithful-first ("never silently 'fix' " an anti-pattern during extraction); feeds candidates back through `discover-flow.md`'s five gates.
-- [`skills/ignatius-modeling/references/conventions.md`](../../skills/ignatius-modeling/references/conventions.md) — column type list (`text`, `integer`, `decimal`, `boolean`, `date`, `datetime`, `binary`, `json`), column-property table, and the classification/cardinality derivation tables the parser applies (read-only reference — the skill never asks the user for these).
-- [`skills/ignatius-modeling/references/templates.md`](../../skills/ignatius-modeling/references/templates.md) — the entity `.md`, `groups/<slug>.md`, and `ignatius.yml` templates, plus worked key-inherited, orm-oriented, business-context, and subtype-cluster (base + member) examples.
-- [`skills/ignatius-modeling/references/verification.md`](../../skills/ignatius-modeling/references/verification.md) — the `ignatius validate` loop: stderr line format, the full entity/parse/edge/cluster/body rule table and the `flow.*` rule table (each row mapped back to the authoring step that produced the finding), retry policy (max 5 attempts, prefilled re-ask rather than blind rewrite), and the post-clean-validate self-check (business context captured, predicates read as true sentences, example rows checked against `pk ∪ columns` since `entity.example_unknown_column` is live-server-only and `validate` never prints it).
+**The mode's argument selects which reference file drives the conversation, and `discover` forks again on where the evidence comes from.**
 
-## Docs
+```mermaid
+flowchart LR
+    A["$ARGUMENTS"] --> B{mode}
+    B -->|entity| C["entity-flow.md"]
+    B -->|model| D["model-flow.md"]
+    B -->|flow| E["dfd-authoring.md"]
+    B -->|discover| F["discover-flow.md"]
+    F -->|real system to read| G["reverse-engineering.md"]
+    B -->|empty/unrecognized| H["ask which mode"]
+```
 
-- [`docs/design/ignatius-modeling-skill.md`](../design/ignatius-modeling-skill.md) — original design doc for the `entity`/`model` modes: the problem (hand-written frontmatter, easy-to-miss IDEF1X rules, reactive linting) and goals/non-goals.
-- [`docs/spec/ignatius-modeling-skill.md`](../spec/ignatius-modeling-skill.md) — spec for the `entity`/`model` modes: mode table, non-goals (no linter reimplementation, no bulk-create, no old-YAML-format migration, no reverse-engineering-to-editable-form, no CLI subcommand, no templating dependency, no automatic `git add`/`commit`).
-- [`docs/design/noorm-flow-discovery.md`](../design/noorm-flow-discovery.md) — design doc that added the `flow` and `discover` modes on top of the original `entity`/`model` skill.
-- [`docs/spec/noorm-flow-discovery.md`](../spec/noorm-flow-discovery.md) — spec for `flow`/`discover`: no new `flow.*` validator rules, skill-markdown-only change, `discover` as the generative counterpart to `/pressure-test`.
-- [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) — user-facing guide: prerequisites (`ignatius` on `$PATH` or built via `bun run build:cli`) and install via `npx skills add https://github.com/noormdev/ignatius --skill ignatius-modeling`.
-- [`docs/guides/flows.md`](../guides/flows.md) — user-facing guide to the `flows/` folder layout and process frontmatter that `references/dfd-authoring.md` and `references/flow-templates.md` author against.
-- [`docs/guides/getting-started.md`](../guides/getting-started.md) — links to `modeling-skill.md` as the recommended way to author entity and flow files.
-- [`docs/spec/folder-model.md`](../spec/folder-model.md) — spec that drove a full rewrite of all eight `skills/ignatius-modeling/references/*.md` files (plus `SKILL.md`) onto the current five-folder model-root layout (`data/`, `groups/`, `flows/`, `externals/`, `stores/`, `ignatius.yml` — no leading-underscore folder names).
+- `entity` — add one entity file (`references/entity-flow.md`, steps E0-E10).
+- `model` — bootstrap a new model skeleton (`references/model-flow.md`, steps M1-M8).
+- `flow` — author a DFD for a user who already knows their processes (`references/dfd-authoring.md`, steps F0-F9).
+- `discover` — a five-gate Socratic interview that generates both entities and flows (`references/discover-flow.md`); it routes to `references/reverse-engineering.md` (phases R0-R4) when a live database, codebase, schema, or API exists to read instead of a user description.
+
+Nine core rules in `SKILL.md` apply across all four modes: derive-never-ask (classification and per-edge `identifying` come from key shape, never a question), convention-is-derived (an entity's PK shape *is* its key-inherited-vs-orm-oriented style), adapt-to-the-user's-conventions (never invent naming), existence-rules-survive-the-key-style (a mandatory parent is asserted by key placement or by a documented `nullable: false` rule), subtype-independence (Subtype classification comes from cluster membership, never a direct ask), predicates-carry-business-meaning (push past "has many" to a domain verb), examples-always (every entity gets 2-3 `examples:` rows, every process gets `in`/`out` examples, generated by the skill and never skipped), `description:`-always (every entity, group, process, external, and store gets a one-line `description:` frontmatter field, generated by the skill, never skipped, and never named after the model's reserved `index_file` basename), and capture-the-business-story (rules, constraints, and lifecycle go in the body with their source).
+
+`references/interviewing.md` sets the conversational discipline every mode follows: one question at a time, explain the why, write files as answers land rather than only proposing YAML, infer from existing files before asking, and reflect on validator findings rather than blindly regenerating.
+
+`discover` mode leads with verbs (find the business's processes), derives the nouns each verb requires, and writes nouns before verbs since a flow's `db:` labels point at entity columns that must already exist. Every candidate is run through five gates (Identify, Decide, Justify, Derive, Ground) translated into plain business questions; their underlying formal-logic names (excluded middle, law of identity, non-contradiction, sufficient reason, four causes, three-valued logic, falsifiable, syllogism, a priori, ontology) are banned from ever reaching the user. Gate 5's real instances seed both the entity's `examples:` (Step E7b) and the flow's `examples:` (Step F6), so one set of concrete values ends up in both places.
+
+### The verification loop
+
+**Every write routes through the same validator, and a finding re-asks the Q&A step that produced it rather than triggering a blind rewrite.**
+
+```mermaid
+flowchart TD
+    W["write file(s)"] --> V["ignatius validate model-root"]
+    V --> P{"any findings?"}
+    P -->|yes| R["reflect: map ruleId to Q&A step"]
+    R --> Q["re-ask only that step, prefilled"]
+    Q --> W
+    P -->|no| S["self-check: business context, predicates, examples"]
+    S --> Done["report: 0 findings, story captured"]
+```
+
+`references/verification.md` parses each stderr line (`<sev>  <ruleId>  <location>  <message>`) against a hardcoded rule-reference table covering every `entity.*`/`parse.*`/`body.*`/`edge.*`/`cluster.*`/`config.*`/`index.*` ruleId, and a second table for `flow.*` rules that appear once a model has a `flows/` directory. The loop caps at 5 attempts; Class A warnings keep exit 0 but are still tracked to zero, not treated as done. A clean `validate` exit is necessary but not sufficient: the final self-check re-reads the entity body for captured business rules, checks that each predicate reads as a true sentence in both directions, and re-checks every `examples:` row key against `pk ∪ columns` by hand, because `entity.example_unknown_column` is live-server-only and `ignatius validate` never prints it.
+
+A second, separate gate covers router staleness: `ignatius validate --index <model-root>` recomputes each generated router's digest against current files and reports drift as `index.stale`, run only on a model that has been indexed at least once (`ignatius index` has run before); fixing it means running `ignatius index` again, then re-running `--index` to confirm clean.
+
+## Where it lives
+
+| Path | Covers |
+|------|--------|
+| [`skills/ignatius-modeling/SKILL.md`](../../skills/ignatius-modeling/SKILL.md) | Entry point: frontmatter, mode dispatch, the nine core rules, the reference-file index |
+| [`skills/ignatius-modeling/references/interviewing.md`](../../skills/ignatius-modeling/references/interviewing.md) | Q&A conduct rules applied to every mode |
+| [`skills/ignatius-modeling/references/entity-flow.md`](../../skills/ignatius-modeling/references/entity-flow.md) | `entity` mode, steps E0-E10 |
+| [`skills/ignatius-modeling/references/model-flow.md`](../../skills/ignatius-modeling/references/model-flow.md) | `model` mode, steps M1-M8 |
+| [`skills/ignatius-modeling/references/dfd-authoring.md`](../../skills/ignatius-modeling/references/dfd-authoring.md) | `flow` mode, steps F0-F9 |
+| [`skills/ignatius-modeling/references/flow-templates.md`](../../skills/ignatius-modeling/references/flow-templates.md) | Process, external, and non-`db` store file templates and worked examples |
+| [`skills/ignatius-modeling/references/discover-flow.md`](../../skills/ignatius-modeling/references/discover-flow.md) | `discover` mode: the five gates, verbs-first shape, banned-term list |
+| [`skills/ignatius-modeling/references/reverse-engineering.md`](../../skills/ignatius-modeling/references/reverse-engineering.md) | Extracting entities + flows from a live system, phases R0-R4 |
+| [`skills/ignatius-modeling/references/conventions.md`](../../skills/ignatius-modeling/references/conventions.md) | Reserved `index_file` basename, column types, classification/cardinality derivation tables |
+| [`skills/ignatius-modeling/references/templates.md`](../../skills/ignatius-modeling/references/templates.md) | Entity, group, and `ignatius.yml` templates |
+| [`skills/ignatius-modeling/references/verification.md`](../../skills/ignatius-modeling/references/verification.md) | The `ignatius validate` loop, both rule-reference tables, self-check steps |
+
+## Constraints
+
+| Condition | Consequence |
+|---|---|
+| A `data/` file is named after the model's `index_file` value (default `index.md`) and declares `entity:` | Fails `config.index_file_entity`; without `entity:` it is silently treated as a router and skipped, not scanned |
+| A body links another entity as `[Party](Party.md)` instead of `[[Party]]` | Renders as a dead relative link, invisible to `body.unknown_link`, never reported |
+| A non-`db` flow store uses a `<kind>:` prefix outside `cache`/`queue`/`file`/`doc`/`manual`/`other` | Not read as a kind at all; falls through to process-name resolution and fails with a misleading `flow.unknown_process` |
+| An `examples:` row has a key outside `pk ∪ columns` | `entity.example_unknown_column` exists but is live-server-only; `ignatius validate` never prints it, so only the skill's own self-check (Step E7b) catches it |
+| A sub-DFD is decomposed (Step F8, no depth cap) | `flow.unbalanced_decomposition` checks each level only against its immediate parent, never the root diagram |
+| Discover mode's internal gate names (excluded middle, law of identity, etc.) | Banned from ever reaching the user; a leaked formal-logic term means the question needs rewriting as plain business English |
 
 ## Coupling
 
-- `references/conventions.md`'s classification and cardinality derivation tables restate the parser's own key-shape derivation logic; if that derivation logic changes (parser domain), these tables and `entity-flow.md` Step E3 go stale and the skill starts teaching wrong rules.
-- `references/verification.md`'s rule-reference table hardcodes every `ruleId`, severity, and Class (A/B) that `ignatius validate` can emit, including the exact stderr line format (`<sev>  <ruleId>  <location>  <message>`) and the non-zero-only-on-Class-B exit code; a new/renamed lint rule or a CLI output-format change (validate/CLI domains) requires a matching edit here or the fix-hint lookup and the parsing loop both break.
-- `references/flow-templates.md` states its frontmatter keys and endpoint tokens (`db:`/`ext:`/`<kind>:`) match [`docs/spec/process-flows.md`](../spec/process-flows.md) exactly — a flow frontmatter schema change (flows domain) must be mirrored in this file and in `dfd-authoring.md`.
-- `references/entity-flow.md` Step E7b names [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) as its canonical source for `examples:` row shape — a change to that spec must be mirrored in E7b and the entity template in `references/templates.md`.
-- `references/model-flow.md` Step M4's theme key/default table is copied from `src/theme-defaults.ts` (theme domain); a change to those defaults must be mirrored here.
-- The skill writes files exclusively into the five-folder model-root layout (`data/<group>/`, `groups/`, `flows/`, `externals/`, `stores/`, `ignatius.yml`) that the parser/folder-model contract owns ([`docs/spec/folder-model.md`](../spec/folder-model.md)); another folder-layout change forces another skill-wide reference rewrite, as it already has once.
-- The skill has no independent verification logic of its own — every write is checked exclusively by shelling out to `ignatius validate` (CLI/validate domains); `references/verification.md` explicitly flags one exception the CLI cannot catch (`entity.example_unknown_column` is live-server-only, never printed by `validate`), so the skill's own self-check step is the only gate for that class of error, coupling it to the frontend/server domain's in-app rule surface.
-
-## Conventions worth knowing
-
-- Convention (key style) is derived, never asked or declared as a mode: a composite PK containing an FK column is `key-inherited`, a single surrogate `id` PK with FKs outside it is `orm-oriented`. It is detected per entity from existing files (or, for a fresh model, from a `# Default key style:` comment at the top of `ignatius.yml`) and only ever offered as a default suggestion.
-- Wiki-links (`[[Name]]`) are the only link form that resolves in bodies; a markdown file link like `[Party](Party.md)` renders as a dead relative link and is invisible to validation (`body.unknown_link` only checks `[[…]]`).
-- The non-`db` flow store `<kind>:` prefix set is closed to `cache`/`queue`/`file`/`doc`/`manual`/`other`; an unrecognized prefix is not read as a kind at all — it falls through to process-name resolution and fails with a misleading `flow.unknown_process` error rather than a clear one.
-- Examples are never optional: every entity carries 2–3 `examples:` rows and every flow process carries an `examples:` block with `in`/`out` entries, generated by the skill itself from context rather than requested from the user.
-- A DFD process's filename (spaces→hyphens, Title-Case preserved, e.g. `Collect Payment` → `Collect-Payment.md`) is its id everywhere: the `proc:` token, wiki-link targets, and the sub-DFD folder name at Step F8 must all match it exactly.
-- Sub-DFD decomposition (Step F8) is recursive with no depth cap; dotted process numbers compose automatically per level, and `flow.unbalanced_decomposition` is checked at each level against its immediate parent only, never against the root diagram.
-- `discover` mode's five gates (Identify, Decide, Justify, Derive, Ground) are translated into plain business questions; their underlying formal-logic names are explicitly banned from ever appearing in anything the user reads.
+- `references/conventions.md`'s classification and cardinality derivation tables restate the parser's own key-shape derivation logic (parser domain); if that logic changes, these tables and `entity-flow.md` Step E3 go stale and the skill starts teaching wrong rules.
+- `references/verification.md`'s rule-reference table hardcodes every `ruleId`, severity, and Class (A/B) `ignatius validate` can emit, the exact stderr line format, and the `index.*`/`config.index_file_*` rows `validate --index` adds (validate domain); a new or renamed lint rule, or a CLI output-format change (CLI domain), requires a matching edit here or the fix-hint lookup and the parsing loop both break.
+- The skill writes exclusively into the five-folder model-root layout (`data/<group>/`, `groups/`, `flows/`, `externals/`, `stores/`, `ignatius.yml`) that [`docs/spec/folder-model.md`](../spec/folder-model.md) and the parser own; a folder-layout change forces another skill-wide reference rewrite, as it already has once.
+- `references/model-flow.md` Step M4's theme key/default table (`background`, `surface`, `border`, `text`, `textMuted`, `edgeIdentifying`, `edgeReferential`, plus `spacing.nodeSep`) is copied verbatim from [`src/theme/theme-defaults.ts`](../../src/theme/theme-defaults.ts)'s `defaultTheme` (theme domain); a change to those defaults must be mirrored here.
+- The skill has no independent verification logic of its own: every write is checked exclusively by shelling out to `ignatius validate` (CLI/validate domains). `references/verification.md` flags one exception the CLI cannot catch (`entity.example_unknown_column`, live-server-only), coupling the skill's own self-check step to the frontend/server domain's in-app rule surface.
+- `references/dfd-authoring.md` and `references/flow-templates.md` share the DFD frontmatter shape (`inputs:`/`outputs:`/`examples:` endpoint tokens `db:`/`ext:`/`<kind>:`) with the flows domain's own parser; a token-set or frontmatter-key change there must be mirrored in both skill files.

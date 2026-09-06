@@ -1,6 +1,7 @@
 ---
 entity: MemoryDomain
 group: reference
+description: Controlled vocabulary of broad subject areas (coding, architecture, preferences) classifying memories.
 pk:
   - domain
 columns:

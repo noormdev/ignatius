@@ -1,6 +1,7 @@
 ---
 process: Attach Artifact To Task
 number: 3
+description: Idempotently links an artifact to a specific task within a milestone
 inputs:
   - from: ext:LLM-Agent
     data: artifact_id, milestone_id, task_no

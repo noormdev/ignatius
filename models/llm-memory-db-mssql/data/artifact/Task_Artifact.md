@@ -1,6 +1,7 @@
 ---
 entity: Task_Artifact
 group: artifact
+description: Junction linking a composite-keyed task to the artifacts it produced, finer-grained than Milestone_Artifact.
 pk:
   - milestone_id
   - task_no

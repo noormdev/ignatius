@@ -13,6 +13,12 @@ Ask: "Entity name (becomes the file name and the id used in relationships, wiki-
 
 The id is free-form — the parser enforces no casing. PascalCase (`SalesOrder`) is the greenfield convention; suggest it for new models, but match the prevailing style when the model already has one. When entities come from an existing system (reverse-engineering), keep the source's names verbatim — `sales_orders` stays `sales_orders`; renaming to convention is a user decision, never an automatic cleanup.
 
+Never name the entity file after the model's configured `index_file` (default `index.md`) — that basename is reserved for the generated router; a `data/` file with that name that also declares `entity:` fails validation (`config.index_file_entity`).
+
+### Step E1b — Description (always)
+
+Always run this step — do not skip or make it optional. Write a one-line `description:` frontmatter field: the text a router table shows beside this entity's name, the payload that lets a reader decide whether to open the file without opening it. Generate it yourself from the entity name, group, and any context gathered so far — don't ask the user to draft it — then show it and let them adjust. One sentence; the fuller story is Step E9.
+
 ### Step E2 — Group
 
 Ask: "Which group? (existing group names: `<list from groups/*.md>`)"

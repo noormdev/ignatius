@@ -1,6 +1,7 @@
 ---
 process: Bulk Attach Tag to Memories
 number: 3
+description: Attaches one tag to a batch of memories in a single round trip
 inputs:
   - from: ext:LLM-Agent
     data: tag and memory set (tag_id, memory_ids[ ])

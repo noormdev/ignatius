@@ -1,6 +1,7 @@
 ---
 process: Update Project
 number: 3
+description: Amends a project's editable metadata after confirming it exists
 inputs:
   - from: ext:LLM-Agent
     data: project_id and any combination of updated name, filepath, git_repo, main_branch, git_url

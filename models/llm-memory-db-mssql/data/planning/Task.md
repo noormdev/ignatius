@@ -1,6 +1,7 @@
 ---
 entity: Task
 group: planning
+description: An atomic unit of work advancing a milestone, keyed by a milestone-scoped task number.
 pk:
   - milestone_id
   - task_no

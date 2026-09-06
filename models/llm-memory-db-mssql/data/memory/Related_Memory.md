@@ -1,6 +1,7 @@
 ---
 entity: Related_Memory
 group: memory
+description: Directed edge asserting one memory supersedes, supports, or contradicts another.
 pk:
   - memory_id
   - related_memory_id

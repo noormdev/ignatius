@@ -55,8 +55,8 @@ Edit any file in the folder and the graph reloads in the browser without a refre
 | Guide | What it covers |
 |---|---|
 | [Getting started](docs/guides/getting-started.md) | Install, build from source, and serve your first model |
-| [Commands](docs/guides/commands.md) | `serve`, `export`, `validate`, and model discovery |
-| [The folder format](docs/guides/folder-format.md) | `ignatius.yml`, entity files, columns, relationships, groups |
+| [Commands](docs/guides/commands.md) | `serve`, `export`, `validate`, `index`, and model discovery |
+| [The folder format](docs/guides/folder-format.md) | `ignatius.yml`, entity files, columns, relationships, groups, generated routers |
 | [What gets derived](docs/guides/derivation.md) | Cardinality, classification, and subtype clusters |
 | [Bidirectional predicates](docs/guides/predicates.md) | Forward and reverse edge labels with hover-swap |
 | [Process flows](docs/guides/flows.md) | Data flow diagrams: processes, externals, stores, sub-DFDs |

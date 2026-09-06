@@ -1,6 +1,7 @@
 ---
 entity: MemoryRelationVerb
 group: reference
+description: Controlled vocabulary of directed edge labels for the memory relation graph, storing both verb directions per row.
 pk:
   - verb_forward
 columns:

@@ -1,6 +1,7 @@
 ---
 process: Create Project
 number: 2
+description: Registers a codebase workspace under a validated owning agent
 inputs:
   - from: ext:LLM-Agent
     data: project name, filepath, git_repo, main_branch, git_url, and owning agent_id

@@ -1,6 +1,7 @@
 ---
 entity: Milestone
 group: planning
+description: A tracked deliverable scoped to a project, with independent tracking and relevance status axes.
 pk:
   - milestone_id
 columns:
