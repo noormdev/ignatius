@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/noormdev/ignatius/compare/v0.17.0...v0.18.0) (2026-09-06)
+
+
+### Features
+
+* add model index routing ([750f01a](https://github.com/noormdev/ignatius/commit/750f01a76d9150c860e44b5eaea3f9c9d883cb2c))
+
 ## [0.17.0](https://github.com/noormdev/ignatius/compare/v0.16.0...v0.17.0) (2026-08-22)
 
 
