@@ -10,7 +10,7 @@ tags: [design, spec, guide]
 ## What it does
 
 
-[`docs/`](..) (excluding the generated [`docs/wiki/`](.)) is ignatius's documentation corpus: 76 markdown files plus [`docs/glossary.md`](../glossary.md), split across four directories that each answer a different question about a feature. [`docs/design/`](../design) (29 files) states why a feature exists and which approach was chosen over its alternatives. [`docs/spec/`](../spec) (35 files) is the implementation contract derived from a design: checkpoints, success criteria, and (for two specs so far) a change-tree/outline/flows triad. [`docs/guides/`](../guides) (10 files) teaches a user how to drive the built feature. [`docs/research/`](../research) (2 files) records background investigation that fed a design's option table. None of these files execute; every other domain's code and tests point back at them by name for the "why is it built this way" and "what is the contract" questions code alone can't answer.
+[`docs/`](..) (excluding the generated [`docs/wiki/`](.)) is ignatius's documentation corpus, split into four directories that each answer a different question about a feature: why it exists, what its contract is, how to drive it, and what background research shaped it. A session that needs one of those answers goes to the directory that owns it, rather than searching the whole tree. [`docs/design/`](../design) states why a feature exists and which approach was chosen over its alternatives. [`docs/spec/`](../spec) is the implementation contract derived from a design: checkpoints, success criteria, and (for three specs so far) a change-tree/outline/flows triad. [`docs/guides/`](../guides) teaches a user how to drive the built feature. [`docs/research/`](../research) records background investigation that fed a design's option table. None of these files execute; every other domain's code and tests point back at them by name for the "why is it built this way" and "what is the contract" questions code alone can't answer. The corpus totals 78 markdown files plus [`docs/glossary.md`](../glossary.md): 30 in [`docs/design/`](../design), 36 in [`docs/spec/`](../spec), 10 in [`docs/guides/`](../guides), 2 in [`docs/research/`](../research).
 
 [`README.md`](../../README.md) states the design/spec relationship directly: "Conceptual designs live in [`docs/design/`](../design); the implementation contracts derived from them live in [`docs/spec/`](../spec)."
 
@@ -48,18 +48,19 @@ stateDiagram-v2
 
 ### The change-tree / outline / flows triad is opt-in by spec age, not by feature size
 
-[`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md) and [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) are the only two of 35 specs carrying `## Change tree`, `## Outline`, and `## Flows` sections; the other 33 predate the rule that requires them and are not backfilled by an unrelated amendment. 28 of 35 specs also carry a `## Implementation log` (narrative build history: checkpoints landed, out-of-scope work performed, unforeseens, deferred items) — a section distinct from `## Change log`, which records contract amendments, not build narrative.
+[`docs/spec/graph-flow-search.md`](../spec/graph-flow-search.md), [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md), and [`docs/spec/dfd-store-clusters.md`](../spec/dfd-store-clusters.md) are the only three of 36 specs carrying `## Change tree`, `## Outline`, and `## Flows` sections; the other 33 predate the rule that requires them and are not backfilled by an unrelated amendment. 29 of 36 specs also carry a `## Implementation log` (narrative build history: checkpoints landed, out-of-scope work performed, unforeseens, deferred items) — a section distinct from `## Change log`, which records contract amendments, not build narrative.
 
 
 ## Where it lives
 
 
-### [`docs/design/`](../design) — conceptual/approach docs (29 files)
+### [`docs/design/`](../design) — conceptual/approach docs (30 files)
 
 | Path | Lines | Covers |
 |------|-------|--------|
 | [`docs/design/model-index-routing.md`](../design/model-index-routing.md) | 476 | Per-folder generated routers (`index.md`), rolled-up SHA digests, `<ignatius-*>` managed regions, `index_file:`/`harness:` config, in-folder `AGENTS.md`/[`CLAUDE.md`](../../CLAUDE.md)/`SKILL.md` agent guidance |
 | [`docs/design/markdown-driven-erd.md`](../design/markdown-driven-erd.md) | 333 | Canonical source for the markdown-driven entity file format; no [`docs/spec/`](../spec) counterpart |
+| [`docs/design/dfd-store-clusters.md`](../design/dfd-store-clusters.md) | 299 | Per-process vs. connected DFD views, prose `label:` on any flow entry, `clusters/` author-cluster files, the `cluster:` token, subtype-family and group collapse levels, adjacency stacking, the stack/contract/subtype/group dialog rules, the stacked-paper "more inside" marker construction |
 | [`docs/design/process-flows.md`](../design/process-flows.md) | 218 | SSADM DFD subsystem: processes, externals, stores, sub-DFDs |
 | [`docs/design/schema-lint-and-error-ux.md`](../design/schema-lint-and-error-ux.md) | 205 | Schema lint + error UX |
 | [`docs/design/noorm-flow-discovery.md`](../design/noorm-flow-discovery.md) | 179 | `ignatius-modeling` skill's `flow` and `discover` Q&A modes |
@@ -88,12 +89,13 @@ stateDiagram-v2
 | [`docs/design/src-root-organization.md`](../design/src-root-organization.md) | 49 | [`src/`](../../src) top-level subdirectory split |
 | [`docs/design/noorm-modeling-skill.md`](../design/noorm-modeling-skill.md) | 12 | Rename stub; points to `ignatius-modeling-skill.md` |
 
-### [`docs/spec/`](../spec) — implementation contracts (35 files)
+### [`docs/spec/`](../spec) — implementation contracts (36 files)
 
 | Path | Lines | Covers |
 |------|-------|--------|
 | [`docs/spec/process-flows.md`](../spec/process-flows.md) | 682 | Largest spec; SSADM DFD: parse, 11 `flow.*` rules, viewer, sub-DFD drill-down, `db:` store dialog |
 | [`docs/spec/key-inheritance-lineage.md`](../spec/key-inheritance-lineage.md) | 372 | `buildInheritedConnections` key-edge connected-component algorithm, DG/DD lineage reveal |
+| [`docs/spec/dfd-store-clusters.md`](../spec/dfd-store-clusters.md) | 391 | CP1–CP8: `label:` on every flow entry + contract dialog, `flow-clusters.ts` registry + `cluster:` token expansion, five `flow.cluster_*` rules, per-process/connected view stacking, collapse levels, `StackDialog`/`EdgeContractDialog`; five `## Change log` entries plus an `## Implementation log` recording the 9-iteration shipped build and one open followup |
 | [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) | 270 | Router build/write, fingerprint roll-up, `index_file`/`harness` config, four `config.index_file_*`/`index.*` rules, `--agents` guidance files |
 | [`docs/spec/app-tsx-decomposition.md`](../spec/app-tsx-decomposition.md) | 246 | `App.tsx` decomposition |
 | [`docs/spec/dd-spotlight-grid.md`](../spec/dd-spotlight-grid.md) | 239 | DD browse-lens spotlight grid |
@@ -136,12 +138,12 @@ All ten are linked from [`README.md`](../../README.md)'s docs table. Six were up
 
 | Path | Lines | Covers |
 |------|-------|--------|
-| [`docs/guides/folder-format.md`](../guides/folder-format.md) | 256 | ★ `ignatius.yml`, the five top-level folders, entity/column/relationship authoring, `index_file:`/`harness:` config, generated routers, `description:` frontmatter |
+| [`docs/guides/folder-format.md`](../guides/folder-format.md) | 275 | ★ `ignatius.yml`, the six top-level folders including `clusters/`, entity/column/relationship authoring, `index_file:`/`harness:` config, generated routers, `description:` frontmatter |
 | [`docs/guides/commands.md`](../guides/commands.md) | 174 | ★ The CLI subcommands including `index`/`index --agents`, `validate --index`, and the full keyboard-shortcut table |
-| [`docs/guides/flows.md`](../guides/flows.md) | 150 | ★ DFDs: processes, externals, stores, sub-DFDs, `description:` on process/external/store |
-| [`docs/guides/validation.md`](../guides/validation.md) | 137 | ★ The linter, severity tiers, and the new Config-rules/Index-rules tables (`config.index_file_*`, `index.stale`, `index.orphaned`, `index.unreadable_target`) |
+| [`docs/guides/flows.md`](../guides/flows.md) | 280 | ★ DFDs: processes, externals, stores, sub-DFDs, `description:` on process/external/store, plus labels/stacks/clusters/groups — the contract dialog, the closed endpoint-prefix set and its one `cluster:` exception, the per-process vs. connected view split, the stores/clusters/groups collapse level, adjacency stacking and its `ignatius.yml` switch, and the Flows FAB controls |
+| [`docs/guides/validation.md`](../guides/validation.md) | 142 | ★ The linter, severity tiers, the Config-rules/Index-rules tables (`config.index_file_*`, `index.stale`, `index.orphaned`, `index.unreadable_target`), and the five `flow.cluster_*` rules |
 | [`docs/guides/getting-started.md`](../guides/getting-started.md) | 93 | ★ Install, build from source, serve the first model; command list now names `index` |
-| [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) | 73 | ★ The `/ignatius-modeling` skill's Q&A modes; verification loop now runs `ignatius validate --index` |
+| [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) | 73 | ★ The `/ignatius-modeling` skill's Q&A modes; the `flow` mode's step list now names the cluster-membership decision and the flow label alongside the `db:`-or-`kind:` store decision; verification loop now runs `ignatius validate --index` |
 | [`docs/guides/derivation.md`](../guides/derivation.md) | 45 | What gets derived (cardinality, classification, subtype clusters) vs authored by hand |
 | [`docs/guides/predicates.md`](../guides/predicates.md) | 83 | Bidirectional relationship-edge label authoring |
 | [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) | 83 | `theme`/`branding` blocks in `ignatius.yml` |
@@ -154,9 +156,9 @@ All ten are linked from [`README.md`](../../README.md)'s docs table. Six were up
 | [`docs/research/dfd-layout-and-leveling.md`](../research/dfd-layout-and-leveling.md) | 129 | DFD layout engines and Yourdon leveling; primary source for `dfd-overhaul`'s ELK algorithm choice |
 | [`docs/research/ssadm-dfd-rules.md`](../research/ssadm-dfd-rules.md) | 118 | SSADM DFD rules |
 
-### [`docs/glossary.md`](../glossary.md) (52 lines)
+### [`docs/glossary.md`](../glossary.md) (67 lines)
 
-Canonical vocabulary table: DG (Data Graph), DD (Data Dictionary), DFD (Data Flow Diagram), DE (Data Entity), DS (Data Store), EE (External Entity), Process, Data Flow, plus the DS ⊃ DE relationship note and the `kind:` store taxonomy (`db`/`cache`/`queue`/`file`/`doc`/`manual`/`other`).
+Canonical vocabulary table: DG (Data Graph), DD (Data Dictionary), DFD (Data Flow Diagram), DE (Data Entity), DS (Data Store), EE (External Entity), Process, Data Flow, plus the DS ⊃ DE relationship note, the `kind:` store taxonomy (`db`/`cache`/`queue`/`file`/`doc`/`manual`/`other`), and a "Flow view: stacks, clusters, and groups" table (flow label, cluster, group, stack, collapse level, per-process view, connected view, adjacency stack).
 
 [`docs/wiki/`](.) also lives under [`docs/`](..) as the generated signals wiki; it is separate, self-referential infrastructure, out of scope for this domain.
 
@@ -167,10 +169,8 @@ Canonical vocabulary table: DG (Data Graph), DD (Data Dictionary), DFD (Data Flo
 | Constraint | Detail |
 |------------|--------|
 | Spec body is forward-only | `docs/spec/<topic>.md` must describe only the current decision; superseded content moves to a dated `## Change log` entry with a **Superseded:** line. Leaving old text in the body instead means a subagent implementing from the spec reads a contradicted or stale contract as current truth |
-| Change-tree/outline/flows apply forward only | The three required sections apply to specs drafted after the rule shipped; only 2 of 35 specs (`graph-flow-search.md`, `model-index-routing.md`) carry them. Backfilling them onto a pre-existing spec via an unrelated amendment would bundle an unrelated structural change into that amendment's `## Change log` entry, misstating what the amendment actually changed |
-| Reserved router filename | `index_file:` (default `index.md`) is reserved model-wide: an entity file under `data/` sharing that basename and declaring `entity:` fails `config.index_file_entity` ([`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) SC3) |
-| Guidance files stay under 200 lines | `AGENTS.md`, [`CLAUDE.md`](../../CLAUDE.md), `SKILL.md` generated by `ignatius index --agents` carry only model name, description, router filename, key-style convention, and the `[[Entity]]` rule (SC11); adding entity/column/relationship content would make the file grow with the model and fail SC11 |
-| Managed-region writes are byte-scoped | A generator (routers, or the `--agents` guidance files) owns only the bytes inside its own `<ignatius-*>` tag; a boundary is a tag starting at column 0 and ending its line, and mismatched/nested/orphan/unclosed tags throw with a line number rather than silently corrupting the file |
+| Change-tree/outline/flows apply forward only | The three required sections apply to specs drafted after the rule shipped; only 3 of 36 specs (`graph-flow-search.md`, `model-index-routing.md`, `dfd-store-clusters.md`) carry them. Backfilling them onto a pre-existing spec via an unrelated amendment would bundle an unrelated structural change into that amendment's `## Change log` entry, misstating what the amendment actually changed |
+| The `cluster:` prefix is the one exception to the closed endpoint-prefix set | [`docs/guides/flows.md`](../guides/flows.md)'s Endpoints section states the `db:`/`ext:`/`proc:`/`cache:`/`queue:`/`file:`/`doc:`/`manual:`/`other:` prefix set is closed, then names `cluster:` as intercepted and expanded before endpoint parsing runs; [`docs/spec/dfd-store-clusters.md`](../spec/dfd-store-clusters.md)'s Checkpoints table (CP8's Verifies cell) requires every closed-prefix-set passage across the guides and the `ignatius-modeling` skill references to name this one exception. A guide or skill passage that repeats the closed-set list without this exception either teaches an author that `cluster:` is unsupported, or contradicts the other doc stating the same closed set |
 
 
 ## Coupling
@@ -185,4 +185,6 @@ Canonical vocabulary table: DG (Data Graph), DD (Data Dictionary), DFD (Data Flo
 | [`docs/spec/example-instance-tables.md`](../spec/example-instance-tables.md) | **skill** | Names [`skills/ignatius-modeling/references/entity-flow.md`](../../skills/ignatius-modeling/references/entity-flow.md) and directs it to add Step E7b — Examples, between E7 (Columns) and E8 (Reference table) |
 | [`docs/spec/process-flows.md`](../spec/process-flows.md) | **skill** | Its `flow.*` frontmatter/token grammar is matched by [`skills/ignatius-modeling/references/flow-templates.md`](../../skills/ignatius-modeling/references/flow-templates.md) |
 | [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) | **theme**, **skill** | Its worked example is pointed to by [`skills/ignatius-modeling/references/model-flow.md`](../../skills/ignatius-modeling/references/model-flow.md) |
+| [`docs/design/dfd-store-clusters.md`](../design/dfd-store-clusters.md) + [`docs/spec/dfd-store-clusters.md`](../spec/dfd-store-clusters.md) | **flows**, **flow-view**, **frontend**, **skill** | The pair's Change tree names a new [`src/flows/flow-clusters.ts`](../../src/flows/flow-clusters.ts) plus edits to `flow-parse.ts`/`flow-validate.ts` (**flows**); `flow-layout.ts`/`elk-flow-layout.ts`/`FlowDiagramSvg.tsx` for per-process/connected-view stacking and collapse levels (**flow-view**); `App.tsx`/`FlowsView.tsx` and new `StackDialog.tsx`/`EdgeContractDialog.tsx` for the view/collapse toggles and dialogs (**frontend**); and `dfd-authoring.md`/`flow-templates.md`/`discover-flow.md`/`verification.md` for the new authoring and validation surface (**skill**) — [`docs/guides/modeling-skill.md`](../guides/modeling-skill.md) documents that same skill-side coupling from the user's side, naming the cluster-membership decision and the flow label as steps in the `flow` mode's Q&A |
 | [`docs/wiki/feature-map.md`](feature-map.md) | all domains | Hand-authored feature-to-doc-to-skill cross-reference table; not generated by this signals pipeline, maintained separately |
+</content>

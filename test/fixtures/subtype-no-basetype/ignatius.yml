@@ -1,0 +1,3 @@
+name: Subtype No-Basetype Fixture
+version: "1.0"
+description: A subtype family whose basetype is never touched by a flow, proving the "<Basetype> subtypes" label rule.

@@ -32,6 +32,7 @@ After writing any file, always run the verification loop in `references/verifica
 - Examples always, in every mode: every entity carries 2–3 `examples:` rows and every process carries in/out `examples:` — never skipped, never offered as optional. Generate them yourself from the business context (realistic domain values, not `foo`/`1`/`test`), show them, and let the user adjust. Concrete instances expose wrong rules that pass every structural check; a model without examples is unverified.
 - `description:` always, in every mode: every entity, group, process, external, and store carries a one-line `description:` in frontmatter — never skipped, never offered as optional. It is not documentation; it is the payload of the generated router tables, the line a reader uses to decide whether to open the file. Generate it yourself from real business context, show it, and let the user adjust. Never name a file `index.md` (or whatever `index_file` resolves to in `ignatius.yml`) for an entity — that name is reserved for the generated router.
 - Capture the business story, not just the schema: business rules, constraints, lifecycle, and the *why* behind structural complexity go in the body with their source and justification. Treat an offhand "billing won't allow payments under $5" as a documentable rule, not chatter.
+- Labels and clusters always, in every mode that writes flows: every `inputs:`/`outputs:` entry carries a short prose `label:` beside its `data:` (the diagram shows the label; the column list stays the validated contract), and two or more stores a process reads or writes as one thing are declared once in `clusters/<slug>.md` and referenced with one `cluster:` entry. This is what keeps a diagram readable at the size real models reach; neither is optional or an afterthought. Steps F4a and F5 in `references/dfd-authoring.md`.
 
 ## Reference files
 
@@ -40,8 +41,8 @@ Load only the file for the step you are on:
 - `references/interviewing.md` — how to conduct the Q&A (read first; applies to every mode).
 - `references/entity-flow.md` — entity Q&A steps, the convention nudge, the subtype step.
 - `references/model-flow.md` — new-model bootstrap Q&A steps.
-- `references/dfd-authoring.md` — DFD Q&A steps: the `db:`/`kind:` store fork, examples-always, business-context bodies.
-- `references/flow-templates.md` — process, external, and non-`db` store templates.
+- `references/dfd-authoring.md` — DFD Q&A steps: the `db:`/`kind:` store fork, the cluster step, the label step, the stack legibility count, examples-always, business-context bodies.
+- `references/flow-templates.md` — process, external, non-`db` store, and cluster templates.
 - `references/discover-flow.md` — the Socratic five-gate method (generates entities + flows).
 - `references/reverse-engineering.md` — extract entities + flows from an existing system (IDEF1X spirit).
 - `references/verification.md` — the `ignatius validate` loop and the rule reference tables.

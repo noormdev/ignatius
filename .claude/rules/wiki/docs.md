@@ -8,7 +8,7 @@ paths:
   - "docs/glossary.md"
 ---
 
-Domain: docs. Design docs, user guides, research notes, and implementation-contract specs — 76 markdown files plus `docs/glossary.md` across `docs/design/`, `docs/guides/`, `docs/research/`, `docs/spec/`
+Domain: docs. Design docs, user guides, research notes, and implementation-contract specs — 78 markdown files plus `docs/glossary.md` across `docs/design/`, `docs/guides/`, `docs/research/`, `docs/spec/`
 
 Map:
   - docs/wiki/docs.md

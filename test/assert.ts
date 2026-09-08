@@ -24,3 +24,13 @@ export function assert(condition: unknown, message: string): void {
   console.error(message);
   process.exitCode = 1;
 }
+
+/**
+ * Narrow a `T | undefined` to `T`, throwing with `what` when absent. Used
+ * instead of `!`/`as` so a lookup that should never miss fails loudly with
+ * context, rather than silently widening the type.
+ */
+export function must<T>(v: T | undefined, what: string): T {
+  if (v === undefined) throw new Error(`must: ${what} is undefined`);
+  return v;
+}

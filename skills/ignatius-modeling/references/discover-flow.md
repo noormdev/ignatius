@@ -114,6 +114,21 @@ it needs:
 Read produces the input stores; written produces the output stores. Run this on every process
 and the entity list assembles itself. For each thing it surfaces, loop back to Gate 1.
 
+Gate 4 also names the flows. For each thing read or written, take down the user's own phrase
+for the data ("the customer's card", "the settled payment"): that phrase, trimmed to a few
+words, is the entry's `label:` (Step F5 in `references/dfd-authoring.md`), the text the
+diagram shows. Never wait to invent labels at write time when the user just said them.
+
+When a verb's Gate 4 turns up two or more stores in the same direction, ask one more thing before
+moving on:
+> "Are these one thing to you, or separate? If one thing, what do you call it?"
+
+A "one thing" answer with a name becomes a `clusters/<slug>.md` file and a single `cluster:`
+entry in the process (Step F4a); "separate" leaves them as individual `db:` entries, each with
+its own label. Don't press for a grouping the user hasn't formed. If they shrug, leave the
+stores separate; the connected view's adjacency grouping will show the pairing later and you
+can name it then.
+
 **Gate 5 — Ground: show three real ones.**
 A definition isn't real until it produces concrete instances. Ask for three actual examples. If
 the user can't produce them, the thing isn't yet well defined — go back to Gate 1.
@@ -135,7 +150,10 @@ three real instances in hand — write its file:
 - A thing that persists as a business record → an **entity** file (entity steps).
 - An actor outside the system → an **external** file.
 - A non-record resting place (log, queue, cache) → a **store** file.
-- An action → a **process** file, written after the entities it touches exist.
+- A set of records one action always reads or writes together, with a name → a **cluster**
+  file, written once its member entities exist.
+- An action → a **process** file, written after the entities and clusters it touches exist,
+  with a `label:` on every entry.
 
 A half-finished discovery still leaves real, valid files on disk. After writing each batch, run
 the verification loop in `references/verification.md`; flow findings are `flow.*` rules, entity

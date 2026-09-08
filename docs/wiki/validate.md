@@ -12,6 +12,8 @@ tags: [validation, model-index-routing, rule-catalog]
 
 The module has two halves with different I/O contracts. `validateModel` is pure: no Node/Bun I/O, only type-only imports, safe to run in the browser bundle. `validateIndex` is not: it shells out to `buildRouters` and `node:fs` to recompute router digests from disk, so it only runs where file access exists (CLI, server).
 
+`RuleId` carries two unrelated `cluster`-named concepts: the pre-existing `cluster.*` prefix is about entity subtype clusters (a basetype entity with subtype members, declared inline in entity frontmatter), while the newer `flow.cluster_*` ids are about DFD store clusters (a named group of entities declared in a `clusters/<slug>.md` author file, expanded into flow edges by [`src/flows/flow-clusters.ts`](../../src/flows/flow-clusters.ts)). The two do not share code, data shape, or the files that declare them; only the English word "cluster" is shared.
+
 ## How it works
 
 **`validateModel`'s per-rule fork decides whether a flagged node, edge, or cluster survives into `cleanedModel`.**
@@ -38,6 +40,8 @@ Class is looked up from the `RULES` registry, never computed ad hoc at the call 
 | CLI exit code | never forces exit 1 by itself | forces exit 1 (`errorCount`) |
 | Live/static rendering | degraded + warning triangle | omitted + global banner |
 
+`validateModel` itself only walks entity, edge, and subtype-cluster rules; it never checks `flow.*` ids, including the five `flow.cluster_*` ones. Those are declared here (`RuleId`, `RULES`) but implemented in [`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts) and [`src/flows/flow-clusters.ts`](../../src/flows/flow-clusters.ts), which run against the flow model rather than the entity/edge/cluster model.
+
 ### validateIndex drift detection
 
 **`validateIndex` recomputes what `ignatius index` should have written and reports where the current files disagree.**
@@ -60,30 +64,29 @@ flowchart TD
 
 ## Where it lives
 
+38 rule ids total across 8 prefixes; class shown as fired, `L` = `liveOnly`, `S` = `silenceable`.
+
 | Symbol | Kind | What |
 |---|---|---|
-| `src/model/validate.ts:23` `RuleId` | type | union of 33 rule ids across 8 prefixes |
-| `src/model/validate.ts:99` `RuleEntry` | type | `{ title, explanation, class: 'A'\|'B', liveOnly?, silenceable? }` |
-| `src/model/validate.ts:124` `RULES` | const | `Record<RuleId, RuleEntry>` — TS compile-errors if any `RuleId` lacks an entry |
-| `src/model/validate.ts:71,82,89` `EntityError` / `GlobalError` / `ValidationResult` | types | per-entity vs whole-model finding shapes; `ValidationResult = { entityErrors, globalErrors, cleanedModel }` |
-| `src/model/validate.ts:527` `validateModel(model)` | function | pure, no I/O — runs all entity/edge/cluster rule predicates |
-| `src/model/validate.ts:623,630` `IndexValidationResult` / `validateIndex(root, model, flowModel)` | type / async function | I/O — recomputes router digests via `buildRouters`, walks folders for orphaned index files |
-| `src/model/validate.ts:720` `formatFindingsForStderr(globalErrors, entityErrors, flowErrors?)` | function | sorts (error-before-warning, then ruleId, then location) and formats findings for CLI stderr; drops `liveOnly` rows |
+| `src/model/validate.ts:23` `RuleId` | type | union of 38 rule ids across 8 prefixes |
+| `src/model/validate.ts:105` `RuleEntry` | type | `{ title, explanation, class: 'A'\|'B', liveOnly?, silenceable? }` |
+| `src/model/validate.ts:130` `RULES` | const | `Record<RuleId, RuleEntry>` — TS compile-errors if any `RuleId` lacks an entry |
+| `src/model/validate.ts:77,88,95` `EntityError` / `GlobalError` / `ValidationResult` | types | per-entity vs whole-model finding shapes; `ValidationResult = { entityErrors, globalErrors, cleanedModel }` |
+| `src/model/validate.ts:558` `validateModel(model)` | function | pure, no I/O — runs all entity/edge/cluster rule predicates |
+| `src/model/validate.ts:654,661` `IndexValidationResult` / `validateIndex(root, model, flowModel)` | type / async function | I/O — recomputes router digests via `buildRouters`, walks folders for orphaned index files |
+| `src/model/validate.ts:751` `formatFindingsForStderr(globalErrors, entityErrors, flowErrors?)` | function | sorts (error-before-warning, then ruleId, then location) and formats findings for CLI stderr; drops `liveOnly` rows |
+| `parse.*` | rule prefix (3, all B) | `invalid_yaml`, `missing_id`, `empty_frontmatter` |
+| `config.*` | rule prefix (3, all B) | `index_file_ext`, `index_file_path`, `index_file_entity` |
+| `index.*` | rule prefix (3: B, A, B) | `stale`, `orphaned`, `unreadable_target` |
+| `entity.*` | rule prefix (6, all A) | `missing_pk`, `missing_columns`, `invalid_field_type`, `unknown_group`, `ak_unknown_column`, `example_unknown_column` (L) |
+| `body.*` | rule prefix (1, A) | `unknown_link` |
+| `edge.*` | rule prefix (2: B, A) | `unknown_target`, `dangling_fk_column` |
+| `cluster.*` | rule prefix (3: B, A, A) | `missing_basetype`, `missing_member`, `no_discriminator` |
+| `flow.*` | rule prefix (17: 6 B, 11 A) | `unknown_store`, `unknown_external`, `unknown_process`, `unknown_cluster`, `cluster_member_unknown` (B); `unknown_attribute`, `ambiguous_endpoint`, `process_no_input`, `process_no_output`, `process_to_process` (A, S), `unbalanced_decomposition`, `duplicate_number`, `store_naming_collision`, `cluster_no_members`, `cluster_entity_unknown`, `cluster_overlap` (A); `illegal_connection` (B) |
 
-Rule catalog by prefix (33 ids total; class shown as fired, `L` = `liveOnly`, `S` = `silenceable`):
+The five `flow.cluster_*` ids are the newest additions: `unknown_cluster` (a `cluster:` endpoint names a slug with no `clusters/<slug>.md` file) and `cluster_member_unknown` (a `cluster:` entry's `data:` map names a member not in the cluster's `entities:` list) are Class B and strip the produced edge(s); `cluster_no_members` (an empty `data:` map), `cluster_entity_unknown` (a cluster file's `entities:` list names an entity absent from the entity catalog), and `cluster_overlap` (an entity claimed by more than one `clusters/*.md` file) are Class A.
 
-| Prefix | Count | Ids |
-|---|---|---|
-| `parse.*` | 3, all B | `invalid_yaml`, `missing_id`, `empty_frontmatter` |
-| `config.*` | 3, all B | `index_file_ext`, `index_file_path`, `index_file_entity` |
-| `index.*` | 3 (B, A, B) | `stale`, `orphaned`, `unreadable_target` |
-| `entity.*` | 6, all A | `missing_pk`, `missing_columns`, `invalid_field_type`, `unknown_group`, `ak_unknown_column`, `example_unknown_column` (L) |
-| `body.*` | 1, A | `unknown_link` |
-| `edge.*` | 2 (B, A) | `unknown_target`, `dangling_fk_column` |
-| `cluster.*` | 3 (B, A, A) | `missing_basetype`, `missing_member`, `no_discriminator` |
-| `flow.*` | 12 (4 B, 8 A) | `unknown_store`, `unknown_external`, `unknown_process` (B); `unknown_attribute`, `ambiguous_endpoint`, `process_no_input`, `process_no_output`, `process_to_process` (A, S), `unbalanced_decomposition`, `duplicate_number`, `store_naming_collision` (A); `illegal_connection` (B) |
-
-[`docs/design/schema-lint-and-error-ux.md`](../design/schema-lint-and-error-ux.md) and [`docs/spec/schema-lint-and-error-ux.md`](../spec/schema-lint-and-error-ux.md) carry the original rule-catalog design and contract; [`docs/design/model-index-routing.md`](../design/model-index-routing.md) and [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) cover the `config.*`/`index.*` additions and `validateIndex`. [`test/checks/test-validate-index.ts`](../../test/checks/test-validate-index.ts) covers `validateIndex`.
+[`docs/design/schema-lint-and-error-ux.md`](../design/schema-lint-and-error-ux.md) and [`docs/spec/schema-lint-and-error-ux.md`](../spec/schema-lint-and-error-ux.md) carry the original rule-catalog design and contract; [`docs/design/model-index-routing.md`](../design/model-index-routing.md) and [`docs/spec/model-index-routing.md`](../spec/model-index-routing.md) cover the `config.*`/`index.*` additions and `validateIndex`; [`docs/design/dfd-store-clusters.md`](../design/dfd-store-clusters.md) and [`docs/spec/dfd-store-clusters.md`](../spec/dfd-store-clusters.md) cover the five `flow.cluster_*` ids and the `clusters/<slug>.md` author-file format they validate. [`test/checks/test-validate-index.ts`](../../test/checks/test-validate-index.ts) covers `validateIndex`.
 
 ## Constraints
 
@@ -93,11 +96,12 @@ Rule catalog by prefix (33 ids total; class shown as fired, `L` = `liveOnly`, `S
 - `index.stale`/`index.orphaned`/`index.unreadable_target` only fire under `ignatius validate --index`; plain `validate` never calls `validateIndex`, so it never hashes router targets.
 - `STORED_DIGEST_RE` (`^<ignatius-index[\s>][^>]*\sdigest="([^"]*)"/m`) and the orphan-scan regex (`^<ignatius-index[\s>]/m`) both anchor to line start. A mid-line mention of `<ignatius-index` does not match either, and a differently-named tag like `<ignatius-index-legacy ...>` does not match the stored-digest regex (its next character after `<ignatius-index` is `-`, not whitespace or `>`).
 - CLI callers derive the hard-exit decision from `RULES[ruleId].class === 'B'`, never from a finding's own `severity` field, keeping one source of truth for exit code across entity, global, and flow findings.
+- Adding a `RuleId` with a `RULES` entry but no corresponding check in `validateModel` (or, for `flow.*` ids, in [`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts)/`flow-clusters.ts`) compiles clean: the id and its title exist, but no code path ever pushes its finding, so the rule silently never fires.
 
 ## Coupling
 
 - parser ([`src/model/parse.ts`](../../src/model/parse.ts)): validate.ts type-imports `Model`, `ModelNode`, `ModelEdge`, `SubtypeCluster` from `./parse`; parse.ts type-imports `GlobalError` back from `./validate`. Both directions are `import type` only, no runtime circular dependency, but the two files' exported shapes must stay in sync.
-- flows ([`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts), [`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts)): both type-import `GlobalError` from `../model/validate`; `flow-validate.ts` additionally type-imports `RuleId` and implements every `flow.*` id declared in this file's `RuleId` union.
+- flows ([`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts), [`src/flows/flow-clusters.ts`](../../src/flows/flow-clusters.ts), [`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts)): all three type-import `GlobalError` from `../model/validate`; `flow-validate.ts` additionally type-imports `RuleId` and implements every `flow.*` id declared in this file's `RuleId` union, including the five `flow.cluster_*` ids; `flow-clusters.ts` produces the `clusterIssue` markers on expanded edges that `flow-validate.ts` turns into `flow.unknown_cluster` / `flow.cluster_member_unknown` / `flow.cluster_no_members` findings.
 - router ([`src/router/build.ts`](../../src/router/build.ts)): `validateIndex` dynamically imports `buildRouters` and the `UnreadableTarget` type from `../router/build` to recompute digests; this dynamic import is the coupling point between validate and router. [`src/cli/cli.ts`](../../src/cli/cli.ts) is the only caller of `validateIndex`, gated behind the `--index` flag on the `validate` subcommand.
 - cli ([`src/cli/cli.ts`](../../src/cli/cli.ts)): dynamically imports `validateModel`, `validateIndex`, `formatFindingsForStderr`, `RULES`; uses `RULES[ruleId].class` as the authoritative signal for whether flow findings count toward the hard-exit error count.
 - server ([`src/server/server.ts`](../../src/server/server.ts)): imports `validateModel` directly (not dynamically) to validate models served live.

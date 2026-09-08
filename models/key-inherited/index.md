@@ -1,4 +1,4 @@
-<ignatius-index scope="root" path="." count="5" depth="0" digest="sha256:46ea95765fa7b77e9a46b7ef86e0436a668e1ba484ca1accf3d7a88699770881">
+<ignatius-index scope="root" path="." count="5" depth="0" digest="sha256:6549eddd72703fa99bdd632c646e7a2895970ed82bcc4d604d42db5538c3c10f">
 
 | Name | Kind | Description | Go |
 |---|---|---|---|

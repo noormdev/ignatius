@@ -6,6 +6,10 @@ inputs:
     data: order request
   - from: db:Party
     data: [party_id, type]
+  - from: db:Person
+    data: [party_id, first_name, last_name]
+  - from: db:Business
+    data: [party_id, legal_name, tax_id]
 outputs:
   - to: db:SalesOrder
     data: [party_id, sales_order_id, ordered_at, total]

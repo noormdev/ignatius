@@ -1,5 +1,6 @@
 import type cytoscape from 'cytoscape';
 import type { FlowDiagram } from '../flows/flow-parse';
+import type { FlowCluster } from '../flows/flow-clusters';
 
 declare global {
   interface Window {
@@ -15,6 +16,10 @@ declare global {
     // diagram in the tree (top-level and sub-DFDs). The frontend looks up
     // the key by id rather than importing the fingerprint module.
     __FLOW_LAYOUT_KEYS__?: Record<string, string>;
+    // __FLOW_CLUSTERS__ is the model-root clusters/ registry, sibling to
+    // __FLOW_MODEL__. Read by FlowsView's initFlowGraphCore to build
+    // buildFlowData's connected-view cluster grouping.
+    __FLOW_CLUSTERS__?: FlowCluster[];
     // Debug/test seam: the live Cytoscape core, exposed for the visual harness
     // to locate nodes and drive hover. Not read by application code.
     __IGNATIUS_CY__?: cytoscape.Core;

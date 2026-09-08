@@ -575,6 +575,30 @@ a {
   text-decoration: underline;
 }
 
+/* StackDialog's expandable cluster/subtype/group rows — the repo's <details>/
+   <summary> disclosure pattern (see .modal-examples summary), scoped to a
+   table cell so the marker/text reads inline instead of as a block heading. */
+.stack-dialog-row-toggle summary {
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.stack-dialog-row-toggle summary:hover {
+  color: var(--color-text);
+}
+.stack-dialog-row-toggle summary::-webkit-details-marker {
+  display: none;
+}
+.stack-dialog-row-toggle summary::before {
+  content: '▶ ';
+  font-size: 9px;
+  opacity: 0.6;
+}
+.stack-dialog-row-toggle[open] summary::before {
+  content: '▼ ';
+}
+
 /* [[Entity]] body links. Navigable links read as links; unknown targets render
    as muted, non-interactive text so a typo is visible but not clickable. */
 .entity-link {

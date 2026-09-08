@@ -4,7 +4,7 @@
  * No Node/Bun I/O; imports only types. Browser-safe.
  * Mirrors the structure of validate.ts for the ERD layer.
  *
- * All 12 flow.* rules are implemented here as pure functions.
+ * Every flow.* rule is implemented here as a pure function.
  * Class B rules strip edges/stores from cleanedFlowModel.
  * Class A rules record findings but strip nothing.
  */
@@ -19,6 +19,7 @@ import type {
     FlowProcess,
     FlowStoreRef,
 } from './flow-parse';
+import type { FlowCluster } from './flow-clusters';
 import { CONTEXT_DIAGRAM_ID, SYSTEM_PROCESS_ID } from './flow-derive-levels';
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,9 @@ export type FlowRulesConfig = {
 
 export type FlowError = {
     ruleId: RuleId;
-    /** The DFD id (folder name under flows/) this finding belongs to. */
+    /** The finding's location: a DFD id (folder name under flows/) for a
+     *  diagram-scoped finding, or a clusters/*.md slug for a cluster-file
+     *  rule (flow.cluster_entity_unknown, flow.cluster_overlap). */
     flowId: string;
     /** The process id within the DFD, when the finding is process-scoped. */
     processId?: string;
@@ -102,6 +105,10 @@ function checkUnknownStore(
     const strippedEdgeIds = new Set<number>();
 
     diagram.edges.forEach((edge, idx) => {
+        // An edge with an unresolved clusterIssue already carries its own
+        // dedicated flow.cluster_* finding — its db: name is a slug or a
+        // rejected member, not a store claim to check against the catalog.
+        if (edge.clusterIssue) return;
         // Collect all unknown db: endpoint names for this edge before emitting,
         // so one edge with two unknown stores produces only one finding.
         const unknownNames: string[] = [];
@@ -212,6 +219,61 @@ function checkIllegalConnection(
             });
             newStripped.add(idx);
         }
+    });
+
+    return { errors, newStripped };
+}
+
+/**
+ * flow.unknown_cluster (Class B) / flow.cluster_member_unknown (Class B) /
+ * flow.cluster_no_members (Class A)
+ *
+ * Reads the `clusterIssue` marker `expandClusterEdges` leaves on an
+ * unresolved `cluster:` edge. All three strip the edge from the cleaned
+ * model — cluster_no_members is Class A (recorded, not omitted-as-error)
+ * but its synthetic marker edge still must not reach the renderer as a store.
+ */
+function checkClusterIssues(
+    diagram: FlowDiagram,
+    strippedEdgeIds: Set<number>,
+): { errors: FlowError[]; newStripped: Set<number> } {
+    const errors: FlowError[] = [];
+    const newStripped = new Set<number>(strippedEdgeIds);
+
+    diagram.edges.forEach((edge, idx) => {
+        if (strippedEdgeIds.has(idx)) return;
+        if (!edge.clusterIssue) return;
+
+        const slug = edge.cluster?.slug ?? '?';
+        const memberEp = edge.from.kind === 'db' ? edge.from : edge.to.kind === 'db' ? edge.to : null;
+
+        switch (edge.clusterIssue) {
+            case 'unknown_cluster':
+                errors.push({
+                    ruleId: 'flow.unknown_cluster',
+                    flowId: diagram.id,
+                    severity: 'error',
+                    message: `cluster: '${slug}' has no clusters/${slug}.md file at the model root.`,
+                });
+                break;
+            case 'cluster_member_unknown':
+                errors.push({
+                    ruleId: 'flow.cluster_member_unknown',
+                    flowId: diagram.id,
+                    severity: 'error',
+                    message: `cluster: '${slug}' data: names '${memberEp?.name ?? '?'}' which is not in the cluster's entities: list.`,
+                });
+                break;
+            case 'cluster_no_members':
+                errors.push({
+                    ruleId: 'flow.cluster_no_members',
+                    flowId: diagram.id,
+                    severity: 'warning',
+                    message: `cluster: '${slug}' entry has an empty data: map — no members were mapped.`,
+                });
+                break;
+        }
+        newStripped.add(idx);
     });
 
     return { errors, newStripped };
@@ -602,8 +664,12 @@ function validateDiagram(
         checkIllegalConnection(diagram, stripped3);
     allErrors.push(...illegalErrors);
 
+    const { errors: clusterIssueErrors, newStripped: stripped5 } =
+        checkClusterIssues(diagram, stripped4);
+    allErrors.push(...clusterIssueErrors);
+
     // Active (surviving) edges after all Class B stripping
-    const activeEdges = diagram.edges.filter((_, idx) => !stripped4.has(idx));
+    const activeEdges = diagram.edges.filter((_, idx) => !stripped5.has(idx));
 
     // Phase 2: Class A checks on active edges
     allErrors.push(...checkUnknownAttributes(diagram, entityModel, activeEdges));
@@ -628,7 +694,7 @@ function validateDiagram(
         cleanedSubDfds.push(cleanedSub);
     }
 
-    return buildCleanedDiagram(diagram, stripped4, cleanedSubDfds);
+    return buildCleanedDiagram(diagram, stripped5, cleanedSubDfds);
 }
 
 // ---------------------------------------------------------------------------
@@ -691,6 +757,63 @@ function checkStoreNamingCollisions(flowModel: FlowModel): FlowError[] {
     return errors;
 }
 
+/**
+ * flow.cluster_entity_unknown (Class A)
+ * A clusters/<slug>.md `entities:` entry names an entity absent from the
+ * entity catalog. Records only — a cluster file carries no edges of its own.
+ */
+function checkClusterEntityUnknown(
+    clusters: FlowCluster[],
+    entityModel: Model,
+): FlowError[] {
+    const nodeIds = new Set(entityModel.nodes.map(n => n.id));
+    const errors: FlowError[] = [];
+
+    for (const cluster of clusters) {
+        for (const entity of cluster.entities) {
+            if (nodeIds.has(entity)) continue;
+            errors.push({
+                ruleId: 'flow.cluster_entity_unknown',
+                flowId: cluster.slug,
+                severity: 'warning',
+                message: `clusters/${cluster.slug}.md lists entity '${entity}' which is not in the entity catalog.`,
+            });
+        }
+    }
+
+    return errors;
+}
+
+/**
+ * flow.cluster_overlap (Class A)
+ * An entity listed in the `entities:` of two or more clusters/*.md files.
+ * Fires once per cluster file beyond the first claimant, so the message
+ * attributes each duplicate to a specific pair of files.
+ */
+function checkClusterOverlap(clusters: FlowCluster[]): FlowError[] {
+    const slugsByEntity = new Map<string, string[]>();
+    for (const cluster of clusters) {
+        for (const entity of cluster.entities) {
+            if (!slugsByEntity.has(entity)) slugsByEntity.set(entity, []);
+            slugsByEntity.get(entity)!.push(cluster.slug);
+        }
+    }
+
+    const errors: FlowError[] = [];
+    for (const [entity, slugs] of slugsByEntity) {
+        for (let i = 1; i < slugs.length; i++) {
+            errors.push({
+                ruleId: 'flow.cluster_overlap',
+                flowId: slugs[i]!,
+                severity: 'warning',
+                message: `Entity '${entity}' appears in clusters/${slugs[i]}.md and clusters/${slugs[0]}.md — a store belongs to only one author cluster.`,
+            });
+        }
+    }
+
+    return errors;
+}
+
 // ---------------------------------------------------------------------------
 // validateFlows — top-level export
 // ---------------------------------------------------------------------------
@@ -710,6 +833,9 @@ export function validateFlows(
 
     // CP4: check naming collisions across the entire tree before per-diagram validation
     allErrors.push(...checkStoreNamingCollisions(flowModel));
+
+    allErrors.push(...checkClusterEntityUnknown(flowModel.clusters, entityModel));
+    allErrors.push(...checkClusterOverlap(flowModel.clusters));
 
     for (const diagram of flowModel.diagrams) {
         const cleaned = validateDiagram(diagram, entityModel, config, allErrors, globalExternalIds);

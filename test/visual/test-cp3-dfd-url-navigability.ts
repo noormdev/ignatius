@@ -123,32 +123,23 @@ try {
   // ── B. Select a different DFD: hash updates client-side ─────────────────────
   note('\n── B. Select refund DFD — hash should update ───────────────────────────');
 
-  // Find the DFD selector nav in FlowChrome and click 'refund'
-  // The DFD nav buttons are rendered by FlowChrome as buttons with the diagram id text.
-  // Try clicking via the nav item. If not found, use the registered selectDiagram via evaluate.
-  const refundNavBtn = page.locator('.flow-dfd-nav button, .flow-nav-item, [data-dfd]').filter({ hasText: /refund/i });
-  const refundBtnCount = await refundNavBtn.count();
-  note(`Refund nav button count: ${refundBtnCount}`);
+  // Leveling (docs/spec/dfd-store-clusters.md) wraps every leaf diagram under a
+  // synthetic Context → System pair, so flowModel.diagrams has exactly one
+  // top-level entry and FlowChrome's nav card (gated on allDiagrams.length > 1)
+  // never renders — there is no more "DFD nav button" to click. Reaching a
+  // sibling leaf now goes through the breadcrumb instead: drill up to the
+  // System (L1) overview, then click the refund process node to drill back
+  // down — the same client-side handleDrill path step E already exercises,
+  // one level shallower.
+  await page.locator('[data-ignatius="flow-breadcrumbs"] button', { hasText: /system/i }).first().click();
+  await page.waitForTimeout(400);
 
-  if (refundBtnCount > 0) {
-    await refundNavBtn.first().click();
-    await page.waitForTimeout(600);
-  } else {
-    // Fallback: call selectDiagram imperatively via the page
-    note('No refund nav button found — calling flowSelectDiagramRef via page evaluate');
-    const called = await page.evaluate(() => {
-      // The global __IGNATIUS_ACTIVE_FLOW_DFD__ is the passive read; we need to
-      // trigger selectDiagram. Since we can't reach refs directly, dispatch a custom
-      // event that App.tsx can handle — but App.tsx doesn't listen for one.
-      // Instead, find the DFD nav button by text content in the DOM and click it.
-      const allButtons = Array.from(document.querySelectorAll('button'));
-      const btn = allButtons.find(b => b.textContent?.toLowerCase().includes('refund'));
-      if (btn) { btn.click(); return true; }
-      return false;
-    });
-    if (!called) fail('Could not find or click refund DFD nav button');
-    await page.waitForTimeout(600);
-  }
+  const refundProcNode = page.locator('[data-token="proc:refund"]');
+  const refundNodeCount = await refundProcNode.count();
+  note(`Refund process node count at the System (L1) level: ${refundNodeCount}`);
+  if (refundNodeCount === 0) fail('Could not find the refund process node at the System (L1) level');
+  await refundProcNode.first().click({ force: true });
+  await page.waitForTimeout(600);
 
   await shot('02-after-select-refund.png');
 
@@ -168,6 +159,11 @@ try {
 
   // ── C. Browser back: should restore order-to-cash ────────────────────────────
   note('\n── C. Browser back — should restore order-to-cash ──────────────────────');
+  // Two hops back: step B's breadcrumb-drill path pushes one history entry for
+  // the System (L1) overview and a second for refund, where the old one-click
+  // nav-button selection pushed only one.
+  await page.goBack();
+  await page.waitForTimeout(400);
   await page.goBack();
   await page.waitForTimeout(800);
 
@@ -186,6 +182,9 @@ try {
 
   // ── D. Browser forward: should restore refund ────────────────────────────────
   note('\n── D. Browser forward — should restore refund ───────────────────────────');
+  // Two hops forward, mirroring C's two hops back.
+  await page.goForward();
+  await page.waitForTimeout(400);
   await page.goForward();
   await page.waitForTimeout(800);
 

@@ -8,6 +8,7 @@
  *   - window.__FLOW_MODEL__       (flow diagrams array — may be empty/undefined)
  *   - window.__LAYOUT_KEY__       (ERD position-restore fingerprint)
  *   - window.__FLOW_LAYOUT_KEYS__ (per-diagram fingerprint map — may be undefined)
+ *   - window.__FLOW_CLUSTERS__    (model-root clusters/ registry — may be undefined)
  *   - window.__THEME_MODE__       (dark | light)
  *
  * WHY a single generator for all three views:
@@ -101,7 +102,8 @@ export async function generateApp(
     const flowLayoutKeys = buildFlowLayoutKeys(flowModel);
     injection +=
       `window.__FLOW_MODEL__ = ${escapeScriptClose(JSON.stringify(flowModel.diagrams))}; ` +
-      `window.__FLOW_LAYOUT_KEYS__ = ${escapeScriptClose(JSON.stringify(flowLayoutKeys))}; `;
+      `window.__FLOW_LAYOUT_KEYS__ = ${escapeScriptClose(JSON.stringify(flowLayoutKeys))}; ` +
+      `window.__FLOW_CLUSTERS__ = ${escapeScriptClose(JSON.stringify(flowModel.clusters))}; `;
   }
 
   injection +=

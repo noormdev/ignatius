@@ -4,7 +4,7 @@
 
 </ignatius-breadcrumb>
 
-<ignatius-index scope="flows" path="flows" count="2" depth="1" digest="sha256:01af55299b392684e06a01daa9f3fd8d8601e54bffc5f603056fa565f3167d24">
+<ignatius-index scope="flows" path="flows" count="2" depth="1" digest="sha256:4cc636fb8200a4041bc94569da84885121905f88365e4f0996f87a0299d931dc">
 
 | Name | Kind | Description | Go |
 |---|---|---|---|

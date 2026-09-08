@@ -145,7 +145,7 @@ console.log('PASS: in[1] shape correct');
 // examples.out entries
 // ---------------------------------------------------------------------------
 
-assert(examples.out.length === 2, `Expected 2 out-entries, got ${examples.out.length}`);
+assert(examples.out.length === 3, `Expected 3 out-entries, got ${examples.out.length}`);
 
 const outEntry0 = defined(examples.out[0], 'out[0] should exist');
 assert(outEntry0.to === 'db:Payment', `out[0].to should be db:Payment, got ${outEntry0.to}`);
@@ -155,12 +155,21 @@ const outEntry0Row0 = defined(outEntry0.rows[0], 'out[0].rows[0] should exist');
 assert(outEntry0Row0['payment_id'] === 9001, `out[0].rows[0].payment_id should be 9001`);
 console.log('PASS: out[0] shape correct (to, label, numeric rows)');
 
+// The settlement cluster's members are keyed by their own db: token in examples,
+// never by the cluster — out[1] is the allocation row for the cluster's second member.
 const outEntry1 = defined(examples.out[1], 'out[1] should exist');
-assert(outEntry1.to === 'ext:Customer', `out[1].to should be ext:Customer, got ${outEntry1.to}`);
+assert(outEntry1.to === 'db:PaymentAllocation', `out[1].to should be db:PaymentAllocation, got ${outEntry1.to}`);
 assert(outEntry1.rows.length === 1, `out[1].rows should have 1 row`);
 const outEntry1Row0 = defined(outEntry1.rows[0], 'out[1].rows[0] should exist');
-assert(outEntry1Row0['status'] === 'captured', `out[1].rows[0].status should be 'captured'`);
-console.log('PASS: out[1] shape correct');
+assert(outEntry1Row0['sales_invoice_id'] === 5001, `out[1].rows[0].sales_invoice_id should be 5001`);
+console.log('PASS: out[1] shape correct (cluster member keyed by db: token)');
+
+const outEntry2 = defined(examples.out[2], 'out[2] should exist');
+assert(outEntry2.to === 'ext:Customer', `out[2].to should be ext:Customer, got ${outEntry2.to}`);
+assert(outEntry2.rows.length === 1, `out[2].rows should have 1 row`);
+const outEntry2Row0 = defined(outEntry2.rows[0], 'out[2].rows[0] should exist');
+assert(outEntry2Row0['status'] === 'captured', `out[2].rows[0].status should be 'captured'`);
+console.log('PASS: out[2] shape correct');
 
 // ---------------------------------------------------------------------------
 // No-examples: a process WITHOUT examples: field has no examples property

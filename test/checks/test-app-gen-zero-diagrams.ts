@@ -70,6 +70,7 @@ const emptyFlowModel: FlowModel = {
     diagrams: [],
     modelDir: ROOT,
     externals: [],
+    clusters: [],
 };
 
 // ── Test: zero-diagrams flowModel behaves like null (no flow globals injected) ──

@@ -85,7 +85,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
           // different SHAPE from the populated one, or a consumer that reads
           // `entityModel` breaks only on models that happen to have no flows.
           const { model: entityModel } = await parseModels(modelsDir);
-          return Response.json({ diagrams: [], entityModel, validation: { flowErrors: [], globalErrors: [], cleanedFlowModel: { diagrams: [], modelDir: modelsDir } }, flowLayoutKeys: {} });
+          return Response.json({ diagrams: [], entityModel, validation: { flowErrors: [], globalErrors: [], cleanedFlowModel: { diagrams: [], modelDir: modelsDir } }, flowLayoutKeys: {}, clusters: [] });
         }
 
         const { model } = await parseModels(modelsDir);
@@ -96,7 +96,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         // entityModel travels with the payload so the flow viewer's doc dialog can
         // resolve `db:` store docs to their ERD entity narrative (and hot-reload
         // them on edit). Static mode injects window.__MODEL__ instead.
-        return Response.json({ diagrams: flowModel.diagrams, entityModel: model, validation, flowLayoutKeys });
+        return Response.json({ diagrams: flowModel.diagrams, entityModel: model, validation, flowLayoutKeys, clusters: flowModel.clusters });
       },
       '/flow-dict': () => {
         // CP5: the process dictionary is now fused into the SPA Dictionary view.

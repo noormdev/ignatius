@@ -4,14 +4,17 @@ paths:
   - "src/app/**"
 ---
 
-Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; views own cy/SVG lifecycle; components/logic/hooks/dom layered underneath
+Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; `flowview=`/`collapse=` hash params drive the flow view mode and collapse level; `StackDialog`/`EdgeContractDialog` cover stack and edge-contract detail; views own cy/SVG lifecycle; components/logic/hooks/dom layered underneath
 
 Map:
   - docs/wiki/frontend.md
+Contracts:
+  - docs/spec/dfd-store-clusters.md
 Designs:
   - docs/design/app-tsx-decomposition.md
   - docs/design/branding.md
   - docs/design/dd-spotlight-grid.md
+  - docs/design/dfd-store-clusters.md
   - docs/design/dict-navigation.md
   - docs/design/graph-flow-search.md
   - docs/design/graph-position-persistence.md

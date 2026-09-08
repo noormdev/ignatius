@@ -62,7 +62,13 @@ export type RuleId =
   | 'flow.process_to_process'
   | 'flow.unbalanced_decomposition'
   | 'flow.duplicate_number'
-  | 'flow.store_naming_collision';
+  | 'flow.store_naming_collision'
+  // flow cluster rules
+  | 'flow.unknown_cluster'
+  | 'flow.cluster_member_unknown'
+  | 'flow.cluster_no_members'
+  | 'flow.cluster_entity_unknown'
+  | 'flow.cluster_overlap';
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -288,6 +294,31 @@ export const RULES: Record<RuleId, RuleEntry> = {
   'flow.store_naming_collision': {
     title: 'Store token conflict across diagrams',
     explanation: 'The same store token (kind:name) appears in multiple diagrams with conflicting `kind` or `title` attributes. The derivation cannot silently merge them. Reconcile the store definition across the affected diagrams so the token resolves consistently.',
+    class: 'A',
+  },
+  'flow.unknown_cluster': {
+    title: 'Flow references unknown cluster',
+    explanation: 'A `cluster:` endpoint names a slug with no `clusters/<slug>.md` file at the model root. Every edge expanded from this entry is stripped from the cleaned model. Add the cluster file or correct the slug.',
+    class: 'B',
+  },
+  'flow.cluster_member_unknown': {
+    title: 'Cluster entry maps an unknown member',
+    explanation: 'A `cluster:` entry\'s `data:` map names a member entity that is not in the cluster\'s `entities:` list. The edge for that member is stripped from the cleaned model. Add the entity to the cluster\'s `entities:` or correct the member key.',
+    class: 'B',
+  },
+  'flow.cluster_no_members': {
+    title: 'Cluster entry has no mapped members',
+    explanation: 'A `cluster:` entry\'s `data:` map is empty — no members were mapped. The entry produces no edge in the cleaned model. Add member columns to the `data:` map or remove the entry.',
+    class: 'A',
+  },
+  'flow.cluster_entity_unknown': {
+    title: 'Cluster file lists unknown entity',
+    explanation: 'A `clusters/<slug>.md` file\'s `entities:` list names an entity that does not exist in the entity catalog. Add the entity file or correct the name in the cluster file.',
+    class: 'A',
+  },
+  'flow.cluster_overlap': {
+    title: 'Entity claimed by more than one cluster',
+    explanation: 'An entity appears in the `entities:` list of more than one `clusters/*.md` file. A store belongs to only one author cluster; remove it from all but one file.',
     class: 'A',
   },
 };

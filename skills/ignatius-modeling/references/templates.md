@@ -402,6 +402,9 @@ name: <Model Name>
 # description: <optional description>
 # updated: "YYYY-MM-DD"
 
+# flow_view:        # DFD view settings; omit to keep the defaults
+#   adjacency_stacks: false   # stop the connected view stacking stores that merely share readers and writers
+
 # theme:            # omit to use parser defaults; user values deep-merge over them
 #   dark:
 #     background: "#0e1116"

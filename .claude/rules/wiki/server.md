@@ -4,7 +4,7 @@ paths:
   - "src/server/**"
 ---
 
-Domain: server. Bun.serve with `/api/model` + `/api/flow` + `/events` SSE + fs.watch live-reload; `/dict` and `/flow` redirect to unified SPA hash routes; `/flow-dict` redirects to `/#view=dict`
+Domain: server. Bun.serve with `/api/model` + `/api/flow` (now includes `clusters`) + `/events` SSE + fs.watch live-reload; `/dict` and `/flow` redirect to unified SPA hash routes; `/flow-dict` redirects to `/#view=dict`
 
 Map:
   - docs/wiki/server.md

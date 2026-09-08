@@ -4,13 +4,17 @@ paths:
   - "src/model/validate.ts"
 ---
 
-Domain: validate. Pure model validator: 33 RuleIds across 8 prefixes (parse/config/entity/body/edge/cluster/index/flow), two severity tiers (A=warn, B=omit); `validateIndex` reuses `buildRouters` to detect router drift
+Domain: validate. Pure model validator: 38 RuleIds across 8 prefixes (parse/config/entity/body/edge/cluster/index/flow), two severity tiers (A=warn, B=omit); `flow.*` now 17 ids including five `flow.cluster_*` DFD-store-cluster rules; `validateIndex` reuses `buildRouters` to detect router drift
 
 Map:
   - docs/wiki/validate.md
 Contracts:
+  - docs/spec/dfd-store-clusters.md
+  - docs/spec/model-index-routing.md
   - docs/spec/schema-lint-and-error-ux.md
 Designs:
+  - docs/design/dfd-store-clusters.md
+  - docs/design/model-index-routing.md
   - docs/design/schema-lint-and-error-ux.md
 
 Consult the map before changing behavior here. Behavior changes stale the pages above. Renames or removals stale mentions beyond them: grep the old name across docs/ before shipping.

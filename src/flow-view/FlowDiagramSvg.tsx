@@ -32,11 +32,10 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { buildFlowData, processNodeSize, PROC_LINE_H } from './flow-layout';
-import { isInlineLabel } from './elk-flow-layout';
+import { buildFlowData, processNodeSize, PROC_LINE_H, normalizeEdgeData, resolveChipLines, stackNodeSize, stackRowLayout, STACK_ROW_PEEK_GAP, STORE_ROW_H, STORE_CAP_W, STORE_STROKE_W, storeBodyWidth, measureText } from './flow-layout';
 import { computeFitScale } from './zoom-scale';
-import type { FlowDiagram } from '../flows/flow-parse';
-import type { NodePos, FlowElementData } from './flow-layout';
+import type { FlowDiagram, FlowEdge as FlowEdgeModel } from '../flows/flow-parse';
+import type { NodePos, FlowElementData, StackNodeData, StackMember, StackRow, BuildFlowDataOpts } from './flow-layout';
 import type { PositionMap } from '../app/views/graph/layout-store';
 import type { FlowKindEntry, FlowKindKey } from '../theme/theme-defaults';
 
@@ -129,10 +128,10 @@ const EXT_W = 120;
 const EXT_H = 50;
 const EXT_RX = 5;
 
-const STORE_H = 34;
-const STORE_CAP_W = 34;
-const STORE_BODY_W = 136; // minimum body width; expands for long names
-const STORE_INFO_PAD = 22; // right-side slot reserved for the ⓘ doc badge
+// Single canonical value, shared with elk-flow-layout.ts's nodeSize via
+// flow-layout.ts's STORE_ROW_H export — a one-row stack must draw at exactly
+// this height to look identical to a plain store box.
+const STORE_H = STORE_ROW_H;
 
 const EDGE_SW = 1.6;
 // How far short of the node boundary to stop the path, so the arrowhead
@@ -147,7 +146,6 @@ const CHIP_RX = 4;
 const CHIP_FONT = 10.5;
 const CHIP_LINE_H = 13;  // vertical pitch per data line in a multi-line chip
 const CHIP_PAD_Y = 4;    // top/bottom padding inside a chip
-const CHIP_MAX_CHARS = 22; // truncate a single long data line to keep chips compact
 
 const PADDING = 80; // canvas padding around content
 
@@ -161,6 +159,9 @@ const MIN_SCALE = 0.05;
 const MAX_SCALE = 10.0;
 // Pointer move < this viewBox-unit threshold on pointerdown → treated as click, not drag
 const DRAG_THRESHOLD_VB = 4;
+// Pointer move < this screen-pixel threshold on a chip pointerdown → treated as a
+// click (opens the contract dialog) rather than a label drag.
+const CHIP_CLICK_THRESHOLD_PX = 4;
 
 // ── Minimap data ──────────────────────────────────────────────────────────────
 
@@ -175,16 +176,6 @@ export type MinimapData = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function measureText(text: string, fontSize: number): number {
-  // Approximation: ~0.55 × font-size per character for system-ui
-  return text.length * fontSize * 0.55 + 12;
-}
-
-function truncateLabel(label: string, maxChars: number): string {
-  if (label.length <= maxChars) return label;
-  return label.slice(0, maxChars - 1) + '…';
-}
-
 /**
  * Strips the role-split layout suffixes (external src/snk routing copies,
  * split store read/write copies — see flow-layout.ts's `ext:<id>--src/--snk`
@@ -197,51 +188,90 @@ function baseToken(id: string): string {
 }
 
 function storeWidth(name: string): number {
-  // Reserve a right-side slot for the ⓘ badge so it never overlaps the name.
-  const bodyW = Math.max(STORE_BODY_W, measureText(name, 11.5) + STORE_INFO_PAD);
-  return STORE_CAP_W + bodyW;
+  return STORE_CAP_W + storeBodyWidth(name);
 }
 
-type FlowNode = Extract<FlowElementData, { kind: 'node' }>;
-type FlowEdge = Extract<FlowElementData, { kind: 'edge' }>;
+export type FlowNode = Extract<FlowElementData, { kind: 'node' }>;
+export type FlowEdge = Extract<FlowElementData, { kind: 'edge' }>;
+
+/** A stack node's sizing inputs — member list + rows, see stackNodeSize. */
+export type StackSizeInfo = { members: StackMember[]; rows: StackRow[] };
 
 /**
- * The label a node needs for size estimation (#5):
+ * The sizing input a node needs for size estimation (#5, extended for stacks):
  *   - process → its label (wrapped + measured via processNodeSize)
  *   - store   → its display name (storeWidth)
+ *   - stack   → its members + rows (stackNodeSize)
  *   - external → undefined (fixed EXT_W/EXT_H)
  * Single derivation, reused at every nodeBounds call site so edge anchoring /
- * viewBox / minimap all agree on a process's grown box.
+ * viewBox / minimap all agree on a process's grown box (or a stack's rows).
  */
-function sizingLabel(node: FlowNode): string | undefined {
+export function sizingInfo(node: FlowNode): string | StackSizeInfo | undefined {
   if (node.nodeType === 'process') return node.label;
   if (node.nodeType === 'store') return node.label ?? node.storeName ?? '';
+  if (node.nodeType === 'stack') return { members: node.members, rows: node.rows };
   return undefined;
 }
 
+/** A stack node's display name, the way StackDialog's own title reads it:
+ *  "Read stack"/"Write stack" for the default per-process grouping, else the
+ *  stack's own resolved label (cluster/subtype/group/adjacency name). */
+function stackNodeTitle(node: StackNodeData): string {
+  if (node.source === 'per-process') return node.direction === 'read' ? 'Read stack' : 'Write stack';
+  return node.label;
+}
+
+/** A stack edge's hover-tooltip body: one `Store: col, col` line per member,
+ *  columns deduplicated within a store — so hovering a 5-member stack reads
+ *  five distinguishable rows instead of a flat, indistinguishable column union. */
+function memberTooltipLines(memberEdges: FlowEdgeModel[], storeDisplayNameById: ReadonlyMap<string, string>): string[] {
+  const byStore = new Map<string, { displayName: string; cols: Set<string> }>();
+  for (const e of memberEdges) {
+    const storeEndpoint = e.from.kind === 'proc' ? e.to : e.from;
+    const key = `${storeEndpoint.kind}:${storeEndpoint.name}`;
+    const entry = byStore.get(key) ?? { displayName: storeDisplayNameById.get(key) ?? storeEndpoint.name, cols: new Set<string>() };
+    for (const col of normalizeEdgeData(e.data)) entry.cols.add(col);
+    byStore.set(key, entry);
+  }
+  return [...byStore.values()].map(({ displayName, cols }) => `${displayName}: ${[...cols].join(', ')}`);
+}
+
 /**
- * Bounds of a node — used for edge attachment point calculation. `label` sizes
- * the box: a process's box is derived from its wrapped label (processNodeSize),
- * a store's from its display name; an external's is fixed (label ignored).
+ * Bounds of a node — used for edge attachment point calculation. `sizeInfo`
+ * sizes the box: a process's box is derived from its wrapped label
+ * (processNodeSize), a store's from its display name, a stack's from its
+ * member list + row count (stackNodeSize); an external's is fixed (ignored).
  */
-function nodeBounds(pos: NodePos, nodeType: string, label?: string): {
+export function nodeBounds(pos: NodePos, nodeType: string, sizeInfo?: string | StackSizeInfo): {
   x: number; y: number; w: number; h: number; cx: number; cy: number;
 } {
   if (nodeType === 'process') {
-    const { width: w, height: h } = processNodeSize(label ?? '');
+    const { width: w, height: h } = processNodeSize(typeof sizeInfo === 'string' ? sizeInfo : '');
     return { x: pos.x - w / 2, y: pos.y - h / 2, w, h, cx: pos.x, cy: pos.y };
   }
   if (nodeType === 'external') {
     const w = EXT_W; const h = EXT_H;
     return { x: pos.x - w / 2, y: pos.y - h / 2, w, h, cx: pos.x, cy: pos.y };
   }
+  if (nodeType === 'stack') {
+    const info = typeof sizeInfo === 'object' && sizeInfo !== null ? sizeInfo : { members: [], rows: [] };
+    // Width and the box's top come from the ELK-facing size (stackNodeSize) —
+    // the same center StackNode anchors its top to. Height is the FULL drawn
+    // box (stackRowLayout, rows plus every grouped row's peek reserve): a
+    // grouped row's peek sheets extend past stackNodeSize's official height,
+    // and edge anchors/chip placement/viewBox must never treat that space as
+    // clear.
+    const { width: w, height: officialH } = stackNodeSize(info.members, info.rows);
+    const { height: visualH } = stackRowLayout(info.rows);
+    return { x: pos.x - w / 2, y: pos.y - officialH / 2, w, h: visualH, cx: pos.x, cy: pos.y };
+  }
   // store — center x is at middle of entire store width
-  const sw = storeWidth(label ?? '');
+  const sw = storeWidth(typeof sizeInfo === 'string' ? sizeInfo : '');
   return { x: pos.x - sw / 2, y: pos.y - STORE_H / 2, w: sw, h: STORE_H, cx: pos.x, cy: pos.y };
 }
 
 /** Per-edge horizontal attachment points after fan-out (world x). */
-type EdgeAnchors = { fromX: number; toX: number };
+export type EdgeAnchors = { fromX: number; toX: number };
 
 /** Spacing (world px) between adjacent fan-out anchors on one node side. */
 const FANOUT_GAP = 5;
@@ -275,7 +305,7 @@ function endpointSide(
  * Recomputed each render against live `positions`, so anchors re-balance as
  * nodes are dragged.
  */
-function computeEdgeAnchors(
+export function computeEdgeAnchors(
   edges: FlowEdge[],
   nodeById: Map<string, FlowNode>,
   positions: Map<string, NodePos>,
@@ -309,7 +339,7 @@ function computeEdgeAnchors(
     const node = nodeById.get(nodeId);
     const pos = positions.get(nodeId);
     if (!node || !pos) continue;
-    const { cx } = nodeBounds(pos, node.nodeType, sizingLabel(node));
+    const { cx } = nodeBounds(pos, node.nodeType, sizingInfo(node));
     slots.sort((a, b) => a.otherX - b.otherX);
     const k = slots.length;
     const span = FANOUT_GAP * (k - 1);
@@ -332,10 +362,10 @@ function computeEdgeAnchors(
   return result;
 }
 
-type Box = { x: number; y: number; w: number; h: number };
-type Pt = [number, number];
+export type Box = { x: number; y: number; w: number; h: number };
+export type Pt = [number, number];
 
-function boxesOverlap(a: Box, b: Box): boolean {
+export function boxesOverlap(a: Box, b: Box): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
@@ -361,6 +391,88 @@ function projectOntoPolyline(pts: Pt[], px: number, py: number): NodePos {
 }
 
 /**
+ * Two chips within this many world px on the inter-band channel axis (chip.y
+ * — see elkChannelChip/chipAnchor) count as the same outlet for
+ * suppressDuplicateChips. Small enough that two genuinely different channels
+ * (bands are 60+px apart) never merge; large enough to absorb the few px of
+ * per-edge jitter that differing sibling-process box heights introduce into
+ * an otherwise-identical channel y.
+ */
+const CHIP_CHANNEL_TOLERANCE = 24;
+
+/**
+ * Suppresses a chip whose rendered lines are byte-identical to an
+ * already-visible sibling's leaving the SAME stack outlet, within one
+ * inter-band channel of it — a stack read fanning out to eight processes
+ * repeats the exact same label at the same outlet eight times, and
+ * deoverlapChips' vertical-only search cascades those identical chips
+ * downward until one lands on the next node.
+ *
+ * Scoped to stack sources only: a plain process or store can legitimately
+ * send the same label to two genuinely different destinations (e.g. one
+ * process writing an identical label to a store on its left and one on its
+ * right) — those must both stay visible, so only an edge whose source
+ * `nodeById` resolves to a `'stack'` node is ever a suppression candidate.
+ *
+ * An already-`chipOverrides`-dragged sibling in a group counts as that
+ * group's visible representative — every auto (non-overridden) sibling is
+ * suppressed regardless of the dragged position, so releasing the drag never
+ * leaves a duplicate behind at the original outlet. With no override present,
+ * the sibling closest to the group's mean chip.x survives (representative of
+ * the outlet itself, since duplicates fan out tightly around it).
+ *
+ * The edge path and its hover/click affordances are untouched; only the
+ * redundant label is hidden (`lines` set to `[]`). Mutates `renders` in
+ * place, matching deoverlapChips' convention; must run before it, over every
+ * render (including overridden ones) — see the call site.
+ */
+export function suppressDuplicateChips(
+  renders: Array<{ id: string; source: string; lines: string[]; chip: NodePos }>,
+  overriddenIds: ReadonlySet<string>,
+  nodeById: ReadonlyMap<string, FlowNode>,
+): void {
+  const byKey = new Map<string, typeof renders>();
+  for (const r of renders) {
+    if (r.lines.length === 0) continue;
+    if (nodeById.get(r.source)?.nodeType !== 'stack') continue;
+    const key = `${r.source}␟${r.lines.join('␟')}`;
+    const list = byKey.get(key);
+    if (list) list.push(r); else byKey.set(key, [r]);
+  }
+
+  for (const candidates of byKey.values()) {
+    if (candidates.length < 2) continue;
+    const sorted = [...candidates].sort((a, b) => a.chip.y - b.chip.y);
+    const channels: (typeof candidates)[] = [];
+    for (const r of sorted) {
+      const channel = channels[channels.length - 1];
+      // Anchor against the channel's FIRST member, not the previous one — a
+      // chain of siblings each a few px from the last could otherwise merge
+      // transitively into one channel spanning far more than the tolerance.
+      const anchor = channel?.[0];
+      if (channel && anchor && r.chip.y - anchor.chip.y <= CHIP_CHANNEL_TOLERANCE) channel.push(r);
+      else channels.push([r]);
+    }
+    for (const channel of channels) {
+      if (channel.length < 2) continue;
+      const overridden = channel.filter(r => overriddenIds.has(r.id));
+      if (overridden.length > 0) {
+        for (const r of channel) if (!overriddenIds.has(r.id)) r.lines = [];
+        continue;
+      }
+      const meanX = channel.reduce((sum, r) => sum + r.chip.x, 0) / channel.length;
+      let survivor = channel[0]!;
+      let bestDist = Math.abs(survivor.chip.x - meanX);
+      for (const r of channel) {
+        const d = Math.abs(r.chip.x - meanX);
+        if (d < bestDist) { survivor = r; bestDist = d; }
+      }
+      for (const r of channel) if (r !== survivor) r.lines = [];
+    }
+  }
+}
+
+/**
  * Nudge chips vertically so they don't sit on top of node boxes or each other.
  * A chip rides a (near-)vertical part of its edge, so moving it up or down keeps
  * it on its line while clearing obstacles. For each chip we scan outward from its
@@ -368,7 +480,7 @@ function projectOntoPolyline(pts: Pt[], px: number, py: number): NodePos {
  * finds the closest gap without the oscillation a greedy "nearer side" pass hits
  * when a chip is sandwiched between two obstacles. Mutates `chip` in place.
  */
-function deoverlapChips(
+export function deoverlapChips(
   renders: Array<{ chip: NodePos; lines: string[] }>,
   nodeBoxes: Box[],
 ): void {
@@ -415,8 +527,8 @@ function edgeChannelY(fy: number, toSide: 'top' | 'bottom', toBoundary: number):
  * path `d` string.
  */
 function orthogonalPath(
-  fromPos: NodePos, fromType: string, fromLabel: string | undefined,
-  toPos: NodePos, toType: string, toLabel: string | undefined,
+  fromPos: NodePos, fromType: string, fromLabel: string | StackSizeInfo | undefined,
+  toPos: NodePos, toType: string, toLabel: string | StackSizeInfo | undefined,
   fromX: number, toX: number,
 ): Pt[] {
   const fb = nodeBounds(fromPos, fromType, fromLabel);
@@ -442,9 +554,9 @@ function orthogonalPath(
  * store/external end's x — those nodes are spread out, so chips don't pile up
  * the way they would at a process that carries many edges.
  */
-function chipAnchor(
-  fromPos: NodePos, fromType: string, fromLabel: string | undefined,
-  toPos: NodePos, toType: string, toLabel: string | undefined,
+export function chipAnchor(
+  fromPos: NodePos, fromType: string, fromLabel: string | StackSizeInfo | undefined,
+  toPos: NodePos, toType: string, toLabel: string | StackSizeInfo | undefined,
   fromX: number, toX: number,
 ): NodePos {
   const fb = nodeBounds(fromPos, fromType, fromLabel);
@@ -467,6 +579,57 @@ function chipAnchor(
   }
 
   return { x: chipX, y: channelY };
+}
+
+/**
+ * elkChannelChip — the chip anchor for an ELK-routed edge (CP4c): the
+ * inter-band CHANNEL point, y midway between the source-bottom and
+ * target-top (whichever is "upper"/"lower" in screen coordinates) with x
+ * interpolated off the routed polyline at that y. The route midpoint lands
+ * on a node; the channel point lands between them.
+ */
+export function elkChannelChip(
+  fromPos: NodePos, fromType: string, fromLabel: string | StackSizeInfo | undefined,
+  toPos: NodePos, toType: string, toLabel: string | StackSizeInfo | undefined,
+  elkPts: Pt[],
+): NodePos {
+  const fb = nodeBounds(fromPos, fromType, fromLabel);
+  const tb = nodeBounds(toPos, toType, toLabel);
+  // upper = whichever box has the smaller center-y; lower = the other.
+  const upperBottom = fb.cy <= tb.cy ? fb.y + fb.h : tb.y + tb.h;
+  const lowerTop    = fb.cy <= tb.cy ? tb.y : fb.y;
+  const channelY = (upperBottom + lowerTop) / 2;
+
+  // Find the route's x at channelY by walking segments and interpolating on
+  // the segment that spans channelY. Fall back to nearest point if none
+  // spans it (guards against routes that don't cross the channel).
+  let channelX: number = elkPts[0]?.[0] ?? fromPos.x;
+  let foundSpan = false;
+  for (let i = 1; i < elkPts.length; i++) {
+    const prev = elkPts[i - 1];
+    const curr = elkPts[i];
+    if (prev === undefined || curr === undefined) continue;
+    const [ax, ay] = prev;
+    const [bx, by] = curr;
+    const minY = Math.min(ay, by);
+    const maxY = Math.max(ay, by);
+    if (channelY >= minY && channelY <= maxY) {
+      const span = by - ay;
+      const t = span === 0 ? 0 : (channelY - ay) / span;
+      channelX = ax + t * (bx - ax);
+      foundSpan = true;
+      break;
+    }
+  }
+  if (!foundSpan) {
+    let nearestDist = Infinity;
+    for (const pt of elkPts) {
+      const d = Math.abs(pt[1] - channelY);
+      if (d < nearestDist) { nearestDist = d; channelX = pt[0]; }
+    }
+  }
+
+  return { x: channelX, y: channelY };
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -623,7 +786,7 @@ function StoreNode({
   const bodyX = x + STORE_CAP_W;
   const bodyW = sw - STORE_CAP_W;
   const dLabel = `D${storeNum}`;
-  const strokeW = 1.4;
+  const strokeW = STORE_STROKE_W;
   const rightX = x + sw;
   const fill = kindColors ? kindColors.bg : c.storeFill;
   const stroke = kindColors ? kindColors.border : c.storeBorder;
@@ -645,6 +808,7 @@ function StoreNode({
           *outer* edge (strokeW/2 beyond the box) so it bleeds like the border. */}
       {duplicated && (
         <rect
+          data-ignatius="dup-marker"
           x={x - strokeW / 2} y={y - strokeW / 2}
           width={3 + strokeW / 2} height={STORE_H + strokeW}
           fill={stroke}
@@ -667,6 +831,165 @@ function StoreNode({
           STORE_INFO_PAD), vertically centred — on the store's own fill so the
           click always lands, and visibly part of the container. */}
       <InfoBadge cx={rightX - INFO_R - 4} cy={pos.y} color={stroke} c={c} onOpen={onOpenDoc} />
+    </g>
+  );
+}
+
+// Down-right offset (px) of the "more inside" marker's nearer (middle) copy —
+// the further (back) copy sits at STACK_ROW_PEEK_GAP.
+const PEEK_MID_OFFSET = STACK_ROW_PEEK_GAP / 2;
+
+/**
+ * A stack node: one open-ended Gane-Sarson box (same left cap-bar / open-right
+ * shape as StoreNode) whose rows are all drawn — one row per `node.rows`
+ * entry, each STORE_ROW_H tall, so a one-row stack matches a plain store's
+ * drawn height exactly (see stackNodeSize). A store row shows its own D#; a
+ * cluster/subtype row shows `C` and a group row `G` (never a D#, since only
+ * a store row is one), plus the row label and a `(N)` count. A grouped row
+ * also gets the "more inside" affordance a process with a sub-DFD uses — the
+ * hand-drawn stacked-paper-store convention: the row's own bottom edge closed
+ * across the full width, then two sheets behind it, each showing only what a
+ * sheet behind would show past the front box's own edges — a stair-stepped
+ * slice of its left edge, its bottom edge (extended right by the sheet's own
+ * offset), and a short mark at the top-right where its top edge pokes out —
+ * never a full left edge or cap divider, and never above the row's own top.
+ * Drawn in the space stackRowLayout reserves after the row so nothing bleeds
+ * into the next.
+ */
+function StackNode({
+  node, pos, c, kindColors, onOpenDoc, suppressDuplicateMarker = false,
+}: {
+  node: StackNodeData; pos: NodePos; c: FlowPalette;
+  /** When set, overrides the stack's fill/border/text with kind-specific colors
+   *  (resolved from the stack's first member — a stack never mixes kinds). */
+  kindColors?: FlowKindEntry;
+  onOpenDoc?: () => void;
+  /** True in the per-process view, where a shared store repeats in every
+   *  process's stack by design — the duplicate marker would cover nearly
+   *  every row and stop marking anything exceptional. */
+  suppressDuplicateMarker?: boolean;
+}) {
+  // Top is anchored to the OFFICIAL (ELK-facing) height, matching nodeBounds
+  // exactly — a grouped row's peek gap is bottom padding on the drawn box
+  // (see stackNodeSize), so the box extends further down than nodeBounds
+  // reports rather than shifting its top or its center.
+  const { width: w, height: officialH } = stackNodeSize(node.members, node.rows);
+  const { offsets: rowOffsets, height: h } = stackRowLayout(node.rows);
+  const x = pos.x - w / 2;
+  const y = pos.y - officialH / 2;
+  const rightX = x + w;
+  const bodyX = x + STORE_CAP_W;
+  const strokeW = STORE_STROKE_W;
+  const fill = kindColors ? kindColors.bg : c.storeFill;
+  const stroke = kindColors ? kindColors.border : c.storeBorder;
+  const textFill = kindColors ? kindColors.fg : c.storeText;
+  const membersById = new Map(node.members.map(m => [m.storeId, m]));
+
+  return (
+    <g data-node-type="stack" style={{ cursor: 'pointer' }}>
+      {/* Fills are per row so a grouped row's peek reserve stays clear for the
+          filled sheets behind it: the two sheets (back first, so the nearer one
+          overlaps it) are solid paper the same colour as the box, and the
+          row's own fill lands on top of both. */}
+      {node.rows.map((row, i) => {
+        const rowTop = y + rowOffsets[i]!;
+        return (
+          <g key={`fill-${i}`}>
+            {row.kind !== 'store' && [STACK_ROW_PEEK_GAP, PEEK_MID_OFFSET].map(offset => (
+              <rect key={offset} x={x + offset} y={rowTop + offset} width={w} height={STORE_ROW_H} fill={fill} />
+            ))}
+            <rect x={x} y={rowTop} width={w} height={STORE_ROW_H} fill={fill} />
+          </g>
+        );
+      })}
+      {/* The top closes the whole box, and so does the bottom unless the last
+          row is grouped — its sheets already carry the bottom edges, and a
+          full-width line under them would float below the back sheet. The
+          left border and cap divider are drawn per row (rowTop→rowBottom
+          only, below) rather than spanning the full drawn height — a row's
+          peek reserve must carry only the sheet stairs and bottom lines, not
+          a left edge or divider that would give the sheets behind it a left
+          side they must not have. */}
+      <line x1={x} y1={y} x2={rightX} y2={y} stroke={stroke} strokeWidth={strokeW} />
+      {node.rows[node.rows.length - 1]?.kind === 'store' && (
+        <line x1={x} y1={y + h} x2={rightX} y2={y + h} stroke={stroke} strokeWidth={strokeW} />
+      )}
+      {node.rows.map((row, i) => {
+        const rowTop = y + rowOffsets[i]!;
+        const rowBottom = rowTop + STORE_ROW_H;
+        return (
+          <g key={`border-${i}`}>
+            <line x1={x} y1={rowTop} x2={x} y2={rowBottom} stroke={stroke} strokeWidth={strokeW} />
+            <line x1={bodyX} y1={rowTop} x2={bodyX} y2={rowBottom} stroke={stroke} strokeWidth={strokeW} />
+          </g>
+        );
+      })}
+
+      {/* "More inside" stacked-paper marker — the front row's own closed
+          bottom edge, then two sheets behind it (each offset PEEK_MID_OFFSET/
+          STACK_ROW_PEEK_GAP down+right) showing only what a sheet behind
+          would show: a stair-stepped left edge (the slice of its left side
+          visible below the sheet in front), its own bottom edge (extended
+          right by its offset), and a short mark where its top edge pokes out
+          past the front box's right end. No cap divider — the front box is
+          the only complete box; the sheets' fills are drawn with the row
+          fills above. */}
+      {node.rows.map((row, i) => {
+        if (row.kind === 'store') return null;
+        const rowTop = y + rowOffsets[i]!;
+        const rowBottom = rowTop + STORE_ROW_H;
+        const offsets = [PEEK_MID_OFFSET, STACK_ROW_PEEK_GAP];
+        return (
+          <g key={`peek-${i}`}>
+            <line x1={x} y1={rowBottom} x2={rightX} y2={rowBottom} stroke={stroke} strokeWidth={strokeW} />
+            {offsets.map((offset, sheetIdx) => {
+              const prevOffset = sheetIdx === 0 ? 0 : offsets[sheetIdx - 1]!;
+              return (
+                <g key={offset}>
+                  <line x1={x + offset} y1={rowBottom + prevOffset} x2={x + offset} y2={rowBottom + offset} stroke={stroke} strokeWidth={strokeW} />
+                  <line x1={x + offset} y1={rowBottom + offset} x2={rightX + offset} y2={rowBottom + offset} stroke={stroke} strokeWidth={strokeW} />
+                  <line x1={rightX} y1={rowTop + offset} x2={rightX + offset} y2={rowTop + offset} stroke={stroke} strokeWidth={strokeW} />
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
+
+      {node.rows.map((row, i) => {
+        const rowY = y + rowOffsets[i]!;
+        const rowMidY = rowY + STORE_ROW_H / 2 + 4;
+        // D means data store — only a store row caps with its D#; a grouped
+        // row caps with a plain letter instead (C for cluster/subtype, G for
+        // group), never a number.
+        const capLabel = row.kind === 'store' ? `D${row.storeNum}` : row.cap;
+        const bodyLabel = row.kind === 'store' ? row.displayName : `${row.label} (${row.count})`;
+        const duplicated = !suppressDuplicateMarker && row.kind === 'store' && (membersById.get(row.storeId)?.duplicated ?? false);
+
+        return (
+          <g key={i}>
+            {i > 0 && <line x1={x} y1={rowY} x2={rightX} y2={rowY} stroke={stroke} strokeWidth={strokeW} />}
+            {/* Duplicate-store marker (see StoreNode) — scoped to this row's slice. */}
+            {duplicated && (
+              <rect
+                data-ignatius="dup-marker"
+                x={x - strokeW / 2} y={rowY - strokeW / 2}
+                width={3 + strokeW / 2} height={STORE_ROW_H + strokeW}
+                fill={stroke}
+              />
+            )}
+            <text x={x + STORE_CAP_W / 2} y={rowMidY} fill={textFill} fontSize={11} fontWeight={700} textAnchor="middle">
+              {capLabel}
+            </text>
+            <text x={bodyX + 6} y={rowMidY} fill={textFill} fontSize={11.5} textAnchor="start">
+              {bodyLabel}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Badge centered on the first row, matching StoreNode's vertical centering. */}
+      <InfoBadge cx={rightX - INFO_R - 4} cy={y + STORE_ROW_H / 2} color={stroke} c={c} onOpen={onOpenDoc} />
     </g>
   );
 }
@@ -723,7 +1046,7 @@ function EdgePath({
 }
 
 /** Box dimensions of a multi-line chip. */
-function chipDims(lines: string[]): { w: number; h: number } {
+export function chipDims(lines: string[]): { w: number; h: number } {
   return {
     w: Math.max(...lines.map(l => measureText(l, CHIP_FONT)), 40),
     h: lines.length * CHIP_LINE_H + CHIP_PAD_Y * 2,
@@ -787,7 +1110,25 @@ export type FlowDiagramSvgProps = {
   /** Called with a node's canonical doc token (`proc:id` / `ext:Name` / `kind:name`)
    *  when the user clicks its ⓘ badge — opens the documentation dialog. */
   onOpenDoc?: (docToken: string) => void;
+  /** Called with the aggregated raw edges (one for a plain store, one per
+   *  member for a stack) and the source/target node labels (the same text
+   *  the hover tooltip header shows) when the user clicks (no drag) a chip
+   *  whose edge carries data — opens EdgeContractDialog. */
+  onOpenContract?: (edges: FlowEdgeModel[], sourceLabel: string, targetLabel: string) => void;
+  /** Called with a stack node, the labels of every process whose edge feeds
+   *  it (dotted-number + label, e.g. "1.2 Process Two"), and a process id →
+   *  label lookup (for an adjacency stack's reader/writer links) when the
+   *  user clicks (no drag) anywhere on a stack, or its ⓘ badge — opens
+   *  StackDialog. */
+  onOpenStack?: (node: StackNodeData, feederProcessLabels: string[], processLabelById: ReadonlyMap<string, string>) => void;
   onReady?: () => void;
+  /**
+   * View/collapse-level/grouping opts passed straight through to buildFlowData
+   * — must match whatever computeElkLayout(diagram, opts) was called with so
+   * elkPositions/elkEdgeRoutes key against the same node/edge id set this
+   * component builds. Omitting it keeps today's per-store rendering.
+   */
+  flowDataOpts?: BuildFlowDataOpts;
   /**
    * ELK-computed node positions, keyed by node id (from computeElkLayout).
    * When provided, this is the primary layout source — overrides the synchronous
@@ -857,7 +1198,10 @@ export function FlowDiagramSvg({
   kindPalette,
   onDrill,
   onOpenDoc,
+  onOpenContract,
+  onOpenStack,
   onReady,
+  flowDataOpts,
   elkPositions,
   elkEdgeRoutes,
   savedPositions,
@@ -871,11 +1215,35 @@ export function FlowDiagramSvg({
   // Select palette based on current theme.
   const c = themeMode === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
 
-  const { nodes, edges, positions: bandedPositions, storeNums } = buildFlowData(diagram);
+  const { nodes, edges, positions: bandedPositions } = buildFlowData(diagram, flowDataOpts);
+
+  // In the per-process view, a shared store repeats in every process's own
+  // stack by design — nearly every row would carry the duplicate marker, so
+  // it no longer marks anything exceptional. Drawing is suppressed here; the
+  // underlying `duplicated` data flag is untouched (still read in the
+  // connected view, where a duplicate remains the exception).
+  const suppressDuplicateMarker = flowDataOpts?.view === 'per-process';
 
   // Build a quick lookup: nodeId → node metadata. Memoized so it only
   // rebuilds when the diagram (and thus `nodes`) changes, not every render.
   const nodeById = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
+
+  // A node's display label for a tooltip/dialog header — a stack node reads
+  // the way its own dialog title does (stackNodeTitle), everything else its
+  // plain `label`. Shared by the hover tooltip and the click-to-contract-dialog
+  // handler so both name a stack edge's endpoints identically.
+  const endpointLabel = (id: string): string => {
+    const n = nodeById.get(id);
+    if (!n) return '';
+    return n.nodeType === 'stack' ? stackNodeTitle(n) : n.label;
+  };
+
+  // kind:name → displayName, for the stack-edge tooltip's per-member lines.
+  const storeDisplayNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of diagram.storeRefs) m.set(`${s.kind}:${s.name}`, s.displayName);
+    return m;
+  }, [diagram]);
 
   // Position source priority (highest → lowest):
   //   1. savedPositions drag overrides (user dragged a node — always wins)
@@ -941,7 +1309,7 @@ export function FlowDiagramSvg({
   for (const [id, pos] of positions) {
     const node = nodeById.get(id);
     if (!node) continue;
-    const bounds = nodeBounds(pos, node.nodeType, sizingLabel(node));
+    const bounds = nodeBounds(pos, node.nodeType, sizingInfo(node));
     minX = Math.min(minX, bounds.x);
     minY = Math.min(minY, bounds.y);
     maxX = Math.max(maxX, bounds.x + bounds.w);
@@ -968,7 +1336,7 @@ export function FlowDiagramSvg({
     for (const [id, pos] of positions) {
       const node = nodeById.get(id);
       if (!node) continue;
-      const b = nodeBounds(pos, node.nodeType, sizingLabel(node));
+      const b = nodeBounds(pos, node.nodeType, sizingInfo(node));
       nodeBoxes.push({ x: b.x, y: b.y, w: b.w, h: b.h, type: node.nodeType });
     }
 
@@ -1116,12 +1484,20 @@ export function FlowDiagramSvg({
   // this info to fire the drill on a short click without movement.
   const dragNodeIsSubDfd = useRef(false);
   const dragNodeProcessId = useRef<string | null>(null);
+  // A stack node's open-dialog action, captured at pointerdown time (it needs
+  // the feeder-process labels computed there) and fired on a short click —
+  // same click-vs-drag distinction the sub-DFD drill above uses.
+  const dragNodeClickAction = useRef<(() => void) | null>(null);
   const dragStart = useRef({ clientX: 0, clientY: 0, worldX: 0, worldY: 0 });
   const dragMoved = useRef(false);
 
   // Label (chip) drag tracking — slides along the edge's path.
   const dragChipId = useRef<string | null>(null);
   const dragChipPoints = useRef<Pt[]>([]);
+  // Distinguishes a chip click (opens the contract dialog) from a chip drag —
+  // set true once pointer movement crosses CHIP_CLICK_THRESHOLD_PX.
+  const dragChipMoved = useRef(false);
+  const dragChipStart = useRef({ clientX: 0, clientY: 0 });
 
   // Save debounce timer
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1153,13 +1529,24 @@ export function FlowDiagramSvg({
   function onSvgPointerMove(e: React.PointerEvent<SVGSVGElement>) {
     if (dragChipId.current) {
       if (!svgRef.current) return;
-      const w = clientToWorld(e.clientX, e.clientY);
-      const snapped = projectOntoPolyline(dragChipPoints.current, w.x, w.y);
-      setChipOverrides(prev => {
-        const next = new Map(prev);
-        next.set(dragChipId.current!, snapped);
-        return next;
-      });
+      if (!dragChipMoved.current) {
+        const ddx = e.clientX - dragChipStart.current.clientX;
+        const ddy = e.clientY - dragChipStart.current.clientY;
+        if (Math.abs(ddx) > CHIP_CLICK_THRESHOLD_PX || Math.abs(ddy) > CHIP_CLICK_THRESHOLD_PX) {
+          dragChipMoved.current = true;
+        }
+      }
+      // Below the click threshold, leave the chip in its auto-placed position
+      // — a sub-threshold pointer wobble on a click must not register as a drag.
+      if (dragChipMoved.current) {
+        const w = clientToWorld(e.clientX, e.clientY);
+        const snapped = projectOntoPolyline(dragChipPoints.current, w.x, w.y);
+        setChipOverrides(prev => {
+          const next = new Map(prev);
+          next.set(dragChipId.current!, snapped);
+          return next;
+        });
+      }
       return;
     }
 
@@ -1217,10 +1604,33 @@ export function FlowDiagramSvg({
 
   function onSvgPointerUp(e: React.PointerEvent<SVGSVGElement>) {
     if (dragChipId.current) {
+      const edgeId = dragChipId.current;
+      const moved = dragChipMoved.current;
       dragChipId.current = null;
       dragChipPoints.current = [];
+      dragChipMoved.current = false;
       setDraggingEdge(null);
-      scheduleSave();
+      if (moved) {
+        scheduleSave();
+      } else if (onOpenContract) {
+        const flowEdge = edges.find(x => x.id === edgeId);
+        if (flowEdge && flowEdge.dataLines.length > 0) {
+          const memberEdges = flowEdge.memberEdges
+            ?? (edgeId.startsWith('flow-edge-')
+              ? [diagram.edges[Number(edgeId.slice('flow-edge-'.length))]].filter((r): r is FlowEdgeModel => r !== undefined)
+              : []);
+          if (memberEdges.length > 0) {
+            // The dialog replaces the tooltip — clear it so it doesn't stay
+            // mounted (and stale) over the modal.
+            if (tooltipClearTimer.current !== null) {
+              clearTimeout(tooltipClearTimer.current);
+              tooltipClearTimer.current = null;
+            }
+            setEdgeTooltip(null);
+            onOpenContract(memberEdges, endpointLabel(flowEdge.source), endpointLabel(flowEdge.target));
+          }
+        }
+      }
       return;
     }
 
@@ -1229,17 +1639,25 @@ export function FlowDiagramSvg({
       const nodeId = dragNodeId.current;
       const isSubDfd = dragNodeIsSubDfd.current;
       const processId = dragNodeProcessId.current;
+      const clickAction = dragNodeClickAction.current;
 
       // Reset drag state before any callbacks (prevents re-entrancy).
       dragActive.current = false;
       dragNodeId.current = null;
       dragNodeIsSubDfd.current = false;
       dragNodeProcessId.current = null;
+      dragNodeClickAction.current = null;
       dragMoved.current = false;
 
       if (!movedEnough && isSubDfd && processId) {
         // Short tap on a drillable node (no significant movement) → fire drill.
         onDrill?.(processId);
+        return;
+      }
+
+      if (!movedEnough && clickAction) {
+        // Short tap on a stack (no significant movement) → open StackDialog.
+        clickAction();
         return;
       }
 
@@ -1259,9 +1677,11 @@ export function FlowDiagramSvg({
     dragNodeId.current = null;
     dragNodeIsSubDfd.current = false;
     dragNodeProcessId.current = null;
+    dragNodeClickAction.current = null;
     dragMoved.current = false;
     dragChipId.current = null;
     dragChipPoints.current = [];
+    dragChipMoved.current = false;
     setDraggingEdge(null);
     panActive.current = false;
     // Release pointer capture if still held (no-op if already released).
@@ -1304,6 +1724,7 @@ export function FlowDiagramSvg({
     nodeId: string,
     hasSubDfd: boolean,
     processId: string,
+    onClick?: () => void,
   ) {
     // Prevent the SVG's pan handler from starting (stopPropagation on pointerdown).
     e.stopPropagation();
@@ -1313,6 +1734,7 @@ export function FlowDiagramSvg({
     dragNodeId.current = nodeId;
     dragNodeIsSubDfd.current = hasSubDfd;
     dragNodeProcessId.current = processId;
+    dragNodeClickAction.current = onClick ?? null;
     dragMoved.current = false;
 
     const currentPos = positions.get(nodeId) ?? { x: 0, y: 0 };
@@ -1336,6 +1758,8 @@ export function FlowDiagramSvg({
     if (e.button !== 0) return;
     dragChipId.current = edgeId;
     dragChipPoints.current = points;
+    dragChipMoved.current = false;
+    dragChipStart.current = { clientX: e.clientX, clientY: e.clientY };
     setDraggingEdge(edgeId); // highlight the line while dragging its label
     svgRef.current?.setPointerCapture(e.pointerId);
   }
@@ -1351,6 +1775,11 @@ export function FlowDiagramSvg({
 
   // ── Render ───────────────────────────────────────────────────────────────
 
+  // Process id → "dotted-number label" (e.g. "1.2 Process Two"), for a
+  // stack's dialog: the header's feeder-process line and, for an adjacency
+  // stack, the reader/writer process links.
+  const processLabelById = new Map(diagram.processes.map(p => [p.id, `${p.dottedNumber} ${p.label}`]));
+
   // Fan-out attachment points, recomputed against live positions so edges
   // re-balance their anchors as nodes are dragged.
   const edgeAnchors = computeEdgeAnchors(edges, nodeById, positions);
@@ -1361,7 +1790,7 @@ export function FlowDiagramSvg({
   for (const n of nodes) {
     const p = positions.get(n.id);
     if (!p) continue;
-    const b = nodeBounds(p, n.nodeType, sizingLabel(n));
+    const b = nodeBounds(p, n.nodeType, sizingInfo(n));
     nodeBoxes.push({ x: b.x, y: b.y, w: b.w, h: b.h });
   }
 
@@ -1369,6 +1798,9 @@ export function FlowDiagramSvg({
   // separate layers (paths under the nodes, chips above everything).
   type EdgeRender = {
     id: string;
+    /** The edge's source node id — chip-dedup key: siblings sharing an
+     *  outlet with byte-identical rendered lines collapse to one visible chip. */
+    source: string;
     d: string;
     points: Pt[];
     label: string;
@@ -1376,9 +1808,13 @@ export function FlowDiagramSvg({
     lines: string[];
     /** True when the label is hidden (too long for an inline chip). */
     hasHiddenLabel: boolean;
-    /** Structured data items for the hover tooltip (from CP1 dataLines). */
+    /** Non-empty exactly when this edge has hover/click-eligible data (from CP1 dataLines). */
     dataLines: string[];
-    /** Human-readable source node label for the tooltip header. */
+    /** The hover tooltip's rendered lines — one `Store: col, col` line per
+     *  member for a stack edge, else the same as dataLines. */
+    tooltipLines: string[];
+    /** Human-readable source node label for the tooltip header — a stack
+     *  endpoint reads the way its own dialog title does (endpointLabel). */
     sourceLabel: string;
     /** Human-readable target node label for the tooltip header. */
     targetLabel: string;
@@ -1391,8 +1827,8 @@ export function FlowDiagramSvg({
     if (!fromNode || !toNode || !fromPos || !toPos) return [];
     // Sizing label: store name or process label (#5 — a grown process box must
     // anchor its edges to the true top/bottom). External → undefined (fixed box).
-    const fromLabel = sizingLabel(fromNode);
-    const toLabel = sizingLabel(toNode);
+    const fromLabel = sizingInfo(fromNode);
+    const toLabel = sizingInfo(toNode);
 
     // CP4b: use ELK's routed geometry when available and neither endpoint has
     // been dragged off its ELK base position. "Moved" = current position differs
@@ -1430,73 +1866,35 @@ export function FlowDiagramSvg({
     if (override) {
       chip = projectOntoPolyline(points, override.x, override.y);
     } else if (elkPts !== null) {
-      // CP4c: for ELK-routed edges, place the chip in the inter-band CHANNEL —
-      // the y midway between source-bottom and target-top (whichever is "upper"
-      // and "lower" in screen coordinates). The route midpoint lands on a node;
-      // the channel point lands between them.
-      //
-      // 1. Determine the upper and lower node boxes.
-      const fb = nodeBounds(fromPos, fromNode.nodeType, fromLabel);
-      const tb = nodeBounds(toPos, toNode.nodeType, toLabel);
-      // upper = whichever box has the smaller center-y; lower = the other.
-      const upperBottom = fb.cy <= tb.cy ? fb.y + fb.h : tb.y + tb.h;
-      const lowerTop    = fb.cy <= tb.cy ? tb.y : fb.y;
-      const channelY = (upperBottom + lowerTop) / 2;
-
-      // 2. Find the route's x at channelY by walking segments and interpolating
-      //    on the segment that spans channelY. Fall back to nearest point if none
-      //    spans it (guards against routes that don't cross the channel).
-      let channelX: number = elkPts[0]?.[0] ?? fromPos.x;
-      let foundSpan = false;
-      for (let i = 1; i < elkPts.length; i++) {
-        const prev = elkPts[i - 1];
-        const curr = elkPts[i];
-        if (prev === undefined || curr === undefined) continue;
-        const [ax, ay] = prev;
-        const [bx, by] = curr;
-        const minY = Math.min(ay, by);
-        const maxY = Math.max(ay, by);
-        if (channelY >= minY && channelY <= maxY) {
-          // Segment spans channelY; interpolate x.
-          const span = by - ay;
-          const t = span === 0 ? 0 : (channelY - ay) / span;
-          channelX = ax + t * (bx - ax);
-          foundSpan = true;
-          break;
-        }
-      }
-      if (!foundSpan) {
-        // No segment spans channelY — use nearest point to channelY on the route.
-        let nearestDist = Infinity;
-        for (const pt of elkPts) {
-          const d = Math.abs(pt[1] - channelY);
-          if (d < nearestDist) { nearestDist = d; channelX = pt[0]; }
-        }
-      }
-
-      chip = { x: channelX, y: channelY };
+      chip = elkChannelChip(fromPos, fromNode.nodeType, fromLabel, toPos, toNode.nodeType, toLabel, elkPts);
     } else {
       const a = edgeAnchors.get(edge.id) ?? { fromX: fromPos.x, toX: toPos.x };
       chip = chipAnchor(fromPos, fromNode.nodeType, fromLabel, toPos, toNode.nodeType, toLabel, a.fromX, a.toX);
     }
 
-    // CP4a length gate: short labels (≤ SHORT_LABEL_MAX) render full inline,
-    // split by item. Long labels (db: column lists and long payload phrases)
-    // render a single truncated preview chip ending in '…' so the canvas always
-    // shows a "more data here" marker; the full contract is still in data-contract
-    // and the hover tooltip reveals it. Empty label → no chip (lines stays []).
-    const lines = isInlineLabel(edge.label)
-      ? edge.label.split(', ').map(l => truncateLabel(l, CHIP_MAX_CHARS))
-      : edge.label
-        ? [truncateLabel(edge.label, CHIP_MAX_CHARS)]
-        : [];
-    const hasHiddenLabel = !!edge.label && !isInlineLabel(edge.label);
+    // A mixed stack edge (some members labelled, some not) carries its exact
+    // chip lines precomputed — resolveChipLines' `label.split(', ')` would
+    // re-fragment the unlabelled-members' multi-column preview line.
+    const { lines, hasHiddenLabel } = edge.chipLines
+      ? { lines: edge.chipLines, hasHiddenLabel: false }
+      : resolveChipLines(edge.label, edge.hasAuthoredLabel);
 
-    const sourceLabel = fromNode.label;
-    const targetLabel = toNode.label;
+    const sourceLabel = endpointLabel(edge.source);
+    const targetLabel = endpointLabel(edge.target);
+    const tooltipLines = edge.memberEdges && edge.memberEdges.length > 0
+      ? memberTooltipLines(edge.memberEdges, storeDisplayNameById)
+      : edge.dataLines;
 
-    return [{ id: edge.id, d: pointsToD(points), points, label: edge.label, chip, lines, hasHiddenLabel, dataLines: edge.dataLines, sourceLabel, targetLabel }];
+    return [{ id: edge.id, source: edge.source, d: pointsToD(points), points, label: edge.label, chip, lines, hasHiddenLabel, dataLines: edge.dataLines, tooltipLines, sourceLabel, targetLabel }];
   });
+
+  // Sibling duplicates at one stack outlet collapse to a single visible
+  // chip before anything else runs. Over the FULL render set (not just the
+  // auto ones) so a dragged (overridden) survivor still suppresses its
+  // auto siblings — splitting first would let a drag "resurrect" a
+  // duplicate at the original outlet once its own render drops out of the
+  // auto set.
+  suppressDuplicateChips(edgeRenders, new Set(chipOverrides.keys()), nodeById);
 
   // Keep auto-placed labels off the node boxes and off each other; user-placed
   // (overridden) labels stay where they were dropped.
@@ -1525,11 +1923,21 @@ export function FlowDiagramSvg({
     }
     focus = { nodes: fNodes, edges: fEdges };
   }
+  // A stack node has no single base token of its own — it matches search when
+  // ANY of its aggregated members does (docs/design/dfd-store-clusters.md
+  // Interaction: "Search dimming keys off the base token of a node. A stack
+  // matches when any member matches.").
+  const idMatchesSearch = (id: string, tokens: ReadonlySet<string>): boolean => {
+    const node = nodeById.get(id);
+    if (node?.nodeType === 'stack') return node.members.some(m => tokens.has(baseToken(m.storeId)));
+    return tokens.has(baseToken(id));
+  };
+
   // Search dimming (graph-flow-search CP3, SC7) applies only while no hover is
   // active — hover always wins, matching the existing focus-tier precedence.
   const nodeOpacity = (id: string) => {
     if (focus) return focus.nodes.has(id) ? 1 : DIM_OPACITY;
-    if (searchTokens) return searchTokens.has(baseToken(id)) ? 1 : DIM_OPACITY;
+    if (searchTokens) return idMatchesSearch(id, searchTokens) ? 1 : DIM_OPACITY;
     return 1;
   };
   const edgeOpacity = (id: string) => {
@@ -1537,7 +1945,7 @@ export function FlowDiagramSvg({
     if (searchTokens) {
       const edge = edges.find(e => e.id === id);
       if (!edge) return 1;
-      const matches = searchTokens.has(baseToken(edge.source)) || searchTokens.has(baseToken(edge.target));
+      const matches = idMatchesSearch(edge.source, searchTokens) || idMatchesSearch(edge.target, searchTokens);
       return matches ? 1 : DIM_OPACITY;
     }
     return 1;
@@ -1684,7 +2092,11 @@ export function FlowDiagramSvg({
           }
 
           if (node.nodeType === 'store') {
-            const num = storeNums.get(node.id) ?? 0;
+            // node.storeNum is the D# flow-layout.ts already resolved for this
+            // store — a lookup keyed by the rendered (possibly split
+            // `--read`/`--write`) node id would miss it: assignStoreNumbers
+            // only keys by the base store id.
+            const num = node.storeNum;
             // Use the raw slug (storeName) to build the token; use the display
             // label (node.label = displayName) as the visible text in the SVG.
             const slugName = node.storeName ?? node.label;
@@ -1700,10 +2112,48 @@ export function FlowDiagramSvg({
                   storeNum={num}
                   storeName={displayLabel}
                   pos={pos}
-                  duplicated={node.duplicated ?? false}
+                  duplicated={!suppressDuplicateMarker && (node.duplicated ?? false)}
                   c={c}
                   kindColors={storeKindColors}
                   onOpenDoc={onOpenDoc ? () => onOpenDoc(storeToken) : undefined}
+                />
+              </g>
+            );
+          }
+
+          if (node.nodeType === 'stack') {
+            const firstMemberKind = node.members[0]?.kind;
+            const storeKindColors = firstMemberKind && kindPalette
+              ? kindPalette[firstMemberKind]
+              : undefined;
+            // Every process whose edge touches this stack — the dialog's
+            // "processes that feed it" header line, regardless of source.
+            const feederIds = new Set<string>();
+            for (const e of edges) {
+              if (e.source === node.id) feederIds.add(e.target);
+              else if (e.target === node.id) feederIds.add(e.source);
+            }
+            const feederProcessLabels = [...feederIds]
+              .map(id => {
+                const bare = id.startsWith('proc:') ? id.slice('proc:'.length) : id;
+                return processLabelById.get(bare) ?? bare;
+              })
+              .sort();
+            const openStack = onOpenStack ? () => onOpenStack(node, feederProcessLabels, processLabelById) : undefined;
+            return (
+              <g
+                key={node.id}
+                data-token={node.id}
+                {...hoverProps}
+                onPointerDown={e => onNodePointerDown(e, node.id, false, '', openStack)}
+              >
+                <StackNode
+                  node={node}
+                  pos={pos}
+                  c={c}
+                  kindColors={storeKindColors}
+                  onOpenDoc={openStack}
+                  suppressDuplicateMarker={suppressDuplicateMarker}
                 />
               </g>
             );
@@ -1752,7 +2202,7 @@ export function FlowDiagramSvg({
           {tooltipEdge.sourceLabel} → {tooltipEdge.targetLabel}
         </div>
         <ul className="flow-edge-tooltip__list">
-          {tooltipEdge.dataLines.map((line, i) => (
+          {tooltipEdge.tooltipLines.map((line, i) => (
             <li key={i}>{line}</li>
           ))}
         </ul>

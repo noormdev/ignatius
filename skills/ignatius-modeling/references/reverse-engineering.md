@@ -82,6 +82,11 @@ Now read the *behavior* — the code and procedures that move the data:
    input flow `from: db:Party, data: [party_id, type]`. An `INSERT INTO payment (...)` is an
    output flow `to: db:Payment` with those columns. The read/written column list *is* the flow's
    data contract — the same demand-list the `flow.unknown_attribute` rule checks.
+   The `label:` for each entry comes from what the code calls the thing: the DTO, the
+   parameter name, the function's own noun (`validated order`, `merge summary`). Tables one
+   transaction always writes together (a header and its lines, the junction tables a merge
+   reconciles) are a cluster: write `clusters/<slug>.md` and one `cluster:` entry (Step F4a
+   in `references/dfd-authoring.md`), not one `db:` entry per table.
 3. **Stores.** A table the code touches → a `db:<Entity>` store (the entity from Phase R1). A
    cache/queue/file/log the code touches → the matching `kind:` store (`cache`/`queue`/`file`/
    `doc`/`manual`); author its `stores/<slug>.md` (model root) with the reason it exists.
