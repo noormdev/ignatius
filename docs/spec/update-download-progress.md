@@ -12,7 +12,7 @@ The mechanism is the one `atomic` already ships (`internal/selfupdate/selfupdate
 ## Non-goals
 
 
-- A stall/hang watchdog on the download (a real gap, tracked as a follow-up — not this change).
+- A stall/hang watchdog on the download (a real gap, tracked as a follow-up, not this change).
 - Resumable downloads via HTTP range requests.
 - Progress for the checksums.txt fetch (a few hundred bytes; noise).
 - Changing the update decision, asset naming, checksum, or swap semantics.
@@ -25,14 +25,14 @@ The mechanism is the one `atomic` already ships (`internal/selfupdate/selfupdate
 - [ ] `downloadProgressRenderer(write, isTTY)` is exported from `src/cli/update.ts`, pure apart from its injected `write`, and unit-tested.
 - [ ] Off-TTY it returns `null`. Without `\r` rewriting, every tick would print its own line into redirected output.
 - [ ] Mid-stream with a known total it writes `\rDownloading <recv> / <total> MB (<pct>%)` and does **not** end the line.
-- [ ] At `received >= total` it writes a `100%` line terminated with `\n`, then goes quiet — later calls write nothing.
+- [ ] At `received >= total` it writes a `100%` line terminated with `\n`, then goes quiet. Later calls write nothing.
 - [ ] With an unknown total (no `Content-Length`) it writes bare MB and no percent.
 - [ ] `downloadAndReplace` streams the response body to the staging file rather than buffering it; the whole asset is never held in memory.
-- [ ] sha256 is computed incrementally over the streamed chunks — no second read of the file, no in-memory copy.
+- [ ] sha256 is computed incrementally over the streamed chunks, so the file is never read a second time and no copy is held in memory.
 - [ ] Checksum verification still happens **after** download and **before** the rename, and an unreachable checksums.txt is still non-fatal while a genuine mismatch still aborts.
 - [ ] A failed or aborted download leaves no staging file behind.
 - [ ] `docs/guides/commands.md` describes the progress output; the `docs/wiki/feature-map.md` row for self-update gains its spec surface.
-- [ ] `bun run test` passes (`bun run build:cli` first — the suite asserts on `dist/`), and `bunx tsc --noEmit` reports no *new* errors. Two pre-existing errors in this file (`Bun.CryptoHasher` at :128, `Bun.write` at :165) do not resolve off the global `Bun` despite `bun-types` declaring them; the runtime is unaffected. Tracked as a follow-up, not fixed here.
+- [ ] `bun run test` passes (`bun run build:cli` first, since the suite asserts on `dist/`), and `bunx tsc --noEmit` reports no *new* errors. This file starts with two pre-existing `TS2339` errors and ends with one: `Bun.CryptoHasher` and `Bun.write` do not resolve off the global `Bun` despite `bun-types` declaring them, and the `Bun.write` call disappears with the buffering path. The runtime is unaffected. Tracked as a follow-up, not fixed here.
 
 
 ## Approaches
@@ -48,7 +48,7 @@ The mechanism is the one `atomic` already ships (`internal/selfupdate/selfupdate
 ## Recommendation
 
 
-**A.** The byte count is already flowing through the process — the only reason it isn't visible is that `arrayBuffer()` collapses the whole stream into one await. Reading the body chunk-wise surfaces it for free and drops peak memory from the asset's full size to one chunk. **B** is what the request described, but polling the file re-derives a number the loop already holds, and a timer that must be cleared on every exit path is more moving parts than the counter it replaces. Emitting on a byte threshold rather than a time interval also makes the renderer deterministic to test — no fake clock.
+**A.** The byte count is already flowing through the process. The only reason it isn't visible is that `arrayBuffer()` collapses the whole stream into one await. Reading the body chunk-wise surfaces it for free and drops peak memory from the asset's full size to one chunk. **B** is what the request described, but polling the file re-derives a number the loop already holds, and a timer that must be cleared on every exit path is more moving parts than the counter it replaces. Emitting on a byte threshold rather than a time interval also makes the renderer deterministic to test, with no fake clock.
 
 
 ## Checkpoints
@@ -64,4 +64,17 @@ The mechanism is the one `atomic` already ships (`internal/selfupdate/selfupdate
 ## Change log
 
 
-- Checkpoint 1: the "typecheck passes" criterion was written before the baseline was measured and was never true. `src/cli/update.ts` carries two pre-existing `TS2339` errors (`Bun.CryptoHasher`, `Bun.write`) that predate this branch, and `scripts/` and `GraphView.tsx` carry more. Criterion restated as "no *new* errors".
+### 2026-09-08 — typecheck criterion restated
+
+**What changed:** The success criterion read "`bun run typecheck` passes". It now reads "reports no *new* errors", and names the two pre-existing `TS2339` errors this file carries.
+
+**Why:** Correction. The criterion was written before the baseline was measured and was never true. The repo carries 652 pre-existing typecheck errors, two of them in this file, so a green typecheck was never available as a gate.
+
+**Superseded:** the prior contract required a fully green `bun run typecheck`.
+
+
+### 2026-09-08 — prose and accuracy pass
+
+**What changed:** Em dashes removed from prose throughout. The typecheck criterion no longer cites baseline line numbers, and now states that the file ends the change with one error rather than two.
+
+**Why:** Audit findings. Em dashes in prose break the atomic-writing voice rule, and the `Bun.write` error disappears with the buffering path this change deletes, so the criterion had gone stale against its own implementation.

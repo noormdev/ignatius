@@ -71,6 +71,9 @@ const MIB = 1024 * 1024;
 // instead of by a hand-counted trailing-space total.
 const STATUS_LINE_WIDTH = 40;
 
+/** Receives byte counts as a download streams; `total` is 0 when unknown. */
+export type ProgressCallback = (received: number, total: number) => void;
+
 /**
  * Builds a `\r`-rewriting status line for a download in progress, or `null`
  * off-TTY — without `\r` rewriting, every tick would print its own line into
@@ -79,7 +82,7 @@ const STATUS_LINE_WIDTH = 40;
 export function downloadProgressRenderer(
   write: (s: string) => void,
   isTTY: boolean,
-): ((received: number, total: number) => void) | null {
+): ProgressCallback | null {
   if (!isTTY) return null;
   let done = false;
   return (received: number, total: number) => {
@@ -133,8 +136,6 @@ function runningBinaryPath(): string | null {
 }
 
 const PROGRESS_EMIT_BYTES = 512 * 1024;
-
-type ProgressCallback = (received: number, total: number) => void;
 
 /** Download the asset for this platform, verify its checksum, replace `target`. */
 async function downloadAndReplace(
