@@ -66,6 +66,11 @@ export function parseChecksums(text: string): Record<string, string> {
 
 const MIB = 1024 * 1024;
 
+// Wide enough to fully overwrite the longest status line this renderer ever
+// prints, so each `\r` rewrite erases the previous line by construction
+// instead of by a hand-counted trailing-space total.
+const STATUS_LINE_WIDTH = 40;
+
 /**
  * Builds a `\r`-rewriting status line for a download in progress, or `null`
  * off-TTY — without `\r` rewriting, every tick would print its own line into
@@ -81,12 +86,15 @@ export function downloadProgressRenderer(
     if (done) return;
     if (total > 0 && received >= total) {
       done = true;
-      write(`\rDownloaded ${(total / MIB).toFixed(1)} MB (100%)           \n`);
+      const line = `Downloaded ${(total / MIB).toFixed(1)} MB (100%)`;
+      write(`\r${line.padEnd(STATUS_LINE_WIDTH)}\n`);
     } else if (total > 0) {
       const pct = Math.floor((received * 100) / total);
-      write(`\rDownloading ${(received / MIB).toFixed(1)} / ${(total / MIB).toFixed(1)} MB (${pct}%)   `);
+      const line = `Downloading ${(received / MIB).toFixed(1)} / ${(total / MIB).toFixed(1)} MB (${pct}%)`;
+      write(`\r${line.padEnd(STATUS_LINE_WIDTH)}`);
     } else {
-      write(`\rDownloading ${(received / MIB).toFixed(1)} MB   `);
+      const line = `Downloading ${(received / MIB).toFixed(1)} MB`;
+      write(`\r${line.padEnd(STATUS_LINE_WIDTH)}`);
     }
   };
 }
@@ -124,21 +132,59 @@ function runningBinaryPath(): string | null {
   return exe;
 }
 
-async function sha256(bytes: Uint8Array): Promise<string> {
-  const hasher = new Bun.CryptoHasher('sha256');
-  hasher.update(bytes);
-  return hasher.digest('hex');
-}
+const PROGRESS_EMIT_BYTES = 512 * 1024;
+
+type ProgressCallback = (received: number, total: number) => void;
 
 /** Download the asset for this platform, verify its checksum, replace `target`. */
-async function downloadAndReplace(tag: string, target: string): Promise<void> {
+async function downloadAndReplace(
+  tag: string,
+  target: string,
+  onProgress: ProgressCallback | null,
+): Promise<void> {
   const asset = assetForPlatform(process.platform, process.arch);
   if (!asset) throw new Error(`no prebuilt binary for ${process.platform}/${process.arch}`);
   const base = `https://github.com/${REPO}/releases/download/${tag}`;
 
   const binRes = await fetch(`${base}/${asset}`);
   if (!binRes.ok) throw new Error(`download failed (HTTP ${binRes.status}) for ${asset}`);
-  const bytes = new Uint8Array(await binRes.arrayBuffer());
+  const total = Number(binRes.headers.get('content-length')) || 0;
+  if (!binRes.body) throw new Error('empty response body');
+
+  // Stage next to the target (same filesystem) then atomically rename over it.
+  // Overwriting a running executable is safe on Unix: the live process keeps the
+  // old inode until it exits.
+  const tmp = join(dirname(target), `.${basename(target)}.update-${process.pid}`);
+
+  const hasher = new Bun.CryptoHasher('sha256');
+  let received = 0;
+  let actual: string;
+
+  const sink = Bun.file(tmp).writer();
+  try {
+    let sinceLastEmit = 0;
+    // Stream chunk-wise instead of arrayBuffer(): the asset is tens of MB and
+    // hashing off the same chunks avoids a second read of the file.
+    for await (const chunk of binRes.body as AsyncIterable<Uint8Array>) {
+      sink.write(chunk);
+      hasher.update(chunk);
+      received += chunk.byteLength;
+      sinceLastEmit += chunk.byteLength;
+      if (sinceLastEmit >= PROGRESS_EMIT_BYTES) {
+        sinceLastEmit = 0;
+        onProgress?.(received, total);
+      }
+    }
+    await sink.end();
+    // `|| received` covers unknown Content-Length: forces the renderer's
+    // done-branch so it terminates its line before the next console.log.
+    onProgress?.(received, total || received);
+    actual = hasher.digest('hex');
+  } catch (err) {
+    try { await sink.end(); } catch { /* best effort */ }
+    try { unlinkSync(tmp); } catch { /* best effort */ }
+    throw err;
+  }
 
   // Verify the checksum when checksums.txt is reachable. A network failure
   // fetching the sums is non-fatal; a genuine mismatch aborts the update.
@@ -146,23 +192,19 @@ async function downloadAndReplace(tag: string, target: string): Promise<void> {
     const sumRes = await fetch(`${base}/checksums.txt`);
     if (sumRes.ok) {
       const expected = parseChecksums(await sumRes.text())[asset];
-      if (expected) {
-        const actual = await sha256(bytes);
-        if (actual !== expected) {
-          throw new Error(`checksum mismatch for ${asset} (expected ${expected}, got ${actual})`);
-        }
+      if (expected && actual !== expected) {
+        throw new Error(`checksum mismatch for ${asset} (expected ${expected}, got ${actual})`);
       }
     }
   } catch (err) {
-    if (errMessage(err).includes('checksum mismatch')) throw err;
-    // otherwise: couldn't fetch sums — proceed without verification
+    // A mismatch aborts and cleans up the staging file; any other failure here
+    // (sums unreachable) is non-fatal — fall through and proceed unverified.
+    if (errMessage(err).includes('checksum mismatch')) {
+      try { unlinkSync(tmp); } catch { /* best effort */ }
+      throw err;
+    }
   }
 
-  // Stage next to the target (same filesystem) then atomically rename over it.
-  // Overwriting a running executable is safe on Unix: the live process keeps the
-  // old inode until it exits.
-  const tmp = join(dirname(target), `.${basename(target)}.update-${process.pid}`);
-  await Bun.write(tmp, bytes);
   chmodSync(tmp, 0o755);
   try {
     renameSync(tmp, target);
@@ -226,10 +268,17 @@ export async function runUpdateCommand(opts: UpdateOptions): Promise<number> {
     }
   }
 
+  let lineOpen = false;
+  const renderer = downloadProgressRenderer(
+    (s) => { lineOpen = !s.endsWith('\n'); process.stdout.write(s); },
+    Boolean(process.stdout.isTTY),
+  );
+  if (!renderer) console.log(`Downloading ignatius ${info.latest}…`);
+
   try {
-    console.log(`Downloading ignatius ${info.latest}…`);
-    await downloadAndReplace(info.tag, target);
+    await downloadAndReplace(info.tag, target, renderer);
   } catch (err) {
+    if (lineOpen) process.stdout.write('\n');
     const message = errMessage(err);
     if (/EACCES|EPERM|EROFS|permission|denied/i.test(message)) {
       process.stderr.write(
