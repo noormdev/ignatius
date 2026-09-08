@@ -1,5 +1,5 @@
 // Verification: hash-router parse + serialize round-trips
-import { parseHash, serializeHash } from '../../src/app/hash-router';
+import { parseHash, serializeHash, nextCollapseLevel } from '../../src/app/hash-router';
 
 let passed = 0;
 let failed = 0;
@@ -195,6 +195,32 @@ function deepEqual(a: unknown, b: unknown): boolean {
   assert(parsed.dfd === 'order-to-cash', "dfd encode/decode: 'order-to-cash' round-trips exactly");
 }
 
+// --- flowview + collapse fields (docs/spec/dfd-store-clusters.md) ---
+
+{
+  const result = parseHash('#view=flow&dfd=hub-diagram&flowview=connected&collapse=groups');
+  assert(result.flowview === 'connected', "parse('…&flowview=connected') → { flowview: 'connected' }");
+  assert(result.collapse === 'groups', "parse('…&collapse=groups') → { collapse: 'groups' }");
+}
+
+{
+  const result = parseHash('#flowview=per-process&collapse=stores');
+  assert(result.flowview === 'per-process', "parse('#flowview=per-process') → { flowview: 'per-process' }");
+  assert(result.collapse === 'stores', "parse('#collapse=stores') → { collapse: 'stores' }");
+}
+
+{
+  const result = parseHash('#flowview=bogus&collapse=bogus');
+  assert(result.flowview === undefined, "parse('#flowview=bogus') → flowview dropped (invalid value)");
+  assert(result.collapse === undefined, "parse('#collapse=bogus') → collapse dropped (invalid value)");
+}
+
+{
+  const result = serializeHash({ view: 'flow', flowview: 'connected', collapse: 'groups' });
+  assert(result.includes('flowview=connected'), "serialize with flowview → contains 'flowview=connected'");
+  assert(result.includes('collapse=groups'), "serialize with collapse → contains 'collapse=groups'");
+}
+
 // --- round-trip ---
 
 const states = [
@@ -207,12 +233,22 @@ const states = [
   { view: 'dict' as const, zoom: 1.0, pan: { x: 0, y: 0 } },
   { view: 'flow' as const, dfd: 'order-to-cash' },
   { view: 'flow' as const, dfd: 'refund' },
+  { view: 'flow' as const, dfd: 'hub-diagram', flowview: 'connected' as const, collapse: 'groups' as const },
+  { view: 'flow' as const, flowview: 'per-process' as const, collapse: 'stores' as const },
 ];
 
 for (const state of states) {
   const serialized = serializeHash(state);
   const parsed = parseHash('#' + serialized);
   assert(deepEqual(parsed, state), `round-trip: ${JSON.stringify(state)}`);
+}
+
+// --- nextCollapseLevel: full cycle, wraps ---
+
+{
+  assert(nextCollapseLevel('stores') === 'clusters', "nextCollapseLevel('stores') → 'clusters'");
+  assert(nextCollapseLevel('clusters') === 'groups', "nextCollapseLevel('clusters') → 'groups'");
+  assert(nextCollapseLevel('groups') === 'stores', "nextCollapseLevel('groups') → 'stores' (wraps)");
 }
 
 console.log(`\n${passed + failed} checks: ${passed} passed, ${failed} failed`);

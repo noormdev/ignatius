@@ -14,17 +14,20 @@ Keep this framing in front of every question. A DFD does three things, in priori
 2. **Shows how data moves** — each flow traces data from where it comes from to where it goes.
 3. **Identifies what must be captured and stored** — each store answers "what persists here".
 
-Two truths shape every step:
+Three truths shape every step:
 
 - **Processes are verbs.** Every process is an imperative phrase — *Collect Payment*, *Issue
   Invoice*, *Validate Customer*. Something that happens or will happen. If a name reads as a
   noun (a thing, not an action), it is an entity or a store, not a process — name it as the
   action that touches it.
-- **A flow's label is a complete data contract.** The text on every arrow names *all* the data
-  that crosses it — every field, not a vague noun. "order request" is a placeholder; the real
-  label for a `db:` flow is the column list (`[party_id, sales_order_id, ordered_at, total]`).
-  A `db:` flow's column list is checked against the entity at validate time
-  (`flow.unknown_attribute`) — the DFD is a demand list on the data model.
+- **A flow's `data:` is a complete data contract.** It names *all* the data that crosses the
+  arrow, every field, not a vague noun. On a `db:` flow it is the column list
+  (`[party_id, sales_order_id, ordered_at, total]`), checked against the entity at validate
+  time (`flow.unknown_attribute`): the DFD is a demand list on the data model. On an `ext:` or
+  `kind:` flow it is a phrase enumerating the payload.
+- **A flow's `label:` is what the reader sees.** The diagram chip shows the label, a short
+  prose name in the reader's language (`payment details`, `settled payment`), never the
+  column list. The contract sits one click behind it. Every entry gets one (Step F5).
 
 ### How the pieces connect
 
@@ -39,6 +42,23 @@ entities. That is the whole shape:
 - A **process** sits between them: it takes input data from externals and stores, transforms
   it, and produces output data to externals and stores. Every process has at least one input
   and at least one output.
+
+### How the diagram reads
+
+The viewer draws each process with one stack of the stores it reads above it and one stack of
+the stores it writes below it (the per-process view, the default). A single store stays a
+plain box; two or more become a stack with one row per store or, at the default `clusters`
+collapse level, one row per cluster or subtype family the process touches plus one per loose
+store. A toggle shows the connected view: one node per store, wired across processes, with the
+same grouping applied. What the reader sees therefore rests on two authoring choices made
+below: the `label:` on every entry (Step F5) and which stores are declared as one thing
+(Step F4a). Views, collapse levels, and the two dialogs are described in
+the flows guide, "Labels, stacks, clusters, and groups": https://github.com/noormdev/ignatius/blob/main/docs/guides/flows.md#labels-stacks-clusters-and-groups
+
+One model-level switch exists: `flow_view: { adjacency_stacks: false }` in `ignatius.yml`
+(template in `references/templates.md`) stops the connected view from stacking stores that
+merely share the same readers and writers. Leave it on unless the user says those pairings
+mislead.
 
 ### Step F0 — Locate the model root and read the entities
 
@@ -119,7 +139,8 @@ parser recognizes exactly these. When the user names a kind not on the menu (a w
 ledger), author it as `kind: other` with a `title:` carrying the real name, and reference it
 as `other:<slug>`. Do not invent a new prefix: an unrecognized prefix is not read as a kind —
 the token falls through to process-name resolution and fails validation with a misleading
-`flow.unknown_process` error.
+`flow.unknown_process` error. `cluster:<slug>` is the one exception, a set of entities named
+in `clusters/<slug>.md` rather than a store kind. See Step F4a.
 
 A business record is a `db:` store; a supporting resting place is one of the other kinds,
 referenced as `<kind>:<slug>` (e.g. `file:gateway-log`, `queue:fulfilment-queue`) — you will
@@ -131,6 +152,51 @@ entity first (run the entity steps in `references/entity-flow.md`), then come ba
 hasn't been written — that loses the column validation and the entity dialog in the viewer.
 
 Use the token in the process's `inputs:` (reads) and `outputs:` (writes).
+
+### Step F4a — Group the stores that travel together (per process)
+
+Whenever F4 named two or more `db:` stores in one direction for a process, decide what the
+reader should see as one thing. Ask:
+> "Which of these are one thing to you, and what do you call it?"
+
+The answer routes to one of three shapes. Write the shape before moving on:
+
+1. **A subtype family.** A basetype and its subtypes (`Party`/`Person`/`Business`). Nothing to
+   author in `clusters/`: the flow view groups them from the basetype's `subtypes:` frontmatter.
+   Check that the basetype declares it; if not, that is an entity fix (Step E5a in
+   `references/entity-flow.md`), not a cluster file. The family groups only where the process
+   touches two or more of its members.
+2. **A set the business names.** The junction tables a merge reconciles together, an order
+   header and its lines, a role and the actions it grants. Write `clusters/<slug>.md` at the
+   model root (template in `references/flow-templates.md`): a `label:` in the reader's
+   language, the member entity ids, and a body saying why they move together. Then write the
+   process entry as one `cluster:<slug>` entry with a `data:` map of member to columns and one
+   `label:`, not one `db:` entry per member. This is the normal shape for a cluster the
+   process touches; plain `db:` entries are for stores that stand alone. When the process
+   touches one member only, write it as `db:`.
+3. **Not related.** Leave separate `db:` entries, each with its own `label:`. Hub stores every
+   process reads (a config table, a session table) are not a cluster; the label is what keeps
+   those edges readable. Never build a cluster from adjacency alone (same reader, same writer,
+   no shared meaning): the connected view finds that pairing itself.
+
+Rules a cluster file follows:
+
+- Clusters are model-wide: one `clusters/` folder at the root, applied on every diagram where a
+  process touches two or more members. Name the set for what it is (`tag-junctions`,
+  `role-grants`), not for one process's use of it.
+- One entity belongs to one cluster (`flow.cluster_overlap`), and every member must exist
+  (`flow.cluster_entity_unknown`).
+- Two or more members. A one-entity cluster is a store with extra ceremony.
+- Members are `db:` entities only. Non-`db` stores are never clustered.
+- The `label:` is a short noun phrase in sentence case (`Tag junctions`, `Role grants`). It is
+  the row text beside the `C` cap, and the chip text whenever the process entry carries no
+  `label:` of its own.
+
+**Read the stack before moving on.** Count what each process will show per direction at the
+default collapse level: one row per cluster or subtype family it touches (two or more members)
+plus one row per loose store. More than about five rows in one direction means a set is still
+unnamed or the process does too much (Step F8). The same count is the legibility check
+`references/verification.md` repeats at the end.
 
 ### Step F5 — Data flows (per process): name every field
 
@@ -145,6 +211,24 @@ For each input and output, capture **all** the data that crosses the arrow:
 
 Write these as the `inputs:` and `outputs:` arrays in the process frontmatter (see
 `references/flow-templates.md`). Every process needs at least one input and at least one output.
+
+**Name every flow with a `label:`.** Every input and output entry, `db:`, `ext:`, `kind:`, and
+`cluster:` alike, carries a prose `label:` beside its `data:`. Write it the way the user says
+it out loud:
+
+- Two to four words naming the data, not the table and not the columns: `user data`,
+  `settled payment`, `new auth event`, `added role`. On a `cluster:` entry it names what the
+  process does with the set (`added role`); without one, the chip falls back to the cluster
+  file's `label:`.
+- No commas unless you mean separate lines: the chip breaks a label on `, `, so
+  `receipt, confirmation email` draws two lines.
+- Same data, same words. Stores in one stack that carry the same thing get the identical
+  label and the stack chip shows it once; a label that differs by one word draws twice.
+- Reuse the user's own phrase from Step F4a when they gave one.
+- Only trimmed, non-empty text counts; a blank `label:` falls back to the column preview.
+
+The label is what the diagram shows; the `data:` column list stays the validated contract
+behind it, one click away in the contract dialog.
 
 ### Step F6 — Examples (always)
 
@@ -166,8 +250,9 @@ carries:
    columns.
 
 Write the rows as the `examples:` block in the process frontmatter, split into `in` and `out`,
-each entry titled by its `from`/`to` endpoint and a `label`. See the worked example in
-`references/flow-templates.md`.
+each entry titled by its `from`/`to` endpoint and a `label`. A `cluster:` entry has no
+examples entry of its own: key its rows by member `db:` token (`to: db:Payment`), one entry
+per member that carries rows. See the worked example in `references/flow-templates.md`.
 
 ### Step F6a — Descriptions (always, per node)
 
@@ -205,6 +290,10 @@ navigable.
   thin (no statement of why it exists), this is the moment to enrich it — flag it to the user
   and add the purpose/rules to the entity file.
 
+- **Cluster body (required: why the set moves together)** — one or two sentences saying what
+  the members are as one thing and why a process never touches them apart, with the members
+  as wiki-links. The stack dialog shows this body when the reader opens the cluster row.
+
 ### Step F8 — Decompose into sub-DFDs (where warranted)
 
 Offer a drill-down when a process hides a flow of its own — a sign is many data flows on one
@@ -231,6 +320,7 @@ Lay the files out under the model root:
 ```
 externals/<Name>.md               # shared externals, defined once at model root
 stores/<slug>.md                  # shared non-db stores, defined once at model root
+clusters/<slug>.md                # shared store clusters, defined once at model root (F4a)
 flows/
   <diagram-slug>/
     <Process-Name>.md             # one file per process
@@ -243,6 +333,8 @@ flows/
 Write each file using the templates in `references/flow-templates.md`, then run the verification
 loop in `references/verification.md` against the model root. Flow findings use the `flow.*`
 rules; reflect on each, map it to the step that produced it, and re-ask only that step rather
-than regenerating everything.
+than regenerating everything. The loop ends with the flow self-check, whose last three items
+(labels everywhere, cluster hygiene, stack legibility) are what make the diagram presentable
+rather than merely valid.
 
 ---

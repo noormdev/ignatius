@@ -1,7 +1,7 @@
 # The folder format
 
 
-A folder is a model root when it contains an `ignatius.yml` file. Five top-level folders are recognized — `data/`, `flows/`, `groups/`, `externals/`, and `stores/`. Everything else at the root is free-form: notes, scratch files, or any other markdown you keep nearby are never scanned.
+A folder is a model root when it contains an `ignatius.yml` file. Six top-level folders are recognized — `data/`, `flows/`, `groups/`, `clusters/`, `externals/`, and `stores/`. Everything else at the root is free-form: notes, scratch files, or any other markdown you keep nearby are never scanned.
 
 ```
 models/
@@ -17,6 +17,8 @@ models/
   groups/
     identity.md
     transactional.md
+  clusters/           # optional: author-declared sets of stores for the flow view
+    role-grants.md
   externals/          # optional — shared external definitions for DFDs
   stores/             # optional — shared non-db store definitions for DFDs
   flows/              # optional — data flow diagrams
@@ -24,6 +26,21 @@ models/
 ```
 
 Entities live under `data/<group>/<Entity>.md`. The group name comes from the entity's `group:` frontmatter field — the subdirectory path under `data/` is just a convenience for organization; the parser uses the frontmatter value, not the folder name. `groups/` is optional: a model with no `groups/` directory parses with zero groups and no error. `externals/` and `stores/` are the global registries for DFD authoring (see [Process flows](flows.md)).
+
+`clusters/` is also optional and DFD-only: each file names a set of entities that a process's flows can reference as one thing with a `cluster:` token. With no token at all, a cluster still groups: whenever a process touches two or more of its members, the flow view draws them as one row, at every collapse level. At the groups collapse level, a group additionally nests its own clusters and stores under one group row. A minimal cluster file:
+
+```markdown
+---
+label: Role grants
+entities:
+  - AppUser_Role
+  - AUR_Action
+---
+
+What a user holds once a role is granted.
+```
+
+See [Labels, stacks, clusters, and groups](flows.md#labels-stacks-clusters-and-groups) for the authoring format and how clusters render.
 
 
 ## ignatius.yml
@@ -248,6 +265,8 @@ Party identity, classifications, and ID documents.
 ```
 
 An entity whose `group` references a name with no matching `groups/<name>.md` file renders without a color band and is flagged with an `entity.unknown_group` warning.
+
+In the flow view's groups collapse level, a group is also a stacking bucket: stores sharing a `group:` that a process touches (two or more) nest under one group row, containing that group's own cluster rows and loose tables. See [Labels, stacks, clusters, and groups](flows.md#labels-stacks-clusters-and-groups).
 
 
 ## The flows folder

@@ -102,7 +102,7 @@ function makeDiagram(
 }
 
 function makeModel(diagrams: FlowDiagram[]): FlowModel {
-    return { diagrams, modelDir: '/test', externals: [] };
+    return { diagrams, modelDir: '/test', externals: [], clusters: [] };
 }
 
 type FlowExternal = { id: string; label: string; body: string; bodyHtml: string; flowId: string };

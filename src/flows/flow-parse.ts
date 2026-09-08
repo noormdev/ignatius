@@ -15,20 +15,12 @@
  * Not bundled into the React bundle — only called from cli.ts and server.ts.
  */
 
-import { parse as parseYaml } from 'yaml';
-import MarkdownIt from 'markdown-it';
 import type { GlobalError } from '../model/validate';
-import { wikiLinkPlugin } from '../model/wikilink';
-import { highlightCodeFence } from '../model/markdown-highlight';
 import { titlelize } from './titlelize';
 import { deriveLevels } from './flow-derive-levels';
-
-const md = new MarkdownIt({ highlight: highlightCodeFence });
-// `[[Target]]` links in flow markdown (process / external / store bodies) render
-// as `a.entity-link[data-entity]` anchors, same as ERD entity bodies. Rendered
-// optimistically (no knownIds) — every target becomes a navigable anchor and the
-// flow viewer resolves it at click time across flow nodes + ERD entities.
-md.use(wikiLinkPlugin);
+import { md, isRecord, parseFrontmatter, normalizedLabel } from './flow-markdown';
+import { parseClusters, expandClusterEdges, toClusterDataMap } from './flow-clusters';
+import type { FlowCluster } from './flow-clusters';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,6 +39,20 @@ export type FlowEdge = {
     to: FlowEndpoint;
     data: FlowData;
     flowId: string;
+    /** Optional prose label, independent of `data:`. Drives the chip text on the
+     *  canvas and the dictionary's IoTable when present; falls back to a
+     *  column-preview rendering when absent. */
+    label?: string;
+    /** Set on an edge produced by expanding a `cluster:<slug>` entry — the
+     *  cluster's slug and label, regardless of whether the reference resolves. */
+    cluster?: { slug: string; label: string };
+    /** Set only on an edge expanded from an unresolved `cluster:` reference —
+     *  never on an ordinary `db:` edge. Each value names the `flow.*` rule the
+     *  validator raises and strips the edge for: `unknown_cluster` →
+     *  `flow.unknown_cluster`, `cluster_member_unknown` →
+     *  `flow.cluster_member_unknown`, `cluster_no_members` →
+     *  `flow.cluster_no_members`. */
+    clusterIssue?: 'unknown_cluster' | 'cluster_member_unknown' | 'cluster_no_members';
 };
 
 /** One row in a process example table. Values are plain scalars. */
@@ -124,6 +130,9 @@ export type FlowModel = {
      *  unknown_external) so they see ALL defined externals, not just the
      *  referenced ones included in each diagram's externals array. */
     externals: FlowExternal[];
+    /** The complete model-root clusters/ registry. Empty when no clusters/
+     *  folder exists — never an error. */
+    clusters: FlowCluster[];
 };
 
 export type FlowParseResult = {
@@ -259,10 +268,6 @@ export function resolveEndpoint(
 // Frontmatter parsing helpers
 // ---------------------------------------------------------------------------
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-    return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
 /**
  * Parse a process `examples:` frontmatter value into a typed structure.
  * Defensive: missing/malformed entries produce empty arrays rather than errors.
@@ -310,14 +315,6 @@ export function parseProcessExamples(
     };
 }
 
-function parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
-    const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-    if (!match) throw new Error('No YAML frontmatter found');
-    const parsed: unknown = parseYaml(match[1] ?? '');
-    if (!isRecord(parsed)) throw new Error('Frontmatter is not a YAML object');
-    return { frontmatter: parsed, body: (match[2] ?? '').trim() };
-}
-
 // ---------------------------------------------------------------------------
 // Edge building from process inputs/outputs
 // ---------------------------------------------------------------------------
@@ -325,31 +322,58 @@ function parseFrontmatter(content: string): { frontmatter: Record<string, unknow
 type RawEdgeItem = {
     from?: string;
     to?: string;
-    data?: FlowData;
+    data?: FlowData | Record<string, FlowData>;
+    label?: string;
 };
+
+const CLUSTER_PREFIX = 'cluster:';
+
+/** Narrows a raw `data:` value to the plain-edge shape (string or string
+ *  array). A map — the `cluster:` entry shape, or a typo missing that prefix
+ *  on a plain `db:`/`ext:` entry — is not a valid FlowData and collapses to
+ *  empty rather than leaking an object into the rendered chip. */
+function toEdgeData(raw: unknown): FlowData {
+    if (typeof raw === 'string') return raw;
+    if (Array.isArray(raw) && raw.every((v): v is string => typeof v === 'string')) return raw;
+    return '';
+}
 
 function buildEdgeFromInput(
     item: RawEdgeItem,
     processId: string,
     flowId: string,
-): FlowEdge | null {
-    if (typeof item.from !== 'string') return null;
-    const from = parseEndpoint(item.from);
+    clusters: Map<string, FlowCluster>,
+): FlowEdge[] {
+    if (typeof item.from !== 'string') return [];
     const to: FlowEndpoint = { kind: 'proc', name: processId, raw: `proc:${processId}` };
-    const data = item.data ?? '';
-    return { from, to, data, flowId };
+    if (item.from.startsWith(CLUSTER_PREFIX)) {
+        const slug = item.from.slice(CLUSTER_PREFIX.length);
+        const dataMap = toClusterDataMap(item.data);
+        return expandClusterEdges(slug, dataMap, item.label, clusters, 'input', to, flowId);
+    }
+    const from = parseEndpoint(item.from);
+    const data = toEdgeData(item.data);
+    const label = normalizedLabel(item.label);
+    return [{ from, to, data, flowId, ...(label !== undefined ? { label } : {}) }];
 }
 
 function buildEdgeFromOutput(
     item: RawEdgeItem,
     processId: string,
     flowId: string,
-): FlowEdge | null {
-    if (typeof item.to !== 'string') return null;
+    clusters: Map<string, FlowCluster>,
+): FlowEdge[] {
+    if (typeof item.to !== 'string') return [];
     const from: FlowEndpoint = { kind: 'proc', name: processId, raw: `proc:${processId}` };
+    if (item.to.startsWith(CLUSTER_PREFIX)) {
+        const slug = item.to.slice(CLUSTER_PREFIX.length);
+        const dataMap = toClusterDataMap(item.data);
+        return expandClusterEdges(slug, dataMap, item.label, clusters, 'output', from, flowId);
+    }
     const to = parseEndpoint(item.to);
-    const data = item.data ?? '';
-    return { from, to, data, flowId };
+    const data = toEdgeData(item.data);
+    const label = normalizedLabel(item.label);
+    return [{ from, to, data, flowId, ...(label !== undefined ? { label } : {}) }];
 }
 
 function collectStoreRefsFromEdges(
@@ -460,6 +484,7 @@ async function parseDiagramFolder(
     visitedPaths: Set<string>,
     rootExternals: Map<string, ExternalDef>,
     rootStoreBodyByKindName: Map<string, { displayName: string; body: string; bodyHtml: string; description?: string }>,
+    clusters: Map<string, FlowCluster>,
     globalErrors: GlobalError[],
     indexFileName: string,
 ): Promise<FlowDiagram> {
@@ -585,12 +610,10 @@ async function parseDiagramFolder(
         const outputEdges: FlowEdge[] = [];
 
         for (const item of inputItems) {
-            const edge = buildEdgeFromInput(item, processId, flowId);
-            if (edge) inputEdges.push(edge);
+            inputEdges.push(...buildEdgeFromInput(item, processId, flowId, clusters));
         }
         for (const item of outputItems) {
-            const edge = buildEdgeFromOutput(item, processId, flowId);
-            if (edge) outputEdges.push(edge);
+            outputEdges.push(...buildEdgeFromOutput(item, processId, flowId, clusters));
         }
 
         allEdges.push(...inputEdges, ...outputEdges);
@@ -637,6 +660,7 @@ async function parseDiagramFolder(
                 nextVisited,
                 rootExternals,
                 rootStoreBodyByKindName,
+                clusters,
                 globalErrors,
                 indexFileName,
             );
@@ -694,6 +718,12 @@ export async function parseFlows(modelDir: string, indexFileName = 'index.md'): 
 
     const flowsRoot = `${modelDir}/flows`;
 
+    // Shared clusters declared once at <modelDir>/clusters/ — usable by any DFD.
+    // Parsed regardless of whether flows/ exists, so a clusters-only model still
+    // reports its registry.
+    const clusters = await parseClusters(modelDir, globalErrors, indexFileName);
+    const clustersList = Array.from(clusters.values());
+
     // Discover top-level DFD folders under flows/
     const topLevelGlob = new Bun.Glob('*');
     const diagramFolders: string[] = [];
@@ -708,7 +738,7 @@ export async function parseFlows(modelDir: string, indexFileName = 'index.md'): 
     } catch {
         // flows/ directory does not exist — return empty model
         return {
-            flowModel: { diagrams: [], modelDir, externals: [] },
+            flowModel: { diagrams: [], modelDir, externals: [], clusters: clustersList },
             globalErrors,
         };
     }
@@ -786,6 +816,7 @@ export async function parseFlows(modelDir: string, indexFileName = 'index.md'): 
             new Set<string>([flowsRoot]),
             rootExternals,
             rootStoreBodyByKindName,
+            clusters,
             globalErrors,
             indexFileName,
         );
@@ -808,7 +839,7 @@ export async function parseFlows(modelDir: string, indexFileName = 'index.md'): 
         });
     }
 
-    const rawFlowModel: FlowModel = { diagrams, modelDir, externals: rootExternalsList };
+    const rawFlowModel: FlowModel = { diagrams, modelDir, externals: rootExternalsList, clusters: clustersList };
     const flowModel = deriveLevels(rawFlowModel);
 
     return {

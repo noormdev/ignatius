@@ -3,6 +3,7 @@ import { validateModel } from '../../model/validate';
 import type { EntityError, GlobalError } from '../../model/validate';
 import type { Model, ModelNode } from '../../model/parse';
 import type { FlowDiagram } from '../../flows/flow-parse';
+import type { FlowCluster } from '../../flows/flow-clusters';
 import type { FlowError, FlowValidationResult } from '../../flows/flow-validate';
 
 export type ModelFindings = {
@@ -29,6 +30,7 @@ export function useModelData(opts?: UseModelDataOptions): {
   model: Model | null;
   findings: ModelFindings;
   flowDiagrams: FlowDiagram[] | null;
+  flowClusters: FlowCluster[];
   flowFindings: FlowFindings;
   layoutKeyRef: React.MutableRefObject<string>;
   bannerDismissed: boolean;
@@ -41,6 +43,7 @@ export function useModelData(opts?: UseModelDataOptions): {
   });
   // null = not yet fetched; [] = fetch returned empty / static mode with no flows.
   const [flowDiagrams, setFlowDiagrams] = useState<FlowDiagram[] | null>(null);
+  const [flowClusters, setFlowClusters] = useState<FlowCluster[]>([]);
   const [flowFindings, setFlowFindings] = useState<FlowFindings>({
     flowErrors: [],
     globalErrors: [],
@@ -64,6 +67,7 @@ export function useModelData(opts?: UseModelDataOptions): {
     flowLayoutKeys: Record<string, string>;
     entityModel?: Model;
     validation?: FlowValidationResult;
+    clusters?: FlowCluster[];
   };
 
   useEffect(() => {
@@ -92,6 +96,7 @@ export function useModelData(opts?: UseModelDataOptions): {
       }
       const rawDiagrams = window.__FLOW_MODEL__;
       if (rawDiagrams && rawDiagrams.length > 0) setFlowDiagrams(rawDiagrams);
+      if (window.__FLOW_CLUSTERS__) setFlowClusters(window.__FLOW_CLUSTERS__);
       return;
     }
 
@@ -108,7 +113,7 @@ export function useModelData(opts?: UseModelDataOptions): {
     }
 
     function applyFlowPayload(payload: FlowApiPayload) {
-      const { diagrams, flowLayoutKeys, entityModel, validation } = payload;
+      const { diagrams, flowLayoutKeys, entityModel, validation, clusters } = payload;
       if (diagrams && diagrams.length > 0) {
         window.__FLOW_MODEL__ = diagrams;
         window.__FLOW_LAYOUT_KEYS__ = flowLayoutKeys;
@@ -118,6 +123,10 @@ export function useModelData(opts?: UseModelDataOptions): {
         window.__FLOW_MODEL__ = [];
         window.__FLOW_LAYOUT_KEYS__ = flowLayoutKeys;
         setFlowDiagrams([]);
+      }
+      if (clusters) {
+        window.__FLOW_CLUSTERS__ = clusters;
+        setFlowClusters(clusters);
       }
       if (validation) {
         setFlowFindings({
@@ -165,6 +174,7 @@ export function useModelData(opts?: UseModelDataOptions): {
     model,
     findings,
     flowDiagrams,
+    flowClusters,
     flowFindings,
     layoutKeyRef,
     bannerDismissed,

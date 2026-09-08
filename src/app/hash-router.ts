@@ -1,10 +1,27 @@
 // Hash-router: pure parse + serialize for URL hash state.
-// Format: #view=<graph|dict|flow>&entity=<id>&zoom=<n>&pan=<x>,<y>&dfd=<diagram-id>
+// Format: #view=<graph|dict|flow>&entity=<id>&zoom=<n>&pan=<x>,<y>&dfd=<diagram-id>&flowview=<per-process|connected>&collapse=<stores|clusters|groups>
 // All params are optional. Unknown/malformed values are silently dropped.
 
 export type ViewName = 'graph' | 'dict' | 'flow';
+export type FlowViewMode = 'per-process' | 'connected';
+export type FlowCollapseLevel = 'stores' | 'clusters' | 'groups';
+
+/**
+ * The next level in the collapse-level FAB control's cycle: stores → clusters
+ * → groups → stores. A `switch` over the closed union, not array indexing —
+ * exhaustive and provably total, so it needs no non-null assertion.
+ */
+export function nextCollapseLevel(level: FlowCollapseLevel): FlowCollapseLevel {
+  switch (level) {
+    case 'stores': return 'clusters';
+    case 'clusters': return 'groups';
+    case 'groups': return 'stores';
+  }
+}
 
 const VALID_VIEWS: Record<string, ViewName> = { graph: 'graph', dict: 'dict', flow: 'flow' };
+const VALID_FLOW_VIEWS: Record<string, FlowViewMode> = { 'per-process': 'per-process', connected: 'connected' };
+const VALID_COLLAPSE_LEVELS: Record<string, FlowCollapseLevel> = { stores: 'stores', clusters: 'clusters', groups: 'groups' };
 
 export interface HashState {
   view?: ViewName;
@@ -13,6 +30,10 @@ export interface HashState {
   pan?: { x: number; y: number };
   /** Active flow diagram id — only meaningful when view === 'flow'. */
   dfd?: string;
+  /** Per-process vs. connected rendering — global setting, deep-linkable per docs/spec/dfd-store-clusters.md. */
+  flowview?: FlowViewMode;
+  /** Stack row breakdown level — global setting, deep-linkable per docs/spec/dfd-store-clusters.md. */
+  collapse?: FlowCollapseLevel;
 }
 
 /**
@@ -59,6 +80,16 @@ export function parseHash(hash: string): HashState {
     state.dfd = decodeURIComponent(dfdVal);
   }
 
+  const flowviewVal = params.get('flowview');
+  if (flowviewVal !== null && flowviewVal in VALID_FLOW_VIEWS) {
+    state.flowview = VALID_FLOW_VIEWS[flowviewVal];
+  }
+
+  const collapseVal = params.get('collapse');
+  if (collapseVal !== null && collapseVal in VALID_COLLAPSE_LEVELS) {
+    state.collapse = VALID_COLLAPSE_LEVELS[collapseVal];
+  }
+
   return state;
 }
 
@@ -89,6 +120,14 @@ export function serializeHash(state: HashState): string {
 
   if (state.dfd !== undefined) {
     parts.push(`dfd=${encodeURIComponent(state.dfd)}`);
+  }
+
+  if (state.flowview !== undefined) {
+    parts.push(`flowview=${state.flowview}`);
+  }
+
+  if (state.collapse !== undefined) {
+    parts.push(`collapse=${state.collapse}`);
   }
 
   return parts.join('&');

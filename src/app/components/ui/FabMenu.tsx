@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import type { GroupConfig } from '../../../model/parse';
-import type { ViewName } from '../../hash-router';
+import type { ViewName, FlowViewMode, FlowCollapseLevel } from '../../hash-router';
 import type { LayoutMode } from '../../views/graph/GraphView';
+
+// Action wording names the target level, not just the next state's name — the
+// stores→clusters/clusters→groups direction reads as "Collapse to X" and the
+// groups→stores wrap reads as "Expand to X" since it un-collapses.
+function collapseActionLabel(level: FlowCollapseLevel): string {
+  switch (level) {
+    case 'stores': return 'Collapse to clusters';
+    case 'clusters': return 'Collapse to groups';
+    case 'groups': return 'Expand to stores';
+  }
+}
 
 export interface FabMenuProps {
   view: ViewName;
@@ -9,6 +20,8 @@ export interface FabMenuProps {
   groupEntries: [string, GroupConfig][];
   layoutMode: LayoutMode;
   minimapOpen: boolean;
+  flowView: FlowViewMode;
+  collapseLevel: FlowCollapseLevel;
   onSetView: (v: ViewName) => void;
   onShowLegend: () => void;
   onShowGroups: () => void;
@@ -16,6 +29,8 @@ export interface FabMenuProps {
   onToggleLayoutMode: () => void;
   onResetLayout: () => void;
   onToggleDictNav: () => void;
+  onToggleFlowView: () => void;
+  onCycleCollapseLevel: () => void;
 }
 
 export function FabMenu({
@@ -24,6 +39,8 @@ export function FabMenu({
   groupEntries,
   layoutMode,
   minimapOpen,
+  flowView,
+  collapseLevel,
   onSetView,
   onShowLegend,
   onShowGroups,
@@ -31,6 +48,8 @@ export function FabMenu({
   onToggleLayoutMode,
   onResetLayout,
   onToggleDictNav,
+  onToggleFlowView,
+  onCycleCollapseLevel,
 }: FabMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [copyConfirm, setCopyConfirm] = useState(false);
@@ -171,13 +190,29 @@ export function FabMenu({
           )}
           {/* Flow-specific action items */}
           {view === 'flow' && (
-            <button
-              className="fab-menu-item"
-              role="menuitem"
-              onClick={() => { setMenuOpen(false); onResetLayout(); }}
-            >
-              Reset layout
-            </button>
+            <>
+              <button
+                className="fab-menu-item"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); onToggleFlowView(); }}
+              >
+                {flowView === 'per-process' ? 'Connected view' : 'Per-process view'}
+              </button>
+              <button
+                className="fab-menu-item"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); onCycleCollapseLevel(); }}
+              >
+                {collapseActionLabel(collapseLevel)}
+              </button>
+              <button
+                className="fab-menu-item"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); onResetLayout(); }}
+              >
+                Reset layout
+              </button>
+            </>
           )}
           {/* Dict-specific action items */}
           {view === 'dict' && (
@@ -189,8 +224,8 @@ export function FabMenu({
               Toggle sidebar
             </button>
           )}
-          {/* Copy link — graph and dict */}
-          {(view === 'graph' || view === 'dict') && (
+          {/* Copy link — graph, dict, and flow */}
+          {(view === 'graph' || view === 'dict' || view === 'flow') && (
             <button
               className="fab-menu-item"
               role="menuitem"

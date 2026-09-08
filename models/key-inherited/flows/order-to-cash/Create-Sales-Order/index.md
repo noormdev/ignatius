@@ -4,7 +4,7 @@
 
 </ignatius-breadcrumb>
 
-<ignatius-index scope="flow-diagram" path="flows/order-to-cash/Create-Sales-Order" count="2" depth="3" digest="sha256:3c7aa164704b1f0d178c4428792338f1103d548b97e38d6eab2a3c533c49127c">
+<ignatius-index scope="flow-diagram" path="flows/order-to-cash/Create-Sales-Order" count="2" depth="3" digest="sha256:a2b145a4c6d92c180bb8fe1f9b47a5e4660e21422bbe389641dd4cd1d81f3b5e">
 
 | Name | Kind | Description | Go |
 |---|---|---|---|

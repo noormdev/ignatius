@@ -1,0 +1,5 @@
+name: Hub DFD Test Model
+version: "1.0"
+description: Shaped like AutomaStructure's Compute Loads diagram — two hub stores every process reads, a subtype family, an author cluster, and a same-adjacency pair.
+flow_view:
+  adjacency_stacks: true

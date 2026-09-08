@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseHash, serializeHash } from '../hash-router';
-import type { HashState, ViewName } from '../hash-router';
+import type { HashState, ViewName, FlowViewMode, FlowCollapseLevel } from '../hash-router';
 
 export type UseHashRouteOptions = {
   // Called when a popstate event lands on the flow view with a dfd= param.
@@ -11,6 +11,13 @@ export type UseHashRouteOptions = {
   // null (close it). The shell MUST NOT push history in response — this fires
   // because the user already navigated (Back/Forward).
   onEntityChange?: (entityId: string | null) => void;
+  // Called on a popstate reconcile when the hash carries a flowview=/collapse=
+  // that differs from the shell's live state — a pushed history entry (e.g.
+  // opening an entity) snapshots whatever flowview/collapse was current at
+  // push time, so Back/Forward across such entries can restore an older
+  // value even though the FAB toggle itself only replaceStates the top entry.
+  onRestoreFlowView?: (view: FlowViewMode) => void;
+  onRestoreCollapseLevel?: (level: FlowCollapseLevel) => void;
 };
 
 // Owns hash read/write and popstate/hashchange back/forward restoration, AND the
@@ -41,6 +48,10 @@ export function useHashRoute(opts?: UseHashRouteOptions): {
   onRestoreDfdRef.current = opts?.onRestoreDfd;
   const onEntityChangeRef = useRef(opts?.onEntityChange);
   onEntityChangeRef.current = opts?.onEntityChange;
+  const onRestoreFlowViewRef = useRef(opts?.onRestoreFlowView);
+  onRestoreFlowViewRef.current = opts?.onRestoreFlowView;
+  const onRestoreCollapseLevelRef = useRef(opts?.onRestoreCollapseLevel);
+  onRestoreCollapseLevelRef.current = opts?.onRestoreCollapseLevel;
 
   // The entity= we last reconciled to (opened/closed via). Mirrors the hash's
   // entity field. Seeded from the initial hash so a deep-link does not trip a
@@ -69,6 +80,14 @@ export function useHashRoute(opts?: UseHashRouteOptions): {
       const newDfd = fromHash.dfd;
       if (newDfd && (newView === 'flow' || viewRef.current === 'flow')) {
         onRestoreDfdRef.current?.(newDfd);
+      }
+      // Reconcile flowview=/collapse= the same way — unconditional on any
+      // popstate that carries them, mirroring dfd= above.
+      if (fromHash.flowview) {
+        onRestoreFlowViewRef.current?.(fromHash.flowview);
+      }
+      if (fromHash.collapse) {
+        onRestoreCollapseLevelRef.current?.(fromHash.collapse);
       }
       // Reconcile the entity modal to MATCH the hash. Reconcile never pushes
       // history (we are responding to a navigation). Only fire when the hash's

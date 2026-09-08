@@ -221,7 +221,7 @@ async function run(args: string[]): Promise<{ exitCode: number; stdout: string; 
     theme: defaultTheme,
     branding: defaultBranding,
   };
-  const flowModel = { diagrams: [], modelDir: dir, externals: [] };
+  const flowModel = { diagrams: [], modelDir: dir, externals: [], clusters: [] };
 
   const routers = await buildRouters(dir, model, flowModel);
   const dataRouter = routers.find(r => r.relPath === 'data/index.md');

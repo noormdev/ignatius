@@ -99,6 +99,11 @@ These run whenever the model has a `flows/` directory (see [Process flows](flows
 | `flow.process_no_output` | A | A process has no output flows. |
 | `flow.duplicate_number` | A | Two sibling processes declare the same `number:`. |
 | `flow.unbalanced_decomposition` | A | A sub-DFD's boundary flows do not match the parent process's declared inputs and outputs. |
+| `flow.unknown_cluster` | B | A `cluster:` endpoint names a slug with no `clusters/<slug>.md` file at the model root. Every edge expanded from this entry is stripped from the cleaned model. Add the cluster file or correct the slug. |
+| `flow.cluster_member_unknown` | B | A `cluster:` entry's `data:` map names a member entity that is not in the cluster's `entities:` list. The edge for that member is stripped from the cleaned model. Add the entity to the cluster's `entities:` or correct the member key. |
+| `flow.cluster_no_members` | A | A `cluster:` entry's `data:` map is empty — no members were mapped. The entry produces no edge in the cleaned model. Add member columns to the `data:` map or remove the entry. |
+| `flow.cluster_entity_unknown` | A | A `clusters/<slug>.md` file's `entities:` list names an entity that does not exist in the entity catalog. Add the entity file or correct the name in the cluster file. |
+| `flow.cluster_overlap` | A | An entity appears in the `entities:` list of more than one `clusters/*.md` file. A store belongs to only one author cluster; remove it from all but one file. |
 
 
 ### Config rules

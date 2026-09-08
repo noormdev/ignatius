@@ -57,13 +57,18 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 | `flow.unknown_external` | error | B | `ext:` not defined | Add `externals/<Name>.md` at the model root or correct the `ext:<Name>` token (Step F3) |
 | `flow.unknown_process` | error | B | `proc:` target not found | The referenced process has no file in this diagram — fix the name or author the process (Step F2) |
 | `flow.illegal_connection` | error | B | Neither endpoint is a process | Every flow connects through a process — re-route the data via the process that moves it (see "How the pieces connect") |
-| `flow.unknown_attribute` | warn | A | `db:` flow column not on entity | Each name in a `db:` flow's `data:` list must be in the entity's `pk ∪ columns` — fix the column name or add it to the entity (Step F5) |
+| `flow.unknown_attribute` | warn | A | `db:` flow column not on entity | Each name in a `db:` flow's `data:` list, or in a member's list inside a `cluster:` entry's `data:` map, must be in that entity's `pk ∪ columns` — fix the column name or add it to the entity (Step F5) |
 | `flow.ambiguous_endpoint` | warn | A | Bare endpoint name in 2+ namespaces | Qualify the token with its prefix (`ext:`, `db:`, `proc:`, …) |
 | `flow.process_to_process` | warn | A | Direct process-to-process flow | Pass the data through a store between the two processes (or silence with `flow_rules.process_to_process: false`) |
 | `flow.process_no_input` | warn | A | Process has no input flows | Add at least one `inputs:` entry — every process takes data in (Step F5) |
 | `flow.process_no_output` | warn | A | Process has no output flows | Add at least one `outputs:` entry — every process produces data (Step F5) |
 | `flow.duplicate_number` | warn | A | Two processes share a `number:` | Renumber so each process id is unique within its diagram (Step F2) |
 | `flow.unbalanced_decomposition` | warn | A | Sub-DFD boundary ≠ parent flows | Thread the same data through both levels — the child diagram's boundary flows must match the parent process's `inputs:`/`outputs:` (Step F8) |
+| `flow.unknown_cluster` | error | B | `cluster:` names no cluster file | Add `clusters/<slug>.md` at the model root or correct the slug (Step F4a) |
+| `flow.cluster_member_unknown` | error | B | Cluster entry maps an unknown member | Add the entity to the cluster's `entities:` or correct the member key in the `data:` map (Step F4a) |
+| `flow.cluster_no_members` | warn | A | Cluster entry has no mapped members | Add member columns to the `data:` map or remove the entry (Step F4a) |
+| `flow.cluster_entity_unknown` | warn | A | Cluster file lists an unknown entity | Add the entity file or correct the name in the cluster file's `entities:` (Step F4a) |
+| `flow.cluster_overlap` | warn | A | Entity claimed by more than one cluster | Remove the entity from all but one `clusters/*.md` file (Step F4a) |
 
 **Loop behavior:**
 
@@ -89,8 +94,11 @@ The linter validates structure; it cannot see whether the business story was cap
 2. Every process carries an `examples:` block with both `in:` and `out:` entries whose rows match the flow's `data:` labels (Step F6).
 3. Every flow label is a complete data contract — a `db:` flow lists real entity columns, an `ext:`/`kind:` flow names the full payload, never a one-word summary (Step F5).
 4. For any sub-DFD: the child diagram's boundary flows carry the same data as the parent process's `inputs:`/`outputs:` (Step F8).
+5. Every input and output entry carries a `label:`: a few words in the reader's language, no column names, no table names (Step F5). Validate does not check this; a missing label shows on the diagram as a column-list chip.
+6. Cluster hygiene: every `clusters/*.md` has two or more members that all exist, no entity sits in two files, and every set of stores a process treats as one thing is either a cluster file referenced with the `cluster:` token or a subtype family (Step F4a). The five `flow.cluster_*` rules catch the file errors; only you can catch the set nobody named.
+7. Legibility, per process and direction: count the rows the default view will draw (one per cluster or subtype family with two or more touched members, one per loose store). More than about five is a missing cluster or a process to decompose (Step F8). Then look: `ignatius serve <model-root>`, open `#view=flow&dfd=<diagram-id>` (the per-process view is the default), and confirm each process shows one read stack above and one write stack below with a label on every chip. Capture a screenshot when you have a tool that can; otherwise ask the user to look and say what they see.
 
-Only when structure is clean **and** these hold: report "Verified clean — 0 findings, business context captured, sample rows consistent."
+Only when structure is clean **and** these hold: report "Verified clean — 0 findings, business context captured, sample rows consistent, every flow labelled and stacked legibly."
 
 ---
 

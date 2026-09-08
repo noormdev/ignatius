@@ -34,8 +34,8 @@
 import ELK from 'elkjs';
 import type { ELKConstructorArguments, ElkNode, ElkPoint } from 'elkjs/lib/elk-api.js';
 import type { FlowDiagram } from '../flows/flow-parse';
-import { buildFlowData, processNodeSize } from './flow-layout';
-import type { FlowElementData } from './flow-layout';
+import { buildFlowData, processNodeSize, CHIP_TRUNCATE_MAX, STORE_ROW_H, stackNodeSize } from './flow-layout';
+import type { FlowElementData, BuildFlowDataOpts } from './flow-layout';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ export type ElkLayoutResult = {
   edgeRoutes: Record<string, Array<{ x: number; y: number }>>;
 };
 
-export type ComputeElkLayoutOpts = {
+export type ComputeElkLayoutOpts = BuildFlowDataOpts & {
   /**
    * Override the ELK instance factory. Use in Bun/Node environments:
    *   opts.workerFactory = () => new Worker(<resolved elk-worker.min.js>)
@@ -86,9 +86,10 @@ export function nodeSize(n: NodeElement): { width: number; height: number } {
     return { width, height };
   }
   if (n.nodeType === 'external') return { width: estW(n.label, 6.6, 28, 110), height: 52 };
+  if (n.nodeType === 'stack') return stackNodeSize(n.members, n.rows);
   // store — prefix with D# if present
-  const label = `D${n.storeNum ?? ''} ${n.label}`;
-  return { width: estW(label, 6.6, 30, 150), height: 44 };
+  const label = `D${n.storeNum} ${n.label}`;
+  return { width: estW(label, 6.6, 30, 150), height: STORE_ROW_H };
 }
 
 // ── Band assignment ───────────────────────────────────────────────────────────
@@ -125,6 +126,8 @@ export function bandOf(
     return srcSet.has(n.id) ? 0 : 4;
   }
 
+  if (n.nodeType === 'stack') return n.direction === 'write' ? 3 : 1;
+
   // Store — split copies carry explicit suffix.
   if (n.id.endsWith('--read')) return 1;
   if (n.id.endsWith('--write')) return 3;
@@ -159,22 +162,18 @@ export function isDbEdge(sourceId: string, targetId: string): boolean {
 }
 
 /**
- * Maximum label character length for an inline canvas chip (CP4a).
- *
- * Labels longer than this threshold inflate diagram width as badly as `db:`
- * column lists. They are rendered on-demand (hover/click) instead of inline.
- * The gate is label *length*, not endpoint kind.
+ * Maximum label character length for an inline canvas chip. Derives from
+ * flow-layout.ts's CHIP_TRUNCATE_MAX so the gate has one numeric source.
  */
-export const SHORT_LABEL_MAX = 22;
+export const SHORT_LABEL_MAX = CHIP_TRUNCATE_MAX;
 
 /**
  * isInlineLabel — true when a label is short enough to render as an inline
- * canvas chip (CP4a length gate).
+ * canvas chip.
  *
- * Returns false for undefined, empty, or any string longer than SHORT_LABEL_MAX.
- * Exported as the single source of truth used by FlowDiagramSvg (inline chip
- * rendering). ELK no longer receives label dummies — the renderer owns all label
- * placement (CP4c).
+ * No production caller: FlowDiagramSvg's chip rendering goes through
+ * flow-layout.ts's resolveChipLines instead. Kept for the length-gate
+ * assertions in test-cp2-edge-label-strategy.ts and test-cp4a-layout-model-d.ts.
  */
 export function isInlineLabel(label: string | undefined): boolean {
   return !!label && label.length <= SHORT_LABEL_MAX;
@@ -182,9 +181,13 @@ export function isInlineLabel(label: string | undefined): boolean {
 
 // ── ELK graph construction ────────────────────────────────────────────────────
 
-function buildElkGraph(
+/** Exported so tests can assert layoutOptions directly — e.g. that
+ *  `elk.separateConnectedComponents` is scoped to the per-process view and
+ *  never applied to the default (today's-layout) graph. */
+export function buildElkGraph(
   nodes: NodeElement[],
   edges: EdgeElement[],
+  view: BuildFlowDataOpts['view'],
 ): ElkNode {
   const srcSet = new Set(edges.map(e => e.source));
 
@@ -204,6 +207,17 @@ function buildElkGraph(
     // omitting them yields single-row bands (C16).
     'elk.edgeRouting': 'ORTHOGONAL',
   };
+
+  if (view === 'per-process') {
+    // Per-process stacks can leave a diagram with disconnected islands (a
+    // process whose stack shares no member with any other process's). ELK
+    // lays out disconnected components independently by default, which can
+    // break the band-ordering invariant across islands; disabling it keeps
+    // every node's y ruled by its partition regardless of connectivity. Scoped
+    // to this view only — the default view stays fully connected via shared
+    // store nodes and must keep today's layout unchanged.
+    layoutOptions['elk.separateConnectedComponents'] = 'false';
+  }
 
   const children: ElkNode[] = nodes.map(n => {
     const { width, height } = nodeSize(n);
@@ -264,7 +278,7 @@ export function terminateQuietly(elk: { terminateWorker: () => void }): void {
 /**
  * computeElkLayout — async ELK positions for a FlowDiagram (CP1 + CP2 + CP4c).
  *
- * Internally calls buildFlowData(diagram) for nodes/edges/storeNums, assigns
+ * Internally calls buildFlowData(diagram) for nodes/edges, assigns
  * each node a band partition by role, runs elkjs Layered with DOWN direction +
  * partitioning + nodeNodeBetweenLayers/nodeNode spacing, and maps the ELK
  * output to node-id → position and edge-id → routed polyline.
@@ -277,8 +291,8 @@ export async function computeElkLayout(
   diagram: FlowDiagram,
   opts?: ComputeElkLayoutOpts,
 ): Promise<ElkLayoutResult> {
-  const { nodes, edges } = buildFlowData(diagram);
-  const graph = buildElkGraph(nodes, edges);
+  const { nodes, edges } = buildFlowData(diagram, opts);
+  const graph = buildElkGraph(nodes, edges, opts?.view);
 
   const elkArgs: ELKConstructorArguments = {};
   if (opts?.workerFactory) {

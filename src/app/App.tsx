@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { semanticColors, resolveFlowKindPalette, type FlowKindKey, type FlowKindEntry } from '../theme/theme-defaults';
-import { parseHash } from './hash-router';
+import { parseHash, serializeHash, nextCollapseLevel } from './hash-router';
+import type { HashState, FlowViewMode, FlowCollapseLevel } from './hash-router';
 import { RULES } from '../model/validate';
 import type { EntityError } from '../model/validate';
 import type {
@@ -94,6 +95,11 @@ export function App() {
         setShowEntityModal(true);
       }
     },
+    // popstate reconcile for a pushed entry (e.g. an entity open) that
+    // snapshotted an older flowview=/collapse= — see the flowView/
+    // collapseLevel state below. React state only, same rule as onEntityChange.
+    onRestoreFlowView: (v) => setFlowView(v),
+    onRestoreCollapseLevel: (l) => setCollapseLevel(l),
   });
 
   const { themeMode, toggleTheme } = useThemeMode(model?.theme, model);
@@ -179,6 +185,46 @@ export function App() {
     const stored = localStorage.getItem('ignatius-layout-mode');
     return stored === 'hierarchical' ? 'hierarchical' : 'organic';
   });
+
+  // Flow view + collapse level (docs/spec/dfd-store-clusters.md) — global,
+  // localStorage-persisted settings, same pattern as layoutMode above. A hash
+  // carrying flowview=/collapse= on THIS load wins over the stored setting;
+  // otherwise falls back to localStorage, then the design's defaults.
+  const [flowView, setFlowView] = useState<FlowViewMode>(() => {
+    const fromHash = parseHash(location.hash).flowview;
+    if (fromHash) return fromHash;
+    return localStorage.getItem('ignatius-flow-view') === 'connected' ? 'connected' : 'per-process';
+  });
+  const [collapseLevel, setCollapseLevel] = useState<FlowCollapseLevel>(() => {
+    const fromHash = parseHash(location.hash).collapse;
+    if (fromHash) return fromHash;
+    const stored = localStorage.getItem('ignatius-flow-collapse');
+    return stored === 'stores' || stored === 'groups' ? stored : 'clusters';
+  });
+
+  // Writes flowview=/collapse= into the hash beside the existing params
+  // (view/entity/zoom/pan/dfd) without adding a history entry — mirrors how
+  // useHashRoute writes `view` on every change.
+  function writeFlowViewHash(partial: Pick<HashState, 'flowview' | 'collapse'>) {
+    const current = parseHash(location.hash);
+    const next: HashState = { ...current, ...partial };
+    const serialized = serializeHash(next);
+    history.replaceState({}, '', serialized ? '#' + serialized : location.pathname);
+  }
+
+  function handleToggleFlowView() {
+    const next: FlowViewMode = flowView === 'per-process' ? 'connected' : 'per-process';
+    setFlowView(next);
+    localStorage.setItem('ignatius-flow-view', next);
+    writeFlowViewHash({ flowview: next });
+  }
+
+  function handleCycleCollapseLevel() {
+    const next = nextCollapseLevel(collapseLevel);
+    setCollapseLevel(next);
+    localStorage.setItem('ignatius-flow-collapse', next);
+    writeFlowViewHash({ collapse: next });
+  }
 
   // After a view switch to dict, execute any pending process-scroll that was set
   // by onNavigateToProcess. rAF is not enough — React may not have painted the dict
@@ -614,6 +660,8 @@ export function App() {
         onOpenEntity={(id, fromFlow) => openEntityByIdRef.current(id, fromFlow)}
         onZoomPercentChange={setFlowZoomPercent}
         searchTokens={flowSearchTokens}
+        flowView={flowView}
+        collapseLevel={collapseLevel}
       />
 
       {/* ── ERD surface chrome (hidden on flow surface) ── */}
@@ -698,11 +746,15 @@ export function App() {
         groupEntries={groupEntries}
         layoutMode={layoutMode}
         minimapOpen={minimapOpen}
+        flowView={flowView}
+        collapseLevel={collapseLevel}
         onSetView={setView}
         onShowLegend={() => setShowLegend(true)}
         onShowGroups={() => setShowGroups(true)}
         onToggleMinimap={toggleMinimapOpen}
         onToggleLayoutMode={handleToggleLayoutMode}
+        onToggleFlowView={handleToggleFlowView}
+        onCycleCollapseLevel={handleCycleCollapseLevel}
         onResetLayout={() => {
           if (view === 'graph') graphViewRef.current?.resetLayout();
           else if (view === 'flow') flowsViewRef.current?.resetLayout();

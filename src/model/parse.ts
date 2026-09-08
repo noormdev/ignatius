@@ -118,6 +118,8 @@ export type ModelMeta = {
   harness?: HarnessMode;
   /** Loaded from ignatius.yml `flow_rules:` block; passed to validateFlows. */
   flowRules?: import('../flows/flow-validate').FlowRulesConfig;
+  /** Loaded from ignatius.yml `flow_view:` block; drives the DFD stack/grouping opts. */
+  flowView?: { adjacencyStacks?: boolean };
 };
 
 export type Model = {
@@ -191,7 +193,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
     const parsed: unknown = parseYaml(await configFile.text());
     const raw: Record<string, unknown> = isRecord(parsed) ? parsed : {};
     // Meta lives at top-level keys (name, version, description, updated)
-    const { name, version, description, updated, theme: themeRaw, branding: brandingRaw, flow_rules: flowRulesRaw, index_file: indexFileRaw, harness: harnessRaw } = raw;
+    const { name, version, description, updated, theme: themeRaw, branding: brandingRaw, flow_rules: flowRulesRaw, flow_view: flowViewRaw, index_file: indexFileRaw, harness: harnessRaw } = raw;
     const metaName = typeof name === 'string' ? name : undefined;
     const metaVersion = typeof version === 'string' ? version : undefined;
     const metaDescription = typeof description === 'string' ? description : undefined;
@@ -205,6 +207,15 @@ export async function parseModels(dir: string): Promise<ParseResult> {
         ? {
             ...(typeof flowRulesRaw['process_to_process'] === 'boolean'
               ? { process_to_process: flowRulesRaw['process_to_process'] }
+              : {}),
+          }
+        : undefined;
+    // Load flow_view: block into _meta.flowView, same precedent as flow_rules.
+    const flowView: { adjacencyStacks?: boolean } | undefined =
+      isRecord(flowViewRaw)
+        ? {
+            ...(typeof flowViewRaw['adjacency_stacks'] === 'boolean'
+              ? { adjacencyStacks: flowViewRaw['adjacency_stacks'] }
               : {}),
           }
         : undefined;
@@ -225,7 +236,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
       });
     }
     // _meta is only populated when at least one meta key is present; remains undefined if all are absent
-    if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined || flowRules !== undefined || metaIndexFile !== undefined || metaHarness !== undefined) {
+    if (metaName !== undefined || metaVersion !== undefined || metaDescription !== undefined || metaUpdated !== undefined || flowRules !== undefined || flowView !== undefined || metaIndexFile !== undefined || metaHarness !== undefined) {
       _meta = {
         ...(metaName !== undefined ? { name: metaName } : {}),
         ...(metaVersion !== undefined ? { version: metaVersion } : {}),
@@ -234,6 +245,7 @@ export async function parseModels(dir: string): Promise<ParseResult> {
         ...(metaIndexFile !== undefined ? { indexFile: metaIndexFile } : {}),
         ...(metaHarness !== undefined ? { harness: metaHarness } : {}),
         ...(flowRules !== undefined ? { flowRules } : {}),
+        ...(flowView !== undefined ? { flowView } : {}),
       };
     }
     if (themeRaw !== null && typeof themeRaw === 'object') {

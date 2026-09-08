@@ -105,7 +105,7 @@ function makeDiagram(
 }
 
 function makeFlowModel(diagrams: FlowDiagram[], externals: FlowExternal[] = []): FlowModel {
-    return { diagrams, modelDir: '/test', externals };
+    return { diagrams, modelDir: '/test', externals, clusters: [] };
 }
 
 function hasRule(errors: FlowError[], ruleId: string): boolean {

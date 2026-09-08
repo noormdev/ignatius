@@ -4,18 +4,20 @@ paths:
   - "src/flow-view/**"
 ---
 
-Domain: flow-view. ELK-driven DFD layout (5-band partitioning, orthogonal edge routing); pure coord helpers for polyline rendering; SVG renderer consumes ELK positions + edgeRoutes + search-token dimming
+Domain: flow-view. ELK-driven DFD layout (5-band partitioning, orthogonal edge routing) with a stack-node model for per-process/connected views and three collapse levels (stores/clusters/groups); pure coord helpers for polyline rendering; SVG renderer consumes ELK positions + edgeRoutes + search-token dimming
 
 Map:
   - docs/wiki/flow-view.md
 Contracts:
   - docs/spec/dfd-edge-hover-data.md
   - docs/spec/dfd-overhaul.md
+  - docs/spec/dfd-store-clusters.md
   - docs/spec/graph-flow-search.md
   - docs/spec/viewer-ux-polish.md
 Designs:
   - docs/design/dfd-edge-hover-data.md
   - docs/design/dfd-overhaul.md
+  - docs/design/dfd-store-clusters.md
   - docs/design/graph-flow-search.md
 Research:
   - docs/research/dfd-layout-and-leveling.md

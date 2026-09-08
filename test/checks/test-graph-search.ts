@@ -26,6 +26,19 @@ if (!existsSync(BUNDLE)) {
   process.exit(0);
 }
 
+// This check hung for 35 minutes on one full-suite run, standalone and on
+// rerun it passed — every waitForSelector/waitForFunction below already
+// carries an explicit timeout, but page.evaluate() has none by design (it
+// runs code in the page, it isn't waiting on a condition) and blocks forever
+// if the browser tab ever stalls. A hard ceiling on the whole script is the
+// backstop: no run needs anywhere near this long, so hitting it is itself
+// the failure signal, with a message that says so rather than a silent hang.
+const WATCHDOG_MS = 55_000;
+const watchdog = setTimeout(() => {
+  console.error(`FAIL: test-graph-search.ts exceeded its ${WATCHDOG_MS}ms watchdog — a wait blocked indefinitely`);
+  process.exit(1);
+}, WATCHDOG_MS);
+
 let failures = 0;
 
 function assert(cond: boolean, label: string, detail?: string): void {
@@ -43,6 +56,11 @@ await new Promise<void>(r => setTimeout(r, 400));
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+// Explicit bound on every otherwise-unbounded wait (goto/click/fill/etc.) —
+// this check has hung indefinitely on one full-suite run before, so nothing
+// here should be able to wait forever.
+page.setDefaultTimeout(30_000);
+page.setDefaultNavigationTimeout(30_000);
 
 try {
   await page.goto(`http://localhost:${PORT}/#view=graph`, { waitUntil: 'load' });
@@ -239,7 +257,11 @@ try {
 } finally {
   await page.close();
   await browser.close();
-  handle.stop();
+  // force=true: the /events SSE stream has its idle timeout disabled server-side
+  // (server.ts), so a graceful stop() would wait on that connection closing —
+  // teardown here is unconditional so this server never outlives the process
+  // and blocks a later port bind.
+  handle.stop(true);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +279,8 @@ await new Promise<void>(r => setTimeout(r, 400));
 
 const bannerBrowser = await chromium.launch();
 const bannerPage = await bannerBrowser.newPage({ viewport: { width: 1440, height: 900 } });
+bannerPage.setDefaultTimeout(30_000);
+bannerPage.setDefaultNavigationTimeout(30_000);
 
 try {
   await bannerPage.goto(`http://localhost:${BANNER_PORT}/#view=graph`, { waitUntil: 'load' });
@@ -307,8 +331,10 @@ try {
 } finally {
   await bannerPage.close();
   await bannerBrowser.close();
-  bannerHandle.stop();
+  bannerHandle.stop(true);
 }
+
+clearTimeout(watchdog);
 
 if (failures > 0) {
   console.error(`\n${failures} failure(s).`);

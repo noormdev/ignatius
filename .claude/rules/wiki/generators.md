@@ -4,7 +4,7 @@ paths:
   - "src/generators/**"
 ---
 
-Domain: generators. Unified static HTML export via `generateApp` (single file — graph + dict + flows); sole static generator
+Domain: generators. Unified static HTML export via `generateApp` (single file — graph + dict + flows), now embedding `window.__FLOW_CLUSTERS__`; sole static generator
 
 Map:
   - docs/wiki/generators.md

@@ -20,14 +20,12 @@ inputs:
 outputs:
   - to: db:Memory_Tag
     data: [tag_id, memory_id]
-  - to: db:Project_Tag
-    data: [tag_id, project_id]
-  - to: db:Artifact_Tag
-    data: [tag_id, artifact_id]
-  - to: db:Milestone_Tag
-    data: [tag_id, milestone_id]
-  - to: db:Task_Tag
-    data: [tag_id, milestone_id, task_no]
+  - to: cluster:tag-junctions
+    data:
+      Project_Tag: [tag_id, project_id]
+      Artifact_Tag: [tag_id, artifact_id]
+      Milestone_Tag: [tag_id, milestone_id]
+      Task_Tag: [tag_id, milestone_id, task_no]
   - to: db:Tag
     data: [tag_id]
   - to: ext:LLM-Agent

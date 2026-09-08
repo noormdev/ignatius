@@ -20,7 +20,9 @@ import { existsSync } from 'fs';
 import { createRequire } from 'node:module';
 import { serveCommand } from '../../src/server/server';
 import { parseFlows } from '../../src/flows/flow-parse';
+import { parseModels } from '../../src/model/parse';
 import { computeElkLayout } from '../../src/flow-view/elk-flow-layout';
+import type { ComputeElkLayoutOpts } from '../../src/flow-view/elk-flow-layout';
 import type { FlowDiagram } from '../../src/flows/flow-parse';
 
 const ROOT = resolve(import.meta.dir, '../..');
@@ -41,9 +43,27 @@ function findDiagram(ds: FlowDiagram[], id: string): FlowDiagram | null {
 const require = createRequire(import.meta.url);
 const workerPath = require.resolve('elkjs/lib/elk-worker.min.js');
 const { flowModel } = await parseFlows(MODEL);
+const { model } = await parseModels(MODEL);
 const leaf = findDiagram(flowModel.diagrams, 'memory-lifecycle');
 if (!leaf) { console.error('FAIL: memory-lifecycle diagram not found'); process.exit(1); }
-const elk = await computeElkLayout(leaf, { workerFactory: () => new Worker(workerPath) });
+
+// FlowsView's default rendering (docs/spec/dfd-store-clusters.md): per-process
+// view, clusters collapse level — must match here so the ELK routes computed
+// for comparison are for the same node/edge id set the served app actually
+// renders by default.
+const entityGroups: Record<string, string> = {};
+for (const n of model.nodes) if (n.group) entityGroups[n.id] = n.group;
+const defaultOpts: ComputeElkLayoutOpts = {
+  view: 'per-process',
+  collapseLevel: 'clusters',
+  clusters: flowModel.clusters,
+  subtypeClusters: model.subtypeClusters,
+  groups: model.groups,
+  entityGroups,
+  adjacencyStacks: model._meta?.flowView?.adjacencyStacks,
+  workerFactory: () => new Worker(workerPath),
+};
+const elk = await computeElkLayout(leaf, defaultOpts);
 const elkRouteKeys = new Set(
   Object.values(elk.edgeRoutes).map(pts => pts.map(p => `${Math.round(p.x)},${Math.round(p.y)}`).join('|')),
 );

@@ -7,6 +7,10 @@ inputs:
 outputs:
   - to: db:GhostEntity
     data: order record
+  - to: cluster:role-grants
+    data:
+      RoleGrant: [id, role_id]
+      PermissionGrant: [id, permission_id]
 ---
 
 This process references db:GhostEntity which does not exist in the entity catalog.

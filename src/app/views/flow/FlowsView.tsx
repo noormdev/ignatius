@@ -7,6 +7,8 @@ import { FlowChrome } from '../../../flow-view/FlowChrome';
 import type { FlowChromeHandle, BreadcrumbEntry } from '../../../flow-view/FlowChrome';
 import { FlowNodeModal } from '../../components/flow-node/FlowNodeModal';
 import { FlowDocModal } from '../../components/flow-node/FlowDocModal';
+import { EdgeContractDialog } from '../../components/flow-node/EdgeContractDialog';
+import { StackDialog } from '../../components/flow-node/StackDialog';
 import { resolveFlowKindPalette } from '../../../theme/theme-defaults';
 import type { ThemeConfig } from '../../../theme/theme-defaults';
 import { createLayoutStore } from '../graph/layout-store';
@@ -19,14 +21,17 @@ import { buildFlowNodeUsageIndex } from '../../../flows/flow-usage-index';
 import { computeElkLayout } from '../../../flow-view/elk-flow-layout';
 import { screenScaleToPercent, percentToScreenScale } from '../../../flow-view/zoom-scale';
 import type { ElkPositionMap } from '../../../flow-view/FlowDiagramSvg';
+import { layoutKeyForView } from '../../../flow-view/flow-layout';
+import type { BuildFlowDataOpts, StackNodeData } from '../../../flow-view/flow-layout';
 import { parseHash, serializeHash } from '../../hash-router';
-import type { HashState } from '../../hash-router';
+import type { HashState, FlowViewMode, FlowCollapseLevel } from '../../hash-router';
 import type { Model } from '../../../model/parse';
 import type {
   FlowDiagram,
   FlowProcess,
   FlowExternal,
   FlowStoreRef,
+  FlowEdge,
 } from '../../../flows/flow-parse';
 import type { ProcessUsage } from '../../../flows/flow-usage-index';
 
@@ -112,8 +117,8 @@ export interface FlowChromeCallbacks {
  * An absent-entity `db:` token (`null` result) shows an empty-state doc rather
  * than a dead badge, matching the `flow.unknown_store` finding surface.
  */
-export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, allFlowNodeIds, onRegisterOpen, nodeUsageIndex }: {
-  svgProps: Omit<FlowDiagramSvgProps, 'onOpenDoc' | 'themeMode'>;
+export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, allFlowNodeIds, onRegisterOpen, nodeUsageIndex, entityModel }: {
+  svgProps: Omit<FlowDiagramSvgProps, 'onOpenDoc' | 'onOpenContract' | 'onOpenStack' | 'themeMode'>;
   resolveDoc: (token: string) => FlowDocResult | null;
   onOpenEntity?: (id: string) => void;
   themeMode: 'dark' | 'light';
@@ -125,11 +130,15 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
   /** Token-keyed usage index (buildFlowNodeUsageIndex) for CP21 Processes section
    *  in external/store dialogs. Optional — omit to suppress the section. */
   nodeUsageIndex?: ReadonlyMap<string, ProcessUsage[]>;
+  /** Entity model, threaded to EdgeContractDialog for column-type resolution. */
+  entityModel?: Model;
 }) {
   // Active dialog state. Exactly one may be open at a time.
   const [openResult, setOpenResult] = useState<
     | { kind: 'node'; node: FlowProcess | FlowExternal | FlowStoreRef; allProcesses: FlowProcess[]; doc: FlowDoc }
     | { kind: 'doc'; doc: FlowDoc }
+    | { kind: 'contract'; edges: FlowEdge[]; sourceLabel: string; targetLabel: string }
+    | { kind: 'stack'; node: StackNodeData; feederProcessLabels: string[]; processLabelById: ReadonlyMap<string, string> }
     | null
   >(null);
 
@@ -168,9 +177,19 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
 
   const close = () => setOpenResult(null);
 
+  // Opening a contract dialog replaces whichever dialog was open — the same
+  // single-dialog-at-a-time invariant `open` enforces for doc tokens.
+  const openContract = (edges: FlowEdge[], sourceLabel: string, targetLabel: string) =>
+    setOpenResult({ kind: 'contract', edges, sourceLabel, targetLabel });
+
+  // Same invariant for a stack — clicking a member inside StackDialog routes
+  // through `open`, which already closes whichever dialog is open first.
+  const openStack = (node: StackNodeData, feederProcessLabels: string[], processLabelById: ReadonlyMap<string, string>) =>
+    setOpenResult({ kind: 'stack', node, feederProcessLabels, processLabelById });
+
   return (
     <>
-      <FlowDiagramSvg {...svgProps} themeMode={themeMode} onOpenDoc={open} />
+      <FlowDiagramSvg {...svgProps} themeMode={themeMode} onOpenDoc={open} onOpenContract={openContract} onOpenStack={openStack} />
       {openResult?.kind === 'node' && (
         <FlowNodeModal
           node={openResult.node}
@@ -185,6 +204,27 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
       )}
       {openResult?.kind === 'doc' && (
         <FlowDocModal doc={openResult.doc} onClose={close} onNavigate={open} />
+      )}
+      {openResult?.kind === 'contract' && (
+        <EdgeContractDialog
+          edges={openResult.edges}
+          sourceLabel={openResult.sourceLabel}
+          targetLabel={openResult.targetLabel}
+          entityModel={entityModel}
+          onClose={close}
+          onOpenEntity={open}
+        />
+      )}
+      {openResult?.kind === 'stack' && (
+        <StackDialog
+          node={openResult.node}
+          feederProcessLabels={openResult.feederProcessLabels}
+          processLabelById={openResult.processLabelById}
+          clusters={svgProps.flowDataOpts?.clusters ?? []}
+          groups={svgProps.flowDataOpts?.groups ?? {}}
+          onClose={close}
+          onOpenEntity={open}
+        />
       )}
     </>
   );
@@ -223,6 +263,11 @@ export function initFlowGraphCore(
   // below) rather than a dependency-array rebuild, so typing a search term never
   // tears down the renderer — that would lose the drill-down stack.
   initialSearchTokens?: ReadonlySet<string> | null,
+  // View/collapse-level — global settings owned by the shell (App.tsx),
+  // persisted to localStorage and deep-linkable via flowview=/collapse=
+  // (docs/spec/dfd-store-clusters.md). A change re-mounts this renderer via
+  // the caller's effect deps, so every diagram in the session picks it up.
+  flowViewParams: { view: FlowViewMode; collapseLevel: FlowCollapseLevel } = { view: 'per-process', collapseLevel: 'clusters' },
 ): () => void {
   // Resolver for node ⓘ docs + in-dialog [[links]]. The entityModel parameter
   // may be a getter (() => Model | undefined) so the resolver always reads the
@@ -239,6 +284,24 @@ export function initFlowGraphCore(
   const resolvedEntityModel: Model | undefined =
     typeof entityModel === 'function' ? entityModel() : entityModel ?? window.__MODEL__;
   const allFlowNodeIds = buildAllFlowNodeIds(allDiagrams, resolvedEntityModel);
+
+  // View/collapse-level/grouping opts for buildFlowData (and, identically,
+  // computeElkLayout — both MUST agree so ELK's node/edge id set matches what
+  // FlowDiagramSvg builds). `flowViewParams` is owned by the shell (App.tsx —
+  // FAB toggle, localStorage, hash deep-link) and threaded down as props.
+  const entityGroups: Record<string, string> = {};
+  for (const n of resolvedEntityModel?.nodes ?? []) {
+    if (n.group) entityGroups[n.id] = n.group;
+  }
+  const flowDataOpts: BuildFlowDataOpts = {
+    view: flowViewParams.view,
+    collapseLevel: flowViewParams.collapseLevel,
+    clusters: window.__FLOW_CLUSTERS__ ?? [],
+    subtypeClusters: resolvedEntityModel?.subtypeClusters ?? [],
+    groups: resolvedEntityModel?.groups ?? {},
+    entityGroups,
+    adjacencyStacks: resolvedEntityModel?._meta?.flowView?.adjacencyStacks,
+  };
 
   // Persistence: flow positions use a separate localStorage key so they never
   // touch the ERD's 'ignatius-layout-positions' bucket.
@@ -280,6 +343,28 @@ export function initFlowGraphCore(
   // lifecycle it replaces.
   let svgRoot: ReactRoot | null = null;
   let svgContainer: HTMLDivElement | null = null;
+
+  // Unmounts the current svgRoot/svgContainer (if any) on a microtask instead
+  // of synchronously. React logs "Attempted to synchronously unmount a root
+  // while React was already rendering" when a nested root's unmount() runs
+  // inside the call stack of an in-flight render/commit — which the shell's
+  // own re-render (triggered by onActiveDiagramChange's history write, or by
+  // an effect cleanup racing a commit) can put us in. Deferring past the
+  // current synchronous task sidesteps that without changing the rebuild
+  // behavior: the swap still happens before paint, and the null-out below
+  // happens immediately so a concurrent renderDiagram never double-unmounts.
+  function teardownSvgRoot() {
+    const root = svgRoot;
+    const div = svgContainer;
+    svgRoot = null;
+    svgContainer = null;
+    if (!root && !div) return;
+    queueMicrotask(() => {
+      root?.unmount();
+      if (div && div.parentNode) div.parentNode.removeChild(div);
+    });
+  }
+
   // Monotonically increasing render generation. Each renderDiagram call captures
   // its generation number; after any await the call checks whether it is still the
   // latest — if a newer call started while ELK was computing, the stale call aborts.
@@ -296,11 +381,13 @@ export function initFlowGraphCore(
   // touches the DOM again.
   let disposed = false;
 
-  // Returns the fingerprint for a diagram id from the injected layout keys map.
-  // Static: window.__FLOW_LAYOUT_KEYS__; live: injected by the app-level flow
-  // effect's applyFlowPayload before the renderer calls initFlowGraphCore.
+  // Returns the fingerprint for a diagram id from the injected layout keys map,
+  // suffixed with the active view name so a drag saved in one view never
+  // applies in the other. Static: window.__FLOW_LAYOUT_KEYS__; live: injected
+  // by the app-level flow effect's applyFlowPayload before the renderer calls
+  // initFlowGraphCore.
   function layoutKeyFor(diagramId: string): string {
-    return window.__FLOW_LAYOUT_KEYS__?.[diagramId] ?? '';
+    return layoutKeyForView(window.__FLOW_LAYOUT_KEYS__?.[diagramId] ?? '', flowViewParams.view);
   }
 
   async function renderDiagram(diagram: FlowDiagram) {
@@ -314,16 +401,9 @@ export function initFlowGraphCore(
     renderGen += 1;
     const myGen = renderGen;
 
-    // Unmount previous SVG root immediately (prevents the old diagram showing
-    // while ELK computes positions for the new one).
-    if (svgRoot) {
-      svgRoot.unmount();
-      svgRoot = null;
-    }
-    if (svgContainer && svgContainer.parentNode) {
-      svgContainer.parentNode.removeChild(svgContainer);
-      svgContainer = null;
-    }
+    // Tear down the previous SVG root (deferred — see teardownSvgRoot) so the
+    // old diagram doesn't linger while ELK computes positions for the new one.
+    teardownSvgRoot();
     window.__IGNATIUS_FLOW_READY__ = false;
 
     // Load saved positions for this diagram.
@@ -340,7 +420,7 @@ export function initFlowGraphCore(
     let elkPositions: ElkPositionMap | undefined;
     let elkEdgeRoutes: Record<string, Array<{ x: number; y: number }>> | undefined;
     try {
-      const elkResult = await computeElkLayout(diagram);
+      const elkResult = await computeElkLayout(diagram, flowDataOpts);
       // Guard: if a newer renderDiagram call started while ELK was computing
       // (e.g. the user clicked a different DFD), abort — the newer call wins.
       // Guard: if this WHOLE instance was torn down while we awaited (e.g.
@@ -422,9 +502,11 @@ export function initFlowGraphCore(
           allFlowNodeIds,
           onRegisterOpen,
           nodeUsageIndex,
+          entityModel: resolvedEntityModel,
           svgProps: {
             diagram,
             kindPalette,
+            flowDataOpts,
             searchTokens: currentSearchTokens,
             onDrill: handleDrill,
             onReady: () => {
@@ -522,10 +604,15 @@ export function initFlowGraphCore(
       return { diagram: d, label };
     });
     stack.splice(0, stack.length, ...newStack);
-    // Update the top-level active selector to the root of this path.
+    // Update the top-level active selector (nav-card highlight) to the root
+    // of this path, but track the LEAF via onDiagramChange — matching the
+    // initial-construction branch below, which seeds activeFlowDiagramIdRef
+    // with the leaf so a renderer rebuild (SSE refetch, or a flowview=/
+    // collapse= toggle) resumes at the exact drilled diagram, not just its
+    // top-level ancestor.
     const rootId = path[0]?.id ?? target.id;
     activeSelectorId = rootId;
-    onDiagramChange?.(rootId);
+    onDiagramChange?.(target.id);
     chromeCallbacks?.onDiagramsChange(allDiagrams, rootId);
     pushChromeState();
     void renderDiagram(target);
@@ -575,14 +662,7 @@ export function initFlowGraphCore(
     chromeCallbacks?.onResetLayout?.(null);
     chromeCallbacks?.onRegisterRetheme?.(null);
     chromeCallbacks?.onRegisterSearchTokens?.(null);
-    if (svgRoot) {
-      svgRoot.unmount();
-      svgRoot = null;
-    }
-    if (svgContainer && svgContainer.parentNode) {
-      svgContainer.parentNode.removeChild(svgContainer);
-      svgContainer = null;
-    }
+    teardownSvgRoot();
     window.__IGNATIUS_FLOW_READY__ = false;
     window.__IGNATIUS_ACTIVE_FLOW_DFD__ = undefined;
   };
@@ -650,6 +730,10 @@ export interface FlowsViewProps {
    * prop. null = no active search (no dimming from this source).
    */
   searchTokens: ReadonlySet<string> | null;
+  /** Per-process vs. connected rendering — global setting owned by the shell (docs/spec/dfd-store-clusters.md). */
+  flowView: FlowViewMode;
+  /** Stack row breakdown level — global setting owned by the shell (docs/spec/dfd-store-clusters.md). */
+  collapseLevel: FlowCollapseLevel;
 }
 
 // ---------------------------------------------------------------------------
@@ -669,6 +753,8 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       onActiveDiagramChange = undefined,
       onZoomPercentChange,
       searchTokens,
+      flowView,
+      collapseLevel,
     },
     ref,
   ) {
@@ -860,13 +946,16 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         getThemeConfig,
         nodeUsageIndex,
         searchTokens,
+        { view: flowView, collapseLevel },
       );
       return cleanup;
-    }, [isActive, flowDiagrams]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [isActive, flowDiagrams, flowView, collapseLevel]); // eslint-disable-line react-hooks/exhaustive-deps
     // Note: themeMode intentionally excluded — retheme is handled by the separate effect below.
     // onOpenEntity, getEntityModel, getThemeConfig are stable refs/callbacks — not deps.
     // searchTokens intentionally excluded — live updates handled by the separate
     // effect below (mirrors themeMode/retheme); this call only seeds the initial value.
+    // flowView/collapseLevel ARE deps: a toggle re-mounts the renderer so every
+    // diagram in the session picks up the new opts without a reload.
 
     // Re-theme the flow SVG whenever the theme changes while the flow view is active.
     // Uses the registered retheme callback which calls root.render() with the new

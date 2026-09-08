@@ -6,7 +6,7 @@ paths:
   - "src/model/model-index.ts"
 ---
 
-Domain: parser. `ignatius.yml` config loading → ParseResult: {model, globalErrors}; nodes, edges, cardinality + classification derivation; wiki-link inline rule + two-pass body rendering; `buildModelIndex` — 13 O(1) lookup maps built once per Model
+Domain: parser. `ignatius.yml` config loading → ParseResult: {model, globalErrors}; nodes, edges, cardinality + classification derivation; wiki-link inline rule + two-pass body rendering; `ModelMeta.flowView` (`flow_view:`/`adjacency_stacks`); `buildModelIndex` — 13 O(1) lookup maps built once per Model
 
 Map:
   - docs/wiki/parser.md
