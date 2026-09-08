@@ -64,6 +64,33 @@ export function parseChecksums(text: string): Record<string, string> {
   return out;
 }
 
+const MIB = 1024 * 1024;
+
+/**
+ * Builds a `\r`-rewriting status line for a download in progress, or `null`
+ * off-TTY — without `\r` rewriting, every tick would print its own line into
+ * redirected output.
+ */
+export function downloadProgressRenderer(
+  write: (s: string) => void,
+  isTTY: boolean,
+): ((received: number, total: number) => void) | null {
+  if (!isTTY) return null;
+  let done = false;
+  return (received: number, total: number) => {
+    if (done) return;
+    if (total > 0 && received >= total) {
+      done = true;
+      write(`\rDownloaded ${(total / MIB).toFixed(1)} MB (100%)           \n`);
+    } else if (total > 0) {
+      const pct = Math.floor((received * 100) / total);
+      write(`\rDownloading ${(received / MIB).toFixed(1)} / ${(total / MIB).toFixed(1)} MB (${pct}%)   `);
+    } else {
+      write(`\rDownloading ${(received / MIB).toFixed(1)} MB   `);
+    }
+  };
+}
+
 // ── Network + filesystem ──────────────────────────────────────────────────────
 
 function errMessage(err: unknown): string {
