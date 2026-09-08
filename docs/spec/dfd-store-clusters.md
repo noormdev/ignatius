@@ -389,3 +389,5 @@ Built across 9 iterations of /subagent-implementation (eight checkpoints plus on
 **Deferred items still open:**
 
 - `.claude/project/followups/dfd-store-clusters-f-15.md` — the intermittent stall in `test-graph-search.ts`; bounded with a watchdog, root cause not found.
+
+**Merged into main as `dd2c24a` (2026-09-08); released in v0.19.0.**
