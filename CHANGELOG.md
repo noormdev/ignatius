@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/noormdev/ignatius/compare/v0.18.0...v0.19.0) (2026-09-08)
+
+
+### Features
+
+* **flows:** stack and group DFD stores ([02c37c0](https://github.com/noormdev/ignatius/commit/02c37c015b3755536def647fc62d434588c3a419))
+
 ## [0.18.0](https://github.com/noormdev/ignatius/compare/v0.17.0...v0.18.0) (2026-09-06)
 
 
