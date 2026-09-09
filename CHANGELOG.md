@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/noormdev/ignatius/compare/v0.20.0...v0.20.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* polish flow labels and stack disclosures ([3aba9a1](https://github.com/noormdev/ignatius/commit/3aba9a13ba4c245f8a976390c2236fd8deb954ce))
+
 ## [0.20.0](https://github.com/noormdev/ignatius/compare/v0.19.0...v0.20.0) (2026-09-09)
 
 
