@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/noormdev/ignatius/compare/v0.19.0...v0.20.0) (2026-09-09)
+
+
+### Features
+
+* **cli:** stream update downloads with live progress ([#40](https://github.com/noormdev/ignatius/issues/40)) ([673a247](https://github.com/noormdev/ignatius/commit/673a24752bed63a8caadd2cc1354d007a60c0ed7))
+
 ## [0.19.0](https://github.com/noormdev/ignatius/compare/v0.18.0...v0.19.0) (2026-09-08)
 
 
