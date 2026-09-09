@@ -397,6 +397,21 @@ console.log('PASS: adjacency write stack edge carries 2 memberEdges and the shar
     'FAIL: the per-process view\'s ELK graph must set elk.separateConnectedComponents: false',
   );
   console.log('PASS: elk.separateConnectedComponents is set only on the per-process view\'s ELK graph');
+
+  const tallLabelGraph = buildElkGraph(defaultData.nodes, [{
+    kind: 'edge',
+    id: 'four-line-label',
+    source: defaultData.nodes[0]!.id,
+    target: defaultData.nodes[1]!.id,
+    label: 'one, two, three, four',
+    hasAuthoredLabel: true,
+    dataLines: [],
+  }], undefined);
+  assert(
+    tallLabelGraph.layoutOptions!['elk.layered.spacing.nodeNodeBetweenLayers'] === '100',
+    'FAIL: ELK must reserve a four-line chip (60px) plus 20px clearance on each side',
+  );
+  console.log('PASS: ELK inter-band spacing grows to fit the tallest flow-label chip plus 40px clearance');
 }
 
 // ---------------------------------------------------------------------------

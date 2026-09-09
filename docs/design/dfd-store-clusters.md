@@ -15,11 +15,12 @@ Two earlier attempts inform this one. The ELK spike in `docs/spec/dfd-overhaul.m
 
 
 - Goals:
-    - A prose `label:` on any input or output entry, shown on the edge chip in place of the column list. Clicking any chip that carries data opens a contract dialog listing which columns come from which store.
+    - A prose `label:` on any input or output entry, shown on the edge chip in place of the column list. Clicking any chip that carries data opens a contract dialog listing which columns come from which store; dragging it slides it along its routed edge without losing the pointer's grab point.
     - A per-process view, the default, where each process's read set and write set render as one stack each, two processes with the identical set share a stack, and a store in two stacks is flagged as duplicated in the data without drawing the marker, since repetition is the rule in that view. The connected view, today's rendering with grouping applied, stays as the toggle and keeps drawing the duplicate marker, where a repeat is the exception.
     - A collapse level, stores, clusters, or groups, that decides what one row of a stack stands for. A cluster is a subtype family from the entity model or an author-declared set in a `clusters/` file. A group is the entity's existing `group:`.
     - A process file can reference a cluster directly with a `cluster:` entry, name the flow, and give each member's columns in one entry.
     - Clicking a stack opens a dialog listing its rows; a row opens to its members; a member opens its entity dialog.
+    - Edge-label chips determine the space between the process band and adjacent store bands: the rendered chip height plus 20px clearance on each side, so multi-line labels never cover a process or store stack.
     - In the connected view, adjacency stacking: stores wired to exactly the same processes in the same directions collapse into one honestly labelled stack. Switchable off in `ignatius.yml`.
     - Validation, balancing, leveling, usage indexes, fingerprints, search, static export, and the modeling skill all understand labels, clusters, and stacks.
 - Non-goals:

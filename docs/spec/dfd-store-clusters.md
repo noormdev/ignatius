@@ -34,6 +34,8 @@ Every input/output entry may carry a prose `label:`, shown on the edge chip in p
 - [ ] Dialogs follow the existing flow-surface open rule: opening `StackDialog` or the contract dialog, then clicking through to an entity, closes the currently-open dialog before the entity dialog opens (the same rule `FlowSurface`'s `open` handler already applies to the doc dialog in `src/app/views/flow/FlowsView.tsx`).
 - [ ] The dictionary's process IO table (`IoTable.tsx`) shows an entry's `label:` in place of its column list whenever one is present, matching the canvas chip.
 - [ ] A stack edge whose members mix labelled and unlabelled entries shows the authored labels one per line followed by exactly one column-preview line covering every unlabelled member (Merge Tag's per-process write chip on `tag-administration` reads `Tag junctions` / `tag_id, memory_id`); a stack edge with no labelled member shows one preview line; the hover tooltip on any stack edge lists one `Store: col, col` line per member.
+- [ ] Label clearance: ELK derives inter-band spacing from the tallest rendered edge chip, reserving the chip's full height plus 20px above and below (with the historical 60px minimum), so a multi-line stack label does not overlap its process or store grouping.
+- [ ] Label dragging: once pointer movement crosses the click threshold, the chip slides along its routed edge while preserving the initial pointer-to-chip-centre offset; the first drag frame never snaps the chip centre to the pointer.
 - [ ] `bun run test` passes (all `test/checks/*.ts`, exit 0), including new checks for labels, cluster parsing/expansion/validation, per-process and connected-view grouping, and the collapse level. `bun run build:cli` succeeds. Touched files introduce zero new `tsc --noEmit` errors vs. `bun run typecheck` baseline.
 - [ ] `docs/guides/flows.md`, `docs/guides/folder-format.md`, `docs/guides/validation.md`, `docs/glossary.md`, `skills/ignatius-modeling/references/{dfd-authoring,flow-templates,discover-flow,verification}.md`, and `docs/wiki/feature-map.md` all describe labels, the two views, the collapse level, clusters, groups, and adjacency — including the one-sentence exception the `cluster:` prefix carves out of the otherwise-closed endpoint-prefix set.
 
@@ -352,6 +354,18 @@ src/generators/app.ts
 **Why:** With outline-only sheets the page background showed through them, and in the dark theme the marker looked hollow; the user asked for the fill. Once filled, the full-width closing line under a trailing grouped row floated below the sheets as a detached stroke.
 
 **Superseded:** outline-only sheets; the closing line and trailing clearance under a stack that ends in a grouped row.
+
+### 2026-09-09 — label-aware band spacing and working stack disclosures
+
+**What changed:** ELK's inter-band spacing now grows from the tallest rendered edge chip: chip height plus 20px clearance on each side, with the former 60px spacing retained as the minimum. Stack-dialog C/G rows now mount their member rows only while the disclosure is open, so the chevron controls visible content instead of acting decoratively.
+
+**Why:** Multi-line labels could cover the process box or adjacent store grouping, and the stack dialog rendered member rows outside its `<details>` element regardless of whether the disclosure was open.
+
+### 2026-09-09 — stable label dragging
+
+**What changed:** Edge-chip dragging now applies the pointer's world-space delta to the chip's starting centre before projecting that candidate point onto the routed edge.
+
+**Why:** Projecting the pointer itself discarded the offset between the pointer and chip centre, so the label jumped as soon as a drag began unless it happened to be grabbed exactly at its centre.
 
 
 ## Implementation log

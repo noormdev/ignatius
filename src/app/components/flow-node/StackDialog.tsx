@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { StackNodeData, StackRow, StackMember } from '../../../flow-view/flow-layout';
 import type { FlowCluster } from '../../../flows/flow-clusters';
 import type { GroupConfig } from '../../../model/parse';
@@ -26,6 +27,7 @@ function StackDialogRow({ row, depth, memberIndex, onOpenEntity }: {
   memberIndex: ReadonlyMap<string, StackMember>;
   onOpenEntity: (token: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const indent = depth > 0 ? { paddingLeft: depth * ROW_INDENT_PX } : undefined;
 
   if (row.kind === 'store') {
@@ -53,12 +55,12 @@ function StackDialogRow({ row, depth, memberIndex, onOpenEntity }: {
     <>
       <tr>
         <td style={indent}>
-          <details className="stack-dialog-row-toggle">
+          <details className="stack-dialog-row-toggle" onToggle={event => setOpen(event.currentTarget.open)}>
             <summary>{row.cap} {row.label} ({row.count})</summary>
           </details>
         </td>
       </tr>
-      {childRows.map((child, i) => (
+      {open && childRows.map((child, i) => (
         <StackDialogRow key={i} row={child} depth={depth + 1} memberIndex={memberIndex} onOpenEntity={onOpenEntity} />
       ))}
     </>

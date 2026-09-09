@@ -34,7 +34,7 @@
 import ELK from 'elkjs';
 import type { ELKConstructorArguments, ElkNode, ElkPoint } from 'elkjs/lib/elk-api.js';
 import type { FlowDiagram } from '../flows/flow-parse';
-import { buildFlowData, processNodeSize, CHIP_TRUNCATE_MAX, STORE_ROW_H, stackNodeSize } from './flow-layout';
+import { buildFlowData, processNodeSize, CHIP_TRUNCATE_MAX, STORE_ROW_H, stackNodeSize, stackRowLayout, resolveChipLines, chipHeight } from './flow-layout';
 import type { FlowElementData, BuildFlowDataOpts } from './flow-layout';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -190,12 +190,27 @@ export function buildElkGraph(
   view: BuildFlowDataOpts['view'],
 ): ElkNode {
   const srcSet = new Set(edges.map(e => e.source));
+  const tallestChip = edges.reduce((max, edge) => {
+    const lines = edge.chipLines ?? resolveChipLines(edge.label, edge.hasAuthoredLabel).lines;
+    return Math.max(max, chipHeight(lines));
+  }, 0);
+  // Stack peek marks extend below the height ELK reserves for their rows.
+  // Include that visible overflow so the clearance is measured from the
+  // grouping the reader sees, not from ELK's smaller logical rectangle.
+  const maxStackOverflow = nodes.reduce((max, node) => {
+    if (node.nodeType !== 'stack') return max;
+    const logicalHeight = stackNodeSize(node.members, node.rows).height;
+    return Math.max(max, stackRowLayout(node.rows).height - logicalHeight);
+  }, 0);
+  // Keep every inline label between its endpoint bands with 20px clear above
+  // and below. Preserve the historical 60px logical gap as the floor.
+  const interBandSpacing = Math.max(60, tallestChip + 40) + maxStackOverflow;
 
   const layoutOptions: Record<string, string> = {
     'elk.algorithm': 'layered',
     'elk.direction': 'DOWN',
     'elk.partitioning.activate': 'true',
-    'elk.layered.spacing.nodeNodeBetweenLayers': '60',
+    'elk.layered.spacing.nodeNodeBetweenLayers': String(interBandSpacing),
     'elk.spacing.nodeNode': '40',
     'elk.spacing.edgeNode': '20',
     'elk.layered.spacing.edgeNodeBetweenLayers': '20',
