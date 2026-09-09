@@ -160,6 +160,15 @@ export function normalizeEdgeData(data: string | string[] | undefined): string[]
 // legacy SHORT_LABEL_MAX derives from this constant rather than redeclaring it.
 export const CHIP_TRUNCATE_MAX = 22;
 
+/** Vertical geometry of an inline flow-label chip. Shared by layout and SVG
+ * rendering so ELK reserves exactly the height the renderer consumes. */
+export const CHIP_LINE_H = 13;
+export const CHIP_PAD_Y = 4;
+
+export function chipHeight(lines: readonly string[]): number {
+  return lines.length === 0 ? 0 : lines.length * CHIP_LINE_H + CHIP_PAD_Y * 2;
+}
+
 function truncateChipLine(line: string, maxChars: number): string {
   if (line.length <= maxChars) return line;
   return line.slice(0, maxChars - 1) + '…';

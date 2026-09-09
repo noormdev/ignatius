@@ -20,7 +20,7 @@ import { buildFlowData, resolveChipLines, stackNodeSize, stackRowLayout } from '
 import { computeElkLayout } from '../../src/flow-view/elk-flow-layout';
 import {
   nodeBounds, sizingInfo, elkChannelChip, chipDims,
-  suppressDuplicateChips, deoverlapChips, boxesOverlap,
+  suppressDuplicateChips, deoverlapChips, boxesOverlap, draggedChipPosition,
 } from '../../src/flow-view/FlowDiagramSvg';
 import type { Box, Pt, FlowNode } from '../../src/flow-view/FlowDiagramSvg';
 
@@ -173,6 +173,24 @@ console.log('PASS: no placed chip intersects a node box on hub-diagram\'s connec
     `FAIL: a plain process's identical-label edges to two different stores must both keep their chip, got ${JSON.stringify(logRenders.map(r => r.lines))}`,
   );
   console.log('PASS: suppressDuplicateChips leaves both of a process\'s same-label edges to different stores visible (not a stack outlet)');
+}
+
+// ---------------------------------------------------------------------------
+// Dragging preserves the pointer's grab offset from the chip centre.
+// ---------------------------------------------------------------------------
+
+{
+  const position = draggedChipPosition(
+    [[100, 0], [100, 200]],
+    { x: 100, y: 80 },
+    { x: 100, y: 100 },
+    { x: 100, y: 90 },
+  );
+  assert(
+    Math.abs(position.x - 100) < 0.001 && Math.abs(position.y - 110) < 0.001,
+    `FAIL: a 10px pointer move from an off-centre grab must move the chip 10px without snapping its centre to the pointer, got ${JSON.stringify(position)}`,
+  );
+  console.log('PASS: chip dragging preserves the initial pointer-to-centre offset');
 }
 
 // ---------------------------------------------------------------------------

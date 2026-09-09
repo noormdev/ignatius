@@ -32,7 +32,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { buildFlowData, processNodeSize, PROC_LINE_H, normalizeEdgeData, resolveChipLines, stackNodeSize, stackRowLayout, STACK_ROW_PEEK_GAP, STORE_ROW_H, STORE_CAP_W, STORE_STROKE_W, storeBodyWidth, measureText } from './flow-layout';
+import { buildFlowData, processNodeSize, PROC_LINE_H, normalizeEdgeData, resolveChipLines, stackNodeSize, stackRowLayout, STACK_ROW_PEEK_GAP, STORE_ROW_H, STORE_CAP_W, STORE_STROKE_W, storeBodyWidth, measureText, CHIP_LINE_H, CHIP_PAD_Y, chipHeight } from './flow-layout';
 import { computeFitScale } from './zoom-scale';
 import type { FlowDiagram, FlowEdge as FlowEdgeModel } from '../flows/flow-parse';
 import type { NodePos, FlowElementData, StackNodeData, StackMember, StackRow, BuildFlowDataOpts } from './flow-layout';
@@ -144,8 +144,7 @@ const EDGE_APPROACH = 26;
 
 const CHIP_RX = 4;
 const CHIP_FONT = 10.5;
-const CHIP_LINE_H = 13;  // vertical pitch per data line in a multi-line chip
-const CHIP_PAD_Y = 4;    // top/bottom padding inside a chip
+
 
 const PADDING = 80; // canvas padding around content
 
@@ -388,6 +387,22 @@ function projectOntoPolyline(pts: Pt[], px: number, py: number): NodePos {
     if (d < bestD) { bestD = d; best = { x, y }; }
   }
   return best;
+}
+
+/** Preserve the point where the pointer grabbed a chip while constraining the
+ * chip's centre to its routed edge. Projecting the pointer itself would snap
+ * the centre to the cursor on the first move. */
+export function draggedChipPosition(
+  points: Pt[],
+  startPointer: NodePos,
+  startChip: NodePos,
+  currentPointer: NodePos,
+): NodePos {
+  return projectOntoPolyline(
+    points,
+    startChip.x + currentPointer.x - startPointer.x,
+    startChip.y + currentPointer.y - startPointer.y,
+  );
 }
 
 /**
@@ -1049,7 +1064,7 @@ function EdgePath({
 export function chipDims(lines: string[]): { w: number; h: number } {
   return {
     w: Math.max(...lines.map(l => measureText(l, CHIP_FONT)), 40),
-    h: lines.length * CHIP_LINE_H + CHIP_PAD_Y * 2,
+    h: chipHeight(lines),
   };
 }
 
@@ -1497,7 +1512,7 @@ export function FlowDiagramSvg({
   // Distinguishes a chip click (opens the contract dialog) from a chip drag —
   // set true once pointer movement crosses CHIP_CLICK_THRESHOLD_PX.
   const dragChipMoved = useRef(false);
-  const dragChipStart = useRef({ clientX: 0, clientY: 0 });
+  const dragChipStart = useRef({ clientX: 0, clientY: 0, worldX: 0, worldY: 0, chipX: 0, chipY: 0 });
 
   // Save debounce timer
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1539,8 +1554,13 @@ export function FlowDiagramSvg({
       // Below the click threshold, leave the chip in its auto-placed position
       // — a sub-threshold pointer wobble on a click must not register as a drag.
       if (dragChipMoved.current) {
-        const w = clientToWorld(e.clientX, e.clientY);
-        const snapped = projectOntoPolyline(dragChipPoints.current, w.x, w.y);
+        const pointer = clientToWorld(e.clientX, e.clientY);
+        const snapped = draggedChipPosition(
+          dragChipPoints.current,
+          { x: dragChipStart.current.worldX, y: dragChipStart.current.worldY },
+          { x: dragChipStart.current.chipX, y: dragChipStart.current.chipY },
+          pointer,
+        );
         setChipOverrides(prev => {
           const next = new Map(prev);
           next.set(dragChipId.current!, snapped);
@@ -1753,13 +1773,21 @@ export function FlowDiagramSvg({
     svgRef.current?.setPointerCapture(e.pointerId);
   }
 
-  function onChipPointerDown(e: React.PointerEvent<SVGGElement>, edgeId: string, points: Pt[]) {
+  function onChipPointerDown(e: React.PointerEvent<SVGGElement>, edgeId: string, points: Pt[], chip: NodePos) {
     e.stopPropagation(); // don't start a pan
     if (e.button !== 0) return;
+    const pointer = clientToWorld(e.clientX, e.clientY);
     dragChipId.current = edgeId;
     dragChipPoints.current = points;
     dragChipMoved.current = false;
-    dragChipStart.current = { clientX: e.clientX, clientY: e.clientY };
+    dragChipStart.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      worldX: pointer.x,
+      worldY: pointer.y,
+      chipX: chip.x,
+      chipY: chip.y,
+    };
     setDraggingEdge(edgeId); // highlight the line while dragging its label
     svgRef.current?.setPointerCapture(e.pointerId);
   }
@@ -2171,7 +2199,7 @@ export function FlowDiagramSvg({
                 lines={e.lines}
                 opacity={edgeOpacity(e.id)}
                 c={c}
-                onPointerDown={ev => onChipPointerDown(ev, e.id, e.points)}
+                onPointerDown={ev => onChipPointerDown(ev, e.id, e.points, e.chip)}
                 onHoverChange={(entering, cx, cy) => {
                   setHover(entering ? { kind: 'edge', id: e.id } : null);
                   if (entering && e.dataLines.length > 0 && cx !== undefined && cy !== undefined) {

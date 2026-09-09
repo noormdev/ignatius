@@ -152,12 +152,24 @@ try {
     'the subtype row caps with "C", not a D#',
     subtypeRowHeading,
   );
+  assert(
+    await page.locator('.modal a.entity-link', { hasText: 'Record Base' }).count() === 0,
+    'collapsed subtype rows do not render their member links',
+  );
 
   // Expand the subtype row — its members appear with D#s.
-  await page.locator('.stack-dialog-row-toggle').first().click();
+  const subtypeToggle = page.locator('.stack-dialog-row-toggle summary').first();
+  await subtypeToggle.click();
   await page.waitForFunction(() => document.body.textContent?.includes('Record Type A'), { timeout: 5000 });
   const expandedText = await page.locator('.modal').first().innerText();
   assert(expandedText.includes('Record Type A') && expandedText.includes('Record Type B'), 'expanding the subtype row reveals its members', expandedText);
+  await subtypeToggle.click();
+  await page.waitForFunction(() => !document.body.textContent?.includes('Record Type A'), { timeout: 5000 });
+  assert(
+    await page.locator('.modal a.entity-link', { hasText: 'Record Base' }).count() === 0,
+    'collapsing the subtype row removes its member links again',
+  );
+  await subtypeToggle.click();
 
   // ---------------------------------------------------------------------
   // Opening a member entity from StackDialog closes it first.
@@ -201,6 +213,39 @@ try {
     assert(false, 'a stack containing the searched member stays at full opacity; an unrelated stack dims', JSON.stringify(opac));
   }
   await page.fill('.viewer-search-input', '');
+
+
+  // Grabbing a label away from its centre must preserve that grab offset.
+  // The first drag frame used to project the pointer itself onto the route,
+  // snapping the chip centre to the cursor.
+  const allChips = page.locator('[data-ignatius="flow-chip"]');
+  let tallestChipIndex = -1;
+  let tallestChipBox: { x: number; y: number; width: number; height: number } | null = null;
+  for (let i = 0; i < await allChips.count(); i++) {
+    const box = await allChips.nth(i).boundingBox();
+    if (box && (!tallestChipBox || box.height > tallestChipBox.height)) {
+      tallestChipIndex = i;
+      tallestChipBox = box;
+    }
+  }
+  if (tallestChipIndex < 0 || !tallestChipBox) throw new Error('no flow chip available for drag check');
+  const draggedChip = allChips.nth(tallestChipIndex);
+  await page.mouse.move(tallestChipBox.x + tallestChipBox.width / 2, tallestChipBox.y + 1);
+  await page.mouse.down();
+  await page.mouse.move(tallestChipBox.x + tallestChipBox.width / 2 + 6, tallestChipBox.y + 7, { steps: 3 });
+  await page.mouse.up();
+  const draggedChipBox = await draggedChip.boundingBox();
+  const dragDistance = draggedChipBox
+    ? Math.hypot(
+        draggedChipBox.x + draggedChipBox.width / 2 - (tallestChipBox.x + tallestChipBox.width / 2),
+        draggedChipBox.y + draggedChipBox.height / 2 - (tallestChipBox.y + tallestChipBox.height / 2),
+      )
+    : Infinity;
+  assert(
+    dragDistance > 1 && dragDistance < 10,
+    'an off-centre label grab follows the pointer without an initial jump',
+    `chip moved ${dragDistance.toFixed(2)}px for a 6px diagonal pointer move`,
+  );
 
   // ---------------------------------------------------------------------
   // CP6: a stack-edge chip click opens EdgeContractDialog with one row per
@@ -381,6 +426,7 @@ try {
 
   await clickStack(page, RECORDBASE_SUBTYPE_STACK);
   await page.waitForSelector('.modal', { timeout: 5000 });
+  await page.locator('.stack-dialog-row-toggle summary').first().click();
   await page.locator('.modal a.entity-link', { hasText: 'Record Base' }).first().click();
   await page.waitForFunction(
     () => document.querySelectorAll('.modal').length === 1 && (document.querySelector('.modal h1')?.textContent ?? '') === 'RecordBase',
