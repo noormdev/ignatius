@@ -126,6 +126,7 @@ Notes:
 - The replacement needs write access to the installed binary. If it lives in a system directory such as `/usr/local/bin`, run `sudo ignatius update --yes`, or reinstall with the [install script](getting-started.md#install-script-recommended).
 - Outside a terminal (CI) it will not prompt: it reports the available version and exits without installing unless you pass `--yes`.
 - Windows binaries cannot replace themselves while running; on Windows the command points you at the release download instead.
+- While the binary downloads, a single line updates in place: `Downloading 41.9 / 73.2 MB (57%)`, ending with `Downloaded 73.2 MB (100%)` before the swap. Off a terminal (CI, piped output) this line is suppressed and one static line prints instead. If the server does not report a size, it shows the megabytes downloaded so far with no percentage.
 
 
 ## Keyboard shortcuts

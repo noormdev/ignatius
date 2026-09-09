@@ -21,7 +21,7 @@ Paths are relative to [`docs/design/`](../design), [`docs/spec/`](../spec), [`do
 | Schema lint + error UX (findings) | schema-lint-and-error-ux | schema-lint-and-error-ux | validation | verification (rule table + loop) |
 | Alternate keys (AK): cardinality derivation, dict/graph key-cell marker, `ak_unknown_column` validation | derive-classification (cardinality) | derive-classification, schema-lint-and-error-ux | derivation | entity-flow E4 |
 | CLI subcommands (`serve` SPA + `export` unified static + `validate`) — `dict`/`graph`/`flow` removed | cli-and-outputs, unified-app | cli-and-outputs, unified-app | commands, building-from-source, getting-started | verification (runs `ignatius validate`) |
-| CLI version + self-update (`version`/`--version`, `update`) | — | — | commands, getting-started | — |
+| CLI version + self-update (`version`/`--version`, `update`) | — | update-download-progress | commands, getting-started | — |
 | Project config + model discovery (`ignatius.yml`) | ignatius-project-config | ignatius-project-config | getting-started, folder-format | entity-flow E0, model-flow M1–M8, templates |
 | Themes | cli-and-outputs | cli-and-outputs | themes-and-branding | model-flow M4 |
 | Branding | branding | branding | themes-and-branding | model-flow M5 |
