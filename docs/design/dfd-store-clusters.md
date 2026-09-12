@@ -185,7 +185,7 @@ Two views produce different stack sets from the same expanded graph. Both are co
 ```
 per-process view (default):
   for each process P, for each direction:
-    members = db stores P touches in that direction
+    members = stores P touches in that direction
     if |members| ≥ 2 → one stack node, id stack:<sorted member ids>--<direction>
     else               → the plain store node, as today
   two processes with the identical member set produce the same id and share the stack
@@ -218,6 +218,14 @@ collapse level (stores | clusters | groups), applied to the rows of every stack:
 ```
 
 The two-member threshold governs implicit grouping only; a `cluster:` entry gets its cluster row even for one member, showing the member count in parentheses, because the author asked for it. A plain `db:` entry that is the only member of a cluster or group present gets a plain row, because it asked for that.
+
+Store identity is row-local, not stack-local. Each concrete store row keeps its store kind,
+uses that kind's theme color, and carries a kind-specific numbered cap (`D#` database,
+`C#` cache, `Q#` queue, `F#` file, `Do#` document, `M#` manual, `O#` other). Numbering
+is independent within each kind. A mixed stack therefore remains one routing/grouping
+unit without allowing its first non-database member to recolor every sibling. Collapsed
+cluster, subtype, and entity-group rows remain database-colored and use their unnumbered
+`C`/`G` aggregate caps.
 
 A stack edge aggregates its members' parsed edges. Its chip shows the members' authored labels one per line, then one column-preview line covering every unlabelled member, so a labelled cluster riding with two unlabelled tables reads `Tag junctions` over `tag_id, memory_id`; with no labelled member the chip is that single preview line. The hover tooltip lists one line per member with its columns, and the contract dialog lists every member's columns.
 

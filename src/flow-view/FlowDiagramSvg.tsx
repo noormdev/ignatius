@@ -4,7 +4,7 @@
  * Matches the approved mock-e.html design exactly:
  *   - process  = blue numbered rounded-rect hub with optional ⤵ affordance
  *   - external = green rectangle
- *   - store    = open-ended rectangle (left cap-bar + D# + name, right edge open)
+ *   - store    = open-ended rectangle (left kind/number cap + name, right edge open)
  *   - edges    = orthogonal paths (vertical trunks + right-angle elbows)
  *               solid grey for writes (proc→store, ext→proc, proc→ext)
  *               dashed amber for reads (store→proc only)
@@ -32,10 +32,10 @@
  */
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { buildFlowData, processNodeSize, PROC_LINE_H, normalizeEdgeData, resolveChipLines, stackNodeSize, stackRowLayout, STACK_ROW_PEEK_GAP, STORE_ROW_H, STORE_CAP_W, STORE_STROKE_W, storeBodyWidth, measureText, CHIP_LINE_H, CHIP_PAD_Y, chipHeight } from './flow-layout';
+import { buildFlowData, processNodeSize, PROC_LINE_H, normalizeEdgeData, resolveChipLines, stackNodeSize, stackRowLayout, STACK_ROW_PEEK_GAP, STORE_ROW_H, STORE_CAP_W, STORE_STROKE_W, storeBodyWidth, storeCapLabel, measureText, CHIP_LINE_H, CHIP_PAD_Y, chipHeight } from './flow-layout';
 import { computeFitScale } from './zoom-scale';
 import type { FlowDiagram, FlowEdge as FlowEdgeModel } from '../flows/flow-parse';
-import type { NodePos, FlowElementData, StackNodeData, StackMember, StackRow, BuildFlowDataOpts } from './flow-layout';
+import type { NodePos, FlowElementData, StackNodeData, StackMember, StackRow, BuildFlowDataOpts, FlowStoreKind } from './flow-layout';
 import type { PositionMap } from '../app/views/graph/layout-store';
 import type { FlowKindEntry, FlowKindKey } from '../theme/theme-defaults';
 
@@ -788,10 +788,10 @@ function ExternalNode({ label, pos, c, kindColors, onOpenDoc }: {
 }
 
 function StoreNode({
-  storeNum, storeName, pos, duplicated, c, kindColors, onOpenDoc,
+  storeKind, storeNum, storeName, pos, duplicated, c, kindColors, onOpenDoc,
 }: {
-  storeNum: number; storeName: string; pos: NodePos; duplicated: boolean; c: FlowPalette;
-  /** When set, overrides the store's fill/border/text with kind-specific colors. */
+  storeKind: FlowStoreKind; storeNum: number; storeName: string; pos: NodePos; duplicated: boolean; c: FlowPalette;
+  /** Kind-specific colors for this store. */
   kindColors?: FlowKindEntry;
   onOpenDoc?: () => void;
 }) {
@@ -800,7 +800,7 @@ function StoreNode({
   const y = pos.y - STORE_H / 2;
   const bodyX = x + STORE_CAP_W;
   const bodyW = sw - STORE_CAP_W;
-  const dLabel = `D${storeNum}`;
+  const capLabel = storeCapLabel(storeKind, storeNum);
   const strokeW = STORE_STROKE_W;
   const rightX = x + sw;
   const fill = kindColors ? kindColors.bg : c.storeFill;
@@ -818,7 +818,7 @@ function StoreNode({
       />
       {/* Duplicate-store marker: a thicker left border (canonical DFD notation
           for a store drawn more than once) painted in the border colour, so it
-          reads as a doubled edge rather than carving a sub-cell — the D# cap
+          reads as a doubled edge rather than carving a sub-cell — the cap
           keeps the same fixed width as a single store's. Inset to the border's
           *outer* edge (strokeW/2 beyond the box) so it bleeds like the border. */}
       {duplicated && (
@@ -834,7 +834,7 @@ function StoreNode({
         x={x + STORE_CAP_W / 2} y={y + STORE_H / 2 + 4}
         fill={textFill} fontSize={11} fontWeight={700} textAnchor="middle"
       >
-        {dLabel}
+        {capLabel}
       </text>
       <text
         x={bodyX + 6} y={y + STORE_H / 2 + 4}
@@ -858,9 +858,9 @@ const PEEK_MID_OFFSET = STACK_ROW_PEEK_GAP / 2;
  * A stack node: one open-ended Gane-Sarson box (same left cap-bar / open-right
  * shape as StoreNode) whose rows are all drawn — one row per `node.rows`
  * entry, each STORE_ROW_H tall, so a one-row stack matches a plain store's
- * drawn height exactly (see stackNodeSize). A store row shows its own D#; a
- * cluster/subtype row shows `C` and a group row `G` (never a D#, since only
- * a store row is one), plus the row label and a `(N)` count. A grouped row
+ * drawn height exactly (see stackNodeSize). A store row shows its own
+ * kind-specific numbered cap; a cluster/subtype row shows `C` and a group row
+ * `G` (both unnumbered), plus the row label and a `(N)` count. A grouped row
  * also gets the "more inside" affordance a process with a sub-DFD uses — the
  * hand-drawn stacked-paper-store convention: the row's own bottom edge closed
  * across the full width, then two sheets behind it, each showing only what a
@@ -872,12 +872,11 @@ const PEEK_MID_OFFSET = STACK_ROW_PEEK_GAP / 2;
  * into the next.
  */
 function StackNode({
-  node, pos, c, kindColors, onOpenDoc, suppressDuplicateMarker = false,
+  node, pos, c, kindPalette, onOpenDoc, suppressDuplicateMarker = false,
 }: {
   node: StackNodeData; pos: NodePos; c: FlowPalette;
-  /** When set, overrides the stack's fill/border/text with kind-specific colors
-   *  (resolved from the stack's first member — a stack never mixes kinds). */
-  kindColors?: FlowKindEntry;
+  /** Full palette: every visible row resolves its own store kind independently. */
+  kindPalette?: Record<FlowKindKey, FlowKindEntry>;
   onOpenDoc?: () => void;
   /** True in the per-process view, where a shared store repeats in every
    *  process's stack by design — the duplicate marker would cover nearly
@@ -895,21 +894,28 @@ function StackNode({
   const rightX = x + w;
   const bodyX = x + STORE_CAP_W;
   const strokeW = STORE_STROKE_W;
-  const fill = kindColors ? kindColors.bg : c.storeFill;
-  const stroke = kindColors ? kindColors.border : c.storeBorder;
-  const textFill = kindColors ? kindColors.fg : c.storeText;
   const membersById = new Map(node.members.map(m => [m.storeId, m]));
+  const colorsForRow = (row: StackRow) => {
+    // Cluster/subtype/group rows represent db entities; only concrete store
+    // rows can carry a non-db kind.
+    const kind = row.kind === 'store' ? row.storeKind : 'db';
+    const colors = kindPalette?.[kind];
+    return {
+      fill: colors?.bg ?? c.storeFill,
+      stroke: colors?.border ?? c.storeBorder,
+      text: colors?.fg ?? c.storeText,
+    };
+  };
+  const firstRowStroke = node.rows[0] ? colorsForRow(node.rows[0]).stroke : c.storeBorder;
 
   return (
     <g data-node-type="stack" style={{ cursor: 'pointer' }}>
-      {/* Fills are per row so a grouped row's peek reserve stays clear for the
-          filled sheets behind it: the two sheets (back first, so the nearer one
-          overlaps it) are solid paper the same colour as the box, and the
-          row's own fill lands on top of both. */}
+      {/* Each row owns its fill. A cache/file/etc. cannot recolor sibling rows. */}
       {node.rows.map((row, i) => {
         const rowTop = y + rowOffsets[i]!;
+        const { fill } = colorsForRow(row);
         return (
-          <g key={`fill-${i}`}>
+          <g key={`fill-${i}`} data-flow-store-fill={row.kind === 'store' ? row.storeId : undefined}>
             {row.kind !== 'store' && [STACK_ROW_PEEK_GAP, PEEK_MID_OFFSET].map(offset => (
               <rect key={offset} x={x + offset} y={rowTop + offset} width={w} height={STORE_ROW_H} fill={fill} />
             ))}
@@ -917,43 +923,33 @@ function StackNode({
           </g>
         );
       })}
-      {/* The top closes the whole box, and so does the bottom unless the last
-          row is grouped — its sheets already carry the bottom edges, and a
-          full-width line under them would float below the back sheet. The
-          left border and cap divider are drawn per row (rowTop→rowBottom
-          only, below) rather than spanning the full drawn height — a row's
-          peek reserve must carry only the sheet stairs and bottom lines, not
-          a left edge or divider that would give the sheets behind it a left
-          side they must not have. */}
-      <line x1={x} y1={y} x2={rightX} y2={y} stroke={stroke} strokeWidth={strokeW} />
-      {node.rows[node.rows.length - 1]?.kind === 'store' && (
-        <line x1={x} y1={y + h} x2={rightX} y2={y + h} stroke={stroke} strokeWidth={strokeW} />
-      )}
+
+      {/* Row-colored borders. The lower row owns a shared divider. */}
       {node.rows.map((row, i) => {
         const rowTop = y + rowOffsets[i]!;
         const rowBottom = rowTop + STORE_ROW_H;
+        const { stroke } = colorsForRow(row);
         return (
           <g key={`border-${i}`}>
+            <line x1={x} y1={rowTop} x2={rightX} y2={rowTop} stroke={stroke} strokeWidth={strokeW} />
             <line x1={x} y1={rowTop} x2={x} y2={rowBottom} stroke={stroke} strokeWidth={strokeW} />
             <line x1={bodyX} y1={rowTop} x2={bodyX} y2={rowBottom} stroke={stroke} strokeWidth={strokeW} />
           </g>
         );
       })}
+      {node.rows[node.rows.length - 1]?.kind === 'store' && (() => {
+        const lastRow = node.rows[node.rows.length - 1]!;
+        const { stroke } = colorsForRow(lastRow);
+        return <line x1={x} y1={y + h} x2={rightX} y2={y + h} stroke={stroke} strokeWidth={strokeW} />;
+      })()}
 
-      {/* "More inside" stacked-paper marker — the front row's own closed
-          bottom edge, then two sheets behind it (each offset PEEK_MID_OFFSET/
-          STACK_ROW_PEEK_GAP down+right) showing only what a sheet behind
-          would show: a stair-stepped left edge (the slice of its left side
-          visible below the sheet in front), its own bottom edge (extended
-          right by its offset), and a short mark where its top edge pokes out
-          past the front box's right end. No cap divider — the front box is
-          the only complete box; the sheets' fills are drawn with the row
-          fills above. */}
+      {/* Grouped rows retain the stacked-paper "more inside" marker. */}
       {node.rows.map((row, i) => {
         if (row.kind === 'store') return null;
         const rowTop = y + rowOffsets[i]!;
         const rowBottom = rowTop + STORE_ROW_H;
         const offsets = [PEEK_MID_OFFSET, STACK_ROW_PEEK_GAP];
+        const { stroke } = colorsForRow(row);
         return (
           <g key={`peek-${i}`}>
             <line x1={x} y1={rowBottom} x2={rightX} y2={rowBottom} stroke={stroke} strokeWidth={strokeW} />
@@ -974,17 +970,13 @@ function StackNode({
       {node.rows.map((row, i) => {
         const rowY = y + rowOffsets[i]!;
         const rowMidY = rowY + STORE_ROW_H / 2 + 4;
-        // D means data store — only a store row caps with its D#; a grouped
-        // row caps with a plain letter instead (C for cluster/subtype, G for
-        // group), never a number.
-        const capLabel = row.kind === 'store' ? `D${row.storeNum}` : row.cap;
+        const capLabel = row.kind === 'store' ? storeCapLabel(row.storeKind, row.storeNum) : row.cap;
         const bodyLabel = row.kind === 'store' ? row.displayName : `${row.label} (${row.count})`;
         const duplicated = !suppressDuplicateMarker && row.kind === 'store' && (membersById.get(row.storeId)?.duplicated ?? false);
+        const { stroke, text } = colorsForRow(row);
 
         return (
-          <g key={i}>
-            {i > 0 && <line x1={x} y1={rowY} x2={rightX} y2={rowY} stroke={stroke} strokeWidth={strokeW} />}
-            {/* Duplicate-store marker (see StoreNode) — scoped to this row's slice. */}
+          <g key={i} data-flow-store-row={row.kind === 'store' ? row.storeId : undefined}>
             {duplicated && (
               <rect
                 data-ignatius="dup-marker"
@@ -993,10 +985,10 @@ function StackNode({
                 fill={stroke}
               />
             )}
-            <text x={x + STORE_CAP_W / 2} y={rowMidY} fill={textFill} fontSize={11} fontWeight={700} textAnchor="middle">
+            <text x={x + STORE_CAP_W / 2} y={rowMidY} fill={text} fontSize={11} fontWeight={700} textAnchor="middle">
               {capLabel}
             </text>
-            <text x={bodyX + 6} y={rowMidY} fill={textFill} fontSize={11.5} textAnchor="start">
+            <text x={bodyX + 6} y={rowMidY} fill={text} fontSize={11.5} textAnchor="start">
               {bodyLabel}
             </text>
           </g>
@@ -1004,7 +996,7 @@ function StackNode({
       })}
 
       {/* Badge centered on the first row, matching StoreNode's vertical centering. */}
-      <InfoBadge cx={rightX - INFO_R - 4} cy={y + STORE_ROW_H / 2} color={stroke} c={c} onOpen={onOpenDoc} />
+      <InfoBadge cx={rightX - INFO_R - 4} cy={y + STORE_ROW_H / 2} color={firstRowStroke} c={c} onOpen={onOpenDoc} />
     </g>
   );
 }
@@ -2120,10 +2112,8 @@ export function FlowDiagramSvg({
           }
 
           if (node.nodeType === 'store') {
-            // node.storeNum is the D# flow-layout.ts already resolved for this
-            // store — a lookup keyed by the rendered (possibly split
-            // `--read`/`--write`) node id would miss it: assignStoreNumbers
-            // only keys by the base store id.
+            // The layout already resolved this store's kind-local sequence
+            // number; split read/write copies intentionally share it.
             const num = node.storeNum;
             // Use the raw slug (storeName) to build the token; use the display
             // label (node.label = displayName) as the visible text in the SVG.
@@ -2137,6 +2127,7 @@ export function FlowDiagramSvg({
             return (
               <g key={node.id} data-token={storeToken} {...hoverProps} onPointerDown={e => onNodePointerDown(e, node.id, false, '')}>
                 <StoreNode
+                  storeKind={storeKind}
                   storeNum={num}
                   storeName={displayLabel}
                   pos={pos}
@@ -2150,10 +2141,6 @@ export function FlowDiagramSvg({
           }
 
           if (node.nodeType === 'stack') {
-            const firstMemberKind = node.members[0]?.kind;
-            const storeKindColors = firstMemberKind && kindPalette
-              ? kindPalette[firstMemberKind]
-              : undefined;
             // Every process whose edge touches this stack — the dialog's
             // "processes that feed it" header line, regardless of source.
             const feederIds = new Set<string>();
@@ -2179,7 +2166,7 @@ export function FlowDiagramSvg({
                   node={node}
                   pos={pos}
                   c={c}
-                  kindColors={storeKindColors}
+                  kindPalette={kindPalette}
                   onOpenDoc={openStack}
                   suppressDuplicateMarker={suppressDuplicateMarker}
                 />

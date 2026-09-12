@@ -65,6 +65,17 @@ export type FlowKindEntry = {
 export const FLOW_KIND_KEYS = ['db', 'cache', 'queue', 'file', 'doc', 'manual', 'other', 'external'] as const;
 export type FlowKindKey = (typeof FLOW_KIND_KEYS)[number];
 
+/** Compact cap symbols used consistently anywhere a DFD store kind is identified. */
+export const FLOW_STORE_KIND_SYMBOLS: Record<Exclude<FlowKindKey, 'external'>, string> = {
+  db: 'D',
+  cache: 'C',
+  queue: 'Q',
+  file: 'F',
+  doc: 'Do',
+  manual: 'M',
+  other: 'O',
+};
+
 type FlowKindsPalette = Record<FlowKindKey, FlowKindEntry>;
 
 export const defaultFlowKinds: Record<ThemeMode, FlowKindsPalette> = {

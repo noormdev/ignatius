@@ -2,12 +2,11 @@
  * CP15 visual assertion: kind-colored DFD stores and externals.
  *
  * Asserts:
- *  (a) The `kind: file` store (gateway-log, in order-to-cash) renders a fill
- *      DISTINCT from a `db:` store in both dark and light modes.
- *  (b) The `kind: file` store's fill matches the expected lime palette (#1a2e05 dark /
- *      #f7fee7 light) — proving the kind palette is actually wired through.
- *  (c) DB stores use the legacy amber palette, not the lime file palette.
- *  (d) External entity (no kind) stays the conventional green — no visual regression.
+ *  (a) A mixed stack renders its `file:` row with the file palette and its
+ *      `db:` rows with the db palette in both dark and light modes.
+ *  (b) The file row is labelled F1, not D#, and does not recolor sibling rows.
+ *  (c) Plain stores use the same kind-specific colors and cap convention.
+ *  (d) External entity (no kind) stays the conventional green.
  *
  * The `gateway-log` store is in:
  *   models/key-inherited/flows/order-to-cash/_stores/gateway-log.md  (kind: file)
@@ -80,8 +79,7 @@ async function setTheme(theme: 'dark' | 'light'): Promise<void> {
 
 // Navigate to the flows view and open order-to-cash
 async function navigateToOrderToCash(): Promise<void> {
-  await page.goto(`${BASE}/#view=flow&dfd=order-to-cash`, { waitUntil: 'domcontentloaded' });
-  // Wait for the flow SVG to render
+  await page.goto(`${BASE}/#view=flow&dfd=order-to-cash&collapse=stores`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
     () => (window as unknown as Record<string, unknown>)['__IGNATIUS_FLOW_READY__'] === true,
     { timeout: 15_000 },
@@ -90,19 +88,22 @@ async function navigateToOrderToCash(): Promise<void> {
 }
 
 // ── Helper: read fill of a node by its data-token attribute ──────────────────
-
 /**
- * Get the computed fill of the first <rect> inside the node group with data-token.
- * Returns null if the node isn't found.
+ * Get a store's fill whether it is a plain node or one row inside a stack.
  */
 async function getNodeFill(token: string): Promise<string | null> {
   return page.evaluate((t) => {
-    const g = document.querySelector(`[data-token="${t}"]`);
-    if (!g) return null;
-    const rect = g.querySelector('rect');
-    if (!rect) return null;
-    return rect.getAttribute('fill');
+    const plain = document.querySelector(`[data-token="${t}"]`);
+    const row = document.querySelector(`[data-flow-store-fill="${t}"]`);
+    const rect = (plain ?? row)?.querySelector('rect');
+    return rect?.getAttribute('fill') ?? null;
   }, token);
+}
+
+async function getStoreRowText(token: string): Promise<string | null> {
+  return page.evaluate((t) =>
+    document.querySelector(`[data-flow-store-row="${t}"]`)?.textContent?.trim() ?? null,
+  token);
 }
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
@@ -129,6 +130,8 @@ assert(darkFileFill !== darkDbFill, 'dark: file store fill DISTINCT from db stor
 assert(darkFileFill === '#1a2e05', `dark: file store bg is lime #1a2e05 (got: ${darkFileFill})`);
 // The amber dark fill should be #3d2e00
 assert(darkDbFill === '#3d2e00', `dark: db store bg is amber #3d2e00 (got: ${darkDbFill})`);
+const darkFileRowText = await getStoreRowText('file:gateway-log');
+assert(darkFileRowText?.startsWith('F1') === true, `dark: file row cap is F1 (got: ${darkFileRowText})`);
 
 // Check an external (Customer) stays conventional green (#1a3a1a).
 // The external token is the file slug without prefix, e.g. "Customer" (not "ext:Customer").
@@ -165,6 +168,8 @@ assert(lightFileFill !== lightDbFill, 'light: file store fill DISTINCT from db s
 assert(lightFileFill === '#f7fee7', `light: file store bg is lime #f7fee7 (got: ${lightFileFill})`);
 // The amber light fill should be #fef9c3
 assert(lightDbFill === '#fef9c3', `light: db store bg is amber #fef9c3 (got: ${lightDbFill})`);
+const lightFileRowText = await getStoreRowText('file:gateway-log');
+assert(lightFileRowText?.startsWith('F1') === true, `light: file row cap is F1 (got: ${lightFileRowText})`);
 
 // Check external stays conventional green (#dcfce7)
 const lightExtFill = await page.evaluate(() => {

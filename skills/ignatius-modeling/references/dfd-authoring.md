@@ -134,6 +134,11 @@ Suggest the store kind from this menu:
 - `manual` — a physical or off-system store
 - `other` — anything that fits none of the above
 
+The viewer identifies concrete stores with a kind-specific numbered cap and
+color: `D#` database, `C#` cache, `Q#` queue, `F#` file, `Do#` document,
+`M#` manual, and `O#` other. Each kind numbers independently, and mixed stacks
+keep the color of each row rather than taking one color for the whole stack.
+
 The user may *describe* any kind of store, but the token prefix set above is closed — the
 parser recognizes exactly these. When the user names a kind not on the menu (a waitlist, a
 ledger), author it as `kind: other` with a `title:` carrying the real name, and reference it

@@ -47,7 +47,7 @@ import { assert, must } from '../assert';
 import { parseModels } from '../../src/model/parse';
 import { parseFlows } from '../../src/flows/flow-parse';
 import type { FlowDiagram, FlowEdge } from '../../src/flows/flow-parse';
-import { buildFlowData, resolveChipLines, STORE_ROW_H, STORE_CAP_W, storeBodyWidth, layoutKeyForView } from '../../src/flow-view/flow-layout';
+import { assignStoreNumbers, buildFlowData, resolveChipLines, STORE_ROW_H, STORE_CAP_W, storeBodyWidth, storeCapLabel, layoutKeyForView } from '../../src/flow-view/flow-layout';
 import type { FlowElementData, StoreNodeData } from '../../src/flow-view/flow-layout';
 import { computeElkLayout, bandOf, nodeSize, buildElkGraph } from '../../src/flow-view/elk-flow-layout';
 import type { ElkLayoutResult } from '../../src/flow-view/elk-flow-layout';
@@ -444,6 +444,70 @@ console.log('PASS: adjacency write stack edge carries 2 memberEdges and the shar
   const plainX = must(nodes.find((n): n is StoreNodeData => n.id === 'db:X' && n.nodeType === 'store'), 'process B\'s plain node for X');
   assert(plainX.duplicated === true, 'FAIL: X is a stack member for A and the sole store for B — it should be marked duplicated as B\'s plain node too');
   console.log('PASS: a store that is a stack member for one process and the sole same-band store for another is marked duplicated in both places');
+}
+
+// ---------------------------------------------------------------------------
+// 9b. mixed-kind stacks keep kind-local numbering and row identity
+// ---------------------------------------------------------------------------
+
+{
+  const endpoints = [
+    { kind: 'cache' as const, name: 'ChallengeCache' },
+    { kind: 'db' as const, name: 'Account' },
+    { kind: 'file' as const, name: 'AuditLog' },
+    { kind: 'db' as const, name: 'Session' },
+  ];
+  const edges: FlowEdge[] = endpoints.map(endpoint => ({
+    from: { ...endpoint, raw: `${endpoint.kind}:${endpoint.name}` },
+    to: { kind: 'proc', name: 'authenticate', raw: 'proc:authenticate' },
+    data: ['id'],
+    flowId: 'mixed',
+  }));
+  const mixedKinds: FlowDiagram = {
+    id: 'mixed-kinds',
+    title: 'Mixed Kinds',
+    processes: [{
+      id: 'authenticate',
+      label: 'Authenticate',
+      dottedNumber: '1',
+      inputs: edges,
+      outputs: [],
+      body: '',
+      bodyHtml: '',
+      hasSubDfd: false,
+      flowId: 'mixed',
+    }],
+    externals: [],
+    storeRefs: endpoints.map(endpoint => ({
+      ...endpoint,
+      displayName: endpoint.name,
+      flowId: 'mixed',
+    })),
+    edges,
+    subDfds: [],
+  };
+
+  const numbers = assignStoreNumbers(mixedKinds);
+  assert(numbers.get('cache:ChallengeCache') === 1, 'FAIL: first cache should be C1');
+  assert(numbers.get('file:AuditLog') === 1, 'FAIL: first file should be F1');
+  assert(numbers.get('db:Account') === 1 && numbers.get('db:Session') === 2, 'FAIL: db numbering should remain D1, D2 independently of non-db stores');
+
+  const stack = must(buildFlowData(mixedKinds, { view: 'per-process' }).nodes.find((node): node is StackNode => isStack(node)), 'mixed-kind stack');
+  const capByStore = new Map(stack.rows.flatMap(row =>
+    row.kind === 'store' ? [[row.storeId, storeCapLabel(row.storeKind, row.storeNum)]] : [],
+  ));
+  assert(
+    capByStore.get('cache:ChallengeCache') === 'C1'
+      && capByStore.get('db:Account') === 'D1'
+      && capByStore.get('db:Session') === 'D2'
+      && capByStore.get('file:AuditLog') === 'F1',
+    `FAIL: mixed-kind caps should be C1/D1/D2/F1 by store, got ${JSON.stringify([...capByStore])}`,
+  );
+  assert(
+    stack.rows.every(row => row.kind !== 'store' || row.storeKind === row.storeId.slice(0, row.storeId.indexOf(':'))),
+    `FAIL: each stack row must retain its own store kind, got ${JSON.stringify(stack.rows)}`,
+  );
+  console.log('PASS: mixed-kind stacks retain per-row kinds and render kind-local C#/D#/F# numbering');
 }
 
 // ---------------------------------------------------------------------------
