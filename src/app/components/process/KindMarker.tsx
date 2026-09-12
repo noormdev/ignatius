@@ -1,16 +1,6 @@
 import type { FlowEndpoint, FlowProcess } from '../../../flows/flow-parse';
+import { FLOW_STORE_KIND_SYMBOLS } from '../../../theme/theme-defaults';
 
-// Kind markers: short labels for the inputs/outputs table (mirrors flow-dict.ts)
-export const FLOW_KIND_MARKERS: Record<string, string> = {
-  db: 'D',
-  cache: 'C',
-  queue: 'Q',
-  file: 'F',
-  doc: 'Do',
-  manual: 'M',
-  ext: '',
-  proc: '',
-};
 
 export function KindMarker({ ep, processes }: { ep: FlowEndpoint; processes: FlowProcess[] }) {
   if (ep.kind === 'proc') {
@@ -21,7 +11,7 @@ export function KindMarker({ ep, processes }: { ep: FlowEndpoint; processes: Flo
   if (ep.kind === 'ext') {
     return <span className="flow-kind-ext">ext</span>;
   }
-  const marker = FLOW_KIND_MARKERS[ep.kind] ?? ep.kind;
+  const marker = FLOW_STORE_KIND_SYMBOLS[ep.kind];
   const isDb = ep.kind === 'db';
   return (
     <span className={`flow-kind-marker${isDb ? ' flow-kind-marker--db' : ''}`}>

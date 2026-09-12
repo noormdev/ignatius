@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { StackNodeData, StackRow, StackMember } from '../../../flow-view/flow-layout';
+import { storeCapLabel, type StackNodeData, type StackRow, type StackMember } from '../../../flow-view/flow-layout';
 import type { FlowCluster } from '../../../flows/flow-clusters';
 import type { GroupConfig } from '../../../model/parse';
 import { Modal } from '../ui/Modal';
@@ -18,8 +18,8 @@ const ROW_INDENT_PX = 16;
  * One row of a stack's breakdown, at the current collapse level. A `store`
  * row opens its entity dialog directly; a `cluster`/`subtype`/`group` row is
  * a `<details>` toggle (the repo's expand affordance — see ExamplesAccordion)
- * that reveals its members (or nested rows, for a group) with D#s, indented
- * one level under it.
+ * that reveals its members (or nested rows) with kind-specific numbered caps,
+ * indented one level under it.
  */
 function StackDialogRow({ row, depth, memberIndex, onOpenEntity }: {
   row: StackRow;
@@ -39,7 +39,7 @@ function StackDialogRow({ row, depth, memberIndex, onOpenEntity }: {
             className="entity-link"
             onClick={e => { e.preventDefault(); onOpenEntity(row.storeId); }}
           >
-            D{row.storeNum} {row.displayName}
+            {storeCapLabel(row.storeKind, row.storeNum)} {row.displayName}
           </a>
         </td>
       </tr>
@@ -48,7 +48,7 @@ function StackDialogRow({ row, depth, memberIndex, onOpenEntity }: {
 
   const childRows: StackRow[] = row.children ?? row.memberIds.map(id => {
     const m = memberIndex.get(id);
-    return { kind: 'store' as const, storeId: id, displayName: m?.displayName ?? id, storeNum: m?.storeNum ?? 0 };
+    return { kind: 'store' as const, storeId: id, storeKind: m?.kind ?? 'db', displayName: m?.displayName ?? id, storeNum: m?.storeNum ?? 0 };
   });
 
   return (

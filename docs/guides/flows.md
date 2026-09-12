@@ -1,7 +1,7 @@
 # Process flows
 
 
-A model can carry data flow diagrams (DFDs) alongside its entities. A DFD shows what the business *does*: numbered processes transform data, external entities send it in and receive it out, and data stores hold what persists between steps. ignatius renders them in the SSADM style with Gane-Sarson notation — open-ended `D#` store boxes, numbered process hubs, green external boxes — in the **Flows** view of the app.
+A model can carry data flow diagrams (DFDs) alongside its entities. A DFD shows what the business *does*: numbered processes transform data, external entities send it in and receive it out, and data stores hold what persists between steps. ignatius renders them in the SSADM style with Gane-Sarson notation — open-ended store boxes with kind-specific numbered caps, numbered process hubs, green external boxes — in the **Flows** view of the app.
 
 The same markdown-first rule applies: flows live as `.md` files with YAML frontmatter, the diagram is generated, and a `db:` store in a flow is the *same entity* you modeled in the ERD — clicking it opens the full entity dialog with columns, relationships, and examples.
 
@@ -156,7 +156,7 @@ Append-only log of raw gateway responses. Used for reconciliation and dispute
 resolution; never read back during normal processing. Retained for 7 years.
 ```
 
-Store kinds also drive each node's color in the diagram — theme-aware and overridable under `theme.flowKinds` in `ignatius.yml` (see [Themes and branding](themes-and-branding.md)). The full kind vocabulary is in the [glossary](../glossary.md).
+Store kinds drive both the numbered cap and the color of each concrete store row: `D#` database, `C#` cache, `Q#` queue, `F#` file, `Do#` document, `M#` manual, and `O#` other. Each kind has its own number sequence. In a mixed stack, every row keeps its own kind color rather than tinting the whole stack; collapsed entity cluster/group rows remain database-colored with their unnumbered `C`/`G` caps. Colors are theme-aware and overridable under `theme.flowKinds` in `ignatius.yml` (see [Themes and branding](themes-and-branding.md)). The full kind vocabulary is in the [glossary](../glossary.md).
 
 
 ## Sub-DFDs
@@ -251,7 +251,7 @@ A lone table is a table row at every level.
 ### Stacks and the stack dialog
 
 
-A stack draws visible rows: store rows carry their own D# cap; cluster and subtype rows cap with `C`, group rows with `G` (never a D#, since only a store row is one) alongside the label, a `(N)` count, and a peek marker meaning more sit inside. A subtype row reads the basetype name when the basetype is among the touched stores, or `<Basetype> subtypes` when it is not. An adjacency stack is labelled `N stores`, never a member's name. Every stack carries one ⓘ badge.
+A stack draws visible rows: concrete stores carry their kind-specific numbered cap and color; cluster and subtype rows cap with unnumbered `C`, group rows with unnumbered `G`, alongside the label, a `(N)` count, and a peek marker meaning more sit inside. A subtype row reads the basetype name when the basetype is among the touched stores, or `<Basetype> subtypes` when it is not. An adjacency stack is labelled `N stores`, never a member's name. Every stack carries one ⓘ badge.
 
 Clicking a stack opens the stack dialog. Its title depends on the stack's source (a cluster's `label:`, the basetype name, the group's `label:`, `N stores` for adjacency, or `Read stack` / `Write stack` for a plain per-process stack), followed by the feeding processes and the rows at the current collapse level. A row's chevron expands and collapses its member rows; opening a member opens its entity or doc dialog. An author cluster row also shows the `clusters/<slug>.md` file's body; a subtype row links the basetype; a group row shows its description; an adjacency stack lists its shared readers and writers.
 

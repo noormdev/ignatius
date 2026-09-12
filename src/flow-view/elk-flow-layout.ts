@@ -34,7 +34,7 @@
 import ELK from 'elkjs';
 import type { ELKConstructorArguments, ElkNode, ElkPoint } from 'elkjs/lib/elk-api.js';
 import type { FlowDiagram } from '../flows/flow-parse';
-import { buildFlowData, processNodeSize, CHIP_TRUNCATE_MAX, STORE_ROW_H, stackNodeSize, stackRowLayout, resolveChipLines, chipHeight } from './flow-layout';
+import { buildFlowData, processNodeSize, CHIP_TRUNCATE_MAX, STORE_ROW_H, stackNodeSize, stackRowLayout, resolveChipLines, chipHeight, storeCapLabel } from './flow-layout';
 import type { FlowElementData, BuildFlowDataOpts } from './flow-layout';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -87,8 +87,8 @@ export function nodeSize(n: NodeElement): { width: number; height: number } {
   }
   if (n.nodeType === 'external') return { width: estW(n.label, 6.6, 28, 110), height: 52 };
   if (n.nodeType === 'stack') return stackNodeSize(n.members, n.rows);
-  // store — prefix with D# if present
-  const label = `D${n.storeNum} ${n.label}`;
+  // Store width includes its kind-specific numbered cap (D#, C#, F#, and so on).
+  const label = `${storeCapLabel(n.storeKind, n.storeNum)} ${n.label}`;
   return { width: estW(label, 6.6, 30, 150), height: STORE_ROW_H };
 }
 

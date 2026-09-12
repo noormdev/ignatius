@@ -1,5 +1,5 @@
 import { Modal } from '../../components/ui/Modal';
-import { resolveFlowKindPalette, type ThemeMode, type FlowKindKey, type FlowKindEntry } from '../../../theme/theme-defaults';
+import { FLOW_STORE_KIND_SYMBOLS, resolveFlowKindPalette, type ThemeMode, type FlowKindKey, type FlowKindEntry } from '../../../theme/theme-defaults';
 import { DARK_PALETTE, LIGHT_PALETTE } from '../../../flow-view/FlowDiagramSvg';
 import type { FlowPalette } from '../../../flow-view/FlowDiagramSvg';
 import type { ViewName } from '../../hash-router';
@@ -24,7 +24,7 @@ export function LegendModal({ onClose, view, themeMode, kindPalette }: {
     const kp = kindPalette ?? resolveFlowKindPalette(themeMode);
 
     // Per-kind store entries for the legend.
-    const kindRows: Array<{ key: FlowKindKey; label: string; desc: string }> = [
+    const kindRows: Array<{ key: Exclude<FlowKindKey, 'external'>; label: string; desc: string }> = [
       { key: 'db',     label: 'DB store',     desc: 'Data entity backed by a relational table (db:).' },
       { key: 'cache',  label: 'Cache',        desc: 'In-memory or distributed key-value cache.' },
       { key: 'queue',  label: 'Queue',        desc: 'Message queue or event bus.' },
@@ -65,7 +65,7 @@ export function LegendModal({ onClose, view, themeMode, kindPalette }: {
                 <span className="legend-entity" style={{ background: kp[key].bg, borderColor: kp[key].border, borderWidth: 2, borderStyle: 'solid', borderTopLeftRadius: 2, borderBottomLeftRadius: 2, borderTopRightRadius: 0, borderBottomRightRadius: 0 }} />
               </span>
               <span className="legend-text">
-                <strong className="legend-term">{label}</strong>
+                <strong className="legend-term">{FLOW_STORE_KIND_SYMBOLS[key]}# {label}</strong>
                 <span className="legend-desc">{desc}</span>
               </span>
             </div>

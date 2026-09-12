@@ -9,7 +9,7 @@
  */
 
 import type { FlowDiagram, FlowEdge } from '../flows/flow-parse';
-import type { FlowKindKey } from '../theme/theme-defaults';
+import { FLOW_STORE_KIND_SYMBOLS, type FlowKindKey } from '../theme/theme-defaults';
 import type { FlowCluster } from '../flows/flow-clusters';
 import type { SubtypeCluster, GroupConfig } from '../model/parse';
 
@@ -17,11 +17,18 @@ import type { SubtypeCluster, GroupConfig } from '../model/parse';
 
 export type NodePos = { x: number; y: number };
 
+export type FlowStoreKind = Exclude<FlowKindKey, 'external'>;
+
+/** Kind-specific numbered cap used by plain stores, stack rows, dialogs, and layout sizing. */
+export function storeCapLabel(kind: FlowStoreKind, storeNum: number): string {
+  return `${FLOW_STORE_KIND_SYMBOLS[kind]}${storeNum}`;
+}
+
 /** Minimal element descriptor — no Cytoscape dep. */
 /** One store inside a stack node's `members`. */
 export type StackMember = {
   storeId: string;
-  kind: FlowKindKey;
+  kind: FlowStoreKind;
   displayName: string;
   storeNum: number;
   /** True when this store also appears in another stack (or plain node) in the same band. */
@@ -30,15 +37,14 @@ export type StackMember = {
 
 /**
  * One row in a stack's dialog breakdown (StackDialog), at the current
- * collapse level (see buildStackRows). A `store` row is a single table,
- * capped by its own D# (`storeNum`) — D means data store, and a store row is
- * the only kind that is one. A `cluster`/`subtype`/`group` row aggregates 2+
- * members sharing that grouping and caps with a plain letter instead — `C`
- * for cluster/subtype, `G` for group, never a D# — a `group` row nests its
- * cluster and table rows as `children`.
+ * collapse level (see buildStackRows). A `store` row is a single store,
+ * capped by its kind-specific symbol and number (`D#`, `C#`, `F#`, etc.).
+ * A `cluster`/`subtype`/`group` row aggregates 2+ members sharing that
+ * grouping and caps with a plain letter instead — `C` for cluster/subtype,
+ * `G` for group — a `group` row nests its cluster and table rows as `children`.
  */
 export type StackRow =
-  | { kind: 'store'; storeId: string; displayName: string; storeNum: number }
+  | { kind: 'store'; storeId: string; storeKind: FlowStoreKind; displayName: string; storeNum: number }
   | {
       kind: 'cluster' | 'subtype';
       label: string;
@@ -71,7 +77,7 @@ export type StoreNodeData = {
   id: string;
   nodeType: 'store';
   label: string;
-  storeKind: FlowKindKey;
+  storeKind: FlowStoreKind;
   /** True when this store is one of two copies of a read+write store, or
    *  otherwise present elsewhere in the same band. */
   duplicated?: boolean;
@@ -335,9 +341,9 @@ const STORE_KINDS: Record<string, true> = { db: true, cache: true, queue: true, 
  *  rather than redeclaring it. */
 export const STORE_ROW_H = 34;
 
-/** Fixed width of the D# cap column, left of a store/stack row's name — the
- *  single canonical value FlowDiagramSvg's cap-column drawing and
- *  stackNodeSize's width estimate both use. */
+/** Fixed width of the kind/number cap column, left of a store/stack row's
+ *  name — the single canonical value FlowDiagramSvg's cap-column drawing
+ *  and stackNodeSize's width estimate both use. */
 export const STORE_CAP_W = 34;
 
 /** Stroke width of a store/stack box's outline and dividers — the single
@@ -462,9 +468,9 @@ export function stackNodeSize(members: StackMember[], rows: StackRow[]): { width
 export type StoreSplitMap = Map<string, { readId: string; writeId: string; isSplit: boolean }>;
 
 /** Return type of buildFlowData — everything the SVG renderer needs. Every
- *  node already carries its own resolved D# (StoreNodeData.storeNum /
- *  StackMember.storeNum) — there is no separate store-number map to key by
- *  a rendered (possibly split `--read`/`--write`) node id. */
+ *  node already carries its resolved kind-local number (StoreNodeData.storeNum /
+ *  StackMember.storeNum) — there is no separate store-number map to key by a
+ *  rendered (possibly split `--read`/`--write`) node id. */
 export type FlowRenderData = {
   nodes: Extract<FlowElementData, { kind: 'node' }>[];
   edges: Extract<FlowElementData, { kind: 'edge' }>[];
@@ -582,8 +588,8 @@ function buildExternalRouting(diagram: FlowDiagram, procX: Map<string, number>):
 // ── Store numbering ──────────────────────────────────────────────────────────
 
 /**
- * assignStoreNumbers — assign a stable D# to each unique store in a diagram.
- * Numbering order: processes in dottedNumber order, inputs first then outputs.
+ * assignStoreNumbers — assign a stable number within each store kind.
+ * Numbering order within a kind: processes in dottedNumber order, inputs first then outputs.
  */
 export function assignStoreNumbers(diagram: FlowDiagram): Map<string, number> {
   const sortedProcs = [...diagram.processes].sort((a, b) => {
@@ -614,7 +620,22 @@ export function assignStoreNumbers(diagram: FlowDiagram): Map<string, number> {
   for (const s of diagram.storeRefs) visit(s.kind, s.name);
 
   const map = new Map<string, number>();
-  order.forEach((id, i) => map.set(id, i + 1));
+  const kindById = new Map(diagram.storeRefs.map(store => [`${store.kind}:${store.name}`, store.kind]));
+  const nextByKind: Record<FlowStoreKind, number> = {
+    db: 0,
+    cache: 0,
+    queue: 0,
+    file: 0,
+    doc: 0,
+    manual: 0,
+    other: 0,
+  };
+  for (const id of order) {
+    const kind = kindById.get(id);
+    if (!kind) continue;
+    const next = ++nextByKind[kind];
+    map.set(id, next);
+  }
   return map;
 }
 
@@ -670,6 +691,7 @@ type RowMember = {
   storeId: string;
   displayName: string;
   storeNum: number;
+  storeKind: FlowStoreKind;
   clusterTag?: { slug: string; label: string };
 };
 
@@ -693,7 +715,13 @@ function buildStackRows(
   groups: Record<string, GroupConfig>,
   entityGroups: Record<string, string>,
 ): StackRow[] {
-  const storeRow = (m: RowMember): StackRow => ({ kind: 'store', storeId: m.storeId, displayName: m.displayName, storeNum: m.storeNum });
+  const storeRow = (m: RowMember): StackRow => ({
+    kind: 'store',
+    storeId: m.storeId,
+    storeKind: m.storeKind,
+    displayName: m.displayName,
+    storeNum: m.storeNum,
+  });
 
   if (!collapseLevel || collapseLevel === 'stores') return members.map(storeRow);
 
@@ -851,7 +879,7 @@ function buildPerProcessStores(
   edges: Extract<FlowElementData, { kind: 'edge' }>[];
   positionInputs: Map<string, string[]>;
 } {
-  const storeInfo = new Map<string, { kind: FlowKindKey; displayName: string }>();
+  const storeInfo = new Map<string, { kind: FlowStoreKind; displayName: string }>();
   for (const store of diagram.storeRefs) {
     storeInfo.set(`${store.kind}:${store.name}`, { kind: store.kind, displayName: store.displayName });
   }
@@ -917,6 +945,7 @@ function buildPerProcessStores(
     const rowMembers: RowMember[] = members.map(m => ({
       storeId: m.storeId,
       displayName: m.displayName,
+      storeKind: m.kind,
       storeNum: m.storeNum,
       clusterTag: tagByMember?.get(m.storeId),
     }));
@@ -1129,7 +1158,7 @@ function buildConnectedViewGrouping(
    *  or a plain node for 2+ processes) in this direction. */
   duplicatedStores: Record<StackDirection, Set<string>>;
 } {
-  const storeInfo = new Map<string, { kind: FlowKindKey; displayName: string }>();
+  const storeInfo = new Map<string, { kind: FlowStoreKind; displayName: string }>();
   for (const store of diagram.storeRefs) {
     storeInfo.set(`${store.kind}:${store.name}`, { kind: store.kind, displayName: store.displayName });
   }
@@ -1326,6 +1355,7 @@ function buildConnectedViewGrouping(
       const rowMembers: RowMember[] = members.map(m => ({
         storeId: m.storeId,
         displayName: m.displayName,
+        storeKind: m.kind,
         storeNum: m.storeNum,
         clusterTag: edgesForMember(m.storeId).find(e => e.cluster)?.cluster,
       }));
@@ -1527,7 +1557,7 @@ export function buildFlowData(diagram: FlowDiagram, opts?: BuildFlowDataOpts): F
     edges.push(...renderExtEdges(diagram, extRouting, storeSplitMap));
   } else {
     // Store ref nodes. A read+write store is emitted as two duplicated copies
-    // (read copy, write copy), both carrying the same D# number.
+    // (read copy, write copy), both carrying the same kind-local number.
     for (const store of diagram.storeRefs) {
       const storeId = `${store.kind}:${store.name}`;
       const num = storeNums.get(storeId) ?? 0;
@@ -1541,7 +1571,7 @@ export function buildFlowData(diagram: FlowDiagram, opts?: BuildFlowDataOpts): F
         storeName: store.name,
       };
       if (split.isSplit) {
-        // Both copies share the D#; register the split ids so the renderer's
+        // Both copies share the cap number; register the split ids so the
         // storeNums lookup resolves them.
         storeNums.set(split.readId, num);
         storeNums.set(split.writeId, num);

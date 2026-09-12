@@ -189,14 +189,17 @@ src/flow-view/elk-flow-layout.ts
     threads view/collapseLevel/clusters/subtypeClusters/groups opts into buildFlowData
 
 src/flow-view/FlowDiagramSvg.tsx
-  StoreNode
-    stacked variant — visible rows; a cluster or subtype row caps `C`, a group row caps `G`, store
-    rows cap `D#`; a C or G row draws the stacked-paper marker (two filled sheets behind it offset
-    3px and 6px down-right showing bottom edges, left stair segments, and the top-right mark, no
-    cap divider on the sheets, the stack's left border and cap divider drawn per row, a reserve
-    of offset plus stroke plus two pixels after the row, none after the last row, whose box ends
-    on the back sheet with no closing line); the duplicate marker is drawn in the connected view
-    only
+  StoreNode / stacked variant
+    every concrete store row retains its endpoint kind and resolves its own theme color; mixed
+    stacks never inherit one member's color across every row; kind-local numbered caps are
+    `D#` db, `C#` cache, `Q#` queue, `F#` file, `Do#` document, `M#` manual, `O#` other
+    (each kind has an independent sequence); a cluster or subtype row caps unnumbered `C`, a
+    group row caps unnumbered `G`, and those aggregate entity rows use db colors; a C or G row
+    draws the stacked-paper marker (two filled sheets behind it offset 3px and 6px down-right
+    showing bottom edges, left stair segments, and the top-right mark, no cap divider on the
+    sheets, the stack's left border and cap divider drawn per row, a reserve of offset plus
+    stroke plus two pixels after the row, none after the last row, whose box ends on the back
+    sheet with no closing line); the duplicate marker is drawn in the connected view only
   StackDialog trigger — click on a stack node opens the row-list dialog
   EdgeContractDialog trigger — click on any data-carrying edge chip opens the contract dialog
   chip rendering — label only; no member or column count suffix
@@ -206,8 +209,9 @@ src/app/components/flow-node/StackDialog.tsx
   StackDialog — titled by source (cluster label, basetype, group label, "N stores", or
     "Read stack" / "Write stack"), with the feeding processes as dotted-number links in the
     header; rows at the current collapse level; opening a cluster/subtype/group row shows
-    its members with D#s; a member opens its entity dialog; an author-cluster row also renders
-    the file's markdown body, a subtype row links the basetype (or reads "<Basetype> subtypes"
+    its members with their kind-specific numbered caps; a member opens its entity or store
+    dialog; an author-cluster row also renders the file's markdown body, a subtype row links
+    the basetype (or reads "<Basetype> subtypes"
     when the basetype itself isn't a member), a group row shows the group's description, and
     an adjacency row lists the shared reader and writer processes instead of any body
 
