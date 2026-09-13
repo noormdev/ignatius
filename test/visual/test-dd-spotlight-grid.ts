@@ -1744,77 +1744,131 @@ try {
         }
         note(`OK CP5.3: Target "${chipTarget}" scrolled into scrollport after chip click`);
 
-        // Check for the flash class — it may already be removed if animationend fired.
-        // Check immediately after scroll (before animation ends).
-        // Re-scroll to off-screen position to re-trigger the test cleanly.
-        // We'll click the chip again and immediately check for the class within 100ms.
-        //
-        // Strategy: scroll back to the state where target is off-screen, then click again
-        // and immediately (within the animation duration of 1.2s) check for the class.
-        await page.evaluate(() => {
-          const dictView = document.querySelector('[data-ignatius="dict-view"]');
-          if (dictView) dictView.scrollTop = dictView.scrollHeight;
-        });
+        // Re-scroll to the farthest edge from the target so the second click
+        // exercises a long smooth scroll, then measure the flash against real
+        // scroll events rather than a fixed animation delay.
+        await page.evaluate((targetId: string) => {
+          const dictView = document.querySelector<HTMLElement>('[data-ignatius="dict-view"]');
+          const card = document.querySelector<HTMLElement>(
+            `.dict-grid-card[data-entity-id="${targetId}"]`,
+          );
+          if (!dictView || !card) return;
+          const targetCenter = card.offsetTop + card.offsetHeight / 2;
+          dictView.scrollTop = targetCenter < dictView.scrollHeight / 2
+            ? dictView.scrollHeight
+            : 0;
+        }, chipTarget);
         await page.waitForTimeout(500);
 
-        // Check if target is off-screen again.
         const targetOffScreen2 = await page.evaluate((targetId: string) => {
           const card = document.querySelector(`.dict-grid-card[data-entity-id="${targetId}"]`);
-          if (!card) return false;
           const scrollport = document.querySelector('[data-ignatius="dict-view"]');
-          if (!scrollport) return false;
+          if (!card || !scrollport) return false;
           const r = card.getBoundingClientRect();
           const s = scrollport.getBoundingClientRect();
           return r.bottom < s.top || r.top > s.bottom || r.right < s.left || r.left > s.right;
         }, chipTarget);
 
         if (targetOffScreen2) {
-          // Chip should still be visible (target is off-screen again).
-          const chipVisible2 = await page.locator('.spotlight-chips-container .spotlight-chip').count() > 0;
-          if (!chipVisible2) {
-            note('CP5.3: Chip disappeared after scrolling back — trying without flash assertion');
-          } else {
-            // Click via page.evaluate to bypass Playwright's viewport-check on
-            // position:fixed chips that may be positioned outside the viewport when
-            // the active card is off-screen (chips are anchored to the card's fixed pos).
-            await page.evaluate((tgt: string) => {
-              const chip = document.querySelector<HTMLElement>(
-                `.spotlight-chips-container .spotlight-chip[data-chip-target="${tgt}"]`
-              );
-              chip?.click();
-            }, chipTarget);
-            // Check for flash class within 300ms (well within the 1.2s animation).
-            await page.waitForTimeout(100);
-            const hasFlash = await page.evaluate((targetId: string) => {
-              const card = document.querySelector(`.dict-grid-card[data-entity-id="${targetId}"]`);
-              return card?.classList.contains('dict-grid-card--flash') ?? false;
-            }, chipTarget);
-            note(`CP5.3: Flash class present within 100ms of click: ${hasFlash}`);
+          const flashTiming = await page.evaluate(async (targetId: string) => {
+            const scrollport = document.querySelector<HTMLElement>('[data-ignatius="dict-view"]');
+            const card = document.querySelector<HTMLElement>(
+              `.dict-grid-card[data-entity-id="${targetId}"]`,
+            );
+            const chip = document.querySelector<HTMLElement>(
+              `.spotlight-chips-container .spotlight-chip[data-chip-target="${targetId}"]`,
+            );
+            if (!scrollport || !card || !chip) return null;
 
-            if (!hasFlash) {
-              await shot('FAIL-cp5-no-flash.png');
-              fail(`CP5.3: .dict-grid-card--flash not found on "${chipTarget}" within 100ms of chip click`);
-            }
-            note('OK CP5.3: .dict-grid-card--flash class present after chip click');
+            return await new Promise<{
+              flashedWithin50ms: boolean;
+              quietBeforeFlashMs: number;
+              targetVisibleAtFlash: boolean;
+            } | null>((resolve) => {
+              let lastScrollAt = performance.now();
+              let flashedWithin50ms = false;
+              let initialWindowElapsed = false;
+              let flashResult: {
+                quietBeforeFlashMs: number;
+                targetVisibleAtFlash: boolean;
+              } | null = null;
 
-            // Wait for the flash animation to complete (~1.2s) and verify class is removed.
-            await page.waitForTimeout(1500);
-            const flashRemoved = await page.evaluate((targetId: string) => {
-              const card = document.querySelector(`.dict-grid-card[data-entity-id="${targetId}"]`);
-              return !(card?.classList.contains('dict-grid-card--flash') ?? true);
-            }, chipTarget);
-            note(`CP5.3: Flash class removed after animation: ${flashRemoved}`);
+              const finish = () => {
+                if (!initialWindowElapsed || flashResult === null) return;
+                resolve({ flashedWithin50ms, ...flashResult });
+              };
+              const onScroll = () => { lastScrollAt = performance.now(); };
+              scrollport.addEventListener('scroll', onScroll, { passive: true });
 
-            if (!flashRemoved) {
-              await shot('FAIL-cp5-flash-not-removed.png');
-              fail(`CP5.3: .dict-grid-card--flash not removed after animation (~1.2s) on "${chipTarget}"`);
-            }
-            note('OK CP5.3: Flash class removed on animationend');
+              const observer = new MutationObserver(() => {
+                if (!card.classList.contains('dict-grid-card--flash')) return;
+                const cardRect = card.getBoundingClientRect();
+                const scrollportRect = scrollport.getBoundingClientRect();
+                flashResult = {
+                  quietBeforeFlashMs: performance.now() - lastScrollAt,
+                  targetVisibleAtFlash:
+                    cardRect.bottom >= scrollportRect.top
+                    && cardRect.top <= scrollportRect.bottom
+                    && cardRect.right >= scrollportRect.left
+                    && cardRect.left <= scrollportRect.right,
+                };
+                observer.disconnect();
+                scrollport.removeEventListener('scroll', onScroll);
+                finish();
+              });
+              observer.observe(card, { attributes: true, attributeFilter: ['class'] });
 
-            await shot('30-cp5-flash-cleared.png');
+              setTimeout(() => {
+                flashedWithin50ms = card.classList.contains('dict-grid-card--flash');
+                initialWindowElapsed = true;
+                finish();
+              }, 50);
+
+              setTimeout(() => {
+                observer.disconnect();
+                scrollport.removeEventListener('scroll', onScroll);
+                resolve(null);
+              }, 5_000);
+
+              chip.click();
+            });
+          }, chipTarget);
+
+          if (flashTiming === null) {
+            await shot('FAIL-cp5-no-flash.png');
+            fail(`CP5.3: .dict-grid-card--flash never appeared on "${chipTarget}" after scrolling`);
           }
+          const observedFlashTiming = flashTiming!;
+          note(`CP5.3: Flash present within 50ms of click: ${observedFlashTiming.flashedWithin50ms}`);
+          note(`CP5.3: Scroll quiet before flash: ${observedFlashTiming.quietBeforeFlashMs.toFixed(1)}ms`);
+
+          if (observedFlashTiming.flashedWithin50ms) {
+            await shot('FAIL-cp5-flash-before-scroll.png');
+            fail(`CP5.3: "${chipTarget}" flashed before its smooth scroll could settle`);
+          }
+          if (observedFlashTiming.quietBeforeFlashMs < 80) {
+            await shot('FAIL-cp5-flash-during-scroll.png');
+            fail(`CP5.3: "${chipTarget}" flashed only ${observedFlashTiming.quietBeforeFlashMs.toFixed(1)}ms after the last scroll event`);
+          }
+          if (!observedFlashTiming.targetVisibleAtFlash) {
+            await shot('FAIL-cp5-flash-offscreen.png');
+            fail(`CP5.3: "${chipTarget}" was not visible when its flash started`);
+          }
+          note('OK CP5.3: Flash starts after scroll settlement with the target visible');
+
+          await page.waitForTimeout(1500);
+          const flashRemoved = await page.evaluate((targetId: string) => {
+            const card = document.querySelector(`.dict-grid-card[data-entity-id="${targetId}"]`);
+            return !(card?.classList.contains('dict-grid-card--flash') ?? true);
+          }, chipTarget);
+          if (!flashRemoved) {
+            await shot('FAIL-cp5-flash-not-removed.png');
+            fail(`CP5.3: .dict-grid-card--flash not removed after animation on "${chipTarget}"`);
+          }
+          note('OK CP5.3: Flash class removed on animationend');
+          await shot('30-cp5-flash-cleared.png');
         } else {
-          note('CP5.3: Target back on-screen after scroll — flash assertion covered by first click');
+          note('CP5.3: Target remained on-screen at both scroll extremes — settlement assertion skipped');
         }
       }
     } else {
