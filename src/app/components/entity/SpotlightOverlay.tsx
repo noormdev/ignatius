@@ -485,6 +485,97 @@ export function SpotlightOverlay({
 
   useEffect(() => {
     const NS = 'http://www.w3.org/2000/svg';
+    const SCROLL_SETTLE_MS = 100;
+    const SCROLL_SETTLE_TIMEOUT_MS = 5_000;
+    const FLASH_CLASS = 'dict-grid-card--flash';
+    let scrollSettleRaf: number | null = null;
+    let flashingCard: HTMLElement | null = null;
+    let flashEndHandler: ((event: AnimationEvent) => void) | null = null;
+
+    function clearActiveFlash() {
+      if (flashingCard !== null) {
+        if (flashEndHandler !== null) {
+          flashingCard.removeEventListener('animationend', flashEndHandler);
+        }
+        flashingCard.classList.remove(FLASH_CLASS);
+      }
+      flashingCard = null;
+      flashEndHandler = null;
+    }
+
+    function cancelPendingFlash() {
+      if (scrollSettleRaf !== null) {
+        cancelAnimationFrame(scrollSettleRaf);
+        scrollSettleRaf = null;
+      }
+    }
+
+    function flashCard(targetCard: HTMLElement) {
+      clearActiveFlash();
+      flashingCard = targetCard;
+      flashEndHandler = () => {
+        targetCard.classList.remove(FLASH_CLASS);
+        if (flashingCard === targetCard) {
+          flashingCard = null;
+          flashEndHandler = null;
+        }
+      };
+
+      targetCard.classList.add(FLASH_CLASS);
+      targetCard.addEventListener('animationend', flashEndHandler, { once: true });
+    }
+
+    function scrollToCardAndFlash(targetCard: HTMLElement, scrollport: HTMLElement) {
+      cancelPendingFlash();
+      clearActiveFlash();
+
+      const startedAt = performance.now();
+      let lastMovementAt = startedAt;
+      let previousScrollLeft = scrollport.scrollLeft;
+      let previousScrollTop = scrollport.scrollTop;
+
+      const scrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth';
+      targetCard.scrollIntoView({ behavior: scrollBehavior, block: 'center' });
+
+      function waitForScrollToSettle(now: number) {
+        const currentScrollLeft = scrollport.scrollLeft;
+        const currentScrollTop = scrollport.scrollTop;
+        if (
+          currentScrollLeft !== previousScrollLeft
+          || currentScrollTop !== previousScrollTop
+        ) {
+          previousScrollLeft = currentScrollLeft;
+          previousScrollTop = currentScrollTop;
+          lastMovementAt = now;
+        }
+
+        const targetRect = targetCard.getBoundingClientRect();
+        const scrollportRect = scrollport.getBoundingClientRect();
+        const targetIsVisible =
+          targetRect.bottom >= scrollportRect.top
+          && targetRect.top <= scrollportRect.bottom
+          && targetRect.right >= scrollportRect.left
+          && targetRect.left <= scrollportRect.right;
+
+        if (targetIsVisible && now - lastMovementAt >= SCROLL_SETTLE_MS) {
+          scrollSettleRaf = null;
+          flashCard(targetCard);
+          return;
+        }
+
+        if (now - startedAt >= SCROLL_SETTLE_TIMEOUT_MS) {
+          scrollSettleRaf = null;
+          return;
+        }
+
+        scrollSettleRaf = requestAnimationFrame(waitForScrollToSettle);
+      }
+
+      scrollSettleRaf = requestAnimationFrame(waitForScrollToSettle);
+    }
+
 
     function renderPredicatePill(
       svg: SVGSVGElement,
@@ -749,11 +840,9 @@ export function SpotlightOverlay({
           e.stopPropagation();
           const targetCard = resolveOtherCard(targetId);
           if (targetCard === null) return;
-          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          targetCard.classList.add('dict-grid-card--flash');
-          targetCard.addEventListener('animationend', () => {
-            targetCard.classList.remove('dict-grid-card--flash');
-          }, { once: true });
+          const scrollport = document.querySelector<HTMLElement>('[data-ignatius="dict-view"]');
+          if (scrollport === null) return;
+          scrollToCardAndFlash(targetCard, scrollport);
         });
 
         container.appendChild(btn);
@@ -1073,6 +1162,8 @@ export function SpotlightOverlay({
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      cancelPendingFlash();
+      clearActiveFlash();
     };
   }, [activeId, connections, flowConnections, inheritedConnections, labelHoverCardId, gridContainerRef]);
 

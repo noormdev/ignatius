@@ -12,7 +12,7 @@ In the browse lens:
 
 - Each entity renders as a compact card (name, classification badge, group accent, PK, column count) on a responsive CSS grid, grouped under the existing group headers.
 - Hovering a card spotlights it: all unconnected cards dim; SVG leader lines are drawn from the card to every *connected, on-screen* card, labeled with the relationship predicate and cardinality, with direction encoded by arrowhead and color.
-- Connections to *off-screen* cards render as chips on the spotlighted card ("↓ Invoice · bills") that scroll to and flash the target.
+- Connections to *off-screen* cards render as chips on the spotlighted card ("↓ Invoice · bills") that smoothly scroll to the target, then flash it only after the scroll settles so the attention cue is visible.
 - Clicking a card pins the spotlight (survives mouse-out); Esc or clicking empty grid releases it.
 
 The predicates are the payoff: a spotlit `Party` literally reads as business sentences radiating outward — `makes →` to `Payment`, `← is owned by` from `Account`. This is the project's predicate philosophy made visible (predicates encode business language, not ORM verbs).
