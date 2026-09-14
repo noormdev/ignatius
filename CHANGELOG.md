@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.2](https://github.com/noormdev/ignatius/compare/v0.20.1...v0.20.2) (2026-09-14)
+
+
+### Bug Fixes
+
+* **dict:** flash relationship after scroll settles ([304e71f](https://github.com/noormdev/ignatius/commit/304e71f53489e0139d3bda71c98280ca65c3d577))
+* preserve store kind identity in flow stacks ([#44](https://github.com/noormdev/ignatius/issues/44)) ([50449fd](https://github.com/noormdev/ignatius/commit/50449fd22168b6f2820da67e65819d95413ff280))
+
 ## [0.20.1](https://github.com/noormdev/ignatius/compare/v0.20.0...v0.20.1) (2026-09-09)
 
 
