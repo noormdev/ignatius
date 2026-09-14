@@ -2740,15 +2740,18 @@ a.dict-link-missing:hover {
   text-overflow: ellipsis;
 }
 
-/* Flash animation — added by chip click, removed on animationend. */
+/* Three attention pulses over two seconds; added after scrolling settles. */
 @keyframes spotlight-flash {
-  0%   { box-shadow: 0 0 0 3px var(--spotlight-line-out, #f59e0b), 0 0 12px 4px var(--spotlight-line-out, #f59e0b); }
-  60%  { box-shadow: 0 0 0 3px var(--spotlight-line-out, #f59e0b), 0 0 12px 4px var(--spotlight-line-out, #f59e0b); }
-  100% { box-shadow: none; }
+  0%, 100% { box-shadow: none; }
+  35% {
+    box-shadow:
+      0 0 0 3px var(--spotlight-line-out, #f59e0b),
+      0 0 12px 4px var(--spotlight-line-out, #f59e0b);
+  }
 }
 
 .dict-grid-card--flash {
-  animation: spotlight-flash 1.2s ease-out forwards;
+  animation: spotlight-flash 666.667ms ease-in-out 3 forwards;
 }
 
 /* ── Focus / isolate mode (CP15) ─────────────────────────────────────────── */

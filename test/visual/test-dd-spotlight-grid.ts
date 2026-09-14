@@ -1856,14 +1856,14 @@ try {
           }
           note('OK CP5.3: Flash starts after scroll settlement with the target visible');
 
-          await page.waitForTimeout(1500);
+          await page.waitForTimeout(2300);
           const flashRemoved = await page.evaluate((targetId: string) => {
             const card = document.querySelector(`.dict-grid-card[data-entity-id="${targetId}"]`);
             return !(card?.classList.contains('dict-grid-card--flash') ?? true);
           }, chipTarget);
           if (!flashRemoved) {
             await shot('FAIL-cp5-flash-not-removed.png');
-            fail(`CP5.3: .dict-grid-card--flash not removed after animation on "${chipTarget}"`);
+            fail(`CP5.3: .dict-grid-card--flash not removed after its two-second animation on "${chipTarget}"`);
           }
           note('OK CP5.3: Flash class removed on animationend');
           await shot('30-cp5-flash-cleared.png');

@@ -120,7 +120,7 @@ The grid is ordered by group then alphabetically, not by connectivity, so a node
 
 ### Off-screen chips
 
-- Rendered on the active card: one chip per off-screen connection, `<arrow> <Name> · <label>` where the arrow glyph is ↑/↓ by target position. FK connections use the predicate (`fwd`/`rev`, `fwd ⇄ rev` for a both-bundle); flow connections use the data payload. Click smoothly scrolls the target card into view (`scrollIntoView`, block center), using instant scrolling when the user prefers reduced motion. The temporary flash class is added only after the dictionary scroll position has settled and the target intersects the scrollport, then removed on `animationend` (~1.2s). A newer chip click cancels any pending or active flash from the previous navigation.
+- Rendered on the active card: one chip per off-screen connection, `<arrow> <Name> · <label>` where the arrow glyph is ↑/↓ by target position. FK connections use the predicate (`fwd`/`rev`, `fwd ⇄ rev` for a both-bundle); flow connections use the data payload. Click smoothly scrolls the target card into view (`scrollIntoView`, block center), using instant scrolling when the user prefers reduced motion. The temporary flash class is added only after the dictionary scroll position has settled and the target intersects the scrollport. It pulses three times over two seconds, then is removed on `animationend`. A newer chip click cancels any pending or active flash from the previous navigation.
 - Chips do not change card layout of *other* cards (no grid reflow on hover); they overlay or extend only the active card.
 
 ### CSS — `src/app/styles.css`
