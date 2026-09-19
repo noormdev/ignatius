@@ -4,13 +4,15 @@ paths:
   - "src/router/**"
 ---
 
-Domain: router. Generates per-folder `index.md` routers with rolled-up SHA-256 digests, in-folder agent guidance (`AGENTS.md`, `CLAUDE.md` shim, `SKILL.md`), and a position-based `<ignatius-*>` region parser; backs `ignatius index` and `validate --index`
+Domain: router. Generates per-folder `index.md` routers with rolled-up SHA-256 digests, in-folder agent guidance (`AGENTS.md`, `CLAUDE.md` shim, `SKILL.md`), and a position-based `<ignatius-*>` region parser; a flow folder's own `description:` now folds into its parent row's digest; backs `ignatius index` and `validate --index`
 
 Map:
   - docs/wiki/router.md
 Contracts:
+  - docs/spec/large-model-nav.md
   - docs/spec/model-index-routing.md
 Designs:
+  - docs/design/large-model-nav.md
   - docs/design/model-index-routing.md
 
 Consult the map before changing behavior here. Behavior changes stale the pages above. Renames or removals stale mentions beyond them: grep the old name across docs/ before shipping.

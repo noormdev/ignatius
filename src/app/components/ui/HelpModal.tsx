@@ -65,7 +65,9 @@ const FLOW_SYMBOLS: Row[] = [
 ];
 
 const FLOW_EXPLORE: Row[] = [
-  { term: 'Levels & drill-down', desc: 'Numbered processes decompose — click one to drill into its sub-diagram; breadcrumbs walk back up. The context and overview levels are derived automatically.' },
+  { term: 'Levels & drill-down', desc: 'Numbered processes decompose — click one to drill into its sub-diagram; breadcrumbs walk back up, and the house button returns to the overview of every flow.' },
+  { term: 'Flow index', desc: 'Click Process Flows (or press I) for the whole process hierarchy; hover a row to read its description, click it to open that diagram.' },
+  { term: 'Switch levels', desc: 'A ▾ on a breadcrumb lists the other diagrams at that level, with descriptions — pick one to jump sideways.' },
   { term: 'Inspect', desc: 'Hover a connector to see the exact data items it carries; the ⓘ badge on any node opens its details (a db: store opens the full entity).' },
   { term: 'Search', desc: 'Type to find matches across every diagram, including sub-DFDs — flip Include descriptions to also match markdown text; results list by diagram, click one to navigate there. Non-matches dim in the diagram.' },
 ];
@@ -74,6 +76,7 @@ function shortcutRows(view: ViewName): Row[] {
   const rows: Row[] = [{ term: 'G · D · F', desc: 'Switch between Graph, Dictionary, and Flows.' }];
   if (view === 'graph') rows.push({ term: 'L', desc: 'Toggle the graph layout (Organic / Hierarchical).' });
   if (view === 'dict') rows.push({ term: 'B', desc: 'Toggle the dictionary lens (Read / Browse).' });
+  if (view === 'flow') rows.push({ term: 'I', desc: 'Open or close the flow index.' });
   if (view === 'graph' || view === 'dict') {
     rows.push({ term: 'Shift + hover', desc: 'Reveal key-inheritance lineage.' });
   }

@@ -195,6 +195,13 @@ function deepEqual(a: unknown, b: unknown): boolean {
   assert(parsed.dfd === 'order-to-cash', "dfd encode/decode: 'order-to-cash' round-trips exactly");
 }
 
+{
+  // A sub-DFD reference is an id path; the slash stays readable in the URL.
+  const encoded = serializeHash({ view: 'flow', dfd: 'invoicing/Submit PCI' });
+  assert(encoded.includes('dfd=invoicing/Submit%20PCI'), `dfd path keeps '/' readable (got ${encoded})`);
+  assert(parseHash('#' + encoded).dfd === 'invoicing/Submit PCI', "dfd path 'invoicing/Submit PCI' round-trips exactly");
+}
+
 // --- flowview + collapse fields (docs/spec/dfd-store-clusters.md) ---
 
 {

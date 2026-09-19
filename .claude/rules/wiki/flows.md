@@ -4,7 +4,7 @@ paths:
   - "src/flows/**"
 ---
 
-Domain: flows. SSADM data flow diagrams: `parseFlows` (recursive sub-DFDs + canonical Yourdon leveling via `deriveLevels`), `flow-clusters.ts` `cluster:` token expansion from `clusters/<slug>.md` author files, `validateFlows` (17 `flow.*` rules), `buildFlowLayoutKeys`, usage indexing; role-split node model
+Domain: flows. SSADM data flow diagrams: `parseFlows` (recursive sub-DFDs + canonical Yourdon leveling via `deriveLevels`, now also reading a folder's own `description:` off `index.md`), `flow-clusters.ts` `cluster:` token expansion from `clusters/<slug>.md` author files, `validateFlows` (17 `flow.*` rules), `buildFlowLayoutKeys`, usage indexing; role-split node model
 
 Map:
   - docs/wiki/flows.md
@@ -13,12 +13,14 @@ Contracts:
   - docs/spec/dfd-overhaul.md
   - docs/spec/dfd-store-clusters.md
   - docs/spec/folder-model.md
+  - docs/spec/large-model-nav.md
   - docs/spec/process-flows.md
 Designs:
   - docs/design/dfd-nesting-depth.md
   - docs/design/dfd-overhaul.md
   - docs/design/dfd-store-clusters.md
   - docs/design/folder-model.md
+  - docs/design/large-model-nav.md
   - docs/design/process-flows.md
 Guides:
   - docs/guides/flows.md

@@ -101,6 +101,8 @@ A new entity here carries `party_id` as its first PK column.
 
 That is what makes the router files safe to hand-edit: add a rules block once, and `ignatius index` never touches it. A file with no region gets one appended; a missing file is created. Running `ignatius index` twice over an unchanged model produces byte-identical output.
 
+A flow diagram folder's router is also where the folder describes itself: `description:` frontmatter at the top of `flows/<diagram>/index.md` fills that folder's row in `flows/index.md` and is shown by the app's flow index and breadcrumb menus (see [Describing a diagram](flows.md#describing-a-diagram)). The row's hash folds the description in when there is one, so rewording it marks the parent router stale; a folder without a description keeps the plain folder digest.
+
 One constraint follows from how the generator finds its regions: **a line that starts with `<ignatius-` is always a region boundary**, and column-0 boundaries must pair open and close by name. Anywhere else on a line, the tag is text. To mention a tag inside a hand-authored `<ignatius-rules>` block, keep it off column 0: inline code, an indented line, or `&lt;ignatius-index&gt;`. A nested opener, an orphan or mismatched closer, an unclosed opener, or a duplicate region makes `ignatius index` refuse the file and name the line and the fix.
 
 `ignatius validate --index <model-root>` recomputes every digest and reports drift as `index.stale`, writing nothing — the CI gate for "routers match the files on disk". `index.orphaned` warns when a router file left over from a previous `index_file` value is still on disk. A plain `ignatius validate` never pays this hashing cost; `--index` is opt-in.

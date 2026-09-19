@@ -1,3 +1,7 @@
+---
+description: Planning milestones and tasks, wiring task dependencies, tracking progress, and closing milestones.
+---
+
 <ignatius-breadcrumb>
 
 ↑ [Flows](../index.md) · [LLM Memory DB (MSSQL)](../../index.md)

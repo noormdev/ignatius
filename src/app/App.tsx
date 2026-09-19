@@ -36,6 +36,7 @@ import { useModelData } from './hooks/useModelData';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useThemeMode } from './hooks/useThemeMode';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { scrollBehaviorWithin } from './logic/motion';
 
 export function App() {
   const graphRef = useRef<HTMLDivElement>(null);
@@ -239,7 +240,7 @@ export function App() {
     // before we query the element (keep-mounted dict uses display:none visibility).
     requestAnimationFrame(() => {
       const el = document.getElementById(`process-${processId}`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
     });
   }, [view]);
 
@@ -351,6 +352,7 @@ export function App() {
     onView: setView,
     onToggleLayout: handleToggleLayoutMode,
     onToggleLens: () => dictViewRef.current?.toggleLens(),
+    onFlowIndex: () => flowsViewRef.current?.toggleIndex(),
     onZoomIn: handleKeyboardZoomIn,
     onZoomOut: handleKeyboardZoomOut,
     onZoomReset: handleKeyboardZoomReset,

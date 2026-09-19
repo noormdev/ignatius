@@ -17,6 +17,7 @@ import { resolveBodyClick, upgradeMissingLinksInContainer } from '../../dom/body
 import { buildSpotlightConnections } from '../../logic/spotlight';
 import { buildFlowSpotlightConnections } from '../../logic/flow-spotlight';
 import { buildInheritedConnections } from '../../logic/spotlight-inherited';
+import { animationsAllowed, createHoverIntent, scrollBehaviorWithin } from '../../logic/motion';
 import { buildFlowDocResolver } from '../../logic/doc-resolver';
 import type { FlowDocResult } from '../../logic/doc-resolver';
 import { SpotlightOverlay } from '../../components/entity/SpotlightOverlay';
@@ -120,7 +121,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     try {
       localStorage.setItem(LENS_STORAGE_KEY, next);
     } catch {}
-    setHoverId(null);
+    cardHover.applyNow(null);
     setPinnedId(null);
     setLabelHoverCardId(null);
     setFocusId(null);
@@ -252,21 +253,21 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   const spotlitIdsRef = useRef<ReadonlySet<string>>(new Set());
   const activeIdRef = useRef<string | null>(null);
 
+  // A card's hover applies once the pointer settles on it (motion.ts), so
+  // sweeping across the grid never re-spotlights it card by card.
+  const cardHover = useMemo(() => createHoverIntent(id => {
+    // Only a lit card other than the active one reveals its label.
+    const active = activeIdRef.current;
+    const revealsLabel = id !== null && active !== null && id !== active && spotlitIdsRef.current.has(id);
+    setHoverId(id);
+    setLabelHoverCardId(revealsLabel ? id : null);
+  }), []);
+  useEffect(() => () => cardHover.cancel(), [cardHover]);
+
   // Card interaction callbacks — stable via useCallback so GridCard doesn't rerender
   // on every spotlight state change (cards without dim/spotlit class stay static).
-  const handleCardMouseEnter = useCallback((id: string) => {
-    setHoverId(id);
-    // CP14: If a spotlight is active and this card is a connected (lit) card
-    // (but not the active card itself), reveal its label by tracking it as labelHoverCardId.
-    const active = activeIdRef.current;
-    if (active !== null && id !== active && spotlitIdsRef.current.has(id)) {
-      setLabelHoverCardId(id);
-    }
-  }, []);
-  const handleCardMouseLeave = useCallback((_id: string) => {
-    setHoverId(null);
-    setLabelHoverCardId(null);
-  }, []);
+  const handleCardMouseEnter = useCallback((id: string) => cardHover.set(id), [cardHover]);
+  const handleCardMouseLeave = useCallback((_id: string) => cardHover.set(null), [cardHover]);
   const handleCardClick = useCallback((id: string) => {
     setPinnedId(prev => {
       const next = prev === id ? null : id;
@@ -430,7 +431,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   // Scroll-to-anchor navigation (anchor links within the dict panel).
   function scrollToEntity(entityId: string) {
     const el = document.getElementById(`entity-${entityId}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
   }
 
   // Generalized scroll: resolves the correct DD section anchor regardless of
@@ -442,7 +443,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     for (const prefix of prefixes) {
       const el = document.getElementById(`${prefix}-${id}`);
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
         return;
       }
     }
@@ -450,7 +451,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
 
   function scrollToMissing(id: string) {
     const el = document.getElementById(`missing-${id}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
   }
 
   // Delegates to the shared module-level resolveBodyClick with the local scrollToSection.
@@ -815,7 +816,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
 
   function scrollToProcess(processId: string) {
     const el = document.getElementById(`process-${processId}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
   }
 
   // Build side-nav subtypeIds per-group for indent styling.
@@ -948,7 +949,11 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
       </div>
 
       {/* Main dict content */}
-      <div className="dict-view" data-ignatius="dict-view">
+      <div
+        className="dict-view"
+        data-ignatius="dict-view"
+        data-motion={animationsAllowed(totalVisible + totalFlowVisible) ? undefined : 'off'}
+      >
         <div className="dict-view-inner">
 
         {/* Reader legend — read lens only; not meaningful in browse/grid view */}

@@ -19,6 +19,7 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODELS = join(ROOT, 'models', 'key-inherited');
@@ -53,11 +54,17 @@ try {
   note('Saved tmp/lineage-before.png');
 
   // Hover License; report fade state of each node on the lineage chain.
-  const state = await page.evaluate(() => {
+  const licenseFound = await page.evaluate(() => {
     const cy = window.__IGNATIUS_CY__!;
     const license = cy.$id('License');
-    if (license.empty()) return null;
+    if (license.empty()) return false;
     license.emit('mouseover');
+    return true;
+  });
+  // Hover focus applies only once the pointer rests on the target (motion.ts).
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
+  const state = licenseFound ? await page.evaluate(() => {
+    const cy = window.__IGNATIUS_CY__!;
     const faded = (id: string) => {
       const n = cy.$id(id);
       return n.empty() ? null : n.hasClass('faded');
@@ -68,9 +75,8 @@ try {
       Party: faded('Party'),
       PartyType: faded('PartyType'),
     };
-  });
+  }) : null;
 
-  await page.waitForTimeout(300);
   await page.screenshot({ path: join(TMP, 'lineage-after.png') });
   note(`Saved tmp/lineage-after.png — fade map: ${JSON.stringify(state)}`);
 
@@ -85,10 +91,13 @@ try {
     if (ok) note('Lineage lit License→Identity→Party; stopped at referential PartyType.');
   }
 
+  await page.evaluate(() => {
+    window.__IGNATIUS_CY__!.$id('License').emit('mouseout');
+  });
+  // Leaving clears the fade only after the same settle delay.
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
   const restored = await page.evaluate(() => {
-    const cy = window.__IGNATIUS_CY__!;
-    cy.$id('License').emit('mouseout');
-    return cy.elements().filter((e: CyEle) => e.hasClass('faded')).length;
+    return window.__IGNATIUS_CY__!.elements().filter((e: CyEle) => e.hasClass('faded')).length;
   });
   if (restored !== 0) fail(`${restored} elements still faded after mouseout`);
   else note('all elements restored on mouseout');

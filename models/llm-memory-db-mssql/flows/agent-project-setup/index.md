@@ -1,3 +1,7 @@
+---
+description: Registering and retiring agents, and the projects they work in.
+---
+
 <ignatius-breadcrumb>
 
 ↑ [Flows](../index.md) · [LLM Memory DB (MSSQL)](../../index.md)

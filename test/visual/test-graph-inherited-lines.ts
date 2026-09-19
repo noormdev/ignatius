@@ -21,6 +21,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'graph-inherited-lines');
@@ -68,20 +69,27 @@ async function shot(name: string): Promise<void> {
 // synthetic 'mouseover' carries `originalEvent.shiftKey` — exactly what the
 // GraphView handler reads. The node is LEFT hovered (no mouseout) so the rays +
 // 3-tier opacity persist for the screenshot and the tier readout.
-async function selectAndFrame(id: string): Promise<number> {
-  return await page.evaluate((nodeId: string) => {
+async function selectAndFrame(id: string): Promise<string[]> {
+  await page.evaluate((nodeId: string) => {
     const cy = window.__IGNATIUS_CY__;
-    if (!cy) return -1;
+    if (!cy) return;
     const node = cy.$(`#${nodeId}`);
-    if (node.empty()) return -1;
+    if (node.empty()) return;
     cy.elements().unselect();
     node.select();
     node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: true } });
+  }, id);
+  // The dotted inherited rays draw only once the hover settles (motion.ts).
+  await Bun.sleep(HOVER_INTENT_MS + 100);
+  return await page.evaluate((nodeId: string) => {
+    const cy = window.__IGNATIUS_CY__;
+    if (!cy) return [] as string[];
+    const node = cy.$(`#${nodeId}`);
+    if (node.empty()) return [] as string[];
     const inherited = cy.edges('.inherited');
     // Fit the hovered node + its inherited targets into view.
-    const targets = node.union(inherited.connectedNodes());
-    cy.fit(targets, 80);
-    return inherited.length;
+    cy.fit(node.union(inherited.connectedNodes()), 80);
+    return inherited.map((e: { target(): { id(): string } }) => e.target().id());
   }, id);
 }
 
@@ -171,7 +179,7 @@ try {
 
   await shot('00-graph-initial.png');
 
-  const identityCount = await selectAndFrame('Identity');
+  const identityCount = (await selectAndFrame('Identity')).length;
   await Bun.sleep(500);
   await shot('01-identity-selected.png');
   note(`Identity inherited dotted lines: ${identityCount}`);
@@ -214,7 +222,7 @@ try {
       : 'missing tier',
   );
 
-  const itinCount = await selectAndFrame('ITIN');
+  const itinCount = (await selectAndFrame('ITIN')).length;
   await Bun.sleep(500);
   await shot('02-itin-selected-transitive.png');
   note(`ITIN inherited dotted lines (transitive): ${itinCount}`);
@@ -239,18 +247,7 @@ try {
 
   // ── Corrected-lineage owner cases (pk-lineage-fix) ───────────────────────
   // SSN now reaches the whole party-keyed sales family (party_id key chain).
-  const ssnTargets = await page.evaluate((nodeId: string) => {
-    const cy = window.__IGNATIUS_CY__;
-    if (!cy) return [] as string[];
-    const node = cy.$(`#${nodeId}`);
-    if (node.empty()) return [] as string[];
-    cy.elements().unselect();
-    node.select();
-    node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: true } });
-    const inherited = cy.edges('.inherited');
-    cy.fit(node.union(inherited.connectedNodes()), 80);
-    return inherited.map((e: { target(): { id(): string } }) => e.target().id());
-  }, 'SSN');
+  const ssnTargets = await selectAndFrame('SSN');
   await Bun.sleep(500);
   await shot('04-ssn-selected.png');
   note(`SSN inherited dotted lines (${ssnTargets.length}): ${ssnTargets.join(', ')}`);
@@ -263,18 +260,7 @@ try {
   }
 
   // SI_Line no longer over-connects to Product / Subscription / LineItemType.
-  const siLineTargets = await page.evaluate((nodeId: string) => {
-    const cy = window.__IGNATIUS_CY__;
-    if (!cy) return [] as string[];
-    const node = cy.$(`#${nodeId}`);
-    if (node.empty()) return [] as string[];
-    cy.elements().unselect();
-    node.select();
-    node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: true } });
-    const inherited = cy.edges('.inherited');
-    cy.fit(node.union(inherited.connectedNodes()), 80);
-    return inherited.map((e: { target(): { id(): string } }) => e.target().id());
-  }, 'SI_Line');
+  const siLineTargets = await selectAndFrame('SI_Line');
   await Bun.sleep(500);
   await shot('05-si-line-selected.png');
   note(`SI_Line inherited dotted lines (${siLineTargets.length}): ${siLineTargets.join(', ')}`);

@@ -115,6 +115,10 @@ export type FlowDiagram = {
     /** Human-readable display title. Derived from titlelize(id) at parse time.
      *  Always use this for display; keep `id` for routing/lookup. */
     title: string;
+    /** `description:` from the frontmatter of the diagram folder's index file
+     *  (`flows/<dfd>/index.md`). Absent when the author wrote none; a sub-DFD's
+     *  owning process `description:` is the display fallback, not copied here. */
+    description?: string;
     processes: FlowProcess[];
     externals: FlowExternal[];
     storeRefs: FlowStoreRef[];
@@ -474,6 +478,39 @@ async function readExternalsDir(
 }
 
 // ---------------------------------------------------------------------------
+// Diagram description (folder index file frontmatter)
+// ---------------------------------------------------------------------------
+
+/**
+ * The index file doubles as the generated router (`ignatius index`), which
+ * owns only its `<ignatius-*>` regions — a hand-authored frontmatter block
+ * above them survives regeneration, so it is where a folder describes itself.
+ * A router-only file has no frontmatter and yields no description.
+ */
+async function readDiagramDescription(
+    folderPath: string,
+    indexFileName: string,
+    globalErrors: GlobalError[],
+): Promise<string | undefined> {
+    const indexPath = `${folderPath}/${indexFileName}`;
+    const file = Bun.file(indexPath);
+    if (!(await file.exists())) return undefined;
+    const content = await file.text();
+    if (!content.startsWith('---\n')) return undefined;
+    try {
+        return normalizedLabel(parseFrontmatter(content).frontmatter['description']);
+    } catch (err) {
+        globalErrors.push({
+            ruleId: 'parse.invalid_yaml',
+            severity: 'error',
+            omitted: { kind: 'file', id: indexPath },
+            reason: `Cannot parse "${indexPath}": ${err instanceof Error ? err.message : String(err)}`,
+        });
+        return undefined;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Parse a single DFD folder (recursive)
 // ---------------------------------------------------------------------------
 
@@ -697,9 +734,12 @@ async function parseDiagramFolder(
     // Build deduplicated store refs from all collected edges using the shared root store registry
     const storeRefs = collectStoreRefsFromEdges(allEdges, flowId, rootStoreBodyByKindName);
 
+    const description = await readDiagramDescription(folderPath, indexFileName, globalErrors);
+
     return {
         id: diagramId,
         title: titlelize(diagramId),
+        ...(description !== undefined ? { description } : {}),
         processes,
         externals,
         storeRefs,

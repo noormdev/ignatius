@@ -24,7 +24,7 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 - [x] `HelpModal` (`src/app/components/ui/HelpModal.tsx`) renders on the shared `Modal` primitive with `className="help-modal"`, switches body content on `view: ViewName`, and titles per view ("About the Graph/Dictionary/Flows").
 - [x] Graph body covers: an ER-diagram intro, the five entity types (Independent, Dependent, Subtype, Associative, Classifier), how-to-explore (layouts, Shift+hover lineage, click/drag/zoom, search — term matching with a body-text toggle, Enter cycling through matches), and the key-inherited vs surrogate distinction.
 - [x] Dictionary body covers: Read/Browse lenses, spotlight, Shift+hover lineage, search/focus.
-- [x] Flows body covers: a DFD intro, symbols (process/store/external), drill-down + inspect, cross-diagram search (results grouped by diagram, non-matches dimmed in the rendered diagram).
+- [x] Flows body covers: a DFD intro, symbols (process/store/external), drill-down + inspect, the flow index (Process Flows chip or `I`), breadcrumb level switching (▾), cross-diagram search (results grouped by diagram, non-matches dimmed in the rendered diagram).
 - [x] A Keyboard section is present on every view and tailored to it (only the keys active there), including `/` to focus that view's search input; Graph and Flows footnote a pointer to the Legend.
 - [x] A `?` top-bar button sits just left of the theme toggle (shared chrome, all views), opens the overlay, and is hidden in `@media print`.
 - [x] `resolveShortcut` returns `{ type: 'help' }` for `?`: resolved after the editable guard, before the bare-key modifier guard (Shift is inherent), and gated off ctrl/meta/alt. `useKeyboardShortcuts` carries an `onHelp` callback; the shell opens the overlay.
@@ -62,3 +62,9 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 **What changed:** the Graph and Flows Keyboard sections gained a `← ↑ ↓ →` row ("Scroll the canvas; hold Shift to scroll faster"), added inside the existing graph/flow-only block next to the zoom chord row.
 
 **Why:** arrow-key canvas panning shipped in the shortcut resolver (`docs/spec/keyboard-nav-shortcuts.md`, 2026-07-14 arrow-key entry); the overlay lists the keys that work on each view.
+
+### 2026-09-18 — Flow index and level switching rows
+
+**What changed:** the Flows "How to explore" section gained a Flow index row (Process Flows chip or `I`, hover for descriptions, click to open) and a Switch levels row (the breadcrumb ▾ lists the other diagrams at that level). The Flows Keyboard section lists `I`.
+
+**Why:** the flow index and breadcrumb level menus shipped (`docs/spec/large-model-nav.md`); the overlay lists what a first-time viewer can do and the keys that work on each view.

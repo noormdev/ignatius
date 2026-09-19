@@ -35,6 +35,7 @@ import type { PositionMap } from './layout-store';
 import { parseHash, serializeHash } from '../../hash-router';
 import type { HashState, ViewName } from '../../hash-router';
 import { buildInheritedConnections } from '../../logic/spotlight-inherited';
+import { createHoverIntent } from '../../logic/motion';
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../../../model/parse';
 import type { EntityError, GlobalError } from '../../../model/validate';
 import type { ModelIndex } from '../../../model/model-index';
@@ -1044,9 +1045,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         clearInheritedEdges();
         clearFocusTiers();
         lineageActiveRef.current = false;
-        // Restore the plain-hover fade if still hovering a node (no shift), else
-        // fall back to the selected node's tiers, else clear to normal.
-        const hoveredId = hoveredNodeIdRef.current;
+        // Restore the plain-hover fade for the node whose hover is showing (no
+        // shift), else fall back to the selected node's tiers, else clear.
+        const hoveredId = graphHover.applied();
         if (hoveredId !== null) {
           const hovered = cy.$(`#${CSS.escape(hoveredId)}`);
           if (hovered.nonempty()) {
@@ -1064,6 +1065,53 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
       enterLineageHoverRef.current = enterLineageHover;
       exitLineageHoverRef.current = exitLineageHover;
+
+      // ── Hover focus, applied once the pointer settles (motion.ts) ─────────
+      // hoveredNodeIdRef tracks the node under the pointer right now (Shift
+      // reads it); showHover renders the settled target: the node's reverse
+      // predicates plus its lineage (Shift held) or direct-neighbour fade, or,
+      // for null, the selected node's tiers or no fade at all.
+      let hoverShownId: string | null = null;
+      // Read when a hover settles, after the pointer event that started it is gone.
+      let shiftHeld = false;
+      function showHover(nodeId: string | null): void {
+        if (hoverShownId !== null) showPredicates(hoverShownId, 'fwd');
+        hoverShownId = nodeId;
+        if (lineageActiveRef.current) {
+          clearInheritedEdges();
+          clearFocusTiers();
+          lineageActiveRef.current = false;
+        }
+        const node = nodeId === null ? cy.collection() : cy.$(`#${CSS.escape(nodeId)}`);
+        if (nodeId !== null && node.nonempty()) {
+          showPredicates(nodeId, 'rev');
+          if (shiftHeld) enterLineageHover(nodeId);
+          else applyFocusTiers(node[0]);
+          return;
+        }
+        const selected = cy.nodes(':selected');
+        if (selected.nonempty()) {
+          applyFocusTiers(selected[0]);
+        } else {
+          clearFocusTiers();
+          redrawMarkers();
+        }
+      }
+      const graphHover = createHoverIntent(showHover);
+
+      // A hovered node's incoming edges read their reverse predicate ('rev');
+      // leaving restores every connected edge to the forward one ('fwd').
+      function showPredicates(nodeId: string, dir: 'fwd' | 'rev'): void {
+        const n = cy.$(`#${CSS.escape(nodeId)}`);
+        if (n.empty()) return;
+        n.connectedEdges().forEach((edge) => {
+          const verb = edge.data(dir === 'rev' ? 'predicateRev' : 'predicateFwd');
+          if (verb === undefined) return;
+          if (dir === 'rev' && edge.target().id() !== nodeId) return;
+          edge.data('predicateMode', dir);
+          edge.data('edgeLabel', applyArrow(edge, verb, dir));
+        });
+      }
 
       // Cytoscape applies tap-selection AFTER emitting 'tap', so unselecting
       // inside the tap handler is silently overridden on real pointer
@@ -1100,8 +1148,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // Shell's onSelectEntity is the single writer of entity= (pushes one
         // history entry). GraphView does not write entity= on tap. Lineage
         // (dotted inherited rays + 3-tier focus opacity) is a shift+hover
-        // affordance (see the mouseover handler below).
+        // affordance (see showHover).
         hoveredNodeIdRef.current = null;
+        graphHover.applyNow(null);
         clearInheritedEdges();
         clearFocusTiers();
         lineageActiveRef.current = false;
@@ -1212,15 +1261,20 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       // for the Shift key globally: pressing Shift over a hovered node enters
       // lineage mode; releasing Shift exits it. Both read live state from refs to
       // avoid stale closures. Listeners are removed in the cy-init cleanup.
+      // Pressing Shift is a deliberate request, so it skips the hover wait:
+      // a node still inside its settle window shows its lineage at once.
       function onShiftKeyDown(ev: KeyboardEvent) {
         if (ev.key !== 'Shift') return;
+        shiftHeld = true;
         if (lineageActiveRef.current) return; // already showing lineage
         const hoveredId = hoveredNodeIdRef.current;
         if (hoveredId === null) return; // not over a node
-        enterLineageHoverRef.current?.(hoveredId);
+        if (graphHover.applied() === hoveredId) enterLineageHoverRef.current?.(hoveredId);
+        else graphHover.applyNow(hoveredId);
       }
       function onShiftKeyUp(ev: KeyboardEvent) {
         if (ev.key !== 'Shift') return;
+        shiftHeld = false;
         if (!lineageActiveRef.current) return;
         exitLineageHoverRef.current?.();
       }
@@ -1317,59 +1371,15 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       }
 
       cy.on('mouseover', 'node', (evt) => {
-        const n = evt.target;
-        n.connectedEdges().forEach((edge) => {
-          const rev = edge.data('predicateRev');
-          if (rev === undefined) return;
-          if (edge.target().id() === n.id()) {
-            edge.data('predicateMode', 'rev');
-            edge.data('edgeLabel', applyArrow(edge, rev, 'rev'));
-          }
-        });
-        // Track the hovered node so the document-level Shift keydown/keyup
-        // listeners know which node to reveal lineage for.
-        hoveredNodeIdRef.current = n.id();
-
-        // Shift held → LINEAGE mode: draw the dotted inherited rays + apply the
-        // 3-tier focus opacity. No shift → plain direct-neighbour fade only (no
-        // rays are drawn, so applyFocusTiers degrades to the direct/unrelated
-        // two-tier fade — the pre-existing hover behaviour).
-        const shiftHeld = evt.originalEvent?.shiftKey === true;
-        if (shiftHeld) {
-          enterLineageHover(n.id());
-        } else {
-          applyFocusTiers(n);
-        }
+        const id = evt.target.id();
+        hoveredNodeIdRef.current = id;
+        shiftHeld = evt.originalEvent?.shiftKey === true;
+        graphHover.set(id);
       });
 
       cy.on('mouseout', 'node', (evt) => {
-        const n = evt.target;
-        n.connectedEdges().forEach((edge) => {
-          const fwd = edge.data('predicateFwd');
-          if (fwd === undefined) return;
-          edge.data('predicateMode', 'fwd');
-          edge.data('edgeLabel', applyArrow(edge, fwd, 'fwd'));
-        });
-        // Leaving the node clears the hovered id first so exitLineageHover does
-        // not try to re-apply a fade for a node we're no longer over.
-        if (hoveredNodeIdRef.current === n.id()) hoveredNodeIdRef.current = null;
-
-        // In lineage mode (shift+hover), exit: strip the rays + focus tiers.
-        if (lineageActiveRef.current) {
-          clearInheritedEdges();
-          clearFocusTiers();
-          lineageActiveRef.current = false;
-        }
-        // Fall back to the SELECTED node's tiers if one is selected (so leaving a
-        // hovered node doesn't kill the select-state hierarchy); otherwise clear
-        // back to normal (all full opacity).
-        const selected = cy.nodes(':selected');
-        if (selected.nonempty()) {
-          applyFocusTiers(selected[0]);
-        } else {
-          clearFocusTiers();
-          redrawMarkers();
-        }
+        if (hoveredNodeIdRef.current === evt.target.id()) hoveredNodeIdRef.current = null;
+        graphHover.set(null);
       });
 
       // Cytoscape only synthesises a node `mouseout` from mousemoves on its own
@@ -1380,17 +1390,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       // selection re-applies its tiers instead (the pin must survive).
       const onGraphMouseLeave = () => {
         hoveredNodeIdRef.current = null;
-        if (lineageActiveRef.current) {
-          clearInheritedEdges();
-          lineageActiveRef.current = false;
-        }
-        const selected = cy.nodes(':selected');
-        if (selected.nonempty()) {
-          applyFocusTiers(selected[0]);
-        } else {
-          clearFocusTiers();
-          redrawMarkers();
-        }
+        graphHover.set(null);
       };
       containerRef.current.addEventListener('mouseleave', onGraphMouseLeave);
 
@@ -1411,6 +1411,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         }
         if (writeTimer !== null) clearTimeout(writeTimer);
         if (saveTimer !== null) clearTimeout(saveTimer);
+        graphHover.cancel();
         window.removeEventListener('hashchange', onHashChange);
         wheelContainer?.removeEventListener('wheel', blockPageZoom);
         document.removeEventListener('keydown', onShiftKeyDown);

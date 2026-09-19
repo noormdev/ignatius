@@ -262,6 +262,7 @@ function deriveL1(
             bodyHtml: '',
             hasSubDfd: true,
             flowId: systemId,
+            ...(leaf.description !== undefined ? { description: leaf.description } : {}),
         };
 
         // Collect promoted-store edges for this leaf (activity ↔ promoted store)

@@ -1,3 +1,7 @@
+---
+description: Recording free-form notes against projects, milestones, and tasks, and retiring them.
+---
+
 <ignatius-breadcrumb>
 
 ↑ [Flows](../index.md) · [LLM Memory DB (MSSQL)](../../index.md)

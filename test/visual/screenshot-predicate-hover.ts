@@ -16,6 +16,7 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODELS = join(ROOT, 'models', 'key-inherited');
@@ -78,21 +79,28 @@ try {
   note('Saved tmp/predicate-before.png (forward labels)');
 
   // Hover: emit mouseover on the node — fires the delegated cy.on handler.
+  await page.evaluate((id: string) => {
+    window.__IGNATIUS_CY__!.$id(id).emit('mouseover');
+  }, target.id);
+  // Reverse predicates apply only once the pointer rests on the target (motion.ts).
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
   const after = await page.evaluate((id: string) => {
     const cy = window.__IGNATIUS_CY__!;
     const node = cy.$id(id);
-    node.emit('mouseover');
     return node.connectedEdges().map((e: CyEdge) => ({ id: e.id(), label: e.data('edgeLabel') }));
   }, target.id);
 
-  await page.waitForTimeout(500);
   await page.screenshot({ path: join(TMP, 'predicate-after.png') });
   note('Saved tmp/predicate-after.png (reverse labels on child-end edges)');
 
+  await page.evaluate((id: string) => {
+    window.__IGNATIUS_CY__!.$id(id).emit('mouseout');
+  }, target.id);
+  // Leaving restores the forward predicate only after the same settle delay.
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
   const restored = await page.evaluate((id: string) => {
     const cy = window.__IGNATIUS_CY__!;
     const node = cy.$id(id);
-    node.emit('mouseout');
     return node.connectedEdges().map((e: CyEdge) => ({ id: e.id(), label: e.data('edgeLabel') }));
   }, target.id);
 

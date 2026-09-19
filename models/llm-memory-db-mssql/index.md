@@ -1,4 +1,4 @@
-<ignatius-index scope="root" path="." count="5" depth="0" digest="sha256:daaeac611ff09e37b12a733a65f899e5932a1f234a8545033e122d3044aacf14">
+<ignatius-index scope="root" path="." count="5" depth="0" digest="sha256:981770bbbd9dd81e55ead2326b65398f4f39316b13aad7581699c80a301c1d1e">
 
 Reverse-engineered IDEF1X model of the llm-memory-db-mssql schema — an agent long-term memory store. Agents record memories, notes, milestones, tasks, and artifacts within projects; everything is taggable and every relevance/tracking change is journaled as an immutable state transition.
 

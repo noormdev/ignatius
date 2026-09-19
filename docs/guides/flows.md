@@ -22,6 +22,7 @@ models/
     gateway-log.md            # optional description of a non-entity store
   flows/
     order-to-cash/
+      index.md                # optional: `description:` of the whole diagram
       Create-Sales-Order.md   # process 1
       Create-Sales-Order/     # same-named folder = sub-DFD of process 1
         Validate-Customer.md
@@ -33,6 +34,19 @@ models/
 ```
 
 The file name (minus `.md`) is the process id used everywhere — in `proc:` tokens, in `[[wiki-links]]`, and as the sub-DFD folder name. Name it as an imperative phrase with hyphens for spaces: `Collect Payment` → `Collect-Payment.md`.
+
+### Describing a diagram
+
+
+A top-level diagram describes itself with `description:` frontmatter in its folder's index file, `flows/<diagram>/index.md`. The flow index, the breadcrumb level menus, and the generated router's folder row show it.
+
+```markdown
+---
+description: Order entry through invoicing and cash collection.
+---
+```
+
+The index file is also the router `ignatius index` writes (see [Generated routers](folder-format.md#generated-routers)). The generator rewrites only its `<ignatius-*>` regions, so the frontmatter above them survives every regeneration; create the file by hand if the model has no routers yet. A sub-DFD needs no index file: its owning process's `description:` describes it. The `Context` diagram and the whole-system `0` process use the model's `description:` from `ignatius.yml`.
 
 
 ## A process file
@@ -267,11 +281,26 @@ The Flows FAB menu carries three flow-specific controls: a view item labelled by
 ## Viewing flows
 
 
-`ignatius serve` shows flows in the **Flows** view (`#view=flow`); the active diagram is deep-linkable via the `dfd=` hash parameter and survives refresh, alongside `flowview=` and `collapse=` for the view and collapse-level settings above. `ignatius export` includes the Flows view in the same single HTML file. Every node carries a ⓘ badge: a `db:` store opens the rich entity dialog, everything else opens its markdown doc. The process dictionary — every process, external, and store with its body and IO tables — is fused into the **Dictionary** view, searchable alongside the entities.
+`ignatius serve` shows flows in the **Flows** view (`#view=flow`); the active diagram is deep-linkable via the `dfd=` hash parameter (a flow by its folder name, a sub-diagram by its path, e.g. `dfd=invoicing/Submit-PCI`) and survives refresh, alongside `flowview=` and `collapse=` for the view and collapse-level settings above. `ignatius export` includes the Flows view in the same single HTML file. Every node carries a ⓘ badge: a `db:` store opens the rich entity dialog, everything else opens its markdown doc. The process dictionary — every process, external, and store with its body and IO tables — is fused into the **Dictionary** view, searchable alongside the entities.
 
 `ignatius validate` checks flows whenever a `flows/` directory exists, with seventeen `flow.*` rules covering unknown references, column contracts, connection shape, numbering, decomposition balance, and cluster references. See [Validation and findings](validation.md#flow-rules) for the catalog. One rule is configurable: direct process-to-process flows warn by default and can be silenced with `flow_rules: { process_to_process: false }` in `ignatius.yml`.
 
 Hovering a data flow edge that carries data (the arrow between two nodes) reveals a styled tooltip listing the full data carried across it, under a `source → target` header. This includes the complete contents of `db:` column lists that are otherwise abbreviated on the canvas when they exceed the inline-label length limit. The tooltip is positioned fixed to the viewport and remains legible at any zoom level. Long data labels (more than 22 characters) show a truncated `…` preview on the canvas — the first ~22 characters followed by `…` — so you can always see at a glance which edges carry hidden data; the full contents are revealed on hover. An authored `label:` replaces this preview outright, on a plain edge and on a stack edge alike.
+
+### Finding a flow
+
+
+The Flows view opens on the `0 System` overview, one box per flow. Leveling derives that overview and the `Context` diagram above it; neither gets a breadcrumb. A house button between the **☰ Process Flows** chip and the first crumb returns to the overview from any depth, and shows as current while you are on it; Back from a top-level flow also returns there. The Context diagram (every external around one system box) opens by `#view=flow&dfd=__context__`.
+
+| Control | What it does |
+|---|---|
+| **☰ Process Flows** chip, or `i` | Opens the flow index: every flow and process as an SSADM process-hierarchy chart, in number order, with the flows as the top level. Hover or focus a row to read its description in the side pane; click it to open its diagram (a process without a sub-DFD opens the diagram that contains it). Esc, ✕, `i`, or the chip closes it. |
+| ▾ on a breadcrumb | Appears when that crumb's level holds more than one diagram. Lists them with number, description, and process count, the current one marked; a filter box appears above eight entries, and ↑ ↓ Enter pick from the keyboard. Clicking the crumb's label still goes up to that level. |
+
+### Hover and large diagrams
+
+
+Hovering a node, edge, or label dims everything it does not connect to, and hovering an edge shows its data tooltip. Both apply once the pointer rests on the same element for 300 ms, so moving the pointer across a diagram changes nothing; resting on empty canvas clears them the same way. A diagram that renders more than 150 nodes and edges together drops the fade animation and switches opacity in one step. The same rest time applies to Graph nodes and Dictionary browse cards; pressing Shift while over a Graph node shows its lineage at once.
 
 
 ## Authoring with the skill

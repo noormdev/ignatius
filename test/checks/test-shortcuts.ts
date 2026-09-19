@@ -503,4 +503,21 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
   console.log('PASS T29: ctrl/meta/alt arrow chords → null');
 }
 
+// ---------------------------------------------------------------------------
+// T30: i → flowIndex only on the flow view. On graph/dict it stays a plain
+//      keystroke; typing or any modifier suppresses it like every bare key.
+// ---------------------------------------------------------------------------
+{
+  const result = resolveShortcut(ev('i'), 'flow', false);
+  assert(result !== null && result.type === 'flowIndex', "T30: i in 'flow' → flowIndex");
+  assert(resolveShortcut(ev('I'), 'flow', false)?.type === 'flowIndex', 'T30: capslock I in flow → flowIndex');
+  assert(resolveShortcut(ev('i'), 'graph', false) === null, "T30: i in 'graph' → null");
+  assert(resolveShortcut(ev('i'), 'dict', false) === null, "T30: i in 'dict' → null");
+  assert(resolveShortcut(ev('i'), 'flow', true) === null, 'T30: i while editable → null');
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey', 'shiftKey'] as const) {
+    assert(resolveShortcut(ev('i', { [mod]: true }), 'flow', false) === null, `T30: ${mod}+i → null`);
+  }
+  console.log("PASS T30: i → flowIndex on the flow view only");
+}
+
 console.log('\nAll tests passed.');

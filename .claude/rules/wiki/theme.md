@@ -4,7 +4,7 @@ paths:
   - "src/theme/**"
 ---
 
-Domain: theme. ThemeConfig + Branding types, default palettes, flow-kind colors, dark/light merging
+Domain: theme. ThemeConfig + Branding types, default palettes, flow-kind colors + per-kind store-cap symbols (`FLOW_STORE_KIND_SYMBOLS`), dark/light merging
 
 Map:
   - docs/wiki/theme.md
