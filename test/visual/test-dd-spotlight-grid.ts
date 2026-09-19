@@ -14,6 +14,7 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { SYNTHETIC_DIAGRAM_IDS } from '../../src/flows/flow-derive-levels';
+import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'dd-spotlight-grid');
@@ -372,7 +373,7 @@ try {
   if (targetCardCount === 0) fail(`No .dict-grid-card with data-entity-id="${hoverTarget}" found`);
 
   await targetCard.hover();
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
   await shot('08-cp3-hover-spotlight.png');
 
   // Collect actual lit ids (cards with .dict-grid-card--spotlit).
@@ -419,7 +420,7 @@ try {
 
   // Move pointer off the card onto the page background.
   await page.mouse.move(10, 10);
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
   await shot('09-cp3-mouseout-cleared.png');
 
   const litAfterMouseOut = await page.evaluate(() =>
@@ -622,7 +623,7 @@ try {
     await targetCard.scrollIntoViewIfNeeded();
     await page.waitForTimeout(200);
     await targetCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(HOVER_INTENT_MS + 100);
 
     const litBeforeRetarget = await page.evaluate(() =>
       document.querySelectorAll('.dict-grid-card--spotlit').length
@@ -634,7 +635,7 @@ try {
     await dimCard.scrollIntoViewIfNeeded();
     await page.waitForTimeout(200);
     await dimCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(HOVER_INTENT_MS + 100);
     await shot('17-cp3-hover-retarget-on-dim.png');
 
     const newLitIds = await page.evaluate(() => {
@@ -855,7 +856,7 @@ try {
 
     if (paymentMethodOnScreenForHover) {
       await paymentMethodCardForHover.hover();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(HOVER_INTENT_MS + 100);
     }
 
     // Check SVG text content for "settles" predicate label.
@@ -928,7 +929,7 @@ try {
         await connectedCard.scrollIntoViewIfNeeded();
         await page.waitForTimeout(200);
         await connectedCard.hover();
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(HOVER_INTENT_MS + 100);
       }
 
       const fallbackTexts = await page.evaluate(() => {
@@ -985,7 +986,7 @@ try {
     if (fallbackConnected !== null) {
       const fallbackConnectedCard = page.locator(`.dict-grid-card[data-entity-id="${fallbackConnected}"]`);
       await fallbackConnectedCard.hover();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(HOVER_INTENT_MS + 100);
     }
 
     const anyTexts = await page.evaluate(() => {
@@ -1320,7 +1321,7 @@ try {
       // is the connected card whose in-edge pill we want to see).
       const paymentCardForHover45 = page.locator(`.dict-grid-card[data-entity-id="Payment"]`);
       await paymentCardForHover45.hover();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(HOVER_INTENT_MS + 100);
 
       const svgTexts5Hover = await page.evaluate(() => {
         const svg = document.querySelector('.spotlight-overlay');
@@ -1409,7 +1410,7 @@ try {
         // CP14: hover PaymentMethod (the connected card) to reveal its pill.
         const paymentMethodCard46 = page.locator(`.dict-grid-card[data-entity-id="PaymentMethod"]`);
         await paymentMethodCard46.hover();
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(HOVER_INTENT_MS + 100);
 
         const svgTexts6Hover = await page.evaluate(() => {
           const svg = document.querySelector('.spotlight-overlay');
@@ -3030,7 +3031,7 @@ try {
       // CP14: Hover the entity card to reveal its flow-line pill, then check the payload.
       const cp12EntityCardForHover = page.locator(`.dict-grid-card[data-entity-id="${cp12EntityId}"]`);
       await cp12EntityCardForHover.hover();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(HOVER_INTENT_MS + 100);
 
       // Verify the data payload appears as SVG text in the pill.
       const svgTextsCp12 = await page.evaluate(() => {
@@ -3661,7 +3662,7 @@ try {
     note(`CP14.2: Hovering connected card "${cp14ConnectedOnScreen}"`);
     const cp14HoverCard = page.locator(`.dict-grid-card[data-entity-id="${cp14ConnectedOnScreen}"]`);
     await cp14HoverCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(HOVER_INTENT_MS + 100);
     await shot('58-cp14-hover-connected-card.png');
 
     const cp14HoverState = await page.evaluate(() => {
@@ -3681,7 +3682,7 @@ try {
     note('\n── CP14.3: Mouse-out → pills disappear ──────────────────────────────────');
 
     await page.mouse.move(10, 10);
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(HOVER_INTENT_MS + 100);
     await shot('59-cp14-mouseout-no-pills.png');
 
     const cp14MouseOutState = await page.evaluate(() => {
@@ -3703,7 +3704,7 @@ try {
 
     // Already pinned on cp14BaseEntity. Hover the connected card again.
     await cp14HoverCard.hover();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(HOVER_INTENT_MS + 100);
 
     // Verify the active spotlight is still cp14BaseEntity (not the hovered card).
     const cp14PinState = await page.evaluate((pinnedId: string) => {
@@ -3793,7 +3794,7 @@ try {
         // Hover the target card — should reveal ≥2 pills (bundled out + in).
         const cp14TargetCard = page.locator(`.dict-grid-card[data-entity-id="${cp14BothPair.target}"]`);
         await cp14TargetCard.hover();
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(HOVER_INTENT_MS + 100);
         await shot('60-cp14-bundled-pills.png');
 
         // Assert pills do not overlap by reading their SVG bounding boxes.

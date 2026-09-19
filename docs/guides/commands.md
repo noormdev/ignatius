@@ -141,6 +141,7 @@ The app responds to single-key shortcuts while no text field is focused and no m
 | `f` | Switch to the Data Flows |
 | `l` | Toggle graph layout (organic ↔ hierarchical) — Graph view |
 | `b` | Toggle dictionary lens (read ↔ browse) — Dictionary view |
+| `i` | Open or close the flow index — Flows view |
 | `/` or `Cmd`/`Ctrl` + `K` | Focus the search bar — Graph, Dictionary, Flows |
 | `?` | Open the help overlay for the current view |
 | `←` `→` `↑` `↓` | Scroll the canvas 10px — Graph and Flows views; hold `Shift` for 50px |
@@ -151,7 +152,7 @@ Shortcuts are ignored while typing in a search box or any other input, and when 
 ### Help overlay
 
 
-Every view has a `?` button in the top bar, next to the light/dark toggle. It opens a short, view-aware overview — what you are looking at, how to explore it, and the keys that work here. The Graph explains entity types and key-inheritance lineage; the Dictionary explains its lenses and spotlight; the Flows view explains DFD symbols and drill-down. Press `?` or click the button; press Escape or click outside to close. For the exact diagram symbols, use the **Legend** instead.
+Every view has a `?` button in the top bar, next to the light/dark toggle. It opens a short, view-aware overview — what you are looking at, how to explore it, and the keys that work here. The Graph explains entity types and key-inheritance lineage; the Dictionary explains its lenses and spotlight; the Flows view explains DFD symbols, drill-down, the flow index, and the breadcrumb level menus. Press `?` or click the button; press Escape or click outside to close. For the exact diagram symbols, use the **Legend** instead.
 
 
 ### Zoom

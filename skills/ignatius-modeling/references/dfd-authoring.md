@@ -263,6 +263,8 @@ per member that carries rows. See the worked example in `references/flow-templat
 
 Always run this step — do not skip it. Every process, external, and store carries a one-line `description:` frontmatter field: the router table's payload, not documentation. Generate it yourself for each node from what the flow has established so far (the process's verb phrase, the external's role, the store's purpose), show it, and let the user adjust. One sentence; the full story is Step F7's body.
 
+The flow itself gets one too. Write it as `description:` frontmatter at the top of `flows/<flow>/index.md`: what the flow covers, end to end, in one sentence. The viewer shows it in the flow index and in the breadcrumb menu that switches between flows. If the file already exists it is the generated router: add the frontmatter above its `<ignatius-*>` regions and leave the regions alone (`ignatius index` rewrites only those). If it does not exist, create it with only the frontmatter. A sub-DFD folder needs no index file; its process's `description:` describes it. See the flow index template in `references/flow-templates.md`.
+
 ### Step F7 — Bodies: the business context (per node)
 
 Every node carries a markdown body. This is where the *why* lives — the reason the thing exists.

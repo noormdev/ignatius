@@ -229,7 +229,13 @@ async function buildFlowFolder(
   const file = toRouterFile(relDir, 'flow-diagram', depth, ancestors, indexFile, rows);
   out.push(file);
 
-  return { name: diagram.id, kind: 'folder', description: '', link: `${diagram.id}/${indexFile}`, hash: file.digest };
+  // The folder's own index file is not a hashed row, so an authored
+  // description would otherwise change the parent's table without touching
+  // any digest. Folding it in only when present leaves every digest of a
+  // model without folder descriptions unchanged.
+  const description = diagram.description ?? '';
+  const hash = description ? folderDigest([file.digest, description]) : file.digest;
+  return { name: diagram.id, kind: 'folder', description, link: `${diagram.id}/${indexFile}`, hash };
 }
 
 export async function buildRouters(

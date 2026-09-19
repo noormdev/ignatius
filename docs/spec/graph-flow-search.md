@@ -38,7 +38,7 @@ Dim-don't-filter with pure matchers and per-view wiring, per `docs/design/graph-
 - SC9 — Search state never enters the model, the layout fingerprint, `layout-store` saved positions, the URL hash, or the static export payload.
 - SC10 — `bun run test` and `bunx tsc --noEmit` exit 0: all existing checks stay green and the new checks pass. New Playwright checks follow the existing skip-if-dist-absent pattern.
 - SC11 — Bundle-only: no file under `src/server/` or `src/generators/` changes, and the search code paths perform no network requests — live serve and static export share the identical code path by construction.
-- SC12 — Chrome non-collision on the Flows view: the search bar never overlaps the DFD breadcrumb chips or the diagram nav card, at any breadcrumb depth (proven against the 4-level `test/fixtures/flows-leveling` fixture) — same standing as the graph view's banner non-collision.
+- SC12 — Chrome non-collision on the Flows view: the search bar never overlaps the DFD breadcrumb chips, at any breadcrumb depth (proven against the 4-level `test/fixtures/flows-leveling` fixture) — same standing as the graph view's banner non-collision.
 
 
 ## Checkpoints
@@ -138,6 +138,14 @@ M CLAUDE.md                              — feature-map row (and '/' added to t
 
 ## Change log
 
+
+### 2026-09-18 — SC12 no longer names the nav card
+
+**What changed:** SC12 drops "or the diagram nav card"; the Flows view has no nav card (`docs/spec/large-model-nav.md`). A breadcrumb level menu drops over the search bar on purpose, since the crumb row stacks above it.
+
+**Why:** the nav card was removed; the flow index and breadcrumb level menus replace it.
+
+**Superseded:** SC12 required non-collision with the diagram nav card.
 
 ### 2026-07-14 — CP5: switch control, visual tightening, Cmd/Ctrl+K
 

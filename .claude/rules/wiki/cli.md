@@ -4,12 +4,13 @@ paths:
   - "src/cli/**"
 ---
 
-Domain: cli. citty-based subcommand dispatch (serve/validate/export/index/version/update); `dict`/`graph`/`flow` are removal stubs; model-root discovery + interactive picker; port fallback + browser open on serve; self-update + version reporting
+Domain: cli. citty-based subcommand dispatch (serve/validate/export/index/version/update); `dict`/`graph`/`flow` are removal stubs; model-root discovery + interactive picker; port fallback + browser open on serve; self-update with streamed download progress + checksum verification
 
 Map:
   - docs/wiki/cli.md
 Contracts:
   - docs/spec/cli-and-outputs.md
+  - docs/spec/update-download-progress.md
 Designs:
   - docs/design/cli-and-outputs.md
 

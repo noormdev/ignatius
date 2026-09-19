@@ -13,6 +13,7 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODELS = join(ROOT, 'models', 'key-inherited');
@@ -58,17 +59,21 @@ try {
   await page.screenshot({ path: join(TMP, 'hover-fade-before.png') });
   note('Saved tmp/hover-fade-before.png');
 
+  await page.evaluate((id: string) => {
+    window.__IGNATIUS_CY__!.$id(id).emit('mouseover');
+  }, target.id);
+  // Hover focus applies only once the pointer rests on the target (motion.ts).
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
+
   const counts = await page.evaluate((id: string) => {
     const cy = window.__IGNATIUS_CY__!;
     const node = cy.$id(id);
-    node.emit('mouseover');
     const all = cy.elements();
     const faded = all.filter((e: CyEle) => e.hasClass('faded'));
     const keep = node.closedNeighborhood();
     return { total: all.length, faded: faded.length, keep: keep.length };
   }, target.id);
 
-  await page.waitForTimeout(300);
   await page.screenshot({ path: join(TMP, 'hover-fade-after.png') });
   note(`Saved tmp/hover-fade-after.png (faded=${counts.faded}/${counts.total}, keep=${counts.keep})`);
 
@@ -77,11 +82,15 @@ try {
     fail(`faded(${counts.faded}) + keep(${counts.keep}) != total(${counts.total})`);
   }
 
-  const restored = await page.evaluate((id: string) => {
-    const cy = window.__IGNATIUS_CY__!;
-    cy.$id(id).emit('mouseout');
-    return cy.elements().filter((e: CyEle) => e.hasClass('faded')).length;
+  await page.evaluate((id: string) => {
+    window.__IGNATIUS_CY__!.$id(id).emit('mouseout');
   }, target.id);
+  // Leaving clears the fade only after the same settle delay.
+  await page.waitForTimeout(HOVER_INTENT_MS + 100);
+
+  const restored = await page.evaluate(() => {
+    return window.__IGNATIUS_CY__!.elements().filter((e: CyEle) => e.hasClass('faded')).length;
+  });
 
   if (restored !== 0) fail(`${restored} elements still faded after mouseout`);
   else note('all elements restored on mouseout');

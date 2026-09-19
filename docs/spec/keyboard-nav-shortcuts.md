@@ -31,11 +31,12 @@ distinct guard class from the bare keys (see Keymap).
 | `f` | view → `flow` | any view |
 | `l` | toggle DG layout `organic ↔ hierarchical` | `view === 'graph'` |
 | `b` | toggle DD lens `read ↔ browse` | `view === 'dict'` |
+| `i` | open or close the flow index | `view === 'flow'` |
 | `/` | focus the active view's search input (graph bar, flow bar, or the Dictionary's search box) | any view |
 
 Bare keys bail (no action) when: `ctrlKey || metaKey || altKey || shiftKey`, OR
 focus is an editable target (`input` / `textarea` / `select` /
-`contenteditable` / inside an open `.modal`). `l` and `b` resolve to no action
+`contenteditable` / inside an open `.modal`). `l`, `b`, and `i` resolve to no action
 when their view is not active. View jumps are idempotent. `/` needs no Shift
 (unlike `?`), so it resolves through the ordinary bare-key switch with no
 special guard slot; typing `/` inside any editable target inserts the literal
@@ -187,3 +188,9 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 **Why:** user feedback on the live branch — the original 5px step felt too slow for practical scrolling.
 
 **Superseded:** the "Arrow-key canvas panning" entry above introduced the feature at 5px/25px; that entry is left as-is as the historical record of that commit.
+
+### 2026-09-18 — `i` opens the flow index
+
+**What changed:** `resolveShortcut` returns `{ type: 'flowIndex' }` for bare `i` on the flow view and `null` on Graph and Dictionary; it resolves in the ordinary bare-key switch, after both guards, like `l` and `b`. `useKeyboardShortcuts` carries an `onFlowIndex` callback; the shell routes it to `FlowsViewHandle.toggleIndex()`. `test-shortcuts.ts` T30 covers the flow-only binding, capslock, the editable guard, and every modifier.
+
+**Why:** the flow index (`docs/spec/large-model-nav.md`) is the way into a model with many flows; a key keeps it one stroke away.

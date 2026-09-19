@@ -22,6 +22,7 @@ import { computeElkLayout } from '../../../flow-view/elk-flow-layout';
 import { screenScaleToPercent, percentToScreenScale } from '../../../flow-view/zoom-scale';
 import type { ElkPositionMap } from '../../../flow-view/FlowDiagramSvg';
 import { layoutKeyForView } from '../../../flow-view/flow-layout';
+import { defaultDiagramPath, diagramRef, findDiagramByRef, resolveDiagramPath } from '../../../flow-view/flow-nav';
 import type { BuildFlowDataOpts, StackNodeData } from '../../../flow-view/flow-layout';
 import { parseHash, serializeHash } from '../../hash-router';
 import type { HashState, FlowViewMode, FlowCollapseLevel } from '../../hash-router';
@@ -46,7 +47,7 @@ export interface FlowChromeCallbacks {
   /** Called on every breadcrumb change (DFD select, drill-down, drill-up). */
   onStackChange: (stack: BreadcrumbEntry[]) => void;
   /** Called once on init and on each SSE re-render with the full diagram list. */
-  onDiagramsChange: (all: FlowDiagram[], activeId: string) => void;
+  onDiagramsChange: (all: FlowDiagram[]) => void;
   /**
    * Called by the core once after init, providing the imperative drill handlers.
    * The FlowsView component stores these in refs so FlowChrome callbacks can invoke
@@ -55,6 +56,7 @@ export interface FlowChromeCallbacks {
   onRegisterHandlers: (
     drillUp: (idx: number) => void,
     selectDiagram: (id: string) => void,
+    selectPath: (ids: string[]) => void,
   ) => void;
   /** Called on pan/zoom/drag to update the minimap in FlowChrome. */
   onViewChange?: (data: MinimapData) => void;
@@ -77,11 +79,11 @@ export interface FlowChromeCallbacks {
   onRegisterSearchTokens?: (fn: ((tokens: ReadonlySet<string> | null) => void) | null) => void;
   /**
    * Called on every diagram render — top-level select, drill-down, and drill-up.
-   * The id is the diagram being rendered (the current top of the breadcrumb stack).
+   * `ref` is the rendered diagram's path reference (flow-nav `diagramRef`).
    * Used by FlowsView to write the `dfd` URL hash param so the active DFD is
    * deep-linkable at every level.
    */
-  onActiveDiagramChange?: (id: string) => void;
+  onActiveDiagramChange?: (ref: string) => void;
   /**
    * Called whenever the SVG scale changes (wheel, zoom control, reset) or the
    * container resizes. `scale` is the inner-<g> factor (1 = fit); `fitScale` is
@@ -237,8 +239,8 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
 // Core flow graph setup. Extracted so both static and live modes can call it.
 // allDiagrams is passed in rather than read from globals so the live path can
 // pass fresh data on each SSE-triggered re-render.
-// startDiagramId: which top-level DFD to render first (null → first in array).
-// onDiagramChange: called whenever the selected top-level DFD changes.
+// startDiagramId: `dfd=` reference of the diagram to render first (null → first in array).
+// onDiagramChange: called with the selected diagram's path reference.
 // chromeCallbacks: optional — when provided, the FlowChrome React component drives
 //   the breadcrumb/selector UI; when absent (e.g. static mode without React chrome),
 //   the function falls back to no-ops.
@@ -329,11 +331,8 @@ export function initFlowGraphCore(
     container.style.position = 'relative';
   }
 
-  // Track the active selector id for chrome callback
-  let activeSelectorId: string = startDiagramId ?? allDiagrams[0]!.id;
-
   function pushChromeState() {
-    chromeCallbacks?.onStackChange(stack.map(s => ({ label: s.label })));
+    chromeCallbacks?.onStackChange(stack.map(s => ({ label: s.label, diagramId: s.diagram.id })));
   }
 
   // --- SVG React root ---
@@ -555,7 +554,9 @@ export function initFlowGraphCore(
     });
 
     // Notify the app that the active diagram changed so it can update the URL hash.
-    chromeCallbacks?.onActiveDiagramChange?.(diagram.id);
+    // The test hook carries the bare id; the hash carries the path reference.
+    window.__IGNATIUS_ACTIVE_FLOW_DFD__ = diagram.id;
+    chromeCallbacks?.onActiveDiagramChange?.(diagramRef(stack.map(s => s.diagram)));
 
     pushChromeState();
   }
@@ -570,89 +571,54 @@ export function initFlowGraphCore(
     // onActiveDiagramChange fired inside renderDiagram above.
   }
 
-  // Recursively search allDiagrams (and their sub-DFD trees) for a diagram with the
-  // given id, returning the path of ancestor diagrams from the top-level root down
-  // to (and including) the found diagram. Returns null if not found.
-  function findDiagramPath(id: string): FlowDiagram[] | null {
-    function search(diagrams: FlowDiagram[], path: FlowDiagram[]): FlowDiagram[] | null {
-      for (const d of diagrams) {
-        if (d.id === id) return [...path, d];
-        const found = search(d.subDfds, [...path, d]);
-        if (found) return found;
-      }
-      return null;
-    }
-    return search(allDiagrams, []);
+  // Each step of a root-to-diagram path becomes a crumb: the root by its
+  // title, a sub-DFD by its owning process's dotted number and label.
+  function stackFor(path: FlowDiagram[]): Array<{ diagram: FlowDiagram; label: string }> {
+    return path.map((d, i) => {
+      const parent = path[i - 1];
+      const proc = parent?.processes.find(p => p.id === d.id);
+      return { diagram: d, label: proc ? `${proc.dottedNumber} ${proc.label}` : d.title };
+    });
   }
 
-  // selectDiagramById: resolves the diagram by id whether top-level OR sub-DFD.
-  // Rebuilds the breadcrumb stack to reflect the full ancestor path, then renders.
-  // Used by both the popstate/back-nav path AND the FlowChrome DFD selector.
-  function selectDiagramById(id: string) {
-    const path = findDiagramPath(id);
-    if (!path || path.length === 0) return;
+  // selectDiagramById: resolves a `dfd=` reference (a bare id or an id path,
+  // see findDiagramByRef), rebuilds the breadcrumb stack, then renders. Used
+  // by popstate/back-nav and by flow search.
+  function selectDiagramById(ref: string) {
+    const path = findDiagramByRef(allDiagrams, ref);
+    if (path) showPath(path);
+  }
+
+  // The flow index and breadcrumb level menus know the exact path to a
+  // diagram; walking it avoids a first-match lookup, which lands on the wrong
+  // sub-DFD when two flows share a process file name.
+  function selectDiagramPath(ids: string[]) {
+    const path = resolveDiagramPath(allDiagrams, ids);
+    if (path) showPath(path);
+  }
+
+  function showPath(path: FlowDiagram[]) {
     const target = path.at(-1);
     if (!target) return;
-    // Rebuild stack: each step in the path becomes a breadcrumb entry.
-    const newStack = path.map((d, i) => {
-      if (i === 0) return { diagram: d, label: d.title };
-      // For sub-DFD entries, find the process label in the parent diagram.
-      const parent = path[i - 1];
-      if (!parent) return { diagram: d, label: d.title };
-      const proc = parent.processes.find(p => p.id === d.id);
-      const label = proc ? `${proc.dottedNumber} ${proc.label}` : d.title;
-      return { diagram: d, label };
-    });
-    stack.splice(0, stack.length, ...newStack);
-    // Update the top-level active selector (nav-card highlight) to the root
-    // of this path, but track the LEAF via onDiagramChange — matching the
-    // initial-construction branch below, which seeds activeFlowDiagramIdRef
-    // with the leaf so a renderer rebuild (SSE refetch, or a flowview=/
-    // collapse= toggle) resumes at the exact drilled diagram, not just its
-    // top-level ancestor.
-    const rootId = path[0]?.id ?? target.id;
-    activeSelectorId = rootId;
-    onDiagramChange?.(target.id);
-    chromeCallbacks?.onDiagramsChange(allDiagrams, rootId);
+    stack.splice(0, stack.length, ...stackFor(path));
+    // Track the path reference so a renderer rebuild (SSE refetch, or a
+    // flowview=/collapse= toggle) resumes at this exact diagram.
+    onDiagramChange?.(diagramRef(path));
     pushChromeState();
     void renderDiagram(target);
   }
 
-  // Seed the stack with the starting DFD (preserving selection across SSE re-renders).
-  // Use findDiagramPath so a deep-linked sub-DFD id resolves correctly and the
-  // full ancestor breadcrumb chain is established from the first render.
-  const startPath = startDiagramId !== null ? findDiagramPath(startDiagramId) : null;
-  if (startPath && startPath.length > 0) {
-    // Build the initial stack for every ancestor step in the path.
-    const newStack = startPath.map((d, i) => {
-      if (i === 0) return { diagram: d, label: d.title };
-      const parent = startPath[i - 1];
-      if (!parent) return { diagram: d, label: d.title };
-      const proc = parent.processes.find(p => p.id === d.id);
-      const label = proc ? `${proc.dottedNumber} ${proc.label}` : d.title;
-      return { diagram: d, label };
-    });
-    stack.push(...newStack);
-    // activeSelectorId should reflect the root of this path.
-    // startPath.length > 0 is guaranteed by the enclosing guard, so both
-    // index accesses are safe; extract locals so TypeScript can narrow them.
-    const pathRoot = startPath[0];
-    const startDiagram = startPath[startPath.length - 1];
-    if (!pathRoot || !startDiagram) return () => {}; // unreachable — length > 0
-    activeSelectorId = pathRoot.id;
-    onDiagramChange?.(startDiagram.id);
-    chromeCallbacks?.onDiagramsChange(allDiagrams, activeSelectorId);
-    chromeCallbacks?.onRegisterHandlers(drillUp, selectDiagramById);
-    void renderDiagram(startDiagram);
-  } else {
-    // startDiagramId was null, unknown, or stale — fall back to first top-level diagram.
-    const startDiagram = allDiagrams[0]!;
-    stack.push({ diagram: startDiagram, label: startDiagram.title });
-    onDiagramChange?.(startDiagram.id);
-    chromeCallbacks?.onDiagramsChange(allDiagrams, activeSelectorId);
-    chromeCallbacks?.onRegisterHandlers(drillUp, selectDiagramById);
-    void renderDiagram(startDiagram);
-  }
+  // Seed the stack with the starting DFD (preserving selection across SSE
+  // re-renders); a deep-linked sub-DFD reference establishes its full ancestor
+  // breadcrumb chain from the first render. No reference, or an unknown or
+  // stale one, opens the default diagram.
+  const startPath = (startDiagramId !== null ? findDiagramByRef(allDiagrams, startDiagramId) : null)
+    ?? defaultDiagramPath(allDiagrams);
+  stack.push(...stackFor(startPath));
+  onDiagramChange?.(diagramRef(startPath));
+  chromeCallbacks?.onDiagramsChange(allDiagrams);
+  chromeCallbacks?.onRegisterHandlers(drillUp, selectDiagramById, selectDiagramPath);
+  void renderDiagram(startPath.at(-1)!);
 
   return () => {
     // Set before anything else: any renderDiagram call still awaiting ELK at
@@ -685,6 +651,8 @@ export function initFlowGraphCore(
  */
 export interface FlowsViewHandle {
   selectDiagramById(id: string): void;
+  /** Open or close the flow index (keyboard `i`). */
+  toggleIndex(): void;
   resetLayout(): void;
   zoomIn(): void;
   zoomOut(): void;
@@ -762,6 +730,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     // Drill handlers registered by initFlowGraphCore via chromeCallbacks.onRegisterHandlers.
     const flowDrillUpRef = useRef<((idx: number) => void) | null>(null);
     const flowSelectDiagramRef = useRef<((id: string) => void) | null>(null);
+    const flowSelectPathRef = useRef<((ids: string[]) => void) | null>(null);
     // Retheme callback: updates the flow SVG palette without tearing down the renderer.
     const flowRethemeRef = useRef<((mode: 'dark' | 'light') => void) | null>(null);
     // Search-tokens callback: applies live dimming without tearing down the renderer.
@@ -795,6 +764,9 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     useImperativeHandle(ref, () => ({
       selectDiagramById(id: string) {
         flowSelectDiagramRef.current?.(id);
+      },
+      toggleIndex() {
+        flowChromeRef.current?.toggleIndex();
       },
       resetLayout() {
         flowResetLayoutRef.current?.();
@@ -846,12 +818,13 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         onStackChange: (stack) => {
           flowChromeRef.current?.setStack(stack);
         },
-        onDiagramsChange: (all, activeId) => {
-          flowChromeRef.current?.setDiagrams(all, activeId);
+        onDiagramsChange: (all) => {
+          flowChromeRef.current?.setDiagrams(all);
         },
-        onRegisterHandlers: (drillUp, selectDiagram) => {
+        onRegisterHandlers: (drillUp, selectDiagram, selectPath) => {
           flowDrillUpRef.current = drillUp;
           flowSelectDiagramRef.current = selectDiagram;
+          flowSelectPathRef.current = selectPath;
         },
         onViewChange: (data) => {
           flowChromeRef.current?.setMinimap(data);
@@ -870,14 +843,13 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         },
         onActiveDiagramChange: (id) => {
           activeFlowDiagramIdRef.current = id;
-          window.__IGNATIUS_ACTIVE_FLOW_DFD__ = id;
-          // Write the active DFD id into the URL hash so the view is deep-linkable.
+          // Write the active DFD reference into the URL hash so the view is deep-linkable.
           const current = parseHash(location.hash);
           const next: HashState = { ...current, view: 'flow', dfd: id };
           const serialized = serializeHash(next);
           const newHash = serialized ? '#' + serialized : location.pathname;
           // Use replaceState on the very first activation in this effect run — the
-          // initial auto-select of diagrams[0] or the preserved prevId. This avoids
+          // initial auto-select of the default diagram or the preserved one. This avoids
           // polluting history: Back after switching to the flow view should return to
           // the pre-flow state, not loop through #view=flow (no dfd).
           const isInitial = !initialActivationDone || location.hash === newHash;
@@ -918,9 +890,9 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         return;
       }
 
-      // Preserve the user's selected DFD across SSE re-renders.
-      const prevId = activeFlowDiagramIdRef.current;
-      const startId = prevId ?? diagrams[0]!.id;
+      // Preserve the user's selected DFD across SSE re-renders; null opens the
+      // default diagram (flow-nav defaultDiagramPath).
+      const startId = activeFlowDiagramIdRef.current;
 
       // Pass a getter (not a snapshot) for the entity model so the resolver always
       // reads the LIVE entity-id set even when model changes via SSE without
@@ -936,7 +908,6 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         startId,
         (id) => {
           activeFlowDiagramIdRef.current = id;
-          window.__IGNATIUS_ACTIVE_FLOW_DFD__ = id;
         },
         chromeCallbacks,
         themeMode,
@@ -977,12 +948,15 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     // FlowChrome is gated on isActive to match the original `isFlowSurface &&` guard.
     if (!isActive) return null;
 
+    const modelMeta = getEntityModel()?._meta;
     return (
       <FlowChrome
         ref={flowChromeRef}
-        onSelectDiagram={(id) => flowSelectDiagramRef.current?.(id)}
+        onSelectPath={(ids) => flowSelectPathRef.current?.(ids)}
         onDrillUp={(idx) => flowDrillUpRef.current?.(idx)}
         themeMode={themeMode}
+        modelName={modelMeta?.name}
+        modelDescription={modelMeta?.desc}
       />
     );
   },

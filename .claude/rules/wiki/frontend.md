@@ -4,12 +4,13 @@ paths:
   - "src/app/**"
 ---
 
-Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; `flowview=`/`collapse=` hash params drive the flow view mode and collapse level; `StackDialog`/`EdgeContractDialog` cover stack and edge-contract detail; views own cy/SVG lifecycle; components/logic/hooks/dom layered underneath
+Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; `logic/motion.ts` centralizes hover-intent debouncing and a per-view animation-element-limit; `flowview=`/`collapse=` hash params drive the flow view mode and collapse level; new `i` shortcut opens the flow index; `StackDialog`/`EdgeContractDialog` cover stack and edge-contract detail; views own cy/SVG lifecycle; components/logic/hooks/dom layered underneath
 
 Map:
   - docs/wiki/frontend.md
 Contracts:
   - docs/spec/dfd-store-clusters.md
+  - docs/spec/large-model-nav.md
 Designs:
   - docs/design/app-tsx-decomposition.md
   - docs/design/branding.md
@@ -19,6 +20,7 @@ Designs:
   - docs/design/graph-flow-search.md
   - docs/design/graph-position-persistence.md
   - docs/design/key-inheritance-lineage.md
+  - docs/design/large-model-nav.md
   - docs/design/unified-app.md
   - docs/design/viewer-ux-polish.md
   - docs/design/wiki-entity-links.md

@@ -1,5 +1,5 @@
 // Hash-router: pure parse + serialize for URL hash state.
-// Format: #view=<graph|dict|flow>&entity=<id>&zoom=<n>&pan=<x>,<y>&dfd=<diagram-id>&flowview=<per-process|connected>&collapse=<stores|clusters|groups>
+// Format: #view=<graph|dict|flow>&entity=<id>&zoom=<n>&pan=<x>,<y>&dfd=<diagram-ref>&flowview=<per-process|connected>&collapse=<stores|clusters|groups>
 // All params are optional. Unknown/malformed values are silently dropped.
 
 export type ViewName = 'graph' | 'dict' | 'flow';
@@ -28,7 +28,7 @@ export interface HashState {
   entity?: string;
   zoom?: number;
   pan?: { x: number; y: number };
-  /** Active flow diagram id — only meaningful when view === 'flow'. */
+  /** Active flow diagram reference (a bare id, or an id path such as `invoicing/Submit-PCI`) — only meaningful when view === 'flow'. */
   dfd?: string;
   /** Per-process vs. connected rendering — global setting, deep-linkable per docs/spec/dfd-store-clusters.md. */
   flowview?: FlowViewMode;
@@ -119,7 +119,9 @@ export function serializeHash(state: HashState): string {
   }
 
   if (state.dfd !== undefined) {
-    parts.push(`dfd=${encodeURIComponent(state.dfd)}`);
+    // A sub-DFD reference is an id path (`invoicing/Submit-PCI`); '/' is legal
+    // in a fragment, so it stays readable instead of becoming %2F.
+    parts.push(`dfd=${encodeURIComponent(state.dfd).replaceAll('%2F', '/')}`);
   }
 
   if (state.flowview !== undefined) {

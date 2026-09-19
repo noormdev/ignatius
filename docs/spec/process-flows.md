@@ -324,7 +324,7 @@ Extension points: mode dispatch at `src/App.tsx:1067–1119`, elements construct
 
 - On startup, read `window.__IGNATIUS_SURFACE__`. When `=== 'flow'`, call `initFlowGraph`; otherwise call the existing ERD path unchanged. `src/index.html` carries `window.__IGNATIUS_SURFACE__ = 'erd'` as a default alongside the existing `window.__IGNATIUS_MODE__ = 'live'` so the live ERD reads a defined surface. The live `/flow` route (path-free — no DFD name) sets `__IGNATIUS_SURFACE__ = 'flow'` in the HTML it returns so the surface is defined before the bundle executes and the `/api/flow` fetch has the correct surface context.
 - `initFlowGraph` — flow Cytoscape setup is isolated in this extracted function, not interleaved with the existing ERD `useEffect`. **Static mode:** reads `window.__FLOW_MODEL__` (the array of all top-level DFDs). **Live mode:** fetches `/api/flow` once, then re-fetches on every SSE `model-changed` event and re-renders the current DFD in place (the watcher already covers `flows/**`). The surface dispatch reads `window.__IGNATIUS_SURFACE__ === 'flow'` as before.
-- **Top-level DFD navigation (the consistency rework).** A model has many DFDs. When more than one top-level diagram is present, `initFlowGraph` renders a DFD selector (a list/index affordance — e.g. the breadcrumb root or a FAB menu) and renders one diagram at a time; choosing another swaps the rendered diagram, **reusing the same client-side `renderDiagram` swap the drill-down already uses**. A single-DFD model renders that one directly with no picker. Selecting a DFD is navigation, exactly as selecting an entity is in the ERD — there is no DFD argument upstream of the viewer.
+- **Top-level DFD navigation (the consistency rework).** A model has many DFDs. Every diagram is reachable from the flow index that the breadcrumb root chip opens, and the breadcrumb level menus switch between diagrams at one level (`docs/spec/large-model-nav.md`); one diagram renders at a time, and choosing another swaps the rendered diagram, **reusing the same client-side `renderDiagram` swap the drill-down already uses**. Selecting a DFD is navigation, exactly as selecting an entity is in the ERD — there is no DFD argument upstream of the viewer.
 - Flow elements construction (inside `initFlowGraph`): map `FlowProcess` → Cytoscape nodes (label carries the composed `dottedNumber` badge); `FlowExternal` → Cytoscape nodes; `db:` store refs → Cytoscape nodes; non-db store refs → Cytoscape nodes; `FlowEdge` → directed Cytoscape edges with the flow label or column list as edge label.
 - **The flow viewer is a purpose-built DFD render, not the ERD harness reskinned. The visual target is the approved design mock `tmp/mock-e.html` — match it.** Flow styles live in a dedicated flow stylesheet builder, separate from the ERD `buildStyles`; ERD render code is untouched.
 - **Gane-Sarson notation (supersedes the barrel/cut-rectangle approximations):** process = numbered rounded-rect hub; external = green rectangle; data store = **open-ended rectangle** (left cap-bar with `D#` + name, open right edge) rendered via a custom SVG (e.g. Cytoscape `background-image` data-URI per node kind), NOT a built-in `barrel`. **All data flows render as a single uniform solid arrow** — read vs write is conveyed by arrow direction (store→process reads, process→store writes), per canonical SSADM/Gane-Sarson notation, NOT by line style or colour. Flow labels carry the **data** (column list / data-packet noun), never events or predicates.
@@ -465,6 +465,14 @@ The fixtures use entity ids from `models/key-inherited/` as their `db:` store re
 
 ## Change log
 
+
+### 2026-09-18 — Top-level navigation is the flow index and breadcrumb level menus
+
+**What changed:** the top-level DFD navigation bullet now names the flow index (opened from the breadcrumb root chip) and the breadcrumb level menus as the way to reach and switch diagrams (`docs/spec/large-model-nav.md`), and drops the single-DFD "no picker" sentence: the index is available whatever the diagram count.
+
+**Why:** leveling wraps every flow in one `Context` root, so the selector conditioned on "more than one top-level diagram" never rendered and a many-flow model was reachable only by drilling down.
+
+**Superseded:** a DFD selector rendered only when more than one top-level diagram was present.
 
 ### 2026-06-17 — Folder model migration (#16): externals/ and stores/ at model root; no per-DFD override
 

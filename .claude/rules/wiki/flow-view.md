@@ -4,7 +4,7 @@ paths:
   - "src/flow-view/**"
 ---
 
-Domain: flow-view. ELK-driven DFD layout (5-band partitioning, orthogonal edge routing) with a stack-node model for per-process/connected views and three collapse levels (stores/clusters/groups); pure coord helpers for polyline rendering; SVG renderer consumes ELK positions + edgeRoutes + search-token dimming
+Domain: flow-view. ELK-driven DFD layout (5-band partitioning, orthogonal edge routing) with a stack-node model for per-process/connected views and three collapse levels (stores/clusters/groups); `flow-nav.ts` resolves exact diagram paths for the new flow index + breadcrumb level menus (`FlowIndex.tsx`/`LevelMenu.tsx`, replacing the old standalone nav card); pure coord helpers for polyline rendering; SVG renderer consumes ELK positions + edgeRoutes + search-token dimming and gates hover transitions through the frontend domain's hover-intent/animation-limit helpers
 
 Map:
   - docs/wiki/flow-view.md
@@ -13,12 +13,14 @@ Contracts:
   - docs/spec/dfd-overhaul.md
   - docs/spec/dfd-store-clusters.md
   - docs/spec/graph-flow-search.md
+  - docs/spec/large-model-nav.md
   - docs/spec/viewer-ux-polish.md
 Designs:
   - docs/design/dfd-edge-hover-data.md
   - docs/design/dfd-overhaul.md
   - docs/design/dfd-store-clusters.md
   - docs/design/graph-flow-search.md
+  - docs/design/large-model-nav.md
 Research:
   - docs/research/dfd-layout-and-leveling.md
 

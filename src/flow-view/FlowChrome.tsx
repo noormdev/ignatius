@@ -2,19 +2,21 @@
  * FlowChrome.tsx — floating UI shell for the flow-viewer surface.
  *
  * Renders all chrome AROUND the SVG diagram:
- *   - breadcrumb chips top-left, offset to clear the fixed .branding-block rendered by App.tsx
- *   - DFD nav card (floating left panel, shown when >1 top-level DFD)
- *   - findings aside top-right (green check when 0 findings)
+ *   - breadcrumb chips top-left, offset to clear the fixed .branding-block rendered by App.tsx;
+ *     the root chip opens the flow index, and a ▾ on each chip opens a menu of the
+ *     diagrams at that chip's level (docs/spec/large-model-nav.md)
+ *   - the flow index (FlowIndex) over the canvas
  *   - minimap bottom-left: live SVG overview of the current diagram + viewport rect
  *
  * Theme toggle and FAB are shared app-level chrome (App.tsx) — not rendered here.
  *
  * Driven by the imperative core (initFlowGraphCore) via a forwarded ref exposing:
  *   handle.setStack(stack)             — called on every breadcrumb change
- *   handle.setDiagrams(all, activeId)  — called on initial mount + SSE re-renders
+ *   handle.setDiagrams(all)            — called on initial mount + SSE re-renders
  *   handle.setMinimap(data)            — called on pan/zoom/drag to update minimap
+ *   handle.toggleIndex()               — keyboard `i`
  *
- * The imperative core's onDrillUp and onSelectDiagram callbacks are provided
+ * The imperative core's onDrillUp and onSelectPath callbacks are provided
  * back to it via props (the chrome owns the UI; the core owns the SVG).
  *
  * Also writes the --flow-search-bar-top CSS custom property (measured off the
@@ -22,32 +24,43 @@
  * any drill depth (graph-flow-search CP5, SC12) — see the effect below.
  */
 
-import { useState, useImperativeHandle, forwardRef, useRef, useLayoutEffect } from 'react';
+import { useState, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useCallback } from 'react';
 import type { FlowDiagram } from '../flows/flow-parse';
 import type { MinimapData } from './FlowDiagramSvg';
 import { DARK_PALETTE, LIGHT_PALETTE } from './FlowDiagramSvg';
+import { defaultDiagramPath, levelEntries, resolveDiagramPath, type FlowLevelEntry } from './flow-nav';
+import { SYNTHETIC_DIAGRAM_IDS } from '../flows/flow-derive-levels';
+import { FlowIndex } from './FlowIndex';
+import { LevelMenu } from './LevelMenu';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface BreadcrumbEntry {
   label: string;
+  diagramId: string;
 }
 
 export interface FlowChromeHandle {
   setStack: (stack: BreadcrumbEntry[]) => void;
-  setDiagrams: (all: FlowDiagram[], activeId: string) => void;
+  setDiagrams: (all: FlowDiagram[]) => void;
   setMinimap: (data: MinimapData) => void;
   /** Register a function that pans the main SVG to a world coordinate. */
   setMinimapPanTo: (fn: ((worldX: number, worldY: number) => void) | null) => void;
+  /** Open the flow index, or close it when open. */
+  toggleIndex: () => void;
 }
 
 export interface FlowChromeProps {
-  /** Called when the user picks a different top-level DFD from the nav card */
-  onSelectDiagram: (id: string) => void;
+  /** Called with a diagram's id path (root first) picked from the index or a level menu */
+  onSelectPath: (ids: string[]) => void;
   /** Called when the user clicks an ancestor crumb (index in stack) or the back button */
   onDrillUp: (idx: number) => void;
   /** Current theme mode — drives minimap palette + chrome color vars */
   themeMode: 'dark' | 'light';
+  /** Model `name:` — titles the flow index. */
+  modelName?: string;
+  /** Model `description:` — describes the root and whole-system entries. */
+  modelDescription?: string;
 }
 
 // ── Minimap component ─────────────────────────────────────────────────────
@@ -192,13 +205,15 @@ function FlowMinimap({
 
 export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
   function FlowChrome(
-    { onSelectDiagram, onDrillUp, themeMode },
+    { onSelectPath, onDrillUp, themeMode, modelName, modelDescription },
     ref,
   ) {
     const [stack, setStack] = useState<BreadcrumbEntry[]>([]);
     const [allDiagrams, setAllDiagrams] = useState<FlowDiagram[]>([]);
-    const [activeDiagramId, setActiveDiagramId] = useState<string>('');
     const [minimapData, setMinimapData] = useState<MinimapData | null>(null);
+    const [indexOpen, setIndexOpen] = useState(false);
+    // Index into `stack` of the crumb whose level menu is open.
+    const [menuCrumb, setMenuCrumb] = useState<number | null>(null);
     // Minimap pan callback: calls the registered pan handler from the core.
     const minimapPanRef = useRef<((worldX: number, worldY: number) => void) | null>(null);
     // Breadcrumb row ref — measured below so the flow search bar (App.tsx) can
@@ -235,17 +250,23 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
       };
     }, []);
 
+    const toggleIndex = useCallback(() => {
+      setMenuCrumb(null);
+      setIndexOpen(open => !open);
+    }, []);
+
     useImperativeHandle(ref, () => ({
-      setStack(s: BreadcrumbEntry[]) { setStack(s); },
-      setDiagrams(all: FlowDiagram[], activeId: string) {
-        setAllDiagrams(all);
-        setActiveDiagramId(activeId);
+      setStack(s: BreadcrumbEntry[]) {
+        setStack(s);
+        setMenuCrumb(null);
       },
+      setDiagrams(all: FlowDiagram[]) { setAllDiagrams(all); },
       setMinimap(data: MinimapData) { setMinimapData(data); },
       setMinimapPanTo(fn: ((worldX: number, worldY: number) => void) | null) {
         minimapPanRef.current = fn;
       },
-    }), []);
+      toggleIndex,
+    }), [toggleIndex]);
 
     // Register a pan handler from the SVG component via the core callback.
     // The core passes this into the minimap; we store it on a ref so clicking
@@ -254,11 +275,79 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
       minimapPanRef.current?.(worldX, worldY);
     }
 
-    const hasDrillDepth = stack.length > 1;
-    const showNav = allDiagrams.length > 1;
-    const topName = stack[0]?.label
-      ?? allDiagrams.find(d => d.id === activeDiagramId)?.title
-      ?? activeDiagramId;
+    const closeIndex = useCallback(() => setIndexOpen(false), []);
+    const closeMenu = useCallback(() => setMenuCrumb(null), []);
+
+    const stackIds = stack.map(s => s.diagramId);
+    const pathDiagrams = resolveDiagramPath(allDiagrams, stackIds) ?? [];
+
+    // The diagrams a crumb can switch between: its parent's sub-DFDs, or the
+    // roots for the first crumb.
+    function crumbLevel(i: number): FlowLevelEntry[] {
+      const parent = i === 0 ? null : pathDiagrams[i - 1];
+      if (parent === undefined) return [];
+      return levelEntries(parent, allDiagrams, modelDescription);
+    }
+
+    function pickSibling(i: number, entry: FlowLevelEntry) {
+      setMenuCrumb(null);
+      if (entry.diagramId === stackIds[i]) return;
+      onSelectPath([...stackIds.slice(0, i), entry.diagramId]);
+    }
+
+    function selectFromIndex(ids: string[]) {
+      setIndexOpen(false);
+      onSelectPath(ids);
+    }
+
+    // Context and the System overview are levels leveling derives, not diagrams
+    // anyone authored: they get no crumb. The house button stands for the
+    // overview the Flows view opens on and reaches it from any depth.
+    const isDerived = (crumb: BreadcrumbEntry) => SYNTHETIC_DIAGRAM_IDS.has(crumb.diagramId);
+    const current = stack.at(-1);
+    const onDerived = current !== undefined && isDerived(current);
+    const hasDrillDepth = stack.length > 1 && !onDerived;
+    const homeIds = defaultDiagramPath(allDiagrams).map(d => d.id);
+    const atHome = homeIds.length > 0 && homeIds.join('/') === stackIds.join('/');
+
+    function renderCrumb(crumb: BreadcrumbEntry, i: number) {
+      const isCurrent = i === stack.length - 1;
+      const siblings = crumbLevel(i);
+      const hasMenu = siblings.length > 1;
+      const menuOpen = menuCrumb === i;
+      return (
+        <div
+          className={`flow-crumb${isCurrent ? ' flow-crumb--current' : ''}`}
+          data-ignatius="flow-crumb"
+        >
+          {isCurrent
+            ? <span className="flow-crumb__label">{crumb.label}</span>
+            : <button type="button" className="flow-crumb__label" onClick={() => onDrillUp(i)}>{crumb.label}</button>}
+          {hasMenu && (
+            <button
+              type="button"
+              className="flow-crumb__menu"
+              data-ignatius="flow-crumb-menu-button"
+              aria-label={`Other diagrams at the level of ${crumb.label}`}
+              aria-haspopup="dialog"
+              aria-expanded={menuOpen}
+              onClick={() => { setIndexOpen(false); setMenuCrumb(menuOpen ? null : i); }}
+            >
+              ▾
+            </button>
+          )}
+          {menuOpen && (
+            <LevelMenu
+              heading={i === 0 ? 'Top level' : isDerived(stack[i - 1]!) ? 'Process flows' : `In ${stack[i - 1]!.label}`}
+              entries={siblings}
+              currentId={crumb.diagramId}
+              onPick={entry => pickSibling(i, entry)}
+              onClose={closeMenu}
+            />
+          )}
+        </div>
+      );
+    }
 
     return (
       <>
@@ -266,159 +355,73 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
         <div
           ref={breadcrumbRef}
           data-ignatius="flow-breadcrumbs"
-          style={{
-            position: 'absolute',
-            top: '18px',
-            left: '240px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            zIndex: 30,
-          }}>
-          <span style={{ color: 'var(--color-text-muted, #8b949e)', fontSize: '13px' }}>/</span>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'var(--color-surface, #161b22)',
-            border: '1px solid var(--color-border, #30363d)',
-            borderRadius: '8px',
-            padding: '7px 12px',
-            fontSize: '13px',
-            color: 'var(--color-text, #e6edf3)',
-            boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-          }}>
+          className="flow-crumbs"
+        >
+          <span className="flow-crumbs__sep">/</span>
+          <button
+            type="button"
+            className={`flow-crumb flow-crumb--index${indexOpen ? ' flow-crumb--open' : ''}`}
+            data-ignatius="flow-index-button"
+            aria-expanded={indexOpen}
+            aria-keyshortcuts="i"
+            title="Flow index (i)"
+            onClick={toggleIndex}
+          >
+            <span aria-hidden="true" className="flow-crumb__icon">☰</span>
             Process Flows
-          </div>
+          </button>
 
-          {(topName || stack.length > 0) && (
-            <>
-              <span style={{ color: 'var(--color-text-muted, #8b949e)', fontSize: '13px' }}>/</span>
-              {stack.slice(0, -1).map((crumb, i) => (
-                <div key={crumb.label} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    onClick={() => onDrillUp(i)}
-                    style={{
-                      background: 'var(--color-surface, #161b22)',
-                      border: '1px solid var(--color-border, #30363d)',
-                      borderRadius: '8px',
-                      padding: '7px 12px',
-                      fontSize: '13px',
-                      color: 'var(--color-text-muted, #8b949e)',
-                      cursor: 'pointer',
-                      boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-                      fontFamily: 'inherit',
-                    }}
-                  >
-                    {crumb.label}
-                  </button>
-                  <span style={{ color: 'var(--color-text-muted, #8b949e)', fontSize: '13px' }}>/</span>
-                </div>
-              ))}
-              {stack.length > 0 && (
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  background: 'var(--color-surface, #161b22)',
-                  border: '1px solid var(--color-link, #58a6ff)',
-                  borderRadius: '8px',
-                  padding: '7px 12px',
-                  fontSize: '13px',
-                  color: 'var(--color-link, #58a6ff)',
-                  boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
-                }}>
-                  {stack[stack.length - 1]!.label}
-                </div>
-              )}
-            </>
+          {homeIds.length > 0 && (
+            <div className="flow-crumbs__step">
+              <span className="flow-crumbs__sep">/</span>
+              <button
+                type="button"
+                className={`flow-crumb flow-crumb--home${atHome ? ' flow-crumb--current' : ''}`}
+                data-ignatius="flow-home-button"
+                aria-label="Flow overview"
+                aria-current={atHome ? 'page' : undefined}
+                title="Flow overview"
+                onClick={() => { if (!atHome) onSelectPath(homeIds); }}
+              >
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+                  <path d="M2 7.5 8 2.5l6 5" />
+                  <path d="M3.75 6.5V13.5h3.25V9.75h2V13.5h3.25V6.5" />
+                </svg>
+              </button>
+            </div>
           )}
+
+          {stack.map((crumb, i) => isDerived(crumb) ? null : (
+            <div key={`${i}:${crumb.diagramId}`} className="flow-crumbs__step">
+              <span className="flow-crumbs__sep">/</span>
+              {renderCrumb(crumb, i)}
+            </div>
+          ))}
 
           {hasDrillDepth && (
             <button
+              type="button"
+              className="flow-crumbs__back"
               onClick={() => onDrillUp(stack.length - 2)}
-              style={{
-                background: 'none',
-                border: '1px solid var(--color-border, #30363d)',
-                borderRadius: '6px',
-                color: 'var(--color-text-muted, #8b949e)',
-                cursor: 'pointer',
-                fontSize: '12px',
-                padding: '4px 8px',
-                fontFamily: 'inherit',
-              }}
             >
               ← Back
             </button>
           )}
         </div>
 
-        {/* ── DFD nav card — floating top-left below branding ── */}
-        {showNav && (
-          <div data-ignatius="flow-nav-card" style={{
-            position: 'absolute',
-            top: '72px',
-            left: '20px',
-            width: '196px',
-            background: 'var(--color-surface-alt, var(--color-surface, #161b22))',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-            border: '1px solid var(--color-border, #30363d)',
-            borderRadius: '12px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.45)',
-            padding: '14px 12px',
-            zIndex: 25,
-          }}>
-            <h2 style={{
-              fontSize: '11px',
-              letterSpacing: '1.2px',
-              textTransform: 'uppercase',
-              color: 'var(--color-text-muted, #8b949e)',
-              marginBottom: '14px',
-              fontWeight: 700,
-            }}>
-              Process Flows
-            </h2>
-            {allDiagrams.map(d => {
-              const isActive = d.id === activeDiagramId;
-              return (
-                <button
-                  key={d.id}
-                  onClick={() => { onSelectDiagram(d.id); setActiveDiagramId(d.id); }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    color: isActive ? 'var(--color-link, #58a6ff)' : 'var(--color-text, #e6edf3)',
-                    marginBottom: '4px',
-                    cursor: 'pointer',
-                    background: isActive ? 'color-mix(in srgb, var(--color-link) 12%, transparent)' : 'none',
-                    border: 'none',
-                    fontWeight: isActive ? 600 : 400,
-                    textAlign: 'left',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  <span style={{
-                    width: '7px', height: '7px', borderRadius: '50%',
-                    background: isActive ? 'var(--color-link, #58a6ff)' : 'var(--color-text-muted, #8b949e)',
-                    flexShrink: 0,
-                  }} />
-                  {d.title}
-                </button>
-              );
-            })}
-          </div>
+        {indexOpen && allDiagrams.length > 0 && (
+          <FlowIndex
+            diagrams={allDiagrams}
+            activePath={stackIds}
+            modelName={modelName}
+            modelDescription={modelDescription}
+            onSelectPath={selectFromIndex}
+            onClose={closeIndex}
+          />
         )}
 
         {/* ── Minimap — bottom-left ── */}
-        <div className="flow-minimap-wrapper" style={{
-          left: showNav ? '228px' : '16px',
-        }}>
+        <div className="flow-minimap-wrapper">
           <div className="flow-minimap-canvas">
             {minimapData ? (
               <FlowMinimap data={minimapData} onPan={handleMinimapPan} themeMode={themeMode} />

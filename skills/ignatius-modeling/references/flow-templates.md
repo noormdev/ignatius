@@ -1,6 +1,6 @@
 ## Flow reference templates
 
-Templates for the three DFD node files: process, external entity, and non-`db` data store.
+Templates for the flow folder index and the three DFD node files: process, external entity, and non-`db` data store.
 Frontmatter keys and endpoint tokens match the shipped flow format.
 
 Endpoint tokens used in `inputs:`/`outputs:`/`examples:`:
@@ -17,6 +17,17 @@ Endpoint tokens used in `inputs:`/`outputs:`/`examples:`:
 
 Every entry carries a `label:`, the prose name the diagram shows (Step F5). The `data:` stays
 the validated contract behind it.
+
+### Flow folder `index.md` template
+
+`flows/<flow>/index.md` describes the whole flow (Step F6a). Only the frontmatter is authored;
+everything else in the file belongs to `ignatius index`.
+
+```markdown
+---
+description: Order entry through invoicing and cash collection.
+---
+```
 
 ### Process `.md` template
 

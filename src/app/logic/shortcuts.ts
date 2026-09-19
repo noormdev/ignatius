@@ -10,6 +10,7 @@
  *   f → view flow    (any view)
  *   l → toggleLayout (view==='graph' only; null otherwise)
  *   b → toggleLens   (view==='dict'  only; null otherwise)
+ *   i → flowIndex    (view==='flow'  only; null otherwise)
  *   / → search       (any view; ordinary bare key — unlike '?' it needs no
  *                      Shift, so it resolves in the normal switch below.
  *                      Cmd/Ctrl+k is a second, always-on route to the same
@@ -67,6 +68,7 @@ export type ShortcutAction =
   | { type: 'view'; view: ViewName }
   | { type: 'toggleLayout' }
   | { type: 'toggleLens' }
+  | { type: 'flowIndex' }
   | { type: 'zoomIn' }
   | { type: 'zoomOut' }
   | { type: 'zoomReset' }
@@ -153,6 +155,7 @@ export function resolveShortcut(
     case 'f': return { type: 'view', view: 'flow' };
     case 'l': return view === 'graph' ? { type: 'toggleLayout' } : null;
     case 'b': return view === 'dict'  ? { type: 'toggleLens'   } : null;
+    case 'i': return view === 'flow'  ? { type: 'flowIndex'    } : null;
     case '/': return { type: 'search' };
     default:  return null;
   }

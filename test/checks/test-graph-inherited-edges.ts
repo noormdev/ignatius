@@ -25,7 +25,9 @@
  * The shift state is injected synthetically: a cytoscape `mouseover` event is
  * emitted with `originalEvent: { shiftKey: true }`, which is exactly what the
  * GraphView handler reads (`evt.originalEvent?.shiftKey`). `mouseout` is emitted
- * to leave the node. Reads element state straight off `window.__IGNATIUS_CY__`.
+ * to leave the node. Reads element state straight off `window.__IGNATIUS_CY__`
+ * once the hover has settled (HOVER_INTENT_MS) — a hover applies only after the
+ * pointer rests, so reading immediately would see the pre-hover graph.
  *
  * Skips gracefully (exit 0) when dist/static/index.js is absent — CI builds the
  * bundle before running checks.
@@ -35,6 +37,9 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { existsSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
+
+const settleHover = () => new Promise<void>(r => setTimeout(r, HOVER_INTENT_MS + 100));
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODEL = join(ROOT, 'models/key-inherited');
@@ -67,13 +72,23 @@ type EdgeReport = { source: string; target: string; faded: boolean };
 // Emit a synthetic 'mouseover' on a node with the given shift state and return
 // the resulting inherited-edge set. Mirrors GraphView's `evt.originalEvent?.shiftKey`.
 async function hoverAndReport(id: string, shiftKey: boolean): Promise<{ ok: boolean; edges: EdgeReport[] }> {
-  return await page.evaluate(
+  const emitted = await page.evaluate(
     ({ nodeId, shift }: { nodeId: string; shift: boolean }) => {
       const cy = window.__IGNATIUS_CY__;
-      if (!cy) return { ok: false, edges: [] as Array<{ source: string; target: string; faded: boolean }> };
+      if (!cy) return false;
       const node = cy.$(`#${nodeId}`);
-      if (node.empty()) return { ok: false, edges: [] as Array<{ source: string; target: string; faded: boolean }> };
+      if (node.empty()) return false;
       node.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: shift } });
+      return true;
+    },
+    { nodeId: id, shift: shiftKey },
+  );
+  if (!emitted) return { ok: false, edges: [] };
+  await settleHover();
+  return await page.evaluate(
+    () => {
+      const cy = window.__IGNATIUS_CY__;
+      if (!cy) return { ok: false, edges: [] as Array<{ source: string; target: string; faded: boolean }> };
       const edges = cy.edges('.inherited').map((e: { source(): { id(): string }; target(): { id(): string } }) => ({
         source: e.source().id(),
         target: e.target().id(),
@@ -82,7 +97,6 @@ async function hoverAndReport(id: string, shiftKey: boolean): Promise<{ ok: bool
       }));
       return { ok: true, edges };
     },
-    { nodeId: id, shift: shiftKey },
   );
 }
 
@@ -171,7 +185,7 @@ try {
 
   // ── 3. mouseout (still shift held) → lineage cleared ─────────────────────
   await leaveNode('Identity');
-  await new Promise<void>(r => setTimeout(r, 150));
+  await settleHover();
   assert((await inheritedCount()) === 0, 'mouseout removes ALL inherited edges (lineage cleared on leave)');
 
   // ── 4. SHIFT+HOVER ITIN (transitive via ITIN → Identity → Party) ─────────
@@ -203,7 +217,7 @@ try {
   );
 
   await leaveNode('ITIN');
-  await new Promise<void>(r => setTimeout(r, 150));
+  await settleHover();
   assert((await inheritedCount()) === 0, 'mouseout after ITIN removes ALL inherited edges');
 
   // ── 5. Plain (no-shift) HOVER → NO lineage ───────────────────────────────
@@ -214,7 +228,30 @@ try {
     `plain (no-shift) hover draws NO inherited edges (got ${plainHover.edges.length}); only the direct-neighbour fade applies`,
   );
   await leaveNode('Identity');
-  await new Promise<void>(r => setTimeout(r, 150));
+  await settleHover();
+
+  // ── 5b. Shift pressed inside the hover wait shows lineage at once ────────
+  // Pressing Shift is deliberate, so it skips the wait a pointer hover gets.
+  await page.evaluate(() => {
+    const cy = window.__IGNATIUS_CY__;
+    const node = cy?.$('#Identity');
+    node?.emit({ type: 'mouseover', target: node, originalEvent: { shiftKey: false } });
+  });
+  await page.keyboard.down('Shift');
+  const pendingShift = await inheritedCount();
+  assert(pendingShift > 0, `Shift pressed while the hover is still waiting draws lineage at once (got ${pendingShift})`);
+  await page.keyboard.up('Shift');
+  await leaveNode('Identity');
+  await settleHover();
+
+  // ── 5c. A plain click clears a settled hover at once ─────────────────────
+  // The entity modal covers the canvas, so no mouseout will ever clear it.
+  await hoverAndReport('Identity', false);
+  const fadedCount = () => page.evaluate(() => window.__IGNATIUS_CY__?.elements('.faded').length ?? -1);
+  const fadedBeforeClick = await fadedCount();
+  await tapNode('Identity');
+  const fadedAfterClick = await fadedCount();
+  assert(fadedBeforeClick > 0 && fadedAfterClick === 0, `a plain click clears the settled hover fade at once (before ${fadedBeforeClick}, after ${fadedAfterClick})`);
 
   // ── 6. Background-tap deselect → all inherited edges removed ──────────────
   await page.evaluate(() => {

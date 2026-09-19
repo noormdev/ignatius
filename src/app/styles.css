@@ -676,18 +676,12 @@ code {
    Flow surface — minimap wrapper (CP19)
    Visual parity with the DG .minimap: same corner/offset, border, radius,
    background, opacity+hover, size, and z-index.
-   Position (left) is driven inline from FlowChrome so the wrapper steps right
-   when the DFD-nav breadcrumb card is visible — that is the ONE intentional
-   structural divergence from the DG minimap (which has no nav card). All other
-   chrome is shared with .minimap.
    ========================================================================= */
 
 .flow-minimap-wrapper {
   position: absolute;
   bottom: 16px;
-  /* left is set inline per showNav state (see FlowChrome.tsx):
-     - nav hidden → 16px  (matches DG .minimap left:16px)
-     - nav visible → 228px (clears the breadcrumb nav card — intentional divergence) */
+  left: 16px;
   z-index: 50;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -710,6 +704,448 @@ code {
 @media (max-width: 768px) {
   .flow-minimap-wrapper {
     display: none;
+  }
+}
+
+/* =========================================================================
+   Flow breadcrumbs, level menus, and the flow index (docs/spec/large-model-nav.md)
+   The root chip opens the index; a chip's ▾ opens the diagrams at its level.
+   Stacking: the crumb row (46) sits above the flow search bar (45) so a level
+   menu drops over it; the index (56) covers the minimap (50) and zoom control
+   (55) and stays under the FAB (60).
+   ========================================================================= */
+
+.flow-crumbs {
+  position: absolute;
+  top: 18px;
+  left: 240px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 46;
+}
+
+.flow-crumbs__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-crumbs__sep {
+  color: var(--color-text-muted, #8b949e);
+  font-size: 13px;
+}
+
+.flow-crumb {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  background: var(--color-surface, #161b22);
+  border: 1px solid var(--color-border, #30363d);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-muted, #8b949e);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.flow-crumb--current {
+  border-color: var(--color-link, #58a6ff);
+  color: var(--color-link, #58a6ff);
+}
+
+.flow-crumb--index {
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  color: var(--color-text, #e6edf3);
+  cursor: pointer;
+}
+
+.flow-crumb--index:hover,
+.flow-crumb--open {
+  border-color: var(--color-link, #58a6ff);
+}
+
+.flow-crumb--home {
+  align-items: center;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.flow-crumb--home:hover {
+  border-color: var(--color-link, #58a6ff);
+  color: var(--color-text, #e6edf3);
+}
+
+.flow-crumb--home.flow-crumb--current {
+  cursor: default;
+}
+
+.flow-crumb--home svg {
+  display: block;
+}
+
+.flow-crumb__icon {
+  color: var(--color-text-muted, #8b949e);
+}
+
+.flow-crumb__label {
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+}
+
+button.flow-crumb__label {
+  cursor: pointer;
+}
+
+button.flow-crumb__label:hover {
+  color: var(--color-text, #e6edf3);
+}
+
+.flow-crumb__menu {
+  padding: 0 9px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--color-border, #30363d);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 0 8px 8px 0;
+}
+
+.flow-crumb__menu:hover,
+.flow-crumb__menu[aria-expanded="true"] {
+  background: var(--color-surface-alt, #1c2128);
+  color: var(--color-text, #e6edf3);
+}
+
+.flow-crumbs__back {
+  background: none;
+  border: 1px solid var(--color-border, #30363d);
+  border-radius: 6px;
+  color: var(--color-text-muted, #8b949e);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  font-family: inherit;
+}
+
+.flow-level-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 360px;
+  max-height: min(480px, 70vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface, #161b22);
+  border: 1px solid var(--color-border, #30363d);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: var(--color-text, #e6edf3);
+  white-space: normal;
+  z-index: 40;
+  overflow: hidden;
+}
+
+.flow-level-menu__head {
+  padding: 8px 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #8b949e);
+  border-bottom: 1px solid var(--color-border, #30363d);
+}
+
+.flow-level-menu__filter {
+  margin: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border, #30363d);
+  background: var(--color-background, #0e1116);
+  color: var(--color-text, #e6edf3);
+  font: inherit;
+  font-size: 12px;
+}
+
+.flow-level-menu__list {
+  list-style: none;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.flow-level-menu__item {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 2px 6px;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.flow-level-menu__item--active {
+  background: var(--color-surface-alt, #1c2128);
+}
+
+.flow-level-menu__item--current {
+  background: color-mix(in srgb, var(--color-link, #58a6ff) 12%, transparent);
+}
+
+.flow-level-menu__num {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-variant-ligatures: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #8b949e);
+  padding-top: 1px;
+}
+
+.flow-level-menu__label {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.flow-level-menu__item--current .flow-level-menu__label {
+  color: var(--color-link, #58a6ff);
+}
+
+.flow-level-menu__count {
+  font-size: 10.5px;
+  color: var(--color-text-muted, #8b949e);
+  white-space: nowrap;
+}
+
+.flow-level-menu__desc {
+  grid-column: 2 / 4;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--color-text-muted, #8b949e);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.flow-level-menu__empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--color-text-muted, #8b949e);
+}
+
+.flow-index {
+  position: absolute;
+  top: 64px;
+  left: 16px;
+  bottom: 16px;
+  width: min(980px, calc(100% - 32px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  background: var(--color-surface, #161b22);
+  border: 1px solid var(--color-border, #30363d);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: var(--color-text, #e6edf3);
+  z-index: 56;
+  overflow: hidden;
+}
+
+.flow-index__tree {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.flow-index__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border, #30363d);
+}
+
+.flow-index__title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #8b949e);
+}
+
+.flow-index__close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted, #8b949e);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.flow-index__list {
+  list-style: none;
+  overflow: auto;
+  padding: 12px 14px 16px;
+}
+
+.flow-index__children {
+  list-style: none;
+  margin-left: 18px;
+}
+
+/* Elbow connectors: each child hangs off its parent's left rail. */
+.flow-index__children > .flow-index__item {
+  position: relative;
+  padding-left: 20px;
+}
+
+.flow-index__children > .flow-index__item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 15px;
+  border-left: 1px solid var(--color-border, #30363d);
+  border-bottom: 1px solid var(--color-border, #30363d);
+}
+
+.flow-index__children > .flow-index__item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15px;
+  bottom: 0;
+  border-left: 1px solid var(--color-border, #30363d);
+}
+
+.flow-index__item {
+  padding: 3px 0;
+}
+
+.flow-index__pill {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  border: 1px solid var(--color-border, #30363d);
+  border-radius: 999px;
+  background: var(--color-background, #0e1116);
+  color: var(--color-text, #e6edf3);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+
+.flow-index__pill:hover,
+.flow-index__pill:focus-visible {
+  border-color: var(--color-link, #58a6ff);
+  outline: none;
+}
+
+.flow-index__num {
+  min-width: 46px;
+  padding: 4px 8px;
+  border-right: 1px solid var(--color-border, #30363d);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-variant-ligatures: none;
+  font-size: 11px;
+  text-align: center;
+  color: var(--color-text-muted, #8b949e);
+}
+
+.flow-index__label {
+  min-width: 0;
+  padding: 4px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow-index__pill--leaf .flow-index__label {
+  color: var(--color-text-muted, #8b949e);
+}
+
+.flow-index__pill--ancestor {
+  border-color: color-mix(in srgb, var(--color-link, #58a6ff) 45%, var(--color-border, #30363d));
+}
+
+.flow-index__pill--current {
+  border-color: var(--color-link, #58a6ff);
+  background: color-mix(in srgb, var(--color-link, #58a6ff) 14%, var(--color-background, #0e1116));
+}
+
+.flow-index__pill--current .flow-index__label {
+  color: var(--color-link, #58a6ff);
+  font-weight: 600;
+}
+
+.flow-index__pane {
+  border-left: 1px solid var(--color-border, #30363d);
+  padding: 16px;
+  overflow: auto;
+}
+
+.flow-index__pane-title {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.flow-index__pane-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-secondary, var(--color-text, #e6edf3));
+}
+
+.flow-index__pane-desc--empty {
+  color: var(--color-text-muted, #8b949e);
+  font-style: italic;
+}
+
+.flow-index__pane-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--color-text-muted, #8b949e);
+}
+
+/* A phone cannot fit the branding and the crumbs on one row: the crumbs wrap
+   onto their own rows below the branding, and the index and level menus open
+   under them at full width (--flow-search-bar-top is the crumbs' bottom edge). */
+@media (max-width: 768px) {
+  .flow-crumbs {
+    top: 64px;
+    left: 16px;
+    right: 16px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .flow-index {
+    top: var(--flow-search-bar-top, 120px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .flow-index__pane {
+    border-left: none;
+    border-top: 1px solid var(--color-border, #30363d);
+    max-height: 30vh;
+  }
+
+  .flow-level-menu {
+    position: fixed;
+    top: var(--flow-search-bar-top, 120px);
+    left: 16px;
+    right: 16px;
+    width: auto;
   }
 }
 
@@ -2620,6 +3056,13 @@ a.dict-link-missing:hover {
 .dict-grid-card--spotlit {
   opacity: 1;
   transition: opacity 0.18s;
+}
+
+/* Above the animation limit every card fades in the same frame, so the fade
+   itself is the cost; jump to the end state (motion.ts ANIMATION_ELEMENT_LIMIT). */
+[data-motion="off"] .dict-grid-card--dim,
+[data-motion="off"] .dict-grid-card--spotlit {
+  transition: none;
 }
 
 /* ── Spotlight leader-line overlay (CP4) ─────────────────────────────────── */

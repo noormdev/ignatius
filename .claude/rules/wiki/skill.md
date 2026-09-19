@@ -4,7 +4,7 @@ paths:
   - "skills/ignatius-modeling/**"
 ---
 
-Domain: skill. Project-scoped Claude Code skill: Q&A-driven entity/model/DFD authoring, convention-aware, writes files + verifies with `ignatius validate`
+Domain: skill. Project-scoped Claude Code skill: Q&A-driven entity/model/DFD authoring, convention-aware, writes files + verifies with `ignatius validate`; a flow's own `description:` is now authored to `flows/<flow>/index.md` (Step F6a)
 
 Map:
   - docs/wiki/skill.md

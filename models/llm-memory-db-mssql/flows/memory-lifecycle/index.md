@@ -1,3 +1,7 @@
+---
+description: Creating, relating, scoping, consolidating, and retiring long-term memories, and recalling them by tag.
+---
+
 <ignatius-breadcrumb>
 
 ↑ [Flows](../index.md) · [LLM Memory DB (MSSQL)](../../index.md)

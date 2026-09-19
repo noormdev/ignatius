@@ -27,7 +27,7 @@ All of the following must be true for the overhaul to be considered done:
 - [ ] **C6.** Leveling: on the proving model, the auto-derived context diagram has exactly 1 process (the system bubble) and only flows to/from externals.
 - [ ] **C7.** Leveling: on the proving model, the auto-derived Level-1 overview (a) contains all 6 activity processes, (b) contains every store whose degree across the leaf set is ≥ 2, and (c) contains NO store whose degree across the leaf set is exactly 1 (single-process-local stores are absent from Level-1).
 - [ ] **C8.** `FlowDiagramSvg` renders identically when passed ELK positions (via the new `elkPositions` prop) vs the old banded positions — no visual regression on `key-inherited/flows/order-to-cash`. Verified AT the wiring checkpoint (CP3) by capturing both screenshots. ELK is the primary position source for all renders; the banded `computeFlowLayout` path is retained ONLY as the fallback when ELK layout fails. `savedPositions` drag overrides win over both.
-- [ ] **C9.** Drill-down, breadcrumbs, and `dfd=` deep-link work for the synthesised context and Level-1 diagrams (exercised by a URL-navigability check analogous to `test-cp3-dfd-url-navigability.ts`).
+- [ ] **C9.** Drill-down and `dfd=` deep-link work for the synthesised context and Level-1 diagrams (exercised by a URL-navigability check analogous to `test-cp3-dfd-url-navigability.ts`). The two derived levels get no breadcrumb; the Process Flows chip and the flow index stand for them (`docs/spec/large-model-nav.md`).
 - [ ] **C10.** An unbalanced-boundary fixture fires `flow.unbalanced_decomposition` at the context↔L1 and L1↔leaf boundaries; the proving model fires none.
 - [ ] **C11.** `bun run typecheck` clean (no new type errors introduced).
 - [ ] **C12.** Dotted-number correctness: on the proving model each synthesised Level-1 process carries its correct top-level number (`1`, `2`, …, `6`); each leaf diagram's processes are renumbered `N.1`, `N.2`, … where `N` is their parent Level-1 number. Verified via the existing `dottedNumber` / `compareDottedProcesses` scheme on the proving model.
@@ -105,6 +105,14 @@ Evidence from `docs/research/dfd-layout-and-leveling.md §5`:
 
 
 ## Change log
+
+### 2026-09-18 — Derived levels leave the breadcrumb
+
+**What changed:** C9 no longer promises breadcrumbs for the context and Level-1 diagrams. The Flows view opens on the Level-1 overview, and the Process Flows chip plus the flow index stand in for both derived levels (`docs/spec/large-model-nav.md`).
+
+**Why:** on a 29-flow model every trail started with the same two derived crumbs, neither of which could ever list a sibling.
+
+**Superseded:** breadcrumbs showed `Context / 0 System` above every flow.
 
 ### 2026-06-13 — spike outcome: drop compound grouping, labels on-demand
 

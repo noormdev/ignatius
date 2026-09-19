@@ -3,6 +3,7 @@ import type { SpotlightConnection } from '../../logic/spotlight';
 import type { FlowSpotlightConnection } from '../../logic/flow-spotlight';
 import { INHERITED_IDENTITY, type InheritedConnection } from '../../logic/spotlight-inherited';
 import { separateSpotlightLines, type LineDirection } from '../../logic/spotlight-lines';
+import { scrollBehaviorWithin } from '../../logic/motion';
 
 /**
  * Map an inherited connection's bundle direction to the per-line direction set
@@ -536,7 +537,7 @@ export function SpotlightOverlay({
 
       const scrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
         ? 'auto'
-        : 'smooth';
+        : scrollBehaviorWithin(targetCard);
       targetCard.scrollIntoView({ behavior: scrollBehavior, block: 'center' });
 
       function waitForScrollToSettle(now: number) {

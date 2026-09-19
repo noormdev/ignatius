@@ -7,6 +7,8 @@ interface KeyboardShortcutsConfig {
   onView: (v: ViewName) => void;
   onToggleLayout: () => void;
   onToggleLens: () => void;
+  /** `i` — open or close the flow index (flow view only). */
+  onFlowIndex: () => void;
   /** Cmd/Ctrl + =/+ — zoom the active canvas in (no-op on dict). */
   onZoomIn: () => void;
   /** Cmd/Ctrl + -/_ — zoom the active canvas out (no-op on dict). */
@@ -25,7 +27,7 @@ interface KeyboardShortcutsConfig {
 
 /**
  * useKeyboardShortcuts — registers exactly ONE global keydown listener for the
- * unified SPA keyboard shortcuts (g/d/f/l/b).
+ * unified SPA keyboard shortcuts (g/d/f/l/b/i).
  *
  * Stale-closure hazard: the listener is registered once on mount. To avoid
  * capturing a stale `view`/callbacks reference, we keep the latest config in
@@ -39,6 +41,7 @@ export function useKeyboardShortcuts({
   onView,
   onToggleLayout,
   onToggleLens,
+  onFlowIndex,
   onZoomIn,
   onZoomOut,
   onZoomReset,
@@ -48,8 +51,8 @@ export function useKeyboardShortcuts({
 }: KeyboardShortcutsConfig): void {
   // Latest config ref — updated synchronously on every render so the stable
   // listener closure never reads stale values.
-  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan });
-  configRef.current = { view, onView, onToggleLayout, onToggleLens, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan };
+  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan });
+  configRef.current = { view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan };
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -82,6 +85,7 @@ export function useKeyboardShortcuts({
         case 'view': cfg.onView(action.view); break;
         case 'toggleLayout': cfg.onToggleLayout(); break;
         case 'toggleLens': cfg.onToggleLens(); break;
+        case 'flowIndex': cfg.onFlowIndex(); break;
         case 'zoomIn': cfg.onZoomIn(); break;
         case 'zoomOut': cfg.onZoomOut(); break;
         case 'zoomReset': cfg.onZoomReset(); break;
