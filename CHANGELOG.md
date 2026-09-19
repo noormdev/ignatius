@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/noormdev/ignatius/compare/v0.20.2...v0.21.0) (2026-09-19)
+
+
+### Features
+
+* add flow index, level menus, hover delay ([cbdb421](https://github.com/noormdev/ignatius/commit/cbdb4213de126a0a2d78034858a264725f7811e1))
+
 ## [0.20.2](https://github.com/noormdev/ignatius/compare/v0.20.1...v0.20.2) (2026-09-14)
 
 
