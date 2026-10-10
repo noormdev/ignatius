@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { describeJson, formatJsonFull, formatJsonPreview } from '../../logic/json-value';
 import { highlightJson } from '../../logic/json-highlight';
 import { Modal } from './Modal';
@@ -10,8 +11,8 @@ import { Modal } from './Modal';
  * The dialog is always `stacked`, which covers both callers without either of
  * them having to know where it sits — from the dictionary page it is the only
  * modal on screen, and from an entity or process dialog it layers over the
- * opener. It renders inline rather than through a portal so that a click on its
- * backdrop is caught by the opener's stop-propagation handler.
+ * opener. It is portaled to `document.body` because the dictionary view is its own
+ * stacking context, which would trap the dialog under the global findings banner.
  */
 export function JsonValue({ value, label }: { value: object; label: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -35,7 +36,7 @@ export function JsonValue({ value, label }: { value: object; label: string }) {
       >
         ⤢
       </button>
-      {expanded && (
+      {expanded && createPortal(
         <Modal
           title={label}
           onClose={() => setExpanded(false)}
@@ -47,7 +48,8 @@ export function JsonValue({ value, label }: { value: object; label: string }) {
             className="json-value-full"
             dangerouslySetInnerHTML={{ __html: highlighted }}
           />
-        </Modal>
+        </Modal>,
+        document.body,
       )}
     </span>
   );

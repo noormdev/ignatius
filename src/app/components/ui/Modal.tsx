@@ -6,8 +6,8 @@ import type { ReactNode } from 'react';
  * so without this only-the-top-entry check a stacked dialog would dismiss the
  * modal that opened it along with itself.
  *
- * Backdrop clicks need no equivalent guard: a stacked backdrop renders inside
- * its opener's `.modal`, whose own handler already stops propagation.
+ * Backdrop clicks need no equivalent guard: React bubbles a stacked dialog's click
+ * through its opener's `.modal`, portal or not, and that handler stops propagation.
  */
 const modalStack: object[] = [];
 

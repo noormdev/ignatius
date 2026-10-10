@@ -428,13 +428,12 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  /* Above the global findings banner (200): a tall modal reaches the top edge, and the banner would cover its close button. */
+  z-index: 210;
 }
 
-/* A dialog opened from inside another one. It renders within the opener's
-   `.modal`, so it needs to clear that subtree's stacking order to sit on top. */
 .modal-backdrop-stacked {
-  z-index: 110;
+  z-index: 220;
 }
 
 .modal {
@@ -1153,7 +1152,7 @@ button.flow-crumb__label:hover {
    Zoom control (CP22) — shared, view-agnostic; Graph view only for now
    (CP23 will wire it to the Flows view too).
    Placed bottom-right, above the FAB (bottom:24px + 48px height + 12px gap = 84px).
-   z-index 55: above canvas (1), below FAB (60) and modals (100+).
+   z-index 55: above canvas (1), below FAB (60) and modals (210+).
    ========================================================================= */
 
 .zoom-control {
