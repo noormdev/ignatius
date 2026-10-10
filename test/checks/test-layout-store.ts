@@ -10,6 +10,8 @@
  *   3. Corrupt JSON in storage returns null (no throw).
  *   4. Pruning keeps only the newest 10 entries when 11+ are inserted.
  *   5. Clear removes one key's entry without touching others.
+ *   6. lastPosition finds a node in the newest other entry that saved it
+ *      alongside one of its neighbours; another model's same-named node is ignored.
  */
 
 import { createLayoutStore } from '../../src/app/views/graph/layout-store';
@@ -152,6 +154,25 @@ function makeStorage(): StorageLike {
   assert(afterBeta !== null, 'FAIL: clear — key-beta was removed but should survive');
   assert(afterBeta['B']?.x === 3, `FAIL: clear — key-beta.B.x should be 3, got ${afterBeta['B']?.x}`);
   console.log('PASS: clear removes only the specified key, leaves others intact');
+}
+
+// ---------------------------------------------------------------------------
+// 6. lastPosition: a removed node's place in an earlier layout, for its ghost
+// ---------------------------------------------------------------------------
+
+{
+  let tick = 0;
+  const store = createLayoutStore(makeStorage(), () => ++tick);
+  store.save('key-old', { Gone: { x: 1, y: 1 } });
+  store.save('key-prev', { Gone: { x: 5, y: 6 }, Kept: { x: 0, y: 0 } });
+  store.save('key-now', { Gone: { x: 9, y: 9 }, Kept: { x: 0, y: 0 } });
+  store.save('key-other-model', { Gone: { x: 7, y: 7 }, Unrelated: { x: 0, y: 0 } });
+
+  const found = store.lastPosition('Gone', 'key-now', ['Kept']);
+  assert(found?.x === 5 && found.y === 6, `FAIL: lastPosition — expected key-prev's {5,6}, got ${JSON.stringify(found)}`);
+  assert(store.lastPosition('Never', 'key-now', ['Kept']) === null, 'FAIL: lastPosition — an unsaved node should be null');
+  assert(store.lastPosition('Gone', 'key-now', []) === null, 'FAIL: lastPosition — a node with no neighbours to match should be null');
+  console.log('PASS: lastPosition skips the current key and entries without a neighbour, returns the newest other saved position');
 }
 
 console.log('\nAll layout-store tests passed.');

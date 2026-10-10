@@ -4,7 +4,7 @@ paths:
   - "scripts/**"
 ---
 
-Domain: scripts. Build helpers: stable-names.ts, convert-yaml-to-md.ts; perf/diagnostic tooling: probe.ts, screenshot.ts, gen-synthetic-model.ts, perf-harness.ts
+Domain: scripts. Build helpers: stable-names.ts, convert-yaml-to-md.ts; test prelude clear-review-state.ts (removes `.ignatius/` review state from demo + fixture models); perf/diagnostic tooling: probe.ts, screenshot.ts, gen-synthetic-model.ts, perf-harness.ts
 
 Map:
   - docs/wiki/scripts.md

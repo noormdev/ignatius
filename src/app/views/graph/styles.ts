@@ -3,6 +3,7 @@ import type { ThemeConfig, ThemeMode } from '../../../theme/theme-defaults';
 import type { GroupConfig } from '../../../model/parse';
 import { blendHex, pastel, lighten } from '../../logic/color';
 import { SPOTLIGHT_LINE_INHERITED } from '../../dom/theme-css-vars';
+import { EDGE_GLOW_SCALE, GLOW_STEADY, TIER_OPACITY, UNEXPLAINED_STEADY_MIX, glowColors } from './change-glow';
 
 /**
  * Graph search match border (graph-flow-search CP2). Distinct gold/yellow so
@@ -14,6 +15,8 @@ const SEARCH_MATCH_BORDER: Record<ThemeMode, string> = {
   dark: '#fde047',
   light: '#ca8a04',
 };
+
+const REMOVED_EDGE_OPACITY = 0.5;
 
 export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeConfig, mode: ThemeMode): cytoscape.Stylesheet[] {
   const p = mode === 'light' ? theme.light : theme.dark;
@@ -171,6 +174,44 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
     });
   }
 
+  // Node glows are drawn by createChangeGlow on a canvas behind cytoscape; edge
+  // glows are steady underlays here, which createChangeGlow pulses.
+  const glow = glowColors(theme, mode);
+  for (const change of ['added', 'changed', 'removed'] as const) {
+    const unexplainedColor = blendHex(glow[change], glow.unexplained, UNEXPLAINED_STEADY_MIX);
+    base.push(
+      { selector: `edge[change = "${change}"]`, style: { 'underlay-color': glow[change] } },
+      { selector: `edge[change = "${change}"][unexplained = "true"]`, style: { 'underlay-color': unexplainedColor } },
+    );
+  }
+  base.push(
+    {
+      selector: 'edge[change]',
+      style: { 'underlay-opacity': GLOW_STEADY * EDGE_GLOW_SCALE, 'underlay-padding': 3 },
+    },
+    {
+      selector: 'node[change = "removed"]',
+      style: { 'border-style': 'dashed', 'opacity': 0.45 },
+    },
+    {
+      selector: 'edge[change = "added"]',
+      style: { 'line-color': glow.added, 'width': 2.5, 'opacity': 1 },
+    },
+    {
+      selector: 'edge[change = "changed"]',
+      style: { 'line-color': glow.changed, 'width': 2.5, 'opacity': 1 },
+    },
+    {
+      selector: 'edge[change = "removed"]',
+      style: {
+        'line-style': 'dashed',
+        'line-color': p.textMuted,
+        'opacity': REMOVED_EDGE_OPACITY,
+        'underlay-opacity': GLOW_STEADY * EDGE_GLOW_SCALE * REMOVED_EDGE_OPACITY,
+      },
+    },
+  );
+
   // Three-tier focus opacity (key-inheritance-lineage refinement). When an
   // entity is focused (selected or hovered), elements split into three visual
   // tiers so the inherited/ancestral set reads as a distinct middle layer:
@@ -183,12 +224,12 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
   // dotted rays match their (0.5) target nodes.
   base.push({
     selector: '.faded',
-    style: { 'opacity': 0.2 },
+    style: { 'opacity': TIER_OPACITY['faded'] },
   });
 
   base.push({
     selector: '.inherited-dim',
-    style: { 'opacity': 0.5 },
+    style: { 'opacity': TIER_OPACITY['inherited-dim'] },
   });
 
   base.push({
@@ -228,7 +269,7 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
   // gives `.faded`/`.inherited-dim` over span grading.
   base.push({
     selector: '.search-dim',
-    style: { 'opacity': 0.2 },
+    style: { 'opacity': TIER_OPACITY['search-dim'] },
   });
 
   base.push({
@@ -238,6 +279,11 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
       'border-color': SEARCH_MATCH_BORDER[mode],
     },
   });
+
+  // Steady edge-glow counterpart of createChangeGlow's opacity scaling.
+  for (const [tier, opacity] of Object.entries(TIER_OPACITY)) {
+    base.push({ selector: `edge[change].${tier}`, style: { 'underlay-opacity': GLOW_STEADY * EDGE_GLOW_SCALE * opacity } });
+  }
 
   return base;
 }

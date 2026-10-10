@@ -1,7 +1,7 @@
 ---
 type: Domain
-description: Parses an ignatius model root into a typed Model, derives classification/cardinality by structure, and builds O(1) lookup indices.
-tags: [model, markdown, derivation]
+description: Parses an ignatius model root into a typed Model, derives classification/cardinality by structure, builds lookup indices, and diffs the model against an approved baseline for change review.
+tags: [model, markdown, derivation, change-review]
 ---
 
 # parser
@@ -13,6 +13,8 @@ tags: [model, markdown, derivation]
 `parseModels(dir)` turns a model root (`ignatius.yml` plus `data/`, `groups/`) into that trusted `Model`: entity nodes, edges, groups, subtype clusters, theme, and branding, plus each entity's markdown body (including `[[wiki-links]]`) rendered to HTML. It returns `ParseResult = { model, globalErrors }` only; a caller that needs O(1) lookups over the result calls `buildModelIndex(model)` ([`src/model/model-index.ts`](../../src/model/model-index.ts)) separately to get a `ModelIndex` — nodes, edges, keys, and clusters by id instead of scanning arrays.
 
 Every consumer in the repo (`cli`, `server`, `validate`, `frontend`, `flows`, `generators`) sits downstream of this one function.
+
+The same directory also holds the change-review files. [`src/model/change-store.ts`](../../src/model/change-store.ts) keeps a snapshot of the parsed model and flows at the last approval (the baseline) in `<model>/.ignatius/baseline.json`. [`src/model/change-review.ts`](../../src/model/change-review.ts) diffs the current parse against that baseline and checks the difference against hand-written change notes in `.ignatius/changes/*.md`. A reviewer sees what changed from the diff and why from the notes, and each source exposes what the other omitted: an unexplained change, or a note that names something that did not change. Without the baseline, "changed since approved" has no reference point, and a version-control diff cannot supply one for a model folder outside a repository.
 
 ## How it works
 
@@ -45,6 +47,50 @@ flowchart LR
 ```
 
 `wikiLinkPlugin` ([`src/model/wikilink.ts`](../../src/model/wikilink.ts)) is a markdown-it inline rule registered before the `link` rule, so `[[…]]` is recognized ahead of standard link syntax. It never raises an error itself: an unresolved target renders as a non-navigating span, and is reported separately by `validate.ts`'s `body.unknown_link` rule.
+
+### Baseline lifecycle
+
+**The baseline file is created from the current parse when absent or unreadable, and afterward only `approve`, or a rebuild after an unreadable file, rewrites it.**
+
+```mermaid
+stateDiagram-v2
+    %% source: docs/design/model-change-review.md (Lifecycle), src/model/change-store.ts
+    [*] --> NoBaseline
+    NoBaseline --> Stored: ensureBaseline writes current snapshot
+    NoBaseline --> Stored: approve writes current snapshot
+    Stored --> NoBaseline: readBaseline finds unparseable or wrong-shape file
+    Stored --> Stored: approve writes current snapshot, deletes notes
+```
+
+`readBaseline` returns `null` for a missing file, invalid JSON, or a value that fails `isSnapshot` (`version === 1`, an object `model`, an array `flows`); `ensureBaseline` then rebuilds it. `writeBaseline` creates `.ignatius/`, calls `ensureGitignore`, and writes through a temp file plus `rename`. `ensureGitignore` appends `.ignatius/` to `<model>/.gitignore` unless a line already matches. Concurrent `ensureBaseline` calls for one model directory share a single in-flight promise (`pendingBaselines`), so the server's startup call and the first `/api/model` request do not both append to that ignore file.
+
+### Diff and cross-check
+
+**`buildReview` parses once, diffs against the baseline, then lets the notes cover or contradict each item.**
+
+```mermaid
+flowchart TD
+    %% source: docs/design/model-change-review.md (Approach), src/model/change-store.ts, src/model/change-review.ts
+    Cur["currentSnapshot()"] --> Base["ensureBaseline()"]
+    Base --> Diff["diffSnapshots()"]
+    Cur --> Diff
+    Notes["loadNotes →<br/>parseChangeNote"] --> Cross["crossCheck()"]
+    Diff --> Cross
+    Cross --> Review["ChangeReview"]
+```
+
+`diffSnapshots` compares entities, columns, relationships, and flow diagrams with keyed maps and returns `ChangeItem`s with scope `entity`, `column`, `relationship`, `doc`, or `flow` and kind `added`, `removed`, or `changed`. It compares derived fields with object keys sorted (`canonical`) and set-like lists sorted, so YAML key order or list order never reads as a change. A body-only edit yields a `doc` item, compared through `linkStateNeutral`. Derived context and L1 flow diagrams (`SYNTHETIC_DIAGRAM_IDS`) are skipped; sub-DFDs are keyed by `diagramPath`.
+
+`crossCheck` marks each item `explained` (with the covering note files) or `unexplained`, and emits a `ChangeClaim` for each entity, column, diagram, or node a note names that has no matching item, unless the entity or diagram itself was added or removed. Coverage is by scope:
+
+| Item scope | Covered when a note lists |
+|---|---|
+| `entity`, `doc` | the entity under `entities:` |
+| `column` | the entity with that column name under `entities:` |
+| `relationship` | the source or the target entity under `entities:` |
+| `flow` | the diagram id under `flows:`, with the node name when the item has one |
+
+A note with bad frontmatter becomes a `ChangeNoteError` value and the review continues. `removedNodes` and `removedEdges` come from the baseline model, since the current model no longer holds them.
 
 ### Classification derivation
 
@@ -93,8 +139,10 @@ A dangling edge (unknown target, or an FK column absent from the child's PK) is 
 | Path | Exports | Role |
 |------|---------|------|
 | [`src/model/parse.ts`](../../src/model/parse.ts) | `parseModels(dir): Promise<ParseResult>`, `normalizePredicate()`, `ModelNode`, `ModelEdge`, `Model`, `ParseResult`, `ModelMeta`, `Predicate`, `ColumnDef`, `SubtypeCluster`, `GroupConfig`, `Cardinality`, `ThemeConfig`, `Branding`, `HarnessMode` | Reads `ignatius.yml` (`_meta`, `theme:`, `branding:`) and `data/**/*.md` + `groups/*.md`; owns all derivation logic and the shared `MarkdownIt` instance |
-| [`src/model/wikilink.ts`](../../src/model/wikilink.ts) | `WikiLinkEnv`, `splitWikiTarget()`, `wikiLinkPlugin(md)` | markdown-it inline rule for `[[Target]]` / `[[Target\|label]]`; registered onto `parse.ts`'s `md` via `md.use(wikiLinkPlugin)`. Types markdown-it's state/instance via minimal local interfaces (`InlineToken`, `InlineState`, `MarkdownItLike`) rather than casting to `any`, because markdown-it 14 ships no types in this repo. |
+| [`src/model/wikilink.ts`](../../src/model/wikilink.ts) | `WikiLinkEnv`, `splitWikiTarget()`, `wikiLinkPlugin(md)`, `linkStateNeutral()` | markdown-it inline rule for `[[Target]]` / `[[Target\|label]]`; `linkStateNeutral(html)` rewrites missing-link spans as live anchors so two renders of one body compare equal whichever targets exist; registered onto `parse.ts`'s `md` via `md.use(wikiLinkPlugin)`. Types markdown-it's state/instance via minimal local interfaces (`InlineToken`, `InlineState`, `MarkdownItLike`) rather than casting to `any`, because markdown-it 14 ships no types in this repo. |
 | [`src/model/model-index.ts`](../../src/model/model-index.ts) | `buildModelIndex(model): ModelIndex`, `endpointKey(source, target)`, `ModelIndex` | Pure, no Bun/Node/DOM imports; browser-safe. Builds `nodeById`, `edgesBySource`/`edgesByTarget`/`edgeByEndpointPair`, `pkByNode`/`columnsByNode`, `akColumnsByNode`/`fkColumnsByNode`, subtype-cluster maps, `nodesByGroup` |
+| [`src/model/change-review.ts`](../../src/model/change-review.ts) | `diffSnapshots()`, `parseChangeNote()`, `crossCheck()`, `ModelSnapshot`, `ChangeKind`, `FlowNodeKind`, `ChangeItem`, `ChangeNote`, `ChangeNoteError`, `ReviewedItem`, `ChangeClaim`, `ChangeReview` | Diff of two `ModelSnapshot`s and the note cross-check. Imports `md` and `parseFrontmatter` from [`src/flows/flow-markdown.ts`](../../src/flows/flow-markdown.ts) at runtime |
+| [`src/model/change-store.ts`](../../src/model/change-store.ts) | `baselinePath()`, `ensureBaseline()`, `buildReview()`, `approve()`, `ensureGitignore()` | Filesystem side of change review: reads and writes `.ignatius/baseline.json`, reads `.ignatius/changes/*.md`, calls `parseModels` and `parseFlows` for the current snapshot |
 
 `ModelMeta.indexFile` and `ModelMeta.harness` are populated from `ignatius.yml`'s top-level `index_file:` and `harness:` keys (`harness` is validated against `'auto' | 'claude' | 'agents' | 'both'` and dropped if it does not match). `ModelMeta.flowRules` and `ModelMeta.flowView` are populated the same way from the top-level `flow_rules:` and `flow_view:` blocks (parse.ts:204-221): `flowRules.process_to_process` is copied from the YAML `process_to_process` boolean, and `flowView.adjacencyStacks` is copied from the YAML `adjacency_stacks` boolean nested under `flow_view:`; either field is omitted from its object when the source YAML key is absent or not a boolean, and `_meta` itself stays `undefined` only when every one of `name`/`version`/`description`/`updated`/`flowRules`/`flowView`/`indexFile`/`harness` is absent. `ModelNode.sourcePath` is set for every parsed entity to its path relative to the model root (e.g. `data/catalog/Product.md`) and is optional only for hand-built test fixtures. Both entity and group frontmatter accept a top-level `description:` string, copied onto `ModelNode.description` / `GroupConfig.description` verbatim (distinct from `GroupConfig.desc`, which is the group's body rendered to HTML).
 
@@ -105,13 +153,18 @@ A dangling edge (unknown target, or an FK column absent from the child's PK) is 
 - `subtypeMemberToCluster` is first-wins for a member appearing in multiple clusters; a caller reading only `subtypeMemberToCluster` for a multi-cluster member silently gets one cluster and misses the rest. `clustersByMemberId` is the array form that captures all of them.
 - `identifying` and `cardinality` are always derived from structure on every parse; a caller that reads frontmatter `classification` or `relationships[].identifying` directly instead of the derived `ModelNode.classification` / `ModelEdge.identifying` gets values that go stale the moment the underlying data changes, since only the derived fields are recomputed on the next parse.
 - `index_file:` must be a bare filename ending in `.md` with no `/`, `\`, or `..` segments; a violation is a `config.index_file_ext` / `config.index_file_path` global error rather than a thrown exception, but the invalid value is still written into `_meta.indexFile` and used as `indexFileName` (parse.ts:222-237, :264) — parsing does not fall back to `index.md`, so the reserved-file skip silently never matches any real file.
+- Adding a `Map`/`Set` field to `Model` or `FlowDiagram` makes it serialize to `{}` in `baseline.json`, so the field is never diffed and a change to it reports nothing. A baseline whose `version` is not `1` is treated as absent and silently replaced on the next `ensureBaseline`.
+- `approve` deletes every file in `.ignatius/changes/`, not only `.md` notes, and rewrites the baseline; the returned `notes` count includes only `.md` files, and `items` is `0` when no baseline existed.
+- `change-review.ts` imports `flow-markdown` at runtime, which pulls shiki. Browser code imports its types only (`import type`); a value import would put shiki in the frontend bundle.
+- Relationship items key on source plus target. When a source+target pair has more than one edge on either side, the key also includes the canonical FK mapping (`edge.on`) so dual-FK and self-referential edges do not overwrite each other.
 
 ## Coupling
 
 - `validate` — two-way type coupling: `parse.ts` imports `GlobalError` from [`src/model/validate.ts`](../../src/model/validate.ts), and `validate.ts` imports `Model`/`ModelNode`/`ModelEdge`/`SubtypeCluster` from `parse.ts`. `model-index.ts` mirrors `validate.ts`'s `checkAlternateKeys` (AK column union) and `checkEdgeDanglingFkColumn` (FK column derivation from `edge.on` keys) logic; a change to either derivation must be kept in sync in both files.
-- `flows` — [`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts) imports `Model` from `parse.ts` only for `entityModel` parameters (node/column lookups); flow-rule silencing comes through a separate `config: FlowRulesConfig` parameter to `validateFlows(flowModel, entityModel, config)` (flow-validate.ts:822-824), checked directly (e.g. `if (config.process_to_process === false) return [];` at flow-validate.ts:382) — `flow-validate.ts` never reads `_meta` itself. [`src/flows/flow-markdown.ts`](../../src/flows/flow-markdown.ts) imports `wikiLinkPlugin` from `wikilink.ts` directly into its own `MarkdownIt` instance (separate from the one in `parse.ts`); [`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts) imports that instance's `md` export rather than registering its own. Both instances pass the same `highlight` callback, so entity and flow bodies highlight identically.
-- [`src/model/markdown-highlight.ts`](../../src/model/markdown-highlight.ts) — shiki with six precompiled grammars (json, sql, javascript, typescript, python, bash) behind `createJavaScriptRawEngine()`, exported as `highlightCodeFence(code, lang)` and wired into both `MarkdownIt` constructors as the `highlight` option. Server-side only: app code imports `parse.ts` for types alone, so neither markdown-it nor these grammars reach the browser bundle.
-- `frontend` ([`src/app/`](../../src/app)) — modules under [`src/app/logic/`](../../src/app/logic), [`src/app/hooks/`](../../src/app/hooks), [`src/app/components/entity/`](../../src/app/components/entity), and view files import `Model`, `ModelNode`, `ModelEdge`, `Predicate`, `ThemeConfig`, or `SubtypeCluster` as types from `parse.ts`; `App.tsx`, `spotlight.ts`, `spotlight-inherited.ts`, `DictionaryView.tsx`, and `GraphView.tsx` import `ModelIndex` from `model-index.ts`. `GroupConfig` is imported from `parse.ts` by `App.tsx`, `FabMenu.tsx`, and [`src/app/views/graph/styles.ts`](../../src/app/views/graph/styles.ts). [`src/app/views/flow/FlowsView.tsx`](../../src/app/views/flow/FlowsView.tsx) reads `resolvedEntityModel?._meta?.flowView?.adjacencyStacks` and passes it through as the `adjacencyStacks` layout option.
+- `flows` — [`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts) imports `Model` from `parse.ts` only for `entityModel` parameters (node/column lookups); flow-rule silencing comes through a separate `config: FlowRulesConfig` parameter to `validateFlows(flowModel, entityModel, config)` (flow-validate.ts:822-824), checked directly (e.g. `if (config.process_to_process === false) return [];` at flow-validate.ts:382) — `flow-validate.ts` never reads `_meta` itself. [`src/flows/flow-markdown.ts`](../../src/flows/flow-markdown.ts) imports `wikiLinkPlugin` from `wikilink.ts` directly into its own `MarkdownIt` instance (separate from the one in `parse.ts`); [`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts) imports that instance's `md` export rather than registering its own. Both instances pass the same `highlight` callback, so entity and flow bodies highlight identically. [`src/model/change-review.ts`](../../src/model/change-review.ts) imports types from `flow-parse.ts`, `SYNTHETIC_DIAGRAM_IDS` from [`src/flows/flow-derive-levels.ts`](../../src/flows/flow-derive-levels.ts), and `md`/`parseFrontmatter`/`isRecord` from `flow-markdown.ts`; `change-store.ts` calls `parseFlows` for the current snapshot.
+- [`src/model/markdown-highlight.ts`](../../src/model/markdown-highlight.ts) — shiki with precompiled grammars for json, sql, javascript, typescript, python, and bash behind `createJavaScriptRawEngine()`, exported as `highlightCodeFence(code, lang)` and wired into both `MarkdownIt` constructors as the `highlight` option. Server-side only: app code imports `parse.ts` for types alone, so neither markdown-it nor these grammars reach the browser bundle.
+- `frontend` ([`src/app/`](../../src/app)) — modules under [`src/app/logic/`](../../src/app/logic), [`src/app/hooks/`](../../src/app/hooks), [`src/app/components/entity/`](../../src/app/components/entity), and view files import `Model`, `ModelNode`, `ModelEdge`, `Predicate`, `ThemeConfig`, or `SubtypeCluster` as types from `parse.ts`; `App.tsx`, `spotlight.ts`, `spotlight-inherited.ts`, `DictionaryView.tsx`, and `GraphView.tsx` import `ModelIndex` from `model-index.ts`. `GroupConfig` is imported from `parse.ts` by `App.tsx`, `FabMenu.tsx`, and [`src/app/views/graph/styles.ts`](../../src/app/views/graph/styles.ts). [`src/app/views/flow/FlowsView.tsx`](../../src/app/views/flow/FlowsView.tsx) reads `resolvedEntityModel?._meta?.flowView?.adjacencyStacks` and passes it through as the `adjacencyStacks` layout option. `ChangesPanel.tsx`, `change-marks.ts`, `useModelData.ts`, `GraphView.tsx`, `DictionaryView.tsx`, and `FlowsView.tsx` import `ChangeReview`-family types from `change-review.ts`.
 - `server` ([`src/server/server.ts`](../../src/server/server.ts)) and `cli` ([`src/cli/cli.ts`](../../src/cli/cli.ts)) both call `parseModels()` directly to produce the `Model` they serve or output, and both read `model._meta?.flowRules` themselves (`server.ts:93`; `cli.ts:135, 217, 329`) to build the `FlowRulesConfig` they pass into `flow-validate.ts`'s `validateFlows`.
 - `generators` ([`src/generators/app.ts`](../../src/generators/app.ts)) imports the `Model` type from `parse.ts`.
+- `server` and `cli` call into change review: `server.ts` calls `buildReview(modelsDir, model)` inside `/api/model` (a failure logs and returns `diff: null`), `ensureBaseline(modelsDir)` at startup, and `approve(modelsDir)` from the same-origin `POST /api/approve`; `cli.ts` imports `approve` from `change-store.ts` for its approve command. Design: [`docs/design/model-change-review.md`](../design/model-change-review.md).
 - Changing the `Model`, `ModelNode`, `ModelEdge`, or `ModelIndex` shapes forces updates across all of the above; changing `ignatius.yml` top-level key handling in `parseModels` forces updates to `theme` and `branding` default-merge logic in [`src/theme/`](../../src/theme).

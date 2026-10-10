@@ -428,13 +428,12 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  /* Above the global findings banner (200): a tall modal reaches the top edge, and the banner would cover its close button. */
+  z-index: 210;
 }
 
-/* A dialog opened from inside another one. It renders within the opener's
-   `.modal`, so it needs to clear that subtree's stacking order to sit on top. */
 .modal-backdrop-stacked {
-  z-index: 110;
+  z-index: 220;
 }
 
 .modal {
@@ -1153,7 +1152,7 @@ button.flow-crumb__label:hover {
    Zoom control (CP22) — shared, view-agnostic; Graph view only for now
    (CP23 will wire it to the Flows view too).
    Placed bottom-right, above the FAB (bottom:24px + 48px height + 12px gap = 84px).
-   z-index 55: above canvas (1), below FAB (60) and modals (100+).
+   z-index 55: above canvas (1), below FAB (60) and modals (210+).
    ========================================================================= */
 
 .zoom-control {
@@ -1328,36 +1327,47 @@ button.flow-crumb__label:hover {
   font-weight: 600;
 }
 
-/* Findings panel — persistent top-right, lists all current findings */
-.findings-panel {
+/* Holds the Changes and Findings panels, stacked so they never overlap. */
+.side-panel-stack {
   position: fixed;
   /* Top offset clears the theme-toggle (top:16px, 36px tall, 12px gap). */
   top: 64px;
   right: 1rem;
-  width: 360px;
   max-height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  z-index: 55;
+  pointer-events: none;
+}
+
+.side-panel-stack > * {
+  pointer-events: auto;
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+/* Chrome shared by the Changes and Findings panels */
+.side-panel {
+  width: 360px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  z-index: 55;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.findings-panel--collapsed {
+.side-panel--collapsed {
   width: auto;
-  max-height: none;
   background: transparent;
   border: none;
   box-shadow: none;
 }
 
-.findings-panel-badge {
-  background: var(--color-error-bg);
-  color: var(--color-error-fg);
-  border: 1px solid var(--color-error-border);
+.side-panel-badge {
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 13px;
@@ -1368,11 +1378,7 @@ button.flow-crumb__label:hover {
   transition: background 0.15s;
 }
 
-.findings-panel-badge:hover {
-  background: var(--color-error-border);
-}
-
-.findings-panel-header {
+.side-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1381,14 +1387,13 @@ button.flow-crumb__label:hover {
   flex-shrink: 0;
 }
 
-.findings-panel-header h3 {
+.side-panel-header h3 {
   font-size: 13px;
   font-weight: 600;
-  color: var(--color-error-fg);
   margin: 0;
 }
 
-.findings-panel-collapse {
+.side-panel-collapse {
   background: none;
   border: none;
   color: var(--color-text-muted);
@@ -1400,8 +1405,23 @@ button.flow-crumb__label:hover {
   transition: color 0.1s;
 }
 
-.findings-panel-collapse:hover {
+.side-panel-collapse:hover {
   color: var(--color-text);
+}
+
+/* Findings panel — lists all current findings */
+.findings-panel-badge {
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+  border: 1px solid var(--color-error-border);
+}
+
+.findings-panel-badge:hover {
+  background: var(--color-error-border);
+}
+
+.findings-panel-header h3 {
+  color: var(--color-error-fg);
 }
 
 .findings-panel-list {
@@ -1508,6 +1528,394 @@ button.flow-crumb__label:hover {
   color: var(--color-text-secondary);
   font-style: italic;
   line-height: 1.4;
+}
+
+/* Changes panel (docs/spec/model-change-review.md) */
+/* Fallbacks until applyThemeCssVars sets CHANGE_COLORS for the active theme. */
+:root {
+  --change-added: #22c55e;
+  --change-changed: #f59e0b;
+  --change-unexplained: #f87171;
+  --change-removed: #dc2626;
+  --change-removed-text: #f87171;
+}
+
+.theme-light {
+  --change-added: #15803d;
+  --change-changed: #d97706;
+  --change-unexplained: #dc2626;
+  --change-removed-text: #dc2626;
+}
+
+.changes-panel-badge {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--change-changed);
+}
+
+.changes-panel-badge:hover {
+  background: var(--color-surface-alt);
+}
+
+.changes-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.changes-panel-overlay {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.changes-panel-approve {
+  background: var(--change-added);
+  color: var(--color-background);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.changes-panel-approve:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.changes-panel-error {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+}
+
+.changes-panel-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.changes-panel-section {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-surface-alt);
+}
+
+.changes-panel-section:last-child {
+  border-bottom: none;
+}
+
+.changes-panel-section h4,
+.changes-panel-note h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 4px 0;
+}
+
+.changes-panel-section--unexplained h4,
+.changes-panel-section--errors h4 {
+  color: var(--change-unexplained);
+}
+
+.changes-panel-note + .changes-panel-note {
+  margin-top: 10px;
+}
+
+.changes-panel-note .doc-body {
+  font-size: 12px;
+}
+
+.changes-panel-note .doc-body p {
+  margin: 0 0 6px 0;
+}
+
+.changes-panel-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.changes-panel-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 3px solid var(--color-border);
+  padding: 3px 8px;
+  margin: 2px 0;
+  font-size: 12px;
+  color: var(--color-text);
+  font-family: inherit;
+}
+
+button.changes-panel-item {
+  cursor: pointer;
+}
+
+button.changes-panel-item:hover {
+  background: var(--color-surface-alt);
+}
+
+.changes-panel-item--added {
+  border-left-color: var(--change-added);
+}
+
+.changes-panel-item--changed {
+  border-left-color: var(--change-changed);
+}
+
+.changes-panel-item--removed {
+  border-left-color: var(--change-removed);
+}
+
+.changes-panel-removed {
+  color: var(--change-removed-text);
+  font-weight: 600;
+}
+
+.changes-panel-removed-icon::before {
+  content: '✕';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--change-removed);
+  color: #fff;
+  font-size: 0.8em;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -0.1em;
+}
+
+.changes-panel-text {
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* Change markers in the Dictionary, entity modal, and Flow views */
+.change-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.1em 0.55em;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.change-badge--added {
+  color: var(--change-added);
+}
+
+.change-badge--changed {
+  color: var(--change-changed);
+}
+
+.change-badge--removed {
+  color: var(--change-removed-text);
+}
+
+.change-badge--unexplained {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--change-unexplained) 35%, transparent);
+}
+
+.change-row--added {
+  --change-row-color: var(--change-added);
+}
+
+.change-row--changed {
+  --change-row-color: var(--change-changed);
+}
+
+.change-row--removed {
+  --change-row-color: var(--change-removed);
+}
+
+.change-row > td:first-child {
+  box-shadow: inset 3px 0 0 var(--change-row-color);
+}
+
+.change-row--unexplained > td:first-child {
+  background: color-mix(in srgb, var(--change-unexplained) 15%, transparent);
+}
+
+.change-row--removed > td {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.change-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--change-row-color);
+}
+
+/* Dimmed frame and children, never the card's own opacity, so the warning badge stays at full strength like the graph ghost's ✕. */
+.dict-entity-section.dict-entity-section--removed {
+  border-color: color-mix(in srgb, var(--color-border) 60%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+}
+
+.dict-entity-section--removed > :not(.dict-entity-header),
+.dict-entity-section--removed > .dict-entity-header > :not(.change-badge) {
+  opacity: 0.6;
+}
+
+.dict-entity-section--removed h2 {
+  text-decoration: line-through;
+}
+
+.dict-removed-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  text-decoration: underline dashed;
+  cursor: pointer;
+}
+
+.dict-removed-link:hover {
+  color: var(--color-text);
+}
+
+:is([data-ignatius="flow-svg"] g, .flow-index__pill, .change-dot--pulse)[data-change="added"] {
+  --change-kind: var(--change-added);
+}
+
+:is([data-ignatius="flow-svg"] g, .flow-index__pill, .change-dot--pulse)[data-change="changed"] {
+  --change-kind: var(--change-changed);
+}
+
+.flow-glow-kind {
+  fill: var(--change-kind);
+}
+
+.flow-glow-unexplained {
+  fill: var(--change-unexplained);
+}
+
+.flow-glow rect {
+  opacity: 0.6;
+}
+
+/* The pulse floor stays visible so any single frame, a screenshot included, shows the mark. */
+@keyframes flow-glow-pulse {
+  from { opacity: 0.35; }
+  to { opacity: 0.85; }
+}
+
+/* One colour cycle is two pulses; each layer peaks in its own pulse, and both sit at the floor between them. */
+@keyframes flow-glow-swap {
+  0%, 50%, 100% { opacity: 0.35; }
+  25% { opacity: 0.85; }
+  75% { opacity: 0.15; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-ignatius="flow-svg"]:not([data-motion="off"]) .flow-glow rect,
+  :is(.flow-index__pill, .change-dot--pulse)[data-change]::before {
+    animation: flow-glow-pulse 1.8s ease-in-out infinite alternate;
+  }
+
+  [data-ignatius="flow-svg"]:not([data-motion="off"]) .flow-glow .flow-glow-unexplained,
+  :is(.flow-index__pill, .change-dot--pulse)[data-unexplained]::before {
+    animation: flow-glow-swap 7.2s ease-in-out -3.6s infinite;
+  }
+
+  [data-ignatius="flow-svg"]:not([data-motion="off"]) .flow-glow .flow-glow-unexplained + .flow-glow-kind,
+  :is(.flow-index__pill, .change-dot--pulse)[data-unexplained]::after {
+    animation: flow-glow-swap 7.2s ease-in-out infinite;
+  }
+}
+
+:is(.flow-index__pill, .change-dot--pulse)[data-change] {
+  position: relative;
+}
+
+.flow-index__pill[data-change] {
+  overflow: visible;
+}
+
+:is(.flow-index__pill, .change-dot--pulse)[data-change]::before,
+:is(.flow-index__pill, .change-dot--pulse)[data-unexplained]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* Unexplained: red paints first, under the kind layer, so a steady glow shows it as a ring outside, as on the canvas. */
+:is(.flow-index__pill, .change-dot--pulse)[data-change]::before,
+:is(.flow-index__pill, .change-dot--pulse)[data-unexplained]::after {
+  box-shadow: 0 0 2px 1px var(--change-kind), 0 0 7px 1px var(--change-kind);
+}
+
+:is(.flow-index__pill, .change-dot--pulse)[data-unexplained]::before {
+  box-shadow: 0 0 2px 3px var(--change-unexplained), 0 0 9px 3px var(--change-unexplained);
+}
+
+/* A level menu row's mark is a pulsing dot: its scrolling list clips an outer
+   glow, and an inner one reads as a muddy band. */
+.change-dot--pulse[data-change] {
+  background: var(--change-kind);
+}
+
+.change-dot {
+  display: inline-block;
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+
+.flow-index__pill .change-dot {
+  margin: 0 10px 0 -4px;
+}
+
+.change-dot--added {
+  background: var(--change-added);
+}
+
+.change-dot--changed {
+  background: var(--change-changed);
+}
+
+.change-dot--unexplained {
+  background: var(--change-unexplained);
+}
+
+.flow-index__pane-change {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .predicate-rev {
@@ -3280,6 +3688,7 @@ a.dict-link-missing:hover {
   .viewer-search-bar,
   .dict-nav-panel,
   .findings-panel,
+  .changes-panel,
   .theme-toggle,
   .help-toggle,
   .fab,

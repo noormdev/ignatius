@@ -66,7 +66,8 @@ If no model root is evident from context, ask:
 > "What is the path to your model root (directory containing `ignatius.yml`)?"
 
 If no `ignatius.yml` exists anywhere, run `model` mode first (`references/model-flow.md`) to
-bootstrap one — flows live inside a model.
+bootstrap one — flows live inside a model. Then run `ignatius approve` before the first flow
+write (`references/change-notes.md`).
 
 Then read the existing entities (the `data/<group>/*.md` files) and any existing `flows/`. You need
 the entity ids and their columns so `db:` stores and flow data-labels resolve against real

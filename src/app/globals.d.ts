@@ -23,6 +23,8 @@ declare global {
     // Debug/test seam: the live Cytoscape core, exposed for the visual harness
     // to locate nodes and drive hover. Not read by application code.
     __IGNATIUS_CY__?: cytoscape.Core;
+    // Test seam: the change glow last drawn per graph node id. Not read by application code.
+    __IGNATIUS_GLOW__?: Record<string, { alpha: number; color: string; badge?: number }>;
     // Generation counter: incremented each time a new Cytoscape instance is
     // assigned to __IGNATIUS_CY__. Lets the visual harness detect a rebuild
     // even when the teardown→rebuild cycle is too fast to observe the undefined state.

@@ -27,6 +27,8 @@ import type { BuildFlowDataOpts, StackNodeData } from '../../../flow-view/flow-l
 import { parseHash, serializeHash } from '../../hash-router';
 import type { HashState, FlowViewMode, FlowCollapseLevel } from '../../hash-router';
 import type { Model } from '../../../model/parse';
+import type { ChangeReview } from '../../../model/change-review';
+import { flowNodeMarks } from '../../logic/change-marks';
 import type {
   FlowDiagram,
   FlowProcess,
@@ -77,6 +79,8 @@ export interface FlowChromeCallbacks {
    * onRegisterRetheme does. Calling it with null clears active search dimming.
    */
   onRegisterSearchTokens?: (fn: ((tokens: ReadonlySet<string> | null) => void) | null) => void;
+  /** Same live-update pattern as onRegisterSearchTokens, for the change review to highlight; null clears it. */
+  onRegisterChangeReview?: (fn: ((review: ChangeReview | null) => void) | null) => void;
   /**
    * Called on every diagram render — top-level select, drill-down, and drill-up.
    * `ref` is the rendered diagram's path reference (flow-nav `diagramRef`).
@@ -270,6 +274,7 @@ export function initFlowGraphCore(
   // (docs/spec/dfd-store-clusters.md). A change re-mounts this renderer via
   // the caller's effect deps, so every diagram in the session picks it up.
   flowViewParams: { view: FlowViewMode; collapseLevel: FlowCollapseLevel } = { view: 'per-process', collapseLevel: 'clusters' },
+  initialChangeReview: ChangeReview | null = null,
 ): () => void {
   // Resolver for node ⓘ docs + in-dialog [[links]]. The entityModel parameter
   // may be a getter (() => Model | undefined) so the resolver always reads the
@@ -322,6 +327,7 @@ export function initFlowGraphCore(
   // survives drill-down/selectDiagramById since it lives in this closure,
   // outside renderDiagram.
   let currentSearchTokens: ReadonlySet<string> | null = initialSearchTokens ?? null;
+  let currentChangeReview = initialChangeReview;
 
   // Current palette mode. Updated by retheme() without rebuilding the renderer.
   let currentThemeMode: 'dark' | 'light' = initialThemeMode;
@@ -481,6 +487,9 @@ export function initFlowGraphCore(
     }
     chromeCallbacks?.onResetLayout?.(resetLayout);
 
+    // Change items key diagrams by every ancestor id, synthetic levels included.
+    const diagramPath = stack.map(s => s.diagram.id).join('/');
+
     // Mount the SVG renderer.
     const root = createRoot(div);
     svgRoot = root;
@@ -507,6 +516,7 @@ export function initFlowGraphCore(
             kindPalette,
             flowDataOpts,
             searchTokens: currentSearchTokens,
+            changeMarks: currentChangeReview ? flowNodeMarks(currentChangeReview, diagram, diagramPath) : null,
             onDrill: handleDrill,
             onReady: () => {
               window.__IGNATIUS_FLOW_READY__ = true;
@@ -550,6 +560,11 @@ export function initFlowGraphCore(
     // stack and breadcrumb position survive every keystroke.
     chromeCallbacks?.onRegisterSearchTokens?.((tokens) => {
       currentSearchTokens = tokens;
+      doRender(currentThemeMode);
+    });
+
+    chromeCallbacks?.onRegisterChangeReview?.((review) => {
+      currentChangeReview = review;
       doRender(currentThemeMode);
     });
 
@@ -628,6 +643,7 @@ export function initFlowGraphCore(
     chromeCallbacks?.onResetLayout?.(null);
     chromeCallbacks?.onRegisterRetheme?.(null);
     chromeCallbacks?.onRegisterSearchTokens?.(null);
+    chromeCallbacks?.onRegisterChangeReview?.(null);
     teardownSvgRoot();
     window.__IGNATIUS_FLOW_READY__ = false;
     window.__IGNATIUS_ACTIVE_FLOW_DFD__ = undefined;
@@ -698,6 +714,8 @@ export interface FlowsViewProps {
    * prop. null = no active search (no dimming from this source).
    */
   searchTokens: ReadonlySet<string> | null;
+  /** Changes to highlight on the shown diagram; null = no highlights. */
+  changeReview: ChangeReview | null;
   /** Per-process vs. connected rendering — global setting owned by the shell (docs/spec/dfd-store-clusters.md). */
   flowView: FlowViewMode;
   /** Stack row breakdown level — global setting owned by the shell (docs/spec/dfd-store-clusters.md). */
@@ -721,6 +739,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       onActiveDiagramChange = undefined,
       onZoomPercentChange,
       searchTokens,
+      changeReview,
       flowView,
       collapseLevel,
     },
@@ -735,6 +754,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     const flowRethemeRef = useRef<((mode: 'dark' | 'light') => void) | null>(null);
     // Search-tokens callback: applies live dimming without tearing down the renderer.
     const flowSearchTokensRef = useRef<((tokens: ReadonlySet<string> | null) => void) | null>(null);
+    const flowChangeReviewRef = useRef<((review: ChangeReview | null) => void) | null>(null);
     // Flow reset layout: registered by initFlowGraphCore so the FAB can trigger it.
     const flowResetLayoutRef = useRef<(() => void) | null>(null);
     // Tracks the currently selected top-level DFD id across SSE re-renders.
@@ -841,6 +861,9 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         onRegisterSearchTokens: (fn) => {
           flowSearchTokensRef.current = fn;
         },
+        onRegisterChangeReview: (fn) => {
+          flowChangeReviewRef.current = fn;
+        },
         onActiveDiagramChange: (id) => {
           activeFlowDiagramIdRef.current = id;
           // Write the active DFD reference into the URL hash so the view is deep-linkable.
@@ -918,12 +941,13 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         nodeUsageIndex,
         searchTokens,
         { view: flowView, collapseLevel },
+        changeReview,
       );
       return cleanup;
     }, [isActive, flowDiagrams, flowView, collapseLevel]); // eslint-disable-line react-hooks/exhaustive-deps
     // Note: themeMode intentionally excluded — retheme is handled by the separate effect below.
     // onOpenEntity, getEntityModel, getThemeConfig are stable refs/callbacks — not deps.
-    // searchTokens intentionally excluded — live updates handled by the separate
+    // searchTokens and changeReview intentionally excluded — live updates handled by the separate
     // effect below (mirrors themeMode/retheme); this call only seeds the initial value.
     // flowView/collapseLevel ARE deps: a toggle re-mounts the renderer so every
     // diagram in the session picks up the new opts without a reload.
@@ -943,6 +967,10 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       if (isActive) flowSearchTokensRef.current?.(searchTokens);
     }, [searchTokens, isActive]);
 
+    useEffect(() => {
+      if (isActive) flowChangeReviewRef.current?.(changeReview);
+    }, [changeReview, isActive]);
+
     // FlowsView renders only the FlowChrome overlay and leaves the actual diagram
     // DOM managed by the imperative initFlowGraphCore inside the containerRef.
     // FlowChrome is gated on isActive to match the original `isFlowSurface &&` guard.
@@ -957,6 +985,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         themeMode={themeMode}
         modelName={modelMeta?.name}
         modelDescription={modelMeta?.desc}
+        changeReview={changeReview}
       />
     );
   },

@@ -20,6 +20,7 @@ existing system — a database or code — I can read, or are we working from ho
 
 **If no model exists yet** (no `ignatius.yml` anywhere), run `model` mode first
 (`references/model-flow.md`) to bootstrap the skeleton — discovery writes into a model.
+Then run `ignatius approve` before the first entity or flow write (`references/change-notes.md`).
 Greenfield is the *normal* case for this mode, not an edge case.
 
 ### How you talk (read this first)

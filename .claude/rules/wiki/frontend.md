@@ -4,7 +4,7 @@ paths:
   - "src/app/**"
 ---
 
-Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; `logic/motion.ts` centralizes hover-intent debouncing and a per-view animation-element-limit; `flowview=`/`collapse=` hash params drive the flow view mode and collapse level; new `i` shortcut opens the flow index; `StackDialog`/`EdgeContractDialog` cover stack and edge-contract detail; views own cy/SVG lifecycle; components/logic/hooks/dom layered underneath
+Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; change-review overlay (`ChangesPanel`, `ChangeBadge`/`ChangeDot`, `logic/change-marks.ts`) marks graph, Dictionary, flow nodes, flow index and level-menu rows, with removed items in warning red; modals stack above the global findings banner; `flowview=`/`collapse=` hash params; views own cy/SVG lifecycle
 
 Map:
   - docs/wiki/frontend.md

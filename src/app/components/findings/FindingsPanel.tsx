@@ -35,8 +35,8 @@ export function FindingsPanel({
 
   if (collapsed) {
     return (
-      <aside className="findings-panel findings-panel--collapsed">
-        <button className="findings-panel-badge" onClick={onExpand}>
+      <aside className="side-panel side-panel--collapsed findings-panel">
+        <button className="side-panel-badge findings-panel-badge" onClick={onExpand}>
           ⚠ {total} {total === 1 ? 'issue' : 'issues'}
         </button>
       </aside>
@@ -44,10 +44,10 @@ export function FindingsPanel({
   }
 
   return (
-    <aside className="findings-panel">
-      <header className="findings-panel-header">
+    <aside className="side-panel findings-panel">
+      <header className="side-panel-header findings-panel-header">
         <h3>Issues ({total})</h3>
-        <button className="findings-panel-collapse" onClick={onCollapse} aria-label="Collapse panel">
+        <button className="side-panel-collapse findings-panel-collapse" onClick={onCollapse} aria-label="Collapse panel">
           −
         </button>
       </header>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, forwardRef } from 'react';
+import { flushSync } from 'react-dom';
 import type { Model, ModelNode } from '../../../model/parse';
 import type {
   FlowDiagram,
@@ -10,6 +11,8 @@ import type { FlowError } from '../../../flows/flow-validate';
 import { SYNTHETIC_DIAGRAM_IDS } from '../../../flows/flow-derive-levels';
 import type { EntityError, GlobalError } from '../../../model/validate';
 import type { ModelIndex } from '../../../model/model-index';
+import type { ChangeReview } from '../../../model/change-review';
+import type { EntityChanges } from '../../logic/change-marks';
 import { buildEntityUsageIndex } from '../../../flows/flow-usage-index';
 import { resolveFlowKindPalette, type FlowKindKey, type FlowKindEntry } from '../../../theme/theme-defaults';
 import { sortGroupNodes, nodeMatchesSearch, processMatchesSearch, externalMatchesSearch, storeMatchesSearch, compareDottedProcesses } from '../../logic/search';
@@ -67,6 +70,9 @@ interface DictionaryViewProps {
   onToggleNav: () => void;
   onOpenEntity: (id: string) => void;
   themeMode: 'dark' | 'light';
+  /** Changes to mark; null hides every marker and the Removed section. */
+  changeReview: ChangeReview | null;
+  entityChanges: ReadonlyMap<string, EntityChanges> | null;
 }
 
 const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
@@ -82,6 +88,8 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   onToggleNav,
   onOpenEntity,
   themeMode,
+  changeReview,
+  entityChanges,
 }, ref) {
   const { globalErrors, entityErrors } = findings;
 
@@ -500,6 +508,14 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     for (const n of ungrouped) {
       if (nodeMatchesSearch(n, term, '')) visibleSet[n.id] = true;
     }
+  }
+
+  const removedNodes = (changeReview?.removedNodes ?? []).filter(n => !hasSearch || nodeMatchesSearch(n, term, model.groups[n.group ?? '']?.label ?? ''));
+
+  function showRemoved() {
+    flushSync(() => switchLens('read'));
+    const el = document.getElementById('dict-removed');
+    if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
   }
 
   const totalVisible = Object.keys(visibleSet).length;
@@ -1060,6 +1076,12 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
               </div>
             )}
 
+            {removedNodes.length > 0 && (
+              <button type="button" className="dict-removed-link" onClick={showRemoved}>
+                {removedNodes.length} removed since approval
+              </button>
+            )}
+
             {groupOrder.map(key => {
               const cfg = model.groups[key];
               if (!cfg) return null;
@@ -1095,6 +1117,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                           onMouseEnter={handleCardMouseEnter}
                           onMouseLeave={handleCardMouseLeave}
                           onClick={handleCardClick}
+                          change={entityChanges?.get(n.id)?.mark}
                         />
                       );
                     })}
@@ -1130,6 +1153,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                           onMouseEnter={handleCardMouseEnter}
                           onMouseLeave={handleCardMouseLeave}
                           onClick={handleCardClick}
+                          change={entityChanges?.get(n.id)?.mark}
                         />
                       );
                     })}
@@ -1290,6 +1314,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                       onNavigateMissing={scrollToMissing}
                       processUsages={entityUsageIndex.get(n.id)}
                       onScrollToProcess={scrollToProcess}
+                      changes={entityChanges?.get(n.id)}
                     />
                   ))}
                 </section>
@@ -1310,6 +1335,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                 onNavigateMissing={scrollToMissing}
                 processUsages={entityUsageIndex.get(n.id)}
                 onScrollToProcess={scrollToProcess}
+                changes={entityChanges?.get(n.id)}
               />
             ))}
 
@@ -1320,6 +1346,28 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                 <p>This entity was referenced but does not exist in the model.</p>
               </section>
             ))}
+
+            {changeReview && removedNodes.length > 0 && (
+              <section id="dict-removed" className="dict-group-section dict-removed-section">
+                <div className="dict-group-header">
+                  <h1 className="dict-group-title">Removed since approval</h1>
+                </div>
+                {removedNodes.map(n => (
+                  <EntityCard
+                    key={n.id}
+                    node={n}
+                    edges={changeReview.removedEdges}
+                    basetypeCluster={undefined}
+                    memberCluster={undefined}
+                    nodeErrors={[]}
+                    missingTargets={missingTargets}
+                    onNavigate={scrollToSection}
+                    onNavigateMissing={scrollToMissing}
+                    changes={entityChanges?.get(n.id)}
+                  />
+                ))}
+              </section>
+            )}
           </>
         )}
 

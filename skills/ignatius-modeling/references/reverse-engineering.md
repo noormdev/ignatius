@@ -26,7 +26,9 @@ does, and you do not guess. Two rules govern the whole exercise:
 ### Phase R0 — Inventory the sources
 
 Establish what you can read, and locate the model root (or run `model` mode first if none
-exists). Ask what is available and prefer the most authoritative source:
+exists; after that bootstrap, run `ignatius approve` before the first entity write, as
+`references/change-notes.md` "When to write one" describes). Ask what is available and prefer
+the most authoritative source:
 
 | Source | Yields | How to read it |
 |--------|--------|----------------|

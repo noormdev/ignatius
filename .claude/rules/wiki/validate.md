@@ -4,7 +4,7 @@ paths:
   - "src/model/validate.ts"
 ---
 
-Domain: validate. Pure model validator: 38 RuleIds across 8 prefixes (parse/config/entity/body/edge/cluster/index/flow), two severity tiers (A=warn, B=omit); `flow.*` now 17 ids including five `flow.cluster_*` DFD-store-cluster rules; `validateIndex` reuses `buildRouters` to detect router drift
+Domain: validate. Pure model validator: RuleIds across parse/config/entity/body/edge/cluster/index/flow prefixes, two severity tiers (A=warn, B=omit); `flow.cluster_*` DFD-store-cluster rules; `validateIndex` reuses `buildRouters` to detect router drift
 
 Map:
   - docs/wiki/validate.md

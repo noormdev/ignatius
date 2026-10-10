@@ -4,17 +4,24 @@
  * can switch sideways without climbing back up.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeReview } from '../model/change-review';
+import { flowRowChanges, type FlowRowChanges } from '../app/logic/change-marks';
+import { ChangeDot } from '../app/components/changes/ChangeBadge';
 import type { FlowLevelEntry } from './flow-nav';
 
 // Below this many entries every row fits without scrolling, so a filter box
 // would only add a step.
 const FILTER_MIN_ENTRIES = 8;
 
-export function LevelMenu({ heading, entries, currentId, onPick, onClose }: {
+export function LevelMenu({ heading, entries, currentId, parentIds, changeReview, onPick, onClose }: {
   heading: string;
   entries: FlowLevelEntry[];
   currentId: string;
+  /** Id path of the diagram the entries decompose, root first; empty for the roots. */
+  parentIds: string[];
+  /** Changes to mark on the rows; null = no marks. */
+  changeReview: ChangeReview | null;
   onPick: (entry: FlowLevelEntry) => void;
   onClose: () => void;
 }) {
@@ -28,6 +35,15 @@ export function LevelMenu({ heading, entries, currentId, onPick, onClose }: {
   const listRef = useRef<HTMLUListElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const showFilter = entries.length > FILTER_MIN_ENTRIES;
+  const parentKey = parentIds.join('/');
+  const changesById = useMemo(() => {
+    const changes = new Map<string, FlowRowChanges>();
+    if (!changeReview) return changes;
+    for (const entry of entries) {
+      changes.set(entry.diagramId, flowRowChanges(changeReview, parentKey ? `${parentKey}/${entry.diagramId}` : entry.diagramId, true));
+    }
+    return changes;
+  }, [entries, parentKey, changeReview]);
 
   useEffect(() => {
     if (showFilter) filterRef.current?.focus();
@@ -94,6 +110,7 @@ export function LevelMenu({ heading, entries, currentId, onPick, onClose }: {
         {shown.map((entry, i) => {
           const isCurrent = entry.diagramId === currentId;
           const isActive = i === Math.min(activeIdx, shown.length - 1);
+          const changes = changesById.get(entry.diagramId);
           return (
             <li key={entry.diagramId} role="presentation">
               <button
@@ -107,7 +124,10 @@ export function LevelMenu({ heading, entries, currentId, onPick, onClose }: {
                 onMouseEnter={() => setActiveIdx(i)}
               >
                 <span className="flow-level-menu__num">{entry.number}</span>
-                <span className="flow-level-menu__label">{entry.label}{isCurrent ? ' ✓' : ''}</span>
+                <span className="flow-level-menu__label">
+                  {entry.label}{isCurrent ? ' ✓' : ''}
+                  <ChangeDot severity={changes?.inside ?? null} mark={changes?.mark} />
+                </span>
                 <span className="flow-level-menu__count">
                   {entry.processCount} {entry.processCount === 1 ? 'process' : 'processes'}
                 </span>

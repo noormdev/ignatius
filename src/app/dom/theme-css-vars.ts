@@ -16,6 +16,18 @@ export const SPOTLIGHT_LINE_INHERITED: Record<ThemeMode, string> = {
   light: '#059669',
 };
 
+/** Change-review highlight colors per mode, read by `buildStyles`. */
+export const CHANGE_COLORS: Record<ThemeMode, { added: string; changed: string; unexplained: string }> = {
+  dark: { added: '#22c55e', changed: '#f59e0b', unexplained: '#f87171' },
+  light: { added: '#15803d', changed: '#d97706', unexplained: '#dc2626' },
+};
+
+/** Warning red for removed items in both modes: the graph's ghost ✕ badge, the Changes panel, and the Dictionary. */
+export const REMOVED_RED = '#dc2626';
+
+/** `REMOVED_RED` for text: on the dark surface it falls under 4.5:1, so dark mode lightens it. */
+export const REMOVED_TEXT: Record<ThemeMode, string> = { dark: '#f87171', light: REMOVED_RED };
+
 export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
   const p = mode === 'light' ? theme.light : theme.dark;
   const root = document.documentElement;
@@ -68,6 +80,13 @@ export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
     root.style.setProperty('--spotlight-line-flow', '#7c3aed');
   }
   root.style.setProperty('--spotlight-line-inherited', SPOTLIGHT_LINE_INHERITED[mode]);
+
+  const change = CHANGE_COLORS[mode];
+  root.style.setProperty('--change-added', change.added);
+  root.style.setProperty('--change-changed', change.changed);
+  root.style.setProperty('--change-unexplained', change.unexplained);
+  root.style.setProperty('--change-removed', REMOVED_RED);
+  root.style.setProperty('--change-removed-text', REMOVED_TEXT[mode]);
 
   // Status colors (error + warning) — mode-aware so findings UI is legible in both themes.
   // LOUD surfaces (global banner, error-fallback box) use *-strong: saturated red with

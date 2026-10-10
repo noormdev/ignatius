@@ -26,6 +26,7 @@
 
 import { useState, useImperativeHandle, forwardRef, useRef, useLayoutEffect, useCallback } from 'react';
 import type { FlowDiagram } from '../flows/flow-parse';
+import type { ChangeReview } from '../model/change-review';
 import type { MinimapData } from './FlowDiagramSvg';
 import { DARK_PALETTE, LIGHT_PALETTE } from './FlowDiagramSvg';
 import { defaultDiagramPath, levelEntries, resolveDiagramPath, type FlowLevelEntry } from './flow-nav';
@@ -61,6 +62,8 @@ export interface FlowChromeProps {
   modelName?: string;
   /** Model `description:` — describes the root and whole-system entries. */
   modelDescription?: string;
+  /** Changes to mark in the flow index and level menus; null = no marks. */
+  changeReview: ChangeReview | null;
 }
 
 // ── Minimap component ─────────────────────────────────────────────────────
@@ -205,7 +208,7 @@ function FlowMinimap({
 
 export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
   function FlowChrome(
-    { onSelectPath, onDrillUp, themeMode, modelName, modelDescription },
+    { onSelectPath, onDrillUp, themeMode, modelName, modelDescription, changeReview },
     ref,
   ) {
     const [stack, setStack] = useState<BreadcrumbEntry[]>([]);
@@ -341,6 +344,8 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
               heading={i === 0 ? 'Top level' : isDerived(stack[i - 1]!) ? 'Process flows' : `In ${stack[i - 1]!.label}`}
               entries={siblings}
               currentId={crumb.diagramId}
+              parentIds={stackIds.slice(0, i)}
+              changeReview={changeReview}
               onPick={entry => pickSibling(i, entry)}
               onClose={closeMenu}
             />
@@ -415,6 +420,7 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
             activePath={stackIds}
             modelName={modelName}
             modelDescription={modelDescription}
+            changeReview={changeReview}
             onSelectPath={selectFromIndex}
             onClose={closeIndex}
           />

@@ -79,8 +79,9 @@ Write:
 2. `groups/<slug>.md` for each group
 3. `data/<slug>/` directory for each group (entities live under `data/`)
 4. Entity file if requested in M7
+5. `.gitignore` next to `ignatius.yml`, containing the line `.ignatius/` (the local change-review state `ignatius serve` writes; see `references/change-notes.md`)
 
-Then run the verification loop in `references/verification.md`.
+Then run the verification loop in `references/verification.md`. A bootstrap creates the model from nothing, so it writes no change note. If the session goes on to write entities or flows, run `ignatius approve <model-root>` first (`references/change-notes.md`).
 
 ---
 

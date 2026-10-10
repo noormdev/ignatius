@@ -4,6 +4,9 @@ import { existsSync } from 'node:fs';
 import { serveWithPortFallback } from './serve-port';
 import { parseModels } from '../model/parse';
 import { pickModel } from './resolve-model';
+// Static on purpose: lazy-importing this module, which server.ts imports statically,
+// makes the compiled binary throw `__promiseAll is not defined` at startup.
+import { approve } from '../model/change-store';
 import { VERSION } from './version';
 import type { RouterFile } from '../router/build';
 
@@ -366,6 +369,34 @@ const exportCmd = defineCommand({
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// approve
+// ──────────────────────────────────────────────────────────────────────────────
+
+const approveCmd = defineCommand({
+  meta: {
+    name: 'approve',
+    description: 'Accept the current model as the change-review baseline and clear change notes',
+  },
+  args: {
+    path: {
+      type: 'positional',
+      description: 'Path to search for a model root (default: cwd)',
+      required: false,
+    },
+    model: {
+      type: 'string',
+      description: 'Model key to use when multiple models are found',
+    },
+  },
+  async run({ args }) {
+    const base = args.path ? resolve(args.path) : process.cwd();
+    const dir = await pickModel(base, args.model);
+    const { items, notes } = await approve(dir);
+    console.log(`Approved ${items} change(s), cleared ${notes} note(s).`);
+  },
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
 // version
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -427,6 +458,7 @@ const main = defineCommand({
     index: indexCmd,
     flow: flowCmd,
     export: exportCmd,
+    approve: approveCmd,
     version: versionCmd,
     update: updateCmd,
   },

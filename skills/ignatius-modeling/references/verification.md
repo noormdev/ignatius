@@ -98,7 +98,11 @@ The linter validates structure; it cannot see whether the business story was cap
 6. Cluster hygiene: every `clusters/*.md` has two or more members that all exist, no entity sits in two files, and every set of stores a process treats as one thing is either a cluster file referenced with the `cluster:` token or a subtype family (Step F4a). The five `flow.cluster_*` rules catch the file errors; only you can catch the set nobody named.
 7. Legibility, per process and direction: count the rows the default view will draw (one per cluster or subtype family with two or more touched members, one per loose store). More than about five is a missing cluster or a process to decompose (Step F8). Then look: `ignatius serve <model-root>`, open `#view=flow&dfd=<diagram-id>` (the per-process view is the default), and confirm each process shows one read stack above and one write stack below with a label on every chip. Capture a screenshot when you have a tool that can; otherwise ask the user to look and say what they see.
 
-Only when structure is clean **and** these hold: report "Verified clean — 0 findings, business context captured, sample rows consistent, every flow labelled and stacked legibly."
+**Change note (runs last, after the checks above hold):**
+
+Write this session's `.ignatius/changes/<slug>.md`, or update it if the session already wrote one, following `references/change-notes.md`. List every entity, column, diagram, and node the session changed, and nothing else. Skip it when the session only bootstrapped a model. Then tell the user to review the changes in `ignatius serve` (the Changes panel lists the note, anything unexplained, and anything named but unchanged) and to accept them with `ignatius approve <model-root>` or the panel's Approve button.
+
+Only when structure is clean **and** these hold: report "Verified clean — 0 findings, business context captured, sample rows consistent, every flow labelled and stacked legibly, change note written."
 
 ---
 

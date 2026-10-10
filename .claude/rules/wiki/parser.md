@@ -4,9 +4,11 @@ paths:
   - "src/model/parse.ts"
   - "src/model/wikilink.ts"
   - "src/model/model-index.ts"
+  - "src/model/change-review.ts"
+  - "src/model/change-store.ts"
 ---
 
-Domain: parser. `ignatius.yml` config loading → ParseResult: {model, globalErrors}; nodes, edges, cardinality + classification derivation; wiki-link inline rule + two-pass body rendering; `ModelMeta.flowView` (`flow_view:`/`adjacency_stacks`); `buildModelIndex` — 13 O(1) lookup maps built once per Model
+Domain: parser. `ignatius.yml` config loading → ParseResult: {model, globalErrors}; nodes, edges, cardinality + classification derivation; wiki-link inline rule + two-pass body rendering (`linkStateNeutral`); `buildModelIndex` lookup maps; change review: `change-review.ts` diffs model + flows against the approved baseline kept by `change-store.ts` and cross-checks agent change notes
 
 Map:
   - docs/wiki/parser.md
@@ -14,12 +16,15 @@ Contracts:
   - docs/spec/bidirectional-predicates.md
   - docs/spec/derive-classification.md
   - docs/spec/folder-model.md
+  - docs/spec/model-change-review.md
   - docs/spec/wiki-entity-links.md
 Designs:
   - docs/design/bidirectional-predicates.md
   - docs/design/folder-model.md
+  - docs/design/model-change-review.md
   - docs/design/wiki-entity-links.md
 Guides:
+  - docs/guides/change-review.md
   - docs/guides/folder-format.md
   - docs/guides/predicates.md
 

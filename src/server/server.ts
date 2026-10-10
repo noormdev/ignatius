@@ -5,8 +5,9 @@ import { layoutFingerprint } from '../model/layout-fingerprint';
 import { parseFlows } from '../flows/flow-parse';
 import { validateFlows } from '../flows/flow-validate';
 import { buildFlowLayoutKeys } from '../flows/flow-fingerprint';
+import { approve, baselinePath, buildReview, ensureBaseline } from '../model/change-store';
 import { resolve, normalize, isAbsolute, join } from 'path';
-import { watch, existsSync } from 'fs';
+import { watch, watchFile, unwatchFile, existsSync, type Stats } from 'fs';
 
 const encoder = new TextEncoder();
 
@@ -18,6 +19,33 @@ function hasWatchedExtension(filename: string): boolean {
   const dot = filename.lastIndexOf('.');
   if (dot === -1) return false;
   return WATCHED_EXTENSIONS[filename.slice(dot)] === true;
+}
+
+// A DNS-rebound page reaches the server under its own domain name, where every
+// request looks same-origin; only a name that cannot be rebound proves locality.
+function isLocalHost(req: Request): boolean {
+  const host = req.headers.get('host');
+  if (host === null) return false;
+  try {
+    const { hostname } = new URL(`http://${host}`);
+    return hostname === 'localhost' || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.startsWith('[');
+  } catch {
+    return false;
+  }
+}
+
+// The server listens on every interface and a bodyless POST is a CORS simple
+// request, so any page the user visits could otherwise trigger a state change.
+function isSameOrigin(req: Request): boolean {
+  const fetchSite = req.headers.get('sec-fetch-site');
+  if (fetchSite !== null && fetchSite !== 'same-origin') return false;
+  const origin = req.headers.get('origin');
+  if (origin === null) return true;
+  try {
+    return new URL(origin).host === req.headers.get('host');
+  } catch {
+    return false;
+  }
 }
 
 export type ServeHandle = {
@@ -47,6 +75,15 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
 
   // Debounce: one timer per server instance — all changes within 200ms coalesce into one event
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const baselineFile = baselinePath(modelsDir);
+
+  function scheduleModelChanged() {
+    if (debounceTimer !== null) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      broadcast('model-changed');
+    }, 200);
+  }
 
   const fsWatcher = watch(
     modelsDir,
@@ -55,12 +92,7 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
       if (!filename) return;
       // Ignore directory-only events (no extension) and non-watched extensions
       if (!hasWatchedExtension(filename)) return;
-
-      if (debounceTimer !== null) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null;
-        broadcast('model-changed');
-      }, 200);
+      scheduleModelChanged();
     }
   );
 
@@ -73,7 +105,20 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         const { model, globalErrors: parseGlobalErrors } = await parseModels(modelsDir);
         const validation = validateModel(model);
         const layoutKey = layoutFingerprint(model);
-        return Response.json({ model, parseGlobalErrors, validation, layoutKey });
+        const diff = await buildReview(modelsDir, model).catch((err: unknown) => {
+          console.error(`ignatius: could not build the change review: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
+        });
+        return Response.json({ model, parseGlobalErrors, validation, layoutKey, diff });
+      },
+      '/api/approve': async (req: Request) => {
+        if (req.method !== 'POST') {
+          return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'POST' } });
+        }
+        if (!isSameOrigin(req) || !isLocalHost(req)) return new Response('Forbidden', { status: 403 });
+        const counts = await approve(modelsDir);
+        broadcast('model-changed');
+        return Response.json(counts);
       },
       '/flow': () => Response.redirect('/#view=flow', 302),
       '/api/flow': async () => {
@@ -160,7 +205,22 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
 
   console.log(`ignatius serving at http://localhost:${server.port}`);
 
+  let stopped = false;
+  const onBaselineStat = (current: Stats, previous: Stats) => {
+    if (current.mtimeMs !== previous.mtimeMs) scheduleModelChanged();
+  };
+
+  ensureBaseline(modelsDir).catch((err: unknown) => {
+    console.error(`ignatius: could not prepare the change-review baseline: ${err instanceof Error ? err.message : String(err)}`);
+  }).finally(() => {
+    // A CLI approve that clears no notes writes only the baseline, which the recursive watcher ignores (model
+    // extensions only; matching it there proved unreliable on macOS). Polling starts after serve's first write.
+    if (!stopped) watchFile(baselineFile, { interval: 500 }, onBaselineStat);
+  });
+
   function stop(force?: boolean) {
+    stopped = true;
+    unwatchFile(baselineFile, onBaselineStat);
     fsWatcher.close();
     if (debounceTimer !== null) clearTimeout(debounceTimer);
     sseClients.clear();

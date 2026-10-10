@@ -537,7 +537,7 @@ export function excessWireLength(cy: cytoscape.Core): number {
   return excess;
 }
 
-// Grade every rendered edge by its length within the layout's own length
+// Grade the given edges by length within their own length
 // distribution, so the stylesheet can de-emphasise long-haul wires. A
 // cross-graph edge carries "these domains are related" — it does not deserve
 // the same ink as a local FK, and rendering both at full weight is what makes
@@ -547,9 +547,9 @@ export function excessWireLength(cy: cytoscape.Core): number {
 // uniform layout, where even the longest edge is unremarkable, dims nothing.
 // Pure function of current positions (no layout change); call after every
 // positions change (layout done, drag release).
-export function gradeEdgeSpans(cy: cytoscape.Core) {
+export function gradeEdgeSpans(edges: cytoscape.EdgeCollection) {
   const lengths: { e: cytoscape.EdgeSingular; len: number }[] = [];
-  cy.edges().forEach((e) => {
+  edges.forEach((e) => {
     const s = e.source(), t = e.target();
     if (s.isParent() || t.isParent()) return;
     const a = s.position(), b = t.position();

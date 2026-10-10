@@ -1,5 +1,29 @@
 import type { ReactNode } from 'react';
 import type { ModelNode, ModelEdge } from '../../../model/parse';
+import type { ChangeMark, EntityChanges } from '../../logic/change-marks';
+
+function rowClass(mark: ChangeMark | undefined): string | undefined {
+  if (!mark) return undefined;
+  return `change-row change-row--${mark.change}${mark.unexplained ? ' change-row--unexplained' : ''}`;
+}
+
+function ChangeTag({ mark }: { mark: ChangeMark | undefined }) {
+  if (!mark || mark.change === 'removed') return null;
+  return <span className="change-tag">{mark.change}</span>;
+}
+
+function RemovedColumnRows({ changes, codeType }: { changes: EntityChanges | undefined; codeType: boolean }) {
+  return changes?.removedColumns.map(([name, col]) => (
+    <tr key={`removed-${name}`} className={rowClass(changes.columns.get(name))}>
+      <td><code>{name}</code></td>
+      <td>{codeType ? <code>{col.type}</code> : col.type}</td>
+      <td>—</td>
+      <td>{col.nullable ? 'Yes' : 'No'}</td>
+      <td>{col.default ?? ''}</td>
+      <td>{col.desc ?? ''}</td>
+    </tr>
+  ));
+}
 
 /**
  * Unified columns table for the entity modal and the data dictionary card.
@@ -11,6 +35,8 @@ import type { ModelNode, ModelEdge } from '../../../model/parse';
  * variant="dict" — wraps in .dict-table-wrap; uses .dict-attr-table; header says
  *   "Nullable"; type cell is <code>; FK cells show target link only (no "FK → "
  *   prefix) with ` · ` separators; supports missingTargets + onNavigateMissing.
+ *
+ * `changes` marks added and changed rows and appends removed columns as struck-through rows.
  */
 export function ColumnsTable({
   node,
@@ -19,6 +45,7 @@ export function ColumnsTable({
   variant = 'modal',
   missingTargets,
   onNavigateMissing,
+  changes,
 }: {
   node: ModelNode;
   edges: ModelEdge[];
@@ -28,6 +55,7 @@ export function ColumnsTable({
   missingTargets?: Set<string>;
   /** dict variant only — called when clicking a missing FK target. */
   onNavigateMissing?: (id: string) => void;
+  changes?: EntityChanges;
 }) {
   const fkTargets: Record<string, string> = {};
   for (const edge of edges) {
@@ -39,7 +67,9 @@ export function ColumnsTable({
   }
 
   const cols = Object.entries(node.columns);
-  if (cols.length === 0) return null;
+  const removedCols = changes?.removedColumns ?? [];
+  if (cols.length + removedCols.length === 0) return null;
+  const markOf = (name: string) => changes?.columns.get(name);
 
   if (variant === 'dict') {
     const pkSet: Record<string, true> = {};
@@ -81,8 +111,8 @@ export function ColumnsTable({
               }
               if (isAk) parts.push('AK');
               return (
-                <tr key={name}>
-                  <td><code>{name}</code></td>
+                <tr key={name} className={rowClass(markOf(name))}>
+                  <td><code>{name}</code><ChangeTag mark={markOf(name)} /></td>
                   <td><code>{col.type}</code></td>
                   <td>
                     {parts.length === 0 ? '—' : parts.map((p, i) => (
@@ -95,6 +125,7 @@ export function ColumnsTable({
                 </tr>
               );
             })}
+            <RemovedColumnRows changes={changes} codeType />
           </tbody>
         </table>
       </div>
@@ -142,8 +173,8 @@ export function ColumnsTable({
           </thead>
           <tbody>
             {cols.map(([name, col]) => (
-              <tr key={name}>
-                <td><code>{name}</code></td>
+              <tr key={name} className={rowClass(markOf(name))}>
+                <td><code>{name}</code><ChangeTag mark={markOf(name)} /></td>
                 <td>{col.type}</td>
                 <td>{renderRoles(name)}</td>
                 <td>{col.nullable ? 'Yes' : 'No'}</td>
@@ -151,6 +182,7 @@ export function ColumnsTable({
                 <td>{col.desc ?? ''}</td>
               </tr>
             ))}
+            <RemovedColumnRows changes={changes} codeType={false} />
           </tbody>
         </table>
       </div>
