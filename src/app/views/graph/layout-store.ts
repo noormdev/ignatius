@@ -30,6 +30,9 @@ export interface LayoutStoreHandle {
   load(layoutKey: string): PositionMap | null;
   save(layoutKey: string, positions: PositionMap): void;
   clear(layoutKey: string): void;
+  /** Newest saved position of `nodeId` outside `exceptKey`, from an entry that also saved one of
+   *  `neighbourIds`; the store is shared by every model, so this keeps out same-named nodes. */
+  lastPosition(nodeId: string, exceptKey: string, neighbourIds: string[]): { x: number; y: number } | null;
 }
 
 function readStore(storage: StorageLike, storageKey: string): LayoutStore {
@@ -103,6 +106,15 @@ export function createLayoutStore(
       const store = readStore(storage, storageKey);
       delete store[layoutKey];
       writeStore(storage, store, storageKey);
+    },
+
+    lastPosition(nodeId: string, exceptKey: string, neighbourIds: string[]): { x: number; y: number } | null {
+      const entries = Object.entries(readStore(storage, storageKey))
+        .filter(([key, entry]) => key !== exceptKey
+          && entry?.positions?.[nodeId] !== undefined
+          && neighbourIds.some(id => entry.positions[id] !== undefined))
+        .sort(([, a], [, b]) => b.savedAt - a.savedAt);
+      return entries[0]?.[1].positions[nodeId] ?? null;
     },
   };
 }

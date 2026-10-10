@@ -71,3 +71,11 @@ You never set `classification` or `identifying` manually. The parser derives bot
 After writing each file the skill runs `ignatius validate <model-root>` and parses the lint findings from stderr. Findings are reported with fix hints, and you can ask the skill to revise and re-run (up to five attempts). A clean run with no findings confirms the file is valid. See [Validation and findings](validation.md) for the rules it checks against.
 
 When the model carries generated routers, the loop also runs `ignatius validate --index`, which reports them as `index.stale` after any authoring change, and then `ignatius index` to regenerate them. Every file the skill writes gets a one-line `description:`, since that field is what the routers show a reader deciding whether to open the file.
+
+
+## Change notes
+
+
+Every session that changes a model ends with one change note in `.ignatius/changes/`, naming the entities, columns, diagrams, and nodes it touched and saying why. Open the model in `ignatius serve` to read the edit as highlighted changes beside that note, then accept it with `ignatius approve`. A model the skill bootstraps gets a `.gitignore` that keeps `.ignatius/` out of version control. See [Change review](change-review.md).
+
+Before its first write to a model with no valid `.ignatius/baseline.json`, the skill runs `ignatius approve` to record the untouched files as the baseline. Its edits then show as changes even when you never opened the model in `serve`. If `.ignatius/changes/` already holds notes, it stops instead, because `approve` would delete notes you have not read. It asks you to approve them yourself or to restore the baseline. A session that bootstraps a model and keeps writing runs `approve` once after the bootstrap. The skill never runs `approve` after editing: accepting the edit is your step.

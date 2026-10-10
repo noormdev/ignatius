@@ -22,7 +22,7 @@
     "build:bundle": "bun build src/app/index.html --outdir=dist/static --minify --target=browser --define:process.env.NODE_ENV='\"production\"'",
     "build:stable-names": "bun scripts/stable-names.ts",
     "build:cli": "bun run build:bundle && bun run build:stable-names && bun build --compile src/cli/cli.ts --outfile dist/ignatius",
-    "test": "for f in test/checks/*.ts; do echo \"=== $f ===\" && bun \"$f\" || exit 1; done",
+    "test": "bun scripts/clear-review-state.ts && for f in test/checks/*.ts; do echo \"=== $f ===\" && bun \"$f\" || exit 1; done",
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {

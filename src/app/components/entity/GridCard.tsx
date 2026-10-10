@@ -1,5 +1,7 @@
 import type { ModelNode } from '../../../model/parse';
 import { ClassificationBadge } from './ClassificationBadge';
+import { ChangeBadge } from '../changes/ChangeBadge';
+import type { ChangeMark } from '../../logic/change-marks';
 
 /**
  * GridCard — compact entity card for the Dictionary browse lens.
@@ -18,6 +20,7 @@ export function GridCard({
   onMouseEnter,
   onMouseLeave,
   onClick,
+  change,
 }: {
   node: ModelNode;
   groupColor: string | undefined;
@@ -27,6 +30,7 @@ export function GridCard({
   onMouseEnter: (id: string) => void;
   onMouseLeave: (id: string) => void;
   onClick: (id: string) => void;
+  change?: ChangeMark;
 }) {
   const pkCols = node.pk ?? [];
   const colCount = Object.keys(node.columns).length;
@@ -71,6 +75,7 @@ export function GridCard({
       </div>
       <div className="dict-grid-card-badge">
         <ClassificationBadge cls={node.classification} />
+        <ChangeBadge mark={change} />
       </div>
       {pkCols.length > 0 && (
         <div className="dict-grid-card-pk">

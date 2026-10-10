@@ -24,6 +24,8 @@ import type { SearchBarHandle } from './components/ui/SearchBar';
 import { FlowSearchResults } from './components/flow/FlowSearchResults';
 import { EntityModal } from './components/entity/EntityModal';
 import { FindingsPanel } from './components/findings/FindingsPanel';
+import { ChangesPanel } from './components/changes/ChangesPanel';
+import { entityChanges } from './logic/change-marks';
 import { LegendModal } from './views/flow/LegendModal';
 import { FlowsView } from './views/flow/FlowsView';
 import type { FlowsViewHandle } from './views/flow/FlowsView';
@@ -57,6 +59,8 @@ export function App() {
     findings,
     flowDiagrams,
     flowFindings,
+    diff,
+    refreshDiff,
     layoutKeyRef,
     bannerDismissed,
     setBannerDismissed,
@@ -119,6 +123,14 @@ export function App() {
   // Lifted from GraphView via onCyReadyChange — shell gates ZoomControl/minimap rendering.
   const [cyReady, setCyReady] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [changesCollapsed, setChangesCollapsed] = useState(false);
+  const [changeOverlay, setChangeOverlay] = useState(true);
+  const shownChanges = changeOverlay ? diff : null;
+  const shownEntityChanges = useMemo(() => (shownChanges ? entityChanges(shownChanges) : null), [shownChanges]);
+  // The graph and flow handles only work once their view has mounted, so a
+  // Changes-panel click from another view parks its target until the switch.
+  const pendingChangeEntityRef = useRef<string | null>(null);
+  const pendingChangeDiagramRef = useRef<string | null>(null);
   // Dictionary state — keep-mounted so search text + scroll survive view switches.
   const [dictSearchText, setDictSearchText] = useState('');
   const [dictNavOpen, setDictNavOpen] = useState(false);
@@ -243,6 +255,40 @@ export function App() {
       if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
     });
   }, [view]);
+
+  useEffect(() => {
+    const entity = pendingChangeEntityRef.current;
+    if (view === 'graph' && entity !== null) {
+      pendingChangeEntityRef.current = null;
+      graphViewRef.current?.panelNavigate(entity);
+    }
+    const diagram = pendingChangeDiagramRef.current;
+    if (view === 'flow' && diagram !== null) {
+      pendingChangeDiagramRef.current = null;
+      flowsViewRef.current?.selectDiagramById(diagram);
+    }
+  }, [view, changeOverlay]);
+
+  function handleChangeEntity(id: string) {
+    const ghostHidden = !changeOverlay && (diff?.removedNodes.some(node => node.id === id) ?? false);
+    if (view === 'graph' && !ghostHidden) {
+      graphViewRef.current?.panelNavigate(id);
+      return;
+    }
+    // The pending-target effect runs after GraphView has re-added the ghosts.
+    if (ghostHidden) setChangeOverlay(true);
+    pendingChangeEntityRef.current = id;
+    setView('graph');
+  }
+
+  function handleChangeDiagram(diagramPath: string) {
+    if (view === 'flow') {
+      flowsViewRef.current?.selectDiagramById(diagramPath);
+      return;
+    }
+    pendingChangeDiagramRef.current = diagramPath;
+    setView('flow');
+  }
 
   // Re-apply Cytoscape styles when theme mode changes — delegate to GraphView handle
   // which owns cy, svg, and marker refs. Guard on view so it only fires for graph.
@@ -594,6 +640,7 @@ export function App() {
         minimapOpen={minimapOpen}
         initialLayoutMode={layoutMode}
         searchMatches={graphSearchMatches}
+        changeReview={shownChanges}
         onCyReadyChange={setCyReady}
         onZoomPercentChange={setZoomPercent}
         onLayoutModeChange={setLayoutMode}
@@ -639,6 +686,8 @@ export function App() {
             onToggleNav={() => setDictNavOpen(prev => !prev)}
             onOpenEntity={id => openEntityById(id)}
             themeMode={themeMode}
+            changeReview={shownChanges}
+            entityChanges={shownEntityChanges}
           />
         </div>
       ) : view === 'dict' ? (
@@ -662,6 +711,7 @@ export function App() {
         onOpenEntity={(id, fromFlow) => openEntityByIdRef.current(id, fromFlow)}
         onZoomPercentChange={setFlowZoomPercent}
         searchTokens={flowSearchTokens}
+        changeReview={shownChanges}
         flowView={flowView}
         collapseLevel={collapseLevel}
       />
@@ -787,6 +837,7 @@ export function App() {
           nodeById={modelIndex?.nodeById}
           nodeIdSet={modelIndex?.nodeIdSet}
           entityErrors={appErrorsByEntityId.get(selected.id) ?? []}
+          changes={shownEntityChanges?.get(selected.id)}
           onClose={() => { setShowEntityModal(false); setEntityModalOpenedFromFlow(false); closeEntity(); }}
           onNavigate={(id) => {
             if (entityModalOpenedFromFlow) {
@@ -842,21 +893,37 @@ export function App() {
           )}
         </footer>
       )}
-      <FindingsPanel
-        globalErrors={
-          view === 'flow'
-            ? flowFindings.globalErrors
-            : view === 'dict'
-              ? [...findings.globalErrors, ...flowFindings.globalErrors]
-              : findings.globalErrors
-        }
-        entityErrors={view === 'flow' ? [] : visibleEntityErrors}
-        flowErrors={view === 'flow' || view === 'dict' ? flowFindings.flowErrors : undefined}
-        collapsed={panelCollapsed}
-        onCollapse={() => setPanelCollapsed(true)}
-        onExpand={() => setPanelCollapsed(false)}
-        onNavigate={(id) => graphViewRef.current?.panelNavigate(id)}
-      />
+      <div className="side-panel-stack">
+        {diff && (
+          <ChangesPanel
+            review={diff}
+            flowDiagrams={flowDiagrams}
+            overlay={changeOverlay}
+            onOverlayChange={setChangeOverlay}
+            collapsed={changesCollapsed}
+            onCollapse={() => setChangesCollapsed(true)}
+            onExpand={() => setChangesCollapsed(false)}
+            onNavigateEntity={handleChangeEntity}
+            onOpenDiagram={handleChangeDiagram}
+            onRefresh={refreshDiff}
+          />
+        )}
+        <FindingsPanel
+          globalErrors={
+            view === 'flow'
+              ? flowFindings.globalErrors
+              : view === 'dict'
+                ? [...findings.globalErrors, ...flowFindings.globalErrors]
+                : findings.globalErrors
+          }
+          entityErrors={view === 'flow' ? [] : visibleEntityErrors}
+          flowErrors={view === 'flow' || view === 'dict' ? flowFindings.flowErrors : undefined}
+          collapsed={panelCollapsed}
+          onCollapse={() => setPanelCollapsed(true)}
+          onExpand={() => setPanelCollapsed(false)}
+          onNavigate={(id) => graphViewRef.current?.panelNavigate(id)}
+        />
+      </div>
     </div>
   );
 }

@@ -1,13 +1,15 @@
 # Commands
 
 
-ignatius has five subcommands. The three model commands read the same folder format. Two utility commands report and update the installed binary.
+ignatius has seven subcommands. The five model commands read the same folder format. Two utility commands report and update the installed binary.
 
 | Subcommand | What it does |
 |---|---|
 | `serve` | Starts an interactive single-page app and watches the folder for changes |
 | `export` | Writes a self-contained model file (graph, dictionary, and flows) as one HTML file |
 | `validate` | Checks the model and reports findings without writing any output |
+| `index` | Writes a navigable router file into every organizing folder |
+| `approve` | Accepts the current model as the change-review baseline and deletes the change notes |
 | `version` | Prints the installed version |
 | `update` | Checks for a newer release and installs it |
 
@@ -44,6 +46,8 @@ ignatius serve [path] [-p|--port <port>] [--model <key>] [-o|--open]
 - **Flows** — the DFD viewer (see [Process flows](flows.md)). A `db:` store node opens the same rich entity dialog as a graph node; a process, external, or non-`db` store opens a plain markdown dialog.
 
 While serving, a findings panel lists any schema problems and updates on every save. See [Validation and findings](validation.md).
+
+`serve` also diffs the model against the last approved state and marks what changed in all three views, with a Changes panel that lists each change beside the note that explains it. See [Change review](change-review.md).
 
 
 ## export
@@ -92,6 +96,24 @@ ignatius validate [path] [--model <key>] [--index]
 It prints each finding to stderr in the same format as `export` and writes a one-line summary to stdout, then exits `1` when the model has errors and `0` otherwise. When the model has a `flows/` directory, the flow rules run too and their findings are included. Use it as a lightweight quality gate while authoring or in CI.
 
 `--index` also recomputes every router digest and reports drift as `index.stale`, a Class B finding, so a model whose routers no longer match its files fails the gate. It writes nothing; the fix is `ignatius index`. A plain `validate` never hashes, so the check costs nothing unless asked for.
+
+
+## approve
+
+
+Accepts the current model as the baseline that `serve` diffs against, and deletes every file in `.ignatius/changes/`.
+
+```bash
+ignatius approve [path] [--model <key>]
+```
+
+It resolves the model with the same discovery rules as the other model commands, then prints what it accepted and exits `0`:
+
+```
+Approved 3 change(s), cleared 1 note(s).
+```
+
+A model with no baseline yet gets one, and reports `0` changes. The Approve button in the `serve` Changes panel does the same thing. See [Change review](change-review.md).
 
 
 ## version

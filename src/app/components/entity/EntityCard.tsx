@@ -7,6 +7,8 @@ import { ColumnsTable } from './ColumnsTable';
 import { ChildrenTable } from './ChildrenTable';
 import { ExamplesAccordion } from './ExamplesAccordion';
 import { ProcessesTable } from '../process/ProcessesTable';
+import { ChangeBadge } from '../changes/ChangeBadge';
+import type { EntityChanges } from '../../logic/change-marks';
 
 export function EntityCard({
   node,
@@ -19,6 +21,7 @@ export function EntityCard({
   onNavigateMissing,
   processUsages,
   onScrollToProcess,
+  changes,
 }: {
   node: ModelNode;
   edges: ModelEdge[];
@@ -33,6 +36,7 @@ export function EntityCard({
   onNavigateMissing: (id: string) => void;
   processUsages?: ProcessUsage[];
   onScrollToProcess?: (processId: string) => void;
+  changes?: EntityChanges;
 }) {
   const pkList = node.pk.join(', ');
   const pkLabel = node.pk.length > 0 ? <span className="dict-pk-label">PK: <code>{pkList}</code></span> : null;
@@ -41,9 +45,13 @@ export function EntityCard({
   const isSubtypeOf = memberCluster;
 
   return (
-    <section className="dict-entity-section" id={`entity-${node.id}`}>
+    <section
+      className={changes?.mark.change === 'removed' ? 'dict-entity-section dict-entity-section--removed' : 'dict-entity-section'}
+      id={`entity-${node.id}`}
+    >
       <div className="dict-entity-header">
         <h2>{node.id}</h2>
+        <ChangeBadge mark={changes?.mark} />
         <ClassificationBadge cls={node.classification} />
         {isBasetypeOf && (
           <span
@@ -97,7 +105,7 @@ export function EntityCard({
         </p>
       )}
 
-      <ColumnsTable variant="dict" node={node} edges={edges} missingTargets={missingTargets} onNavigate={onNavigate} onNavigateMissing={onNavigateMissing} />
+      <ColumnsTable variant="dict" node={node} edges={edges} missingTargets={missingTargets} onNavigate={onNavigate} onNavigateMissing={onNavigateMissing} changes={changes} />
       <ChildrenTable variant="dict" node={node} edges={edges} onNavigate={onNavigate} />
 
       {node.bodyHtml && (

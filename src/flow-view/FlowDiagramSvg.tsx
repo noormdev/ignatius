@@ -38,6 +38,7 @@ import type { FlowDiagram, FlowEdge as FlowEdgeModel } from '../flows/flow-parse
 import type { NodePos, FlowElementData, StackNodeData, StackMember, StackRow, BuildFlowDataOpts, FlowStoreKind } from './flow-layout';
 import type { PositionMap } from '../app/views/graph/layout-store';
 import { animationsAllowed, createHoverIntent } from '../app/logic/motion';
+import { GLOW_BLUR, GLOW_SPREAD, type ChangeMark } from '../app/logic/change-marks';
 import type { FlowKindEntry, FlowKindKey } from '../theme/theme-defaults';
 
 // ── Visual palettes — theme-aware ─────────────────────────────────────────────
@@ -650,6 +651,24 @@ export function elkChannelChip(
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
+const UNEXPLAINED_GLOW_PAD = GLOW_SPREAD + 2;
+
+/** Drawn behind a node: a blurred glow in the change color, over a wider red layer when no note covers it. */
+function ChangeGlow({ mark, box }: { mark: ChangeMark; box: { x: number; y: number; w: number; h: number } }) {
+  const layer = (className: string, pad: number) => (
+    <rect
+      className={className} filter="url(#flow-change-glow)"
+      x={box.x - pad} y={box.y - pad} width={box.w + pad * 2} height={box.h + pad * 2} rx={pad + 4}
+    />
+  );
+  return (
+    <g className="flow-glow" pointerEvents="none">
+      {mark.unexplained && layer('flow-glow-unexplained', UNEXPLAINED_GLOW_PAD)}
+      {layer('flow-glow-kind', GLOW_SPREAD)}
+    </g>
+  );
+}
+
 // Radius of the ⓘ "open docs" badge drawn on every node.
 const INFO_R = 7;
 
@@ -1214,6 +1233,8 @@ export type FlowDiagramSvgProps = {
    * source). A pointer hover always wins over search dimming while it's active.
    */
   searchTokens?: ReadonlySet<string> | null;
+  /** Change-review marks keyed by base token. null = no highlights. */
+  changeMarks?: ReadonlyMap<string, ChangeMark> | null;
 };
 
 export function FlowDiagramSvg({
@@ -1235,6 +1256,7 @@ export function FlowDiagramSvg({
   onZoomChange,
   onRegisterZoomControl,
   searchTokens = null,
+  changeMarks = null,
 }: FlowDiagramSvgProps) {
   // Select palette based on current theme.
   const c = themeMode === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
@@ -2000,6 +2022,18 @@ export function FlowDiagramSvg({
     return tokens.has(baseToken(id));
   };
 
+  // A stack has no token of its own, so its marked members decide its mark.
+  const changeMarkOf = (node: FlowNode): ChangeMark | undefined => {
+    if (!changeMarks) return undefined;
+    if (node.nodeType !== 'stack') return changeMarks.get(baseToken(node.id));
+    const memberMarks = node.members.flatMap(m => changeMarks.get(baseToken(m.storeId)) ?? []);
+    if (memberMarks.length === 0) return undefined;
+    return {
+      change: memberMarks.every(m => m.change === 'added') ? 'added' : 'changed',
+      unexplained: memberMarks.some(m => m.unexplained),
+    };
+  };
+
   // Search dimming (graph-flow-search CP3, SC7) applies only while no hover is
   // active — hover always wins, matching the existing focus-tier precedence.
   const nodeOpacity = (id: string) => {
@@ -2036,6 +2070,7 @@ export function FlowDiagramSvg({
       viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
       style={{ display: 'block', background: c.canvas, touchAction: 'none' }}
       data-ignatius="flow-svg"
+      data-motion={animate ? undefined : 'off'}
       onPointerDown={onSvgPointerDown}
       onPointerMove={onSvgPointerMove}
       onPointerUp={onSvgPointerUp}
@@ -2051,6 +2086,9 @@ export function FlowDiagramSvg({
           orient="auto" markerUnits="userSpaceOnUse">
           <path d="M0,0 L8,3.5 L0,7 Z" fill={EDGE_HIGHLIGHT} />
         </marker>
+        <filter id="flow-change-glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation={GLOW_BLUR} />
+        </filter>
       </defs>
 
       {/*
@@ -2085,6 +2123,11 @@ export function FlowDiagramSvg({
             onPointerEnter: () => hoverIntent.set(`node:${node.id}`),
             onPointerLeave: () => hoverIntent.set(null),
           };
+          const mark = changeMarkOf(node);
+          const changeProps = mark
+            ? { 'data-change': mark.change, 'data-unexplained': mark.unexplained ? 'true' : undefined }
+            : {};
+          const changeGlow = mark ? <ChangeGlow mark={mark} box={nodeBounds(pos, node.nodeType, sizingInfo(node))} /> : null;
 
           if (node.nodeType === 'process') {
             const processId = node.processId ?? node.id;
@@ -2095,8 +2138,10 @@ export function FlowDiagramSvg({
                 key={node.id}
                 data-token={procToken}
                 {...hoverProps}
+                {...changeProps}
                 onPointerDown={e => onNodePointerDown(e, node.id, hasSubDfd, processId)}
               >
+                {changeGlow}
                 <ProcessNode
                   id={processId}
                   label={node.label}
@@ -2117,7 +2162,8 @@ export function FlowDiagramSvg({
               ? kindPalette[node.extKind]
               : undefined;
             return (
-              <g key={node.id} data-token={extToken} {...hoverProps} onPointerDown={e => onNodePointerDown(e, node.id, false, '')}>
+              <g key={node.id} data-token={extToken} {...hoverProps} {...changeProps} onPointerDown={e => onNodePointerDown(e, node.id, false, '')}>
+                {changeGlow}
                 <ExternalNode
                   label={node.label}
                   pos={pos}
@@ -2143,7 +2189,8 @@ export function FlowDiagramSvg({
               ? kindPalette[storeKind]
               : undefined;
             return (
-              <g key={node.id} data-token={storeToken} {...hoverProps} onPointerDown={e => onNodePointerDown(e, node.id, false, '')}>
+              <g key={node.id} data-token={storeToken} {...hoverProps} {...changeProps} onPointerDown={e => onNodePointerDown(e, node.id, false, '')}>
+                {changeGlow}
                 <StoreNode
                   storeKind={storeKind}
                   storeNum={num}
@@ -2178,8 +2225,10 @@ export function FlowDiagramSvg({
                 key={node.id}
                 data-token={node.id}
                 {...hoverProps}
+                {...changeProps}
                 onPointerDown={e => onNodePointerDown(e, node.id, false, '', openStack)}
               >
+                {changeGlow}
                 <StackNode
                   node={node}
                   pos={pos}

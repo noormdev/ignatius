@@ -4,7 +4,7 @@ paths:
   - "src/flows/**"
 ---
 
-Domain: flows. SSADM data flow diagrams: `parseFlows` (recursive sub-DFDs + canonical Yourdon leveling via `deriveLevels`, now also reading a folder's own `description:` off `index.md`), `flow-clusters.ts` `cluster:` token expansion from `clusters/<slug>.md` author files, `validateFlows` (17 `flow.*` rules), `buildFlowLayoutKeys`, usage indexing; role-split node model
+Domain: flows. SSADM data flow diagrams: `parseFlows` (recursive sub-DFDs + canonical Yourdon leveling via `deriveLevels`, reading a folder's own `description:` off `index.md`), `flow-clusters.ts` `cluster:` token expansion from `clusters/<slug>.md` author files, `validateFlows` (`flow.*` rules), `buildFlowLayoutKeys`, usage indexing; role-split node model
 
 Map:
   - docs/wiki/flows.md

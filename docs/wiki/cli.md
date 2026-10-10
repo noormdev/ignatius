@@ -8,7 +8,7 @@ tags: [cli, dispatch, model-resolution]
 
 ## What it does
 
-[`src/cli/cli.ts`](../../src/cli/cli.ts) is the single entry point a user or CI job runs: the compiled `dist/ignatius` binary, or `bun src/cli/cli.ts` in a dev checkout. `cli.ts` registers nine subcommand definitions (`serve`/`server` share one, so `server` is an alias, not a tenth). Every other domain in this repo (server, parser, validate, flows, generators, router) is reached only through one of those nine — there is no other production caller of `serveCommand` or `generateApp`. `parseModels`, though, is also called directly by [`src/server/server.ts`](../../src/server/server.ts), and `buildRouters` also directly by `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts) (see Coupling). Two responsibilities exist outside dispatch: finding which directory on disk is "the model" when the user did not say, and keeping the installed binary current against GitHub Releases, streaming the download with a live progress line rather than buffering it.
+[`src/cli/cli.ts`](../../src/cli/cli.ts) is the single entry point a user or CI job runs: the compiled `dist/ignatius` binary, or `bun src/cli/cli.ts` in a dev checkout. `cli.ts` registers the subcommand definitions (`serve`/`server` share one, so `server` is an alias). The CLI reaches every other domain in this repo (server, parser, validate, flows, generators, router, model change review) only through those subcommands. The one other caller of `serveCommand` is the dev-only `import.meta.main` block in [`src/server/server.ts`](../../src/server/server.ts); nothing else calls `generateApp`. `parseModels`, though, is also called directly by [`src/server/server.ts`](../../src/server/server.ts), and `buildRouters` also directly by `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts) (see Coupling). Two responsibilities exist outside dispatch: finding which directory on disk is "the model" when the user did not say, and keeping the installed binary current against GitHub Releases, streaming the download with a live progress line rather than buffering it.
 
 ## How it works
 
@@ -18,11 +18,12 @@ tags: [cli, dispatch, model-resolution]
 | `validate` | `path`, `--model`, `--index` | `parseModels` → `validateModel`; folds in `parseFlows`/`validateFlows` when `<dir>/flows` exists; `--index` additionally calls `validateIndex` to recompute router digests and report drift, without writing anything |
 | `index` | `path`, `--model`, `--agents` | Full parse + validate + flow pipeline, then `buildRouters`/`writeRouters` writes `index.md` routers into every organizing folder; `--agents` also writes `AGENTS.md`/`SKILL.md` and, when the harness resolves to Claude, [`CLAUDE.md`](../../CLAUDE.md) |
 | `export` | `path`, `--out`/`-o` (required), `--theme` (`light`\|`dark`), `--model` | Same parse/validate/flow pipeline as `validate`, then `loadEmbeddedBundle()` + `generateApp()` writes one self-contained HTML file |
+| `approve` | `path`, `--model` | Resolves the model dir via `pickModel`, then calls `approve(dir)` from [`src/model/change-store.ts`](../../src/model/change-store.ts): the current parse becomes the change-review baseline and every change note is deleted. Prints `Approved <items> change(s), cleared <notes> note(s).` |
 | `dict`, `graph`, `flow` | none | Removal stubs: write `"<name> was removed — use: ignatius export -o model.html"` to stderr, exit 1 |
 | `version` | none | Prints `VERSION` (baked from [`package.json`](../../package.json) at compile time) |
 | `update` | `--check`, `--yes`/`-y` | Delegates to `runUpdateCommand()`, exits with its returned code |
 
-`validate`, `index`, and `export` all resolve the model dir through `pickModel` before doing anything else, then run `parseModels` → `validateModel`. `validate` and `export` call `parseFlows`/`validateFlows` only when `<dir>/flows` exists, and diverge from each other only at the last step; `index` calls the same two functions unconditionally, with no existence guard, so it diverges from `validate`/`export` mid-pipeline, not just at the end.
+`serve`, `validate`, `index`, `export`, and `approve` all resolve the model dir through `pickModel` before doing anything else. `validate`, `index`, and `export` then run `parseModels` → `validateModel`. `validate` and `export` call `parseFlows`/`validateFlows` only when `<dir>/flows` exists, and diverge from each other only at the last step; `index` calls the same two functions unconditionally, with no existence guard, so it diverges from `validate`/`export` mid-pipeline, not just at the end.
 
 ### Model resolution
 
@@ -41,7 +42,7 @@ flowchart TD
     I -->|no| C
 ```
 
-`resolveModel` ([`src/cli/discover.ts`](../../src/cli/discover.ts)) itself has no TTY dependency: it checks `base/ignatius.yml` first, then searches down (skipping `_`-prefixed dirs and `node_modules`, `.git`, `dist`, `tmp`, [`trash/`](../../trash), `.worktrees/`, [`.claude/`](../../.claude), treating any directory holding `ignatius.yml` as a leaf), then walks up if nothing was found below. `pickModel` ([`src/cli/resolve-model.ts`](../../src/cli/resolve-model.ts)) is the only file that imports `@clack/prompts`'s `select` specifically, so the TTY-gated `select` prompt can never fire inside a spawned, non-interactive process.
+`resolveModel` ([`src/cli/discover.ts`](../../src/cli/discover.ts)) itself has no TTY dependency: it checks `base/ignatius.yml` first, then searches down (skipping `_`-prefixed dirs and `node_modules`, `.git`, `dist`, `tmp`, [`trash/`](../../trash), `.worktrees/`, [`.claude/`](../../.claude), treating any directory holding `ignatius.yml` as a leaf), then walks up if nothing was found below. `pickModel` ([`src/cli/resolve-model.ts`](../../src/cli/resolve-model.ts)) exits 2 on non-TTY stdin before reaching `select`; it is also the only file that imports `select`.
 
 ### Shared validate/export pipeline
 
@@ -57,6 +58,8 @@ flowchart TD
     F -->|"validate --index"| G[validateIndex]
     F -->|export| H[generateApp]
 ```
+
+With `--index`, `validate` calls `parseFlows` even when `<dir>/flows` is absent, because `validateIndex` needs a flow model to hash router targets.
 
 `validate --index` and `index` both end up computing router digests via `buildRouters`, but only `index` calls `writeRouters` to persist them; `validate --index` reports `index.stale`/`index.orphaned` findings and writes nothing to disk.
 
@@ -78,7 +81,7 @@ Two other subsystems sit off this pipeline. `serveWithPortFallback` ([`src/cli/s
 
 ### Self-update decision path
 
-`runUpdateCommand` exits 0 at every disqualifying condition; `checkForUpdate` and `downloadAndReplace` are the only two calls that can exit 1:
+`runUpdateCommand` exits 0 at every disqualifying condition; only `checkForUpdate` and `downloadAndReplace` can exit 1:
 
 ```mermaid
 flowchart TD
@@ -114,16 +117,15 @@ flowchart TD
     G -->|rename fails| F
 ```
 
-A genuine checksum mismatch aborts and deletes the staged file; an unreachable `checksums.txt` does not block the install, so verification is best-effort by design, not by accident. The staging file is named `.{basename(target)}.update-{pid}` next to `target` so the final `renameSync` is same-filesystem and atomic; overwriting the running binary this way is safe on Unix because the live process keeps its old inode until it exits. Each of those three throw paths (chunk-read failure, checksum mismatch, rename failure) unlinks the staging file first. The `chmodSync(tmp, 0o755)` call between checksum verification and rename sits outside any try/catch, though: if it throws (e.g. a read-only staging directory), the error propagates without unlinking `tmp`, leaving the staged file behind.
+A genuine checksum mismatch aborts and deletes the staged file; an unreachable `checksums.txt` does not block the install, so verification is best-effort by design, not by accident. The staging file is named `.{basename(target)}.update-{pid}` next to `target` so the final `renameSync` is same-filesystem and atomic; overwriting the running binary this way is safe on Unix because the live process keeps its old inode until it exits. Each of the throw paths listed (chunk-read failure, checksum mismatch, rename failure) unlinks the staging file first. The `chmodSync(tmp, 0o755)` call between checksum verification and rename sits outside any try/catch, though: if it throws (e.g. a read-only staging directory), the error propagates without unlinking `tmp`, leaving the staged file behind.
 
 ### Progress renderer state
 
-`downloadProgressRenderer` is a pure `\r`-rewriting status line that latches shut once the download completes, so a stray final tick can never reprint the 100% line:
+Off a TTY, `downloadProgressRenderer` returns null and no state machine runs. On a TTY it is a pure `\r`-rewriting status line that latches shut once the download completes, so a stray final tick can never reprint the 100% line:
 
 ```mermaid
 stateDiagram-v2
     [*] --> Streaming: isTTY
-    [*] --> [*]: off-TTY, returns null
     Streaming --> Streaming: received < total, or total unknown<br/>writes \r-line, no newline
     Streaming --> Done: received >= total<br/>writes \r-line + final newline
     Done --> Done: any later call<br/>writes nothing
@@ -135,9 +137,9 @@ stateDiagram-v2
 
 | Path | Responsibility |
 |---|---|
-| [`src/cli/cli.ts`](../../src/cli/cli.ts) | citty `defineCommand`/`runMain` entry point; registers nine subcommand definitions (`server` is an alias of `serve`) |
+| [`src/cli/cli.ts`](../../src/cli/cli.ts) | citty `defineCommand`/`runMain` entry point; registers the subcommand definitions (`server` is an alias of `serve`); statically imports `approve` from [`src/model/change-store.ts`](../../src/model/change-store.ts) |
 | [`src/cli/discover.ts`](../../src/cli/discover.ts) | `resolveModel(base, opts)` — pure, TTY-agnostic model-root search; exports the `ModelCandidate`/`ResolveResult` types |
-| [`src/cli/resolve-model.ts`](../../src/cli/resolve-model.ts) | `pickModel(base, modelKey)` — the shared resolution+prompt layer used by `serve`, `validate`, `index`, `export`; the only file that imports `@clack/prompts`'s `select` |
+| [`src/cli/resolve-model.ts`](../../src/cli/resolve-model.ts) | `pickModel(base, modelKey)` — the shared resolution+prompt layer used by `serve`, `validate`, `index`, `export`, `approve`; the only file that imports `@clack/prompts`'s `select` |
 | [`src/cli/serve-port.ts`](../../src/cli/serve-port.ts) | `serveWithPortFallback`, `findAvailablePort`, `isAddrInUse` — port-conflict recovery for `serve` |
 | [`src/cli/open-browser.ts`](../../src/cli/open-browser.ts) | `browserOpenCommand(platform, url)` (pure) and `openBrowser()` (fire-and-forget `Bun.spawn`); dynamically imported by `cli.ts` only when `--open` is passed |
 | [`src/cli/version.ts`](../../src/cli/version.ts) | `VERSION`, a JSON import of [`package.json`](../../package.json) that Bun inlines at `bun build --compile` time |
@@ -157,18 +159,19 @@ stateDiagram-v2
 
 Other constraints observed in the source:
 
-- `validate`, `export`, and `index` all read `RULES[ruleId].class` (`'B'` = error) to decide their exit code rather than each finding's own severity field, so the exit code and the rule registry cannot silently diverge; all three share the identical `allGlobalErrors.length > 0 || hasClassBFlowErrors` exit condition.
+- `approve` is a static import in `cli.ts`, not a lazy one: [`src/server/server.ts`](../../src/server/server.ts) imports `change-store` statically too, and lazy-importing a module the server also imports statically makes the compiled binary throw `__promiseAll is not defined` at startup.
+- `validate`, `export`, and `index` all read `RULES[ruleId].class` (`'B'` = error) to decide their exit code rather than each finding's own severity field, so the exit code and the rule registry cannot silently diverge; all three reach an equivalent exit condition (`validate` writes it as `errorCount > 0 || hasClassBFlowErrors`).
 - `dict`, `graph`, and `flow` stay registered as citty subcommands (rather than being removed outright) purely so they can print a redirect message to `export` — deleting them would surface citty's generic "unknown command" error instead.
-- `@clack/prompts` is imported dynamically, only inside the three files that need a TTY prompt (`resolve-model.ts`, `serve-port.ts`, `update.ts`); importing it eagerly in `cli.ts` would risk its TTY-gated prompts firing inside a spawned, non-interactive process, such as a CI job invoking the compiled binary with no attached terminal.
-- `update.ts`'s checksum verification is best-effort: a genuine sha256 mismatch against `checksums.txt` aborts the update, but an unreachable `checksums.txt` does not block it.
-- On a permission-denied write to `target`, matched by regex against the error message (`EACCES`/`EPERM`/`EROFS`, or the words "permission"/"denied"), `runUpdateCommand` prints a `sudo ignatius update --yes` suggestion and a `curl … install.sh` reinstall fallback instead of the generic "update failed" message.
-- The compiled binary or `bun src/cli/cli.ts` is the only production entry point; five [`test/checks/`](../../test/checks) files (`test-discover.ts`, `test-serve-port.ts`, `test-open-browser.ts`, `test-update-helpers.ts`, `test-update-progress.ts`) import individual [`src/cli/`](../../src/cli) modules directly for unit testing, so a signature change to any of those exports breaks a check even when `cli.ts`'s own dispatch logic hasn't changed. `test-update-progress.ts` covers `downloadProgressRenderer` only (off-TTY null, mid-stream no-newline, 100%-latch, unknown-total); the network and self-replace paths in `update.ts` are exercised manually against a real release, not by a check.
+- `@clack/prompts` is imported dynamically, only inside the files that need a prompt (`resolve-model.ts`, `serve-port.ts`, `update.ts`). The prompts are lazy-loaded and TTY-guarded at each call site.
+- `update.ts`'s checksum verification is best-effort: a genuine sha256 mismatch against `checksums.txt` aborts the update, but an unreachable `checksums.txt` does not block it, so the update installs an unverified binary.
+- The compiled binary or `bun src/cli/cli.ts` is the only production entry point ([`src/server/server.ts`](../../src/server/server.ts) has a dev-only `import.meta.main` entry); [`test/checks/`](../../test/checks) files (`test-discover.ts`, `test-serve-port.ts`, `test-open-browser.ts`, `test-update-helpers.ts`, `test-update-progress.ts`) import individual [`src/cli/`](../../src/cli) modules directly for unit testing, so a signature change to any of those exports breaks a check even when `cli.ts`'s own dispatch logic hasn't changed. `test-update-progress.ts` covers `downloadProgressRenderer` only (off-TTY null, mid-stream no-newline, 100%-latch, unknown-total); the network and self-replace paths in `update.ts` are exercised manually against a real release, not by a check.
 
 ## Coupling
 
 - `cli.ts` calls into **server** (`serveCommand`, reached through `serve-port.ts`), **parser** (`parseModels` in [`src/model/parse.ts`](../../src/model/parse.ts)), **validate** (`validateModel`, `formatFindingsForStderr`, `RULES`, `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts)), **flows** (`parseFlows` in [`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts), `validateFlows` in [`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts)), and **generators** (`loadEmbeddedBundle` in [`src/generators/embedded-bundle.ts`](../../src/generators/embedded-bundle.ts), `generateApp` in [`src/generators/app.ts`](../../src/generators/app.ts)) — a signature change in any of those exports forces a change in `cli.ts`.
-- `cli.ts`'s `index` subcommand additionally calls into **router**, the new domain added by this range: `buildRouters` and `writeRouters` ([`src/router/build.ts`](../../src/router/build.ts), [`src/router/write.ts`](../../src/router/write.ts)), and — only under `--agents` — `resolveHarness` ([`src/router/detect.ts`](../../src/router/detect.ts)) and `writeGuidance` ([`src/router/agents.ts`](../../src/router/agents.ts)). `validate --index` reaches the same router domain indirectly, through `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts), which dynamically imports `buildRouters` itself.
-- `validate`, `index`, and `export` all read `RULES[ruleId].class` from **validate** to decide their exit code — renaming or restructuring the rule-class scheme in [`src/model/validate.ts`](../../src/model/validate.ts) breaks all three subcommands' exit-code logic.
+- `cli.ts`'s `index` subcommand additionally calls into **router**: `buildRouters` and `writeRouters` ([`src/router/build.ts`](../../src/router/build.ts), [`src/router/write.ts`](../../src/router/write.ts)), and — only under `--agents` — `resolveHarness` ([`src/router/detect.ts`](../../src/router/detect.ts)) and `writeGuidance` ([`src/router/agents.ts`](../../src/router/agents.ts)). `validate --index` reaches the same router domain indirectly, through `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts), which dynamically imports `buildRouters` itself.
+- `validate`, `index`, and `export` all read `RULES[ruleId].class` from **validate** to decide their exit code — renaming or restructuring the rule-class scheme in [`src/model/validate.ts`](../../src/model/validate.ts) breaks those subcommands' exit-code logic.
+- `cli.ts`'s `approve` subcommand calls `approve` in [`src/model/change-store.ts`](../../src/model/change-store.ts), the same module that `buildReview` and the server's change-review path use (**parser** and **server** domains); a change to the `{ items, notes }` return shape breaks the printed summary line.
 - `update.ts` talks only to GitHub Releases (`github.com/noormdev/ignatius`) and the local filesystem; it has no dependency on any other domain in this repo, and no other domain calls into it outside `cli.ts`'s `update` subcommand.
 - The **skill** domain ([`skills/ignatius-modeling/`](../../skills/ignatius-modeling)) drives this domain from outside dispatch: `references/verification.md` shells out to `ignatius validate`, `ignatius validate --index`, `ignatius index`, and `ignatius index --agents` as its own write-verification step, coupling the skill's authoring loop to this domain's stderr format and exit codes.
 </content>

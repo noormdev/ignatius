@@ -60,6 +60,23 @@ export function splitWikiTarget(inner: string): { target: string; label: string 
   return { target, label: label || target };
 }
 
+// Both take HTML-escaped values.
+function liveLink(target: string, label: string): string {
+  return `<a class="entity-link" data-entity="${target}" href="#entity-${target}">${label}</a>`;
+}
+
+// MISSING_LINK is a regex built from this markup: keep its literal parts free of regex metacharacters.
+function missingLink(target: string, label: string): string {
+  return `<span class="entity-link entity-link--missing" title="Unknown entity: ${target}">${label}</span>`;
+}
+
+const MISSING_LINK = new RegExp(missingLink('([^"]*)', '([^<]*)'), 'g');
+
+/** Rewrite missing-link spans as live anchors, so two renders of one body compare equal whichever targets exist. */
+export function linkStateNeutral(html: string): string {
+  return html.replace(MISSING_LINK, (_span, target: string, label: string) => liveLink(target, label));
+}
+
 /** markdown-it plugin: register the `[[…]]` inline rule. */
 export function wikiLinkPlugin(md: MarkdownItLike): void {
   md.inline.ruler.before('link', 'wikilink', (state, silent) => {
@@ -87,9 +104,7 @@ export function wikiLinkPlugin(md: MarkdownItLike): void {
       const esc = md.utils.escapeHtml;
 
       const token = state.push('html_inline', '', 0);
-      token.content = missing
-        ? `<span class="entity-link entity-link--missing" title="Unknown entity: ${esc(target)}">${esc(label)}</span>`
-        : `<a class="entity-link" data-entity="${esc(target)}" href="#entity-${esc(target)}">${esc(label)}</a>`;
+      token.content = missing ? missingLink(esc(target), esc(label)) : liveLink(esc(target), esc(label));
     }
 
     state.pos = close + 2;

@@ -4,7 +4,7 @@ paths:
   - "src/cli/**"
 ---
 
-Domain: cli. citty-based subcommand dispatch (serve/validate/export/index/version/update); `dict`/`graph`/`flow` are removal stubs; model-root discovery + interactive picker; port fallback + browser open on serve; self-update with streamed download progress + checksum verification
+Domain: cli. `ignatius` binary dispatch via citty (serve/validate/index/export/approve/update); `dict`/`graph`/`flow` are removal stubs; model-root discovery + interactive `pickModel`; port fallback + browser open on serve; self-update with checksum verification
 
 Map:
   - docs/wiki/cli.md

@@ -10,8 +10,10 @@ import { ColumnsTable } from './ColumnsTable';
 import { ChildrenTable } from './ChildrenTable';
 import { ExamplesAccordion } from './ExamplesAccordion';
 import { ProcessesSection } from '../process/ProcessesSection';
+import { ChangeBadge } from '../changes/ChangeBadge';
+import type { EntityChanges } from '../../logic/change-marks';
 
-export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors, onClose, onNavigate, processUsages, onNavigateToProcess, allFlowNodeIds }: {
+export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors, onClose, onNavigate, processUsages, onNavigateToProcess, allFlowNodeIds, changes }: {
   selected: ModelNode;
   model: Model | null;
   /** O(1) node lookup map — from modelIndex.nodeById. */
@@ -26,6 +28,7 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
   /** When set (flow-opened modal), run upgradeMissingLinksInContainer on the body
    *  so ext:/proc: references render as live `.entity-link` links, not missing spans. */
   allFlowNodeIds?: ReadonlySet<string>;
+  changes?: EntityChanges;
 }) {
   const groups = model?.groups ?? {};
   const edges = model?.edges ?? [];
@@ -62,6 +65,7 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
       <span className="pk-label">
         PK: {selected.pk.join(', ')}
       </span>
+      <ChangeBadge mark={changes?.mark} />
     </div>
   );
 
@@ -74,6 +78,7 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
           const target = nodeById ? nodeById.get(id) : model?.nodes.find(n => n.id === id);
           if (target) onNavigate(id);
         }}
+        changes={changes}
       />
       <div
         ref={bodyRef}

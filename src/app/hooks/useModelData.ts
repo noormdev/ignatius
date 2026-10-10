@@ -5,6 +5,8 @@ import type { Model, ModelNode } from '../../model/parse';
 import type { FlowDiagram } from '../../flows/flow-parse';
 import type { FlowCluster } from '../../flows/flow-clusters';
 import type { FlowError, FlowValidationResult } from '../../flows/flow-validate';
+// Type-only: change-review.ts imports flow-markdown at runtime, which pulls shiki into the bundle.
+import type { ChangeReview } from '../../model/change-review';
 
 export type ModelFindings = {
   globalErrors: GlobalError[];
@@ -22,6 +24,34 @@ export type UseModelDataOptions = {
   onSseRefresh?: (cleanedModel: Model) => void;
 };
 
+type ModelApiPayload = {
+  model: Model;
+  parseGlobalErrors: GlobalError[];
+  validation: { cleanedModel: Model; globalErrors: GlobalError[]; entityErrors: EntityError[] };
+  layoutKey?: string;
+  diff: ChangeReview | null;
+};
+
+type FlowApiPayload = {
+  diagrams: FlowDiagram[];
+  flowLayoutKeys: Record<string, string>;
+  entityModel?: Model;
+  validation?: FlowValidationResult;
+  clusters?: FlowCluster[];
+};
+
+async function doModelFetch(): Promise<ModelApiPayload> {
+  const r = await fetch('/api/model');
+  if (!r.ok) throw new Error(`/api/model returned ${r.status}`);
+  return r.json();
+}
+
+async function doFlowFetch(): Promise<FlowApiPayload> {
+  const r = await fetch('/api/flow');
+  if (!r.ok) throw new Error(`/api/flow returned ${r.status}`);
+  return r.json();
+}
+
 // Unified SSE subscription + model/flow fetch + findings state.
 // In static mode: reads window.__MODEL__ / __FLOW_MODEL__ once on mount.
 // In live mode: boots with parallel /api/model + /api/flow, then re-fetches
@@ -32,6 +62,10 @@ export function useModelData(opts?: UseModelDataOptions): {
   flowDiagrams: FlowDiagram[] | null;
   flowClusters: FlowCluster[];
   flowFindings: FlowFindings;
+  /** Changes since the last approval; null in static mode or when the server could not build the review. */
+  diff: ChangeReview | null;
+  /** Refetches `/api/model` and replaces `diff` only. */
+  refreshDiff: () => Promise<void>;
   layoutKeyRef: React.MutableRefObject<string>;
   bannerDismissed: boolean;
   setBannerDismissed: (v: boolean) => void;
@@ -48,27 +82,13 @@ export function useModelData(opts?: UseModelDataOptions): {
     flowErrors: [],
     globalErrors: [],
   });
+  const [diff, setDiff] = useState<ChangeReview | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const layoutKeyRef = useRef<string>('');
 
   // Keep a live ref to the callback so the SSE closure doesn't go stale.
   const onSseRefreshRef = useRef(opts?.onSseRefresh);
   onSseRefreshRef.current = opts?.onSseRefresh;
-
-  type ModelApiPayload = {
-    model: Model;
-    parseGlobalErrors: GlobalError[];
-    validation: { cleanedModel: Model; globalErrors: GlobalError[]; entityErrors: EntityError[] };
-    layoutKey?: string;
-  };
-
-  type FlowApiPayload = {
-    diagrams: FlowDiagram[];
-    flowLayoutKeys: Record<string, string>;
-    entityModel?: Model;
-    validation?: FlowValidationResult;
-    clusters?: FlowCluster[];
-  };
 
   useEffect(() => {
     // React StrictMode double-invokes this effect in dev (mount→cleanup→mount).
@@ -110,6 +130,7 @@ export function useModelData(opts?: UseModelDataOptions): {
         entityErrors: payload.validation.entityErrors,
       });
       layoutKeyRef.current = payload.layoutKey ?? '';
+      setDiff(payload.diff);
     }
 
     function applyFlowPayload(payload: FlowApiPayload) {
@@ -136,28 +157,28 @@ export function useModelData(opts?: UseModelDataOptions): {
       }
     }
 
-    function doModelFetch(): Promise<ModelApiPayload> {
-      return fetch('/api/model').then(r => r.json());
-    }
-    function doFlowFetch(): Promise<FlowApiPayload> {
-      return fetch('/api/flow').then(r => r.json());
+    function fetchFlowOrNull(context: string): Promise<FlowApiPayload | null> {
+      return doFlowFetch().catch(err => {
+        if (!ignore) console.error(`[ignatius] ${context} flow fetch failed:`, err);
+        return null;
+      });
     }
 
-    Promise.all([doModelFetch(), doFlowFetch()])
+    Promise.all([doModelFetch(), fetchFlowOrNull('boot')])
       .then(([modelPayload, flowPayload]) => {
         if (ignore) return;
         applyModelPayload(modelPayload);
-        applyFlowPayload(flowPayload);
+        if (flowPayload) applyFlowPayload(flowPayload);
       })
-      .catch(err => { if (!ignore) console.error('[ignatius] boot co-fetch failed:', err); });
+      .catch(err => { if (!ignore) console.error('[ignatius] boot failed:', err); });
 
     const es = new EventSource('/events');
     es.addEventListener('model-changed', () => {
-      Promise.all([doModelFetch(), doFlowFetch()])
+      Promise.all([doModelFetch(), fetchFlowOrNull('SSE')])
         .then(([modelPayload, flowPayload]) => {
           if (ignore) return;
           applyModelPayload(modelPayload);
-          applyFlowPayload(flowPayload);
+          if (flowPayload) applyFlowPayload(flowPayload);
           setBannerDismissed(false);
           onSseRefreshRef.current?.(modelPayload.validation.cleanedModel);
         })
@@ -170,12 +191,19 @@ export function useModelData(opts?: UseModelDataOptions): {
     };
   }, []);
 
+  async function refreshDiff(): Promise<void> {
+    const payload = await doModelFetch();
+    setDiff(payload.diff);
+  }
+
   return {
     model,
     findings,
     flowDiagrams,
     flowClusters,
     flowFindings,
+    diff,
+    refreshDiff,
     layoutKeyRef,
     bannerDismissed,
     setBannerDismissed,

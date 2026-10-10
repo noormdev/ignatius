@@ -23,6 +23,10 @@ models/
   stores/             # optional — shared non-db store definitions for DFDs
   flows/              # optional — data flow diagrams
   notes/              # free-form; ignored by the parser
+  .gitignore          # lists .ignatius/
+  .ignatius/          # local change-review state; never committed
+    baseline.json
+    changes/
 ```
 
 Entities live under `data/<group>/<Entity>.md`. The group name comes from the entity's `group:` frontmatter field — the subdirectory path under `data/` is just a convenience for organization; the parser uses the frontmatter value, not the folder name. `groups/` is optional: a model with no `groups/` directory parses with zero groups and no error. `externals/` and `stores/` are the global registries for DFD authoring (see [Process flows](flows.md)).
@@ -269,6 +273,12 @@ Party identity, classifications, and ID documents.
 An entity whose `group` references a name with no matching `groups/<name>.md` file renders without a color band and is flagged with an `entity.unknown_group` warning.
 
 In the flow view's groups collapse level, a group is also a stacking bucket: stores sharing a `group:` that a process touches (two or more) nest under one group row, containing that group's own cluster rows and loose tables. See [Labels, stacks, clusters, and groups](flows.md#labels-stacks-clusters-and-groups).
+
+
+## The .ignatius folder
+
+
+`ignatius serve` keeps its change-review state in `.ignatius/` at the model root: `baseline.json` is the model as last approved, and `changes/` holds one markdown change note per edit session. Neither is parsed as model files. The folder is local and never committed, so the model root carries a `.gitignore` with the line `.ignatius/`. ignatius creates the file or appends the line whenever it writes the baseline (the first `serve`, or `approve`). See [Change review](change-review.md) for the note format and `ignatius approve`.
 
 
 ## The flows folder

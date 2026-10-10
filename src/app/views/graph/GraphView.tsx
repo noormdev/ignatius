@@ -28,6 +28,7 @@ import type { OrganicIters } from './organic-layout';
 import { mountNavigator, teardownNavigator } from './navigator';
 import type { NavigatorInstance } from './navigator';
 import { buildStyles } from './styles';
+import { createChangeGlow, glowColors } from './change-glow';
 import { createMarkerOverlay, updateMarkers, drawWarningBadges } from './markers';
 import { wrapEntityLabel } from './wrap-label';
 import { createLayoutStore } from './layout-store';
@@ -39,6 +40,8 @@ import { createHoverIntent } from '../../logic/motion';
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from '../../../model/parse';
 import type { EntityError, GlobalError } from '../../../model/validate';
 import type { ModelIndex } from '../../../model/model-index';
+import type { ChangeReview } from '../../../model/change-review';
+import { addMark, entityChanges, type ChangeMark } from '../../logic/change-marks';
 
 /**
  * Class + id prefix for the ephemeral dotted "inferred-upstream" edges drawn on
@@ -51,6 +54,53 @@ import type { ModelIndex } from '../../../model/model-index';
  */
 const INHERITED_EDGE_CLASS = 'inherited';
 const INHERITED_EDGE_PREFIX = '_inherited_';
+
+/** Removed entities and relationships drawn from the baseline. Added after layout and never saved or laid out. */
+const CHANGE_GHOST_CLASS = 'change-ghost';
+const GHOST_EDGE_PREFIX = '_ghost_';
+const GHOST_SPACING = 200;
+const GHOST_ROW_GAP = 120;
+const GHOST_CLEARANCE = 30;
+const GHOST_SEARCH_STEP = 60;
+const GHOST_SEARCH_RINGS = 12;
+
+function graphEdgeId(edge: { source: string; target: string }): string {
+  return `${edge.source}-${edge.target}`;
+}
+
+function nodeData(node: ModelNode) {
+  return { id: node.id, label: wrapEntityLabel(node.id), classification: node.classification, group: node.group ?? '' };
+}
+
+// Drawn parent → child, the reverse of the model's child → parent edge.
+function edgeData(edge: ModelEdge, id: string) {
+  return {
+    id,
+    source: edge.target,
+    target: edge.source,
+    identifying: String(edge.identifying),
+    predicateFwd: edge.predicate.fwd,
+    predicateRev: edge.predicate.rev,
+    edgeLabel: edge.predicate.fwd,
+    predicateMode: 'fwd',
+    parentCard: edge.cardinality.parent,
+    childCard: edge.cardinality.child,
+  };
+}
+
+function boxesOverlap(a: cytoscape.BoundingBox12, b: cytoscape.BoundingBox12, gap: number): boolean {
+  return a.x1 < b.x2 + gap && a.x2 + gap > b.x1 && a.y1 < b.y2 + gap && a.y2 + gap > b.y1;
+}
+
+/** Key and subtype edits arrive as entity-scope `changed` items. */
+function changeMarks(review: ChangeReview): { nodes: Map<string, ChangeMark>; edges: Map<string, ChangeMark> } {
+  const nodes = new Map([...entityChanges(review)].map(([id, entity]) => [id, entity.mark]));
+  const edges = new Map<string, ChangeMark>();
+  for (const item of review.items) {
+    if (item.scope === 'relationship') addMark(edges, graphEdgeId(item), item.kind, item.status === 'unexplained');
+  }
+  return { nodes, edges };
+}
 
 // ---------------------------------------------------------------------------
 // LayoutMode — graph-only concept, exported so App shell can read/display it.
@@ -66,7 +116,8 @@ export type LayoutMode = 'hierarchical' | 'organic';
  * Imperative handle exposed by GraphView to the shell (App). The shell calls
  * into the view for actions that originate outside the cy surface:
  * - `navigateToEntity`: entity modal link → pan+select in cy + hash write.
- * - `panelNavigate`:    findings panel row → pan+center+select in cy.
+ * - `panelNavigate`:    findings/changes panel row → pan+center+select in cy,
+ *                       held until a running layout settles.
  * - `resetLayout`:      FAB "Reset layout" action.
  * - `applyLayoutMode`:  FAB layout-mode toggle → re-run ELK in new mode.
  * - zoom ops:           ZoomControl wiring.
@@ -117,6 +168,8 @@ export interface GraphViewProps {
    *  (graph-flow-search CP2); survives hover tiers, lineage, layout changes,
    *  and SSE model refresh (reapplied on cy rebuild). */
   searchMatches: ReadonlySet<string> | null;
+  /** Changes to highlight, with ghost elements for removals. Null = no highlights. */
+  changeReview: ChangeReview | null;
   /** Called when cy readiness changes (true = cy alive; false = cy destroyed). */
   onCyReadyChange(ready: boolean): void;
   /** Called on every cy zoom event with the readout percent (100 = fit baseline). */
@@ -151,6 +204,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       minimapOpen,
       initialLayoutMode,
       searchMatches,
+      changeReview,
       onCyReadyChange,
       onZoomPercentChange,
       onLayoutModeChange,
@@ -185,6 +239,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
     const searchMatchesRef = useRef<ReadonlySet<string> | null>(searchMatches);
     searchMatchesRef.current = searchMatches;
 
+    const changeReviewRef = useRef<ChangeReview | null>(changeReview);
+    changeReviewRef.current = changeReview;
+
     // minimapOpenRef: read by cy effect on mount (avoid adding minimapOpen to deps).
     const minimapOpenRef = useRef<boolean>(minimapOpen);
     minimapOpenRef.current = minimapOpen;
@@ -214,6 +271,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
     // Wired inside cy-init to the local applySearchClasses closure (search-match/
     // search-dim class application, keyed off searchMatchesRef).
     const applySearchClassesRef = useRef<(() => void) | null>(null);
+    const applyChangeOverlayRef = useRef<(() => void) | null>(null);
     const cyZoomInRef = useRef<(() => void) | null>(null);
     const cyZoomOutRef = useRef<(() => void) | null>(null);
     const cySetPercentRef = useRef<((pct: number) => void) | null>(null);
@@ -289,6 +347,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       applySearchClassesRef.current?.();
     }, [searchMatches, isActive, cyReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    useEffect(() => {
+      if (!isActive || !cyReady) return;
+      applyChangeOverlayRef.current?.();
+    }, [changeReview, isActive, cyReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── Navigator toggle effect (CP18) ─────────────────────────────────────
     // Runs on minimapOpen, cyReady, and isActive changes.
     // Gated on isActive so the navigator is torn down when leaving graph view,
@@ -337,14 +400,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       }
 
       for (const node of model.nodes) {
-        const el: cytoscape.ElementDefinition = {
-          data: {
-            id: node.id,
-            label: wrapEntityLabel(node.id),
-            classification: node.classification,
-            group: node.group ?? '',
-          },
-        };
+        const el: cytoscape.ElementDefinition = { data: nodeData(node) };
         elements.push(el);
         elementById.set(node.id, el);
       }
@@ -400,22 +456,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       }
 
       for (const edge of model.edges) {
-        if (subtypeEdgeKeys.has(`${edge.source}-${edge.target}`)) continue;
-
-        elements.push({
-          data: {
-            id: `${edge.source}-${edge.target}`,
-            source: edge.target,
-            target: edge.source,
-            identifying: String(edge.identifying),
-            predicateFwd: edge.predicate.fwd,
-            predicateRev: edge.predicate.rev,
-            edgeLabel: edge.predicate.fwd,
-            predicateMode: 'fwd',
-            parentCard: edge.cardinality.parent,
-            childCard: edge.cardinality.child,
-          },
-        });
+        const id = graphEdgeId(edge);
+        if (subtypeEdgeKeys.has(id)) continue;
+        elements.push({ data: edgeData(edge, id) });
       }
 
       const longestPredicate = model.edges.reduce(
@@ -572,6 +615,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         return;
       }
       window.__IGNATIUS_CY__ = cy;
+      const changeGlow = createChangeGlow(cy, containerRef.current, () => glowColors(model.theme, themeModeRef.current));
 
       // Build and run the layout for a mode, then invoke onDone. runLayout owns
       // layout creation (cytoscape snapshots the element set at cy.layout()
@@ -754,6 +798,109 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       }
       applySearchClassesRef.current = applySearchClasses;
 
+      // Ghosts are placed around laid-out nodes, so the overlay waits for a
+      // layout to finish and comes off before the next one starts.
+      let layoutSettled = false;
+      // Re-adding ghosts drops their selection, so an unchanged review is not reapplied.
+      let appliedReview: ChangeReview | null | undefined;
+      // A panel click that lands mid-layout waits here, or the closing fit would undo its centering.
+      let pendingPanelTarget: string | null = null;
+
+      function settleLayout(): void {
+        layoutSettled = true;
+        appliedReview = undefined;
+        applyChangeOverlay();
+      }
+
+      function unsettleLayout(): void {
+        cy.remove(`.${CHANGE_GHOST_CLASS}`);
+        layoutSettled = false;
+      }
+
+      function gradeSpans(): void {
+        gradeEdgeSpans(cy.edges().not(`.${CHANGE_GHOST_CLASS}`));
+      }
+
+      function markElement(el: cytoscape.CollectionReturnValue, mark: ChangeMark): void {
+        el.data('change', mark.change);
+        if (mark.unexplained) el.data('unexplained', 'true');
+      }
+
+      function ghostStart(id: string, review: ChangeReview, nextRowSlot: () => cytoscape.Position): cytoscape.Position {
+        const neighbourIds = review.removedEdges
+          .flatMap(edge => (edge.source === id ? [edge.target] : edge.target === id ? [edge.source] : []));
+        const saved = layoutStore.lastPosition(id, layoutKeyRef.current, neighbourIds);
+        if (saved) return saved;
+        const neighbours = neighbourIds
+          .map(neighbourId => cy.$id(neighbourId))
+          .filter(neighbour => neighbour.nonempty());
+        if (neighbours.length === 0) return nextRowSlot();
+        const sum = neighbours.reduce((acc, n) => ({ x: acc.x + n.position('x'), y: acc.y + n.position('y') }), { x: 0, y: 0 });
+        return { x: sum.x / neighbours.length, y: sum.y / neighbours.length };
+      }
+
+      function moveToClearSpot(ghost: cytoscape.NodeSingular, start: cytoscape.Position, nextRowSlot: () => cytoscape.Position): void {
+        ghost.position(start);
+        const home = ghost.boundingBox();
+        const blocked = cy.nodes().not(ghost).map(n => n.boundingBox());
+        for (let ring = 0; ring <= GHOST_SEARCH_RINGS; ring++) {
+          const spots = ring === 0 ? 1 : 8;
+          for (let k = 0; k < spots; k++) {
+            const angle = (2 * Math.PI * k) / spots;
+            const dx = Math.cos(angle) * ring * GHOST_SEARCH_STEP;
+            const dy = Math.sin(angle) * ring * GHOST_SEARCH_STEP;
+            const box = { x1: home.x1 + dx, x2: home.x2 + dx, y1: home.y1 + dy, y2: home.y2 + dy };
+            if (blocked.every(other => !boxesOverlap(box, other, GHOST_CLEARANCE))) {
+              ghost.position({ x: start.x + dx, y: start.y + dy });
+              return;
+            }
+          }
+        }
+        ghost.position(nextRowSlot());
+      }
+
+      function addChangeGhosts(review: ChangeReview, nodeMarks: Map<string, ChangeMark>, edgeMarks: Map<string, ChangeMark>): void {
+        const box = cy.nodes().boundingBox();
+        const left = Number.isFinite(box.x1) ? box.x1 : 0;
+        const top = Number.isFinite(box.y2) ? box.y2 + GHOST_ROW_GAP : 0;
+        let rowSlots = 0;
+        const nextRowSlot = () => ({ x: left + rowSlots++ * GHOST_SPACING, y: top });
+
+        for (const node of review.removedNodes) {
+          if (cy.$id(node.id).nonempty()) continue;
+          const start = ghostStart(node.id, review, nextRowSlot);
+          const ghost = cy.add({ group: 'nodes', data: nodeData(node), classes: CHANGE_GHOST_CLASS });
+          moveToClearSpot(ghost, start, nextRowSlot);
+          markElement(ghost, { change: 'removed', unexplained: nodeMarks.get(node.id)?.unexplained ?? false });
+        }
+
+        for (const edge of review.removedEdges) {
+          const id = GHOST_EDGE_PREFIX + graphEdgeId(edge);
+          if (cy.$id(edge.source).empty() || cy.$id(edge.target).empty() || cy.$id(id).nonempty()) continue;
+          const ghost = cy.add({ group: 'edges', data: edgeData(edge, id), classes: CHANGE_GHOST_CLASS });
+          markElement(ghost, { change: 'removed', unexplained: edgeMarks.get(graphEdgeId(edge))?.unexplained ?? false });
+        }
+      }
+
+      function applyChangeOverlay(): void {
+        if (cy.destroyed() || !layoutSettled) return;
+        const review = changeReviewRef.current;
+        if (review === appliedReview) return;
+        appliedReview = review;
+        cy.remove(`.${CHANGE_GHOST_CLASS}`);
+        cy.elements().removeData('change unexplained');
+        if (review) {
+          const { nodes, edges } = changeMarks(review);
+          for (const [id, mark] of nodes) markElement(cy.$id(id), mark);
+          for (const [id, mark] of edges) markElement(cy.$id(id), mark);
+          addChangeGhosts(review, nodes, edges);
+        }
+        applySearchClasses();
+        redrawMarkers();
+        changeGlow.refresh();
+      }
+      applyChangeOverlayRef.current = applyChangeOverlay;
+
       // Tracks the last hash string we wrote ourselves, to break the hashchange feedback loop.
       let lastWrittenHash = '';
 
@@ -848,7 +995,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           }
         }
 
-        gradeEdgeSpans(cy);
+        settleLayout();
+        gradeSpans();
         cy.fit(undefined, 30);
         cy.style(buildStyles(modelNonNull.groups, modelNonNull.theme, themeModeRef.current));
         cy.forceRender();
@@ -872,6 +1020,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           // itself is opened by the shell's mount effect (single owner).
           applyHashState(initialState);
         }
+        consumePendingPanelTarget();
       };
 
       if (preloadedSaved) {
@@ -1191,11 +1340,14 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         clearInheritedEdges();
         clearFocusTiers();
         lineageActiveRef.current = false;
+        unsettleLayout();
         layoutStore.clear(layoutKeyRef.current);
         runLayout(layoutModeRef.current, () => {
-          gradeEdgeSpans(cy);
+          settleLayout();
+          gradeSpans();
           cy.fit(undefined, 30);
           redrawMarkers();
+          consumePendingPanelTarget();
           // fit fires a 'zoom' event → readout updates to the real percent.
         });
       };
@@ -1207,15 +1359,30 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         clearInheritedEdges();
         clearFocusTiers();
         lineageActiveRef.current = false;
+        unsettleLayout();
         runLayout(mode, () => {
-          gradeEdgeSpans(cy);
+          settleLayout();
+          gradeSpans();
           cy.fit(undefined, 30);
           redrawMarkers();
+          consumePendingPanelTarget();
           // fit fires a 'zoom' event → readout updates to the real percent.
         });
       };
 
       panelNavigateRef.current = (id: string) => {
+        if (layoutSettled) panelNavigate(id);
+        else pendingPanelTarget = id;
+      };
+
+      function consumePendingPanelTarget(): void {
+        if (pendingPanelTarget === null) return;
+        const id = pendingPanelTarget;
+        pendingPanelTarget = null;
+        panelNavigate(id);
+      }
+
+      function panelNavigate(id: string): void {
         const target = cy.$(`#${CSS.escape(id)}`);
         if (target.length === 0) return;
         cy.elements().unselect();
@@ -1228,7 +1395,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // not set entity= (which means "modal open"). viewportState preserves any
         // entity= already in the hash; the center() above triggers a viewport
         // write of its own, so no explicit hash write is needed here.
-      };
+      }
 
       function onHashChange() {
         const newHash = location.hash.startsWith('#') ? location.hash.slice(1) : '';
@@ -1320,13 +1487,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       cy.on('free', 'node', () => {
         // Re-grade edge spans on drag release — a moved node changes which of
         // its edges count as long-haul.
-        gradeEdgeSpans(cy);
+        gradeSpans();
         if (saveTimer !== null) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
           const key = layoutKeyRef.current;
           if (!key) return;
           const positions: Record<string, { x: number; y: number }> = {};
-          cy.nodes().forEach((node) => {
+          cy.nodes().not(`.${CHANGE_GHOST_CLASS}`).forEach((node) => {
             const pos = node.position();
             positions[node.id()] = { x: pos.x, y: pos.y };
           });
@@ -1423,6 +1590,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         applyLayoutModeRef.current = null;
         redrawMarkersRef.current = null;
         applySearchClassesRef.current = null;
+        applyChangeOverlayRef.current = null;
         cyZoomInRef.current = null;
         cyZoomOutRef.current = null;
         cySetPercentRef.current = null;
@@ -1436,6 +1604,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // no-leak intent explicit.
         clearInheritedEdges();
         clearFocusTiers();
+        changeGlow.destroy();
         cy.destroy();
         cyRef.current = null;
         window.__IGNATIUS_CY__ = undefined;
