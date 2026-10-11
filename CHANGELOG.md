@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.0](https://github.com/noormdev/ignatius/compare/v0.21.0...v0.22.0) (2026-10-11)
+
+
+### Features
+
+* review model changes since the last approval ([5bad1d7](https://github.com/noormdev/ignatius/commit/5bad1d7cc3c48a21a2bea7f614eebff57c662f52))
+
+
+### Bug Fixes
+
+* keep modals above the global findings banner ([5bad1d7](https://github.com/noormdev/ignatius/commit/5bad1d7cc3c48a21a2bea7f614eebff57c662f52))
+
 ## [0.21.0](https://github.com/noormdev/ignatius/compare/v0.20.2...v0.21.0) (2026-09-19)
 
 
