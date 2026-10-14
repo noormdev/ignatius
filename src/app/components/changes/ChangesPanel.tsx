@@ -183,9 +183,11 @@ export function ChangesPanel({
           <input type="checkbox" checked={overlay} onChange={e => onOverlayChange(e.target.checked)} />
           Highlight changes
         </label>
-        <button className="changes-panel-approve" onClick={approve} disabled={approving}>
-          {approving ? 'Approving…' : 'Approve'}
-        </button>
+        {window.__IGNATIUS_MODE__ !== 'static' && (
+          <button className="changes-panel-approve" onClick={approve} disabled={approving}>
+            {approving ? 'Approving…' : 'Approve'}
+          </button>
+        )}
       </div>
       {approveError && <p className="changes-panel-error" role="alert">{approveError}</p>}
       <div className="changes-panel-body">

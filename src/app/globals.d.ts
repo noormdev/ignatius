@@ -8,6 +8,8 @@ declare global {
     __THEME_MODE__?: 'dark' | 'light';
     __IGNATIUS_MODE__?: 'live' | 'static';
     __LAYOUT_KEY__?: string;
+    // Change review baked into a static export; absent when the model had no approved baseline.
+    __CHANGE_REVIEW__?: import('../model/change-review').ChangeReview;
     // Flow-mode globals: injected by generateApp (export) or fetched from /api/flow (live).
     // __FLOW_MODEL__ is the array of all top-level FlowDiagrams (each carries
     // its subDfds recursively so drill-down works client-side with no fetches).

@@ -279,7 +279,7 @@ try {
   assert(glowLayer.present && glowLayer.behind, 'SC7: node glows draw on a canvas behind cytoscape', JSON.stringify(glowLayer));
   assert(glowLayer.pointerEvents === 'none', 'SC7: the glow canvas takes no pointer events', JSON.stringify(glowLayer));
 
-  const glowFrames = await glowSamples(page, 3);
+  const glowFrames = await glowSamples(page, 7);
   const [glow] = glowFrames;
   assert(glow.personOutline === 0 && glow.personUnderlay === 0, 'SC7: a changed node draws no outline or underlay frame', JSON.stringify(glow));
   assert(glow.person !== null && glow.person.alpha > 0 && glow.person.color === CHANGE_COLORS[glow.light ? 'light' : 'dark'].changed, 'SC7: the changed node glows amber', JSON.stringify(glow));

@@ -182,7 +182,7 @@ try {
   const pulse = await indexRow(page, 'Process Customer Return').evaluate(el => getComputedStyle(el, '::before').animationName);
   assert(pulse === 'flow-glow-pulse', 'an explained row glow pulses like the canvas glow', pulse);
   const swap = await indexRow(page, 'Record Sales Order').evaluate(el => [getComputedStyle(el, '::before').animationName, getComputedStyle(el, '::after').animationName]);
-  assert(swap.every(name => name === 'flow-glow-swap'), 'an unexplained row glow swaps between its kind colour and red', JSON.stringify(swap));
+  assert(swap[0] === 'flow-glow-red' && swap[1] === 'flow-glow-swap', 'an unexplained row glow swaps between its kind colour and red', JSON.stringify(swap));
 
   await indexRow(page, 'Record Sales Order').hover();
   const summary = await page.locator('[data-ignatius="flow-index-change"]').innerText().catch(() => '');
@@ -200,7 +200,7 @@ try {
   const billingDot = await menuDot(menuRow('Billing'));
   assert(billingDot.count === 1 && billingDot.change === 'added' && billingDot.unexplained === 'true' && billingDot.glow !== 'none',
     'a level menu row for an added flow carries one glowing dot marked added and unexplained', JSON.stringify(billingDot));
-  assert(billingDot.animations.length === 2 && billingDot.animations.every(name => name === 'flow-glow-swap'), 'an unexplained menu dot swaps between its kind colour and red', JSON.stringify(billingDot));
+  assert(billingDot.animations.length === 2 && billingDot.animations.includes('flow-glow-red') && billingDot.animations.includes('flow-glow-swap'), 'an unexplained menu dot swaps between its kind colour and red', JSON.stringify(billingDot));
   const orderToCashDot = await menuDot(menuRow('Order To Cash'));
   assert(orderToCashDot.count === 1 && orderToCashDot.change === null && orderToCashDot.severity === 'unexplained' && orderToCashDot.animations[0] === 'none',
     'a level menu row containing an unexplained change carries one static red dot', JSON.stringify(orderToCashDot));

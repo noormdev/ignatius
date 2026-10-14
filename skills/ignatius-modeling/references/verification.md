@@ -100,7 +100,7 @@ The linter validates structure; it cannot see whether the business story was cap
 
 **Change note (runs last, after the checks above hold):**
 
-Write this session's `.ignatius/changes/<slug>.md`, or update it if the session already wrote one, following `references/change-notes.md`. List every entity, column, diagram, and node the session changed, and nothing else. Skip it when the session only bootstrapped a model. Then tell the user to review the changes in `ignatius serve` (the Changes panel lists the note, anything unexplained, and anything named but unchanged) and to accept them with `ignatius approve <model-root>` or the panel's Approve button.
+Write this session's `.ignatius/changes/<slug>.md`, or update it if the session already wrote one, following `references/change-notes.md`. List every entity, column, diagram, and node the session changed, and nothing else. Skip it when the session only bootstrapped a model. Then tell the user to review the changes in `ignatius serve` (the Changes panel lists the note, anything unexplained, and anything named but unchanged) and to accept them with `ignatius approve <model-root>` or the panel's Approve button. When you hand over a rendered file, write the note first and then run `ignatius export <model-root> -o <file>.html`: the export carries the review, so the user sees the same marks and Changes panel. An export made before the note shows every change as unexplained.
 
 Only when structure is clean **and** these hold: report "Verified clean — 0 findings, business context captured, sample rows consistent, every flow labelled and stacked legibly, change note written."
 

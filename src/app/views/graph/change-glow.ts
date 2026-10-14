@@ -5,8 +5,8 @@ import { blendHex } from '../../logic/color';
 import { GLOW_BLUR, GLOW_SPREAD } from '../../logic/change-marks';
 import { animationsAllowed } from '../../logic/motion';
 
-// One full pulse, matching the flow glow's 1.8s alternate keyframes.
-const GLOW_PERIOD_MS = 3600;
+// One full pulse; `flow-glow-pulse` in styles.css runs 0.9s each way.
+const GLOW_PERIOD_MS = 1800;
 // The floor stays well above zero so any single frame, a screenshot included, shows the mark.
 const GLOW_MIN = 0.35;
 const GLOW_MAX = 0.75;
@@ -15,7 +15,7 @@ export const GLOW_STEADY = (GLOW_MIN + GLOW_MAX) / 2;
 /** Edge glows run the length of the line, so they draw weaker than node glows. */
 export const EDGE_GLOW_SCALE = 0.6;
 /** How far a steady unexplained glow leans from its kind color toward red. */
-export const UNEXPLAINED_STEADY_MIX = 0.75;
+export const UNEXPLAINED_STEADY_MIX = 0.85;
 // The shape is filled this far off-canvas and its shadow thrown back into view, so only the blur lands.
 const SHADOW_THROW = 10_000;
 /** Shared by styles.ts and the glow loop, so a glow dims with its node. */
@@ -162,7 +162,7 @@ export function createChangeGlow(cy: cytoscape.Core, container: HTMLElement, col
   function frame(now: number): void {
     const t = (now - startedAt) / GLOW_PERIOD_MS;
     const pulse = GLOW_MIN + (GLOW_MAX - GLOW_MIN) * (1 - Math.cos(2 * Math.PI * t)) / 2;
-    const redShare = (1 - Math.cos(Math.PI * (t - 0.5))) / 2;
+    const redShare = Math.min(1, 1.6 * (1 - Math.cos(Math.PI * (t - 0.5))) / 2);
     const palette = colors();
     cy.batch(() => {
       edges.forEach((edge) => {

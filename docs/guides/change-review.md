@@ -3,6 +3,8 @@
 
 `ignatius serve` shows what changed in a model since you last approved it. When an agent (or a person) edits entity or flow files, the app marks every added, changed, and removed entity, column, relationship, and flow node. A Changes panel lists each change next to the note that explains it. When the changes look right, `ignatius approve` accepts the current files as the new starting point and the highlights clear.
 
+An exported HTML file carries the same review, read-only, so a file an agent hands you shows what it changed. Write the change note before exporting; see [What it does not do](#what-it-does-not-do).
+
 ```bash
 $ ignatius serve models/billing
 # ...an agent adds Invoice.line_total and writes .ignatius/changes/split-invoice-lines.md
@@ -44,7 +46,7 @@ The first `serve` of a model writes the baseline from the files as they are, so 
 ## What the app shows
 
 
-Green marks an addition, amber a change. On the Graph and Flows views the mark is a slow pulsing glow; a change no note explains alternates its glow between its color and red. In the Dictionary it carries an `unexplained` label. With reduced motion turned on in your operating system, or on a view too large to animate, the glows hold steady and an unexplained one stays tinted red.
+Green marks an addition, amber a change. On the Graph and Flows views the mark is a pulsing glow; a change no note explains alternates its glow between its color and red. In the Dictionary it carries an `unexplained` label. With reduced motion turned on in your operating system, or on a view too large to animate, the glows hold steady and an unexplained one stays tinted red.
 
 | Where | Added | Changed | Removed |
 |-------|-------|---------|---------|
@@ -57,7 +59,7 @@ Green marks an addition, amber a change. On the Graph and Flows views the mark i
 
 In the flow index (**☰ Process Flows**, or `i`) and the breadcrumb level menus, a row whose diagram holds changes further down shows a steady dot after its label: red if any of them is unexplained, amber if any is a change or removal, green if all are additions.
 
-The Changes panel appears only in `serve`, and only when there is something to review. It lists, in order:
+The Changes panel appears in `serve`, and read-only in an export made from a model with an approved baseline, and only when there is something to review. It lists, in order:
 
 1. Each note: its title, its body, and the changes it covers.
 2. **Unexplained**: changes no note covers.
@@ -155,7 +157,9 @@ To reject a change, edit the files back. The diff empties on its own once the fi
 | Not covered | Instead |
 |-------------|---------|
 | Git history | The baseline is a file ignatius writes; it does not read commits or branches. |
-| `export` and `validate` | Neither diffs. A static export has no highlights and no Changes panel. |
+| `validate` | Does not diff. Review changes in `serve` or `export`. |
+| Approving from an export | A static export shows the changes read-only. Approve with `ignatius approve` or from a served model. |
+| `export` without a baseline | Carries no review. Export never creates a baseline; serve the model once, or run `ignatius approve`, to set one. |
 | Removed flow nodes on the diagram | They are listed in the Changes panel; the DFD canvas draws only what exists now. |
 | Layout | Highlights never move nodes or change saved positions. Ghost nodes are placed near their old neighbours and are not saved. |
 | Keeping notes | Approve deletes them. Copy anything worth keeping into the entity or flow body first. |
@@ -170,7 +174,7 @@ If ignatius cannot build the review, for example in a read-only model folder whe
 ignatius: could not prepare the change-review baseline: <reason>
 ```
 
-On each request for the model, when it cannot build the review:
+On each request for the model, when it cannot build the review (`export` prints the same line to stderr and writes the HTML without a review):
 
 ```
 ignatius: could not build the change review: <reason>

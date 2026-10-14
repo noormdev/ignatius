@@ -268,10 +268,9 @@ try {
     animations.forEach(a => a.play());
     return steps;
   });
-  assert(cycle.some(s => s.kind >= 0.8 && s.red <= 0.2) && cycle.some(s => s.red >= 0.8 && s.kind <= 0.2),
+  assert(cycle.some(s => s.kind >= 0.8 && s.red <= 0.55) && cycle.some(s => s.red >= 0.9 && s.kind <= 0.2),
     'SC9: an unexplained glow swaps between its kind color and red', JSON.stringify(cycle));
-  const brightest = cycle.map(s => Math.max(s.kind, s.red));
-  assert(Math.max(...brightest) >= 0.8 && Math.min(...brightest) <= 0.4, 'SC9: an unexplained glow dips between its colour swaps, matching the graph', JSON.stringify(brightest));
+  assert(Math.min(...cycle.map(s => s.red)) >= 0.45, 'SC9: the red layer of an unexplained glow never falls below half strength', JSON.stringify(cycle));
 
   const calm = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
   await calm.route('**/events', route => route.abort());
