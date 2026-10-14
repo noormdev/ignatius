@@ -6,7 +6,7 @@ import { parseModels } from '../model/parse';
 import { pickModel } from './resolve-model';
 // Static on purpose: lazy-importing this module, which server.ts imports statically,
 // makes the compiled binary throw `__promiseAll is not defined` at startup.
-import { approve } from '../model/change-store';
+import { approve, readReview } from '../model/change-store';
 import { VERSION } from './version';
 import type { RouterFile } from '../router/build';
 
@@ -359,7 +359,11 @@ const exportCmd = defineCommand({
     }
 
     const { generateApp } = await import('../generators/app');
-    const html = await generateApp(model, flowModel, bundle, { themeMode: mode });
+    const review = await readReview(dir, model).catch((err: unknown) => {
+      process.stderr.write(`ignatius: could not build the change review: ${err instanceof Error ? err.message : String(err)}\n`);
+      return null;
+    });
+    const html = await generateApp(model, flowModel, bundle, { themeMode: mode, review });
     await Bun.write(outputPath, html);
     console.log(`Wrote export to ${outputPath}`);
 

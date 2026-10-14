@@ -6,6 +6,7 @@
  *   - window.__IGNATIUS_MODE__ = "static"
  *   - window.__MODEL__            (entity model — ERD graph + dictionary)
  *   - window.__FLOW_MODEL__       (flow diagrams array — may be empty/undefined)
+ *   - window.__CHANGE_REVIEW__    (change review against the approved baseline — only when one exists)
  *   - window.__LAYOUT_KEY__       (ERD position-restore fingerprint)
  *   - window.__FLOW_LAYOUT_KEYS__ (per-diagram fingerprint map — may be undefined)
  *   - window.__FLOW_CLUSTERS__    (model-root clusters/ registry — may be undefined)
@@ -24,6 +25,7 @@
 
 import type { Model } from '../model/parse';
 import type { FlowModel } from '../flows/flow-parse';
+import type { ChangeReview } from '../model/change-review';
 import { layoutFingerprint } from '../model/layout-fingerprint';
 import { buildFlowLayoutKeys } from '../flows/flow-fingerprint';
 import type { BundleContent } from './embedded-bundle';
@@ -32,16 +34,17 @@ import { loadBundleFromDir } from './embedded-bundle';
 export type GenerateAppOpts = {
   /** dark | light (default: dark) */
   themeMode?: 'dark' | 'light';
+  /** Change review to bake in so the static page shows what changed; null or omitted when no baseline exists. */
+  review?: ChangeReview | null;
 };
 
 /**
- * Escape </script> sequences so the HTML parser cannot prematurely close an
- * enclosing <script> tag. The backslash before / is invisible to the JS runtime
- * (treated as a plain /), but breaks the browser's end-tag detection.
- * WHY: flow body HTML is rendered markdown and can contain </script> in code fences.
+ * Make a JSON payload inert inside an inline <script>: every `<` becomes `\u003c`, which the
+ * JS runtime reads as `<` but the HTML parser never sees as `</script` or `<!--<script`.
+ * WHY: flow body HTML is rendered markdown, and change-note titles are agent-written.
  */
 function escapeScriptClose(s: string): string {
-  return s.replace(/<\/script/gi, () => '<\\/script');
+  return s.replace(/</g, () => '\\u003c');
 }
 
 /**
@@ -93,7 +96,7 @@ export async function generateApp(
   const layoutKey = layoutFingerprint(model);
 
   // Build injection script with the full union of globals.
-  // Order: mode → model → flows → layout keys → theme → surface (seed).
+  // Order: mode → model → flows → change review → layout keys → theme → surface (seed).
   let injection = `<script>` +
     `window.__IGNATIUS_MODE__ = "static"; ` +
     `window.__MODEL__ = ${escapeScriptClose(JSON.stringify(model))}; `;
@@ -107,6 +110,7 @@ export async function generateApp(
   }
 
   injection +=
+    (opts.review ? `window.__CHANGE_REVIEW__ = ${escapeScriptClose(JSON.stringify(opts.review))}; ` : '') +
     `window.__LAYOUT_KEY__ = ${escapeScriptClose(JSON.stringify(layoutKey))}; ` +
     `window.__THEME_MODE__ = ${escapeScriptClose(JSON.stringify(themeMode))}; ` +
     `</script>`;

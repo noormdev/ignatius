@@ -52,6 +52,7 @@ The diff alone shows what changed but never why. Notes alone are only as accurat
 - `.ignatius/` is review state, never committed. A `.gitignore` next to `ignatius.yml` lists it. The modeling skill writes that file for every model it generates; ignatius adds the line when it creates `.ignatius/` and the line is missing.
 - The diff runs on the parsed model, not file text. Reordering YAML keys or reformatting produces no change item.
 - A body-only edit is its own kind (`doc`), so prose edits do not read as structural changes.
+- `ignatius export` reads the baseline and never writes one, so exporting cannot approve unreviewed edits; it exists because agents hand over exported HTML, and a file that hides the changes defeats the review.
 - Column granularity is required: a note covers a column change only when it names the column.
 - Serve creates the baseline from the current state when none exists, so a first run highlights nothing. The modeling skill runs `approve` before its first write to a model with no baseline, so an agent's edits to a never-served model still show.
 
