@@ -53,7 +53,7 @@ async function doFlowFetch(): Promise<FlowApiPayload> {
 }
 
 // Unified SSE subscription + model/flow fetch + findings state.
-// In static mode: reads window.__MODEL__ / __FLOW_MODEL__ once on mount.
+// In static mode: reads window.__MODEL__ / __FLOW_MODEL__ / __CHANGE_REVIEW__ once on mount.
 // In live mode: boots with parallel /api/model + /api/flow, then re-fetches
 // both on every 'model-changed' SSE event.
 export function useModelData(opts?: UseModelDataOptions): {
@@ -62,7 +62,7 @@ export function useModelData(opts?: UseModelDataOptions): {
   flowDiagrams: FlowDiagram[] | null;
   flowClusters: FlowCluster[];
   flowFindings: FlowFindings;
-  /** Changes since the last approval; null in static mode or when the server could not build the review. */
+  /** Changes since the last approval; null when there is no review: an export made without a baseline, or one the server could not build. */
   diff: ChangeReview | null;
   /** Refetches `/api/model` and replaces `diff` only. */
   refreshDiff: () => Promise<void>;
@@ -117,6 +117,7 @@ export function useModelData(opts?: UseModelDataOptions): {
       const rawDiagrams = window.__FLOW_MODEL__;
       if (rawDiagrams && rawDiagrams.length > 0) setFlowDiagrams(rawDiagrams);
       if (window.__FLOW_CLUSTERS__) setFlowClusters(window.__FLOW_CLUSTERS__);
+      setDiff(window.__CHANGE_REVIEW__ ?? null);
       return;
     }
 

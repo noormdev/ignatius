@@ -63,6 +63,8 @@ ignatius export [path] -o model.html [--theme light|dark] [--model <key>]
 
 The file includes the Graph, Dictionary, and Flows views with full interactivity: view switching, live Dictionary search, entity dialog, theme toggle, and graph and flow node-position persistence — all offline, from `file://`. The export injects both the entity model and the flow model, so both position-restore keys work without a server.
 
+When the model has an approved baseline (see [Change review](change-review.md)), the export also carries the change review: the same glows, ghost nodes, and Changes panel as a served model, without the Approve button. A model with no baseline exports no review, and export never creates one. The export carries the pending changes and their note text, so run `ignatius approve` first when you want a clean shareable file.
+
 The exit code merges entity global errors, entity Class-B findings, and flow Class-B findings: exit `0` on a clean model, `1` when any of those are present. Warnings (Class A) alone do not fail the command.
 
 Note: the older `dict`, `graph`, and `flow` subcommands have been removed. Invoking one prints a one-line error pointing to `export`.

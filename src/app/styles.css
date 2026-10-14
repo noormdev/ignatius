@@ -1533,17 +1533,23 @@ button.flow-crumb__label:hover {
 /* Changes panel (docs/spec/model-change-review.md) */
 /* Fallbacks until applyThemeCssVars sets CHANGE_COLORS for the active theme. */
 :root {
-  --change-added: #22c55e;
-  --change-changed: #f59e0b;
-  --change-unexplained: #f87171;
+  --change-added: #00e050;
+  --change-changed: #ffc400;
+  --change-unexplained: #ff3b3b;
+  --change-added-text: #00e050;
+  --change-changed-text: #ffc400;
+  --change-unexplained-text: #ff3b3b;
   --change-removed: #dc2626;
   --change-removed-text: #f87171;
 }
 
 .theme-light {
-  --change-added: #15803d;
-  --change-changed: #d97706;
-  --change-unexplained: #dc2626;
+  --change-added: #16a34a;
+  --change-changed: #ca8a04;
+  --change-unexplained: #e11d1d;
+  --change-added-text: #15803d;
+  --change-changed-text: #a16207;
+  --change-unexplained-text: #dc2626;
   --change-removed-text: #dc2626;
 }
 
@@ -1577,7 +1583,7 @@ button.flow-crumb__label:hover {
 }
 
 .changes-panel-approve {
-  background: var(--change-added);
+  background: var(--change-added-text);
   color: var(--color-background);
   border: none;
   border-radius: 6px;
@@ -1626,7 +1632,7 @@ button.flow-crumb__label:hover {
 
 .changes-panel-section--unexplained h4,
 .changes-panel-section--errors h4 {
-  color: var(--change-unexplained);
+  color: var(--change-unexplained-text);
 }
 
 .changes-panel-note + .changes-panel-note {
@@ -1722,11 +1728,11 @@ button.changes-panel-item:hover {
 }
 
 .change-badge--added {
-  color: var(--change-added);
+  color: var(--change-added-text);
 }
 
 .change-badge--changed {
-  color: var(--change-changed);
+  color: var(--change-changed-text);
 }
 
 .change-badge--removed {
@@ -1738,11 +1744,11 @@ button.changes-panel-item:hover {
 }
 
 .change-row--added {
-  --change-row-color: var(--change-added);
+  --change-row-color: var(--change-added-text);
 }
 
 .change-row--changed {
-  --change-row-color: var(--change-changed);
+  --change-row-color: var(--change-changed-text);
 }
 
 .change-row--removed {
@@ -1827,27 +1833,33 @@ button.changes-panel-item:hover {
   to { opacity: 0.85; }
 }
 
-/* One colour cycle is two pulses; each layer peaks in its own pulse, and both sit at the floor between them. */
+/* The kind layer of an unexplained glow: it peaks in one pulse and fades under the red layer in the next. */
 @keyframes flow-glow-swap {
   0%, 50%, 100% { opacity: 0.35; }
   25% { opacity: 0.85; }
   75% { opacity: 0.15; }
 }
 
+/* The red layer never drops below half strength, so an unexplained mark always reads red. */
+@keyframes flow-glow-red {
+  0%, 50%, 100% { opacity: 0.5; }
+  25% { opacity: 0.95; }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   [data-ignatius="flow-svg"]:not([data-motion="off"]) .flow-glow rect,
   :is(.flow-index__pill, .change-dot--pulse)[data-change]::before {
-    animation: flow-glow-pulse 1.8s ease-in-out infinite alternate;
+    animation: flow-glow-pulse 0.9s ease-in-out infinite alternate;
   }
 
   [data-ignatius="flow-svg"]:not([data-motion="off"]) .flow-glow .flow-glow-unexplained,
   :is(.flow-index__pill, .change-dot--pulse)[data-unexplained]::before {
-    animation: flow-glow-swap 7.2s ease-in-out -3.6s infinite;
+    animation: flow-glow-red 3.6s ease-in-out -1.8s infinite;
   }
 
   [data-ignatius="flow-svg"]:not([data-motion="off"]) .flow-glow .flow-glow-unexplained + .flow-glow-kind,
   :is(.flow-index__pill, .change-dot--pulse)[data-unexplained]::after {
-    animation: flow-glow-swap 7.2s ease-in-out infinite;
+    animation: flow-glow-swap 3.6s ease-in-out infinite;
   }
 }
 

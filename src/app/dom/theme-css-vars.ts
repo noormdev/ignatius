@@ -18,8 +18,14 @@ export const SPOTLIGHT_LINE_INHERITED: Record<ThemeMode, string> = {
 
 /** Change-review highlight colors per mode, read by `buildStyles`. */
 export const CHANGE_COLORS: Record<ThemeMode, { added: string; changed: string; unexplained: string }> = {
-  dark: { added: '#22c55e', changed: '#f59e0b', unexplained: '#f87171' },
-  light: { added: '#15803d', changed: '#d97706', unexplained: '#dc2626' },
+  dark: { added: '#00e050', changed: '#ffc400', unexplained: '#ff3b3b' },
+  light: { added: '#16a34a', changed: '#ca8a04', unexplained: '#e11d1d' },
+};
+
+/** The same hues for text and fills under text: the glow colors fall under 4.5:1 on the light surface. */
+export const CHANGE_TEXT: Record<ThemeMode, { added: string; changed: string; unexplained: string }> = {
+  dark: CHANGE_COLORS.dark,
+  light: { added: '#15803d', changed: '#a16207', unexplained: '#dc2626' },
 };
 
 /** Warning red for removed items in both modes: the graph's ghost ✕ badge, the Changes panel, and the Dictionary. */
@@ -85,6 +91,10 @@ export function applyThemeCssVars(theme: ThemeConfig, mode: ThemeMode) {
   root.style.setProperty('--change-added', change.added);
   root.style.setProperty('--change-changed', change.changed);
   root.style.setProperty('--change-unexplained', change.unexplained);
+  const changeText = CHANGE_TEXT[mode];
+  root.style.setProperty('--change-added-text', changeText.added);
+  root.style.setProperty('--change-changed-text', changeText.changed);
+  root.style.setProperty('--change-unexplained-text', changeText.unexplained);
   root.style.setProperty('--change-removed', REMOVED_RED);
   root.style.setProperty('--change-removed-text', REMOVED_TEXT[mode]);
 

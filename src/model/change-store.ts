@@ -111,7 +111,18 @@ async function loadNotes(modelDir: string): Promise<ReturnType<typeof parseChang
 export async function buildReview(modelDir: string, model?: Model): Promise<ChangeReview> {
   const current = await currentSnapshot(modelDir, model);
   const baseline = await ensureBaseline(modelDir, current);
+  return reviewAgainst(modelDir, baseline, current);
+}
+
+async function reviewAgainst(modelDir: string, baseline: ModelSnapshot, current: ModelSnapshot): Promise<ChangeReview> {
   return crossCheck(diffSnapshots(baseline, current), await loadNotes(modelDir), baseline.model);
+}
+
+/** The review against the stored baseline, never writing one; null when none is stored or it is unreadable, which serve would replace. */
+export async function readReview(modelDir: string, model?: Model): Promise<ChangeReview | null> {
+  const baseline = await readBaseline(modelDir);
+  if (!baseline) return null;
+  return reviewAgainst(modelDir, baseline, await currentSnapshot(modelDir, model));
 }
 
 /** Accept the current parse as the baseline and delete every change note. */
