@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/noormdev/ignatius/compare/v0.22.0...v0.23.0) (2026-10-18)
+
+
+### Features
+
+* show change review in static export, louder glows ([f5782a4](https://github.com/noormdev/ignatius/commit/f5782a43957e0fa7c0356d49d233ef689975c6c6))
+
 ## [0.22.0](https://github.com/noormdev/ignatius/compare/v0.21.0...v0.22.0) (2026-10-11)
 
 
