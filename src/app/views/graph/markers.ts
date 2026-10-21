@@ -105,8 +105,14 @@ export function updateMarkers(cy: cytoscape.Core, svg: SVGSVGElement, theme: The
     const len = Math.sqrt(dx * dx + dy * dy);
     if (len < 40) return;
 
-    const srcAngle = Math.atan2(dy, dx);
-    const tgtAngle = Math.atan2(-dy, -dx);
+    // A bent edge leaves each end along its own segment. renderedSegmentPoints
+    // throws on an edge that is not segmented.
+    const curve = String(edge.pstyle('curve-style').value);
+    const bends = curve.endsWith('segments') || curve.endsWith('taxi') ? edge.renderedSegmentPoints() ?? [] : [];
+    const firstBend = bends[0] ?? tgtPt;
+    const lastBend = bends[bends.length - 1] ?? srcPt;
+    const srcAngle = Math.atan2(firstBend.y - srcPt.y, firstBend.x - srcPt.x);
+    const tgtAngle = Math.atan2(lastBend.y - tgtPt.y, lastBend.x - tgtPt.x);
 
     const faded = edge.hasClass('faded');
     drawEndMarker(svg, srcPt.x, srcPt.y, srcAngle, parentCard, color, scale, p.background, theme.spacing.markerOffset, faded);

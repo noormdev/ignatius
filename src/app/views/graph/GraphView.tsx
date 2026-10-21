@@ -28,6 +28,11 @@ import type { OrganicIters } from './organic-layout';
 import { mountNavigator, teardownNavigator } from './navigator';
 import type { NavigatorInstance } from './navigator';
 import { buildStyles } from './styles';
+import { layoutByGroup } from './grouped-layered';
+import { layoutTree, routeGeometry, routeTree } from './tree-layout';
+import type { Box, TreeEdgeInput, TreeLine, TreeNodeInput, TreeRoute } from './tree-layout';
+import { createEditHistory, USER_HIDDEN_CLASS } from './graph-edits';
+import type { GraphEditState, GraphSnapshot, LayoutMode } from './graph-edits';
 import { createChangeGlow, glowColors } from './change-glow';
 import { createMarkerOverlay, updateMarkers, drawWarningBadges } from './markers';
 import { wrapEntityLabel } from './wrap-label';
@@ -106,7 +111,7 @@ function changeMarks(review: ChangeReview): { nodes: Map<string, ChangeMark>; ed
 // LayoutMode — graph-only concept, exported so App shell can read/display it.
 // ---------------------------------------------------------------------------
 
-export type LayoutMode = 'hierarchical' | 'organic';
+export type { LayoutMode } from './graph-edits';
 
 // ---------------------------------------------------------------------------
 // GraphViewHandle — shell↔view typed contract.
@@ -122,6 +127,8 @@ export type LayoutMode = 'hierarchical' | 'organic';
  * - `applyLayoutMode`:  FAB layout-mode toggle → re-run ELK in new mode.
  * - zoom ops:           ZoomControl wiring.
  * - `retheme`:          theme-mode change → restyle cy without rebuild.
+ * - arrangement edits:  undo/redo, select mode, hide/show nodes (GraphEditBar
+ *                       and keyboard), reported back through onGraphEditsChange.
  */
 export interface GraphViewHandle {
   navigateToEntity(id: string): void;
@@ -136,7 +143,16 @@ export interface GraphViewHandle {
    *  rendered graph slides the opposite way. Keyboard arrow-key scrolling. */
   panBy(dx: number, dy: number): void;
   retheme(mode: 'dark' | 'light', model: Model, entityErrors: EntityError[]): void;
+  undo(): void;
+  redo(): void;
+  toggleSelectMode(): void;
+  /** Remove the selected nodes from view. */
+  hideSelection(): void;
+  /** Put hidden nodes back; null = all of them. */
+  showHidden(ids: string[] | null): void;
 }
+
+type GraphEditActions = Pick<GraphViewHandle, 'undo' | 'redo' | 'toggleSelectMode' | 'hideSelection' | 'showHidden'>;
 
 // ---------------------------------------------------------------------------
 // GraphViewProps
@@ -184,6 +200,8 @@ export interface GraphViewProps {
   onDeselectEntity(): void;
   /** Called by the findings-panel navigate path — select + center only, no modal open. */
   onPanelSelect(node: ModelNode): void;
+  /** Called whenever undo/redo availability, select mode, or the hidden set changes. */
+  onGraphEditsChange(state: GraphEditState): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +230,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       onSelectEntity,
       onDeselectEntity,
       onPanelSelect,
+      onGraphEditsChange,
     },
     ref,
   ) {
@@ -253,7 +272,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
     const navigateToEntityRef = useRef<(id: string) => void>(() => {});
     const panelNavigateRef = useRef<(id: string) => void>(() => {});
     const resetLayoutRef = useRef<(() => void) | null>(null);
-    const applyLayoutModeRef = useRef<((mode: LayoutMode) => void) | null>(null);
+    const applyLayoutModeRef = useRef<((mode: LayoutMode, before: LayoutMode) => void) | null>(null);
+    const graphEditsRef = useRef<GraphEditActions | null>(null);
+    // Outlives a cy rebuild, so a live reload does not wipe what can be undone.
+    const editHistoryRef = useRef(createEditHistory());
 
     // ── Shift+hover lineage state (DG lineage trigger = shift+hover) ──────────
     // The currently-hovered node id (set on mouseover, cleared on mouseout) and
@@ -292,8 +314,9 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         resetLayoutRef.current?.();
       },
       applyLayoutMode(mode: LayoutMode) {
+        const before = layoutModeRef.current;
         layoutModeRef.current = mode;
-        applyLayoutModeRef.current?.(mode);
+        applyLayoutModeRef.current?.(mode, before);
       },
       zoomIn() {
         cyZoomInRef.current?.();
@@ -321,6 +344,21 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         updateMarkers(cy, svg, m.theme, mode);
         const badgeIds = new Set(entityErrors.map(e => e.entityId));
         drawWarningBadges(cy, svg, badgeIds);
+      },
+      undo() {
+        graphEditsRef.current?.undo();
+      },
+      redo() {
+        graphEditsRef.current?.redo();
+      },
+      toggleSelectMode() {
+        graphEditsRef.current?.toggleSelectMode();
+      },
+      hideSelection() {
+        graphEditsRef.current?.hideSelection();
+      },
+      showHidden(ids: string[] | null) {
+        graphEditsRef.current?.showHidden(ids);
       },
     }), []);
 
@@ -478,7 +516,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         return LAYERED_THOROUGHNESS_LARGE;
       }
 
-      function effectiveAlgorithm(mode: LayoutMode): 'fcose' | 'layered' {
+      function effectiveAlgorithm(mode: LayoutMode): 'fcose' | 'layered' | 'tree' {
+        if (mode === 'tree') return 'tree';
         if (mode === 'organic' && entityCount >= ORGANIC_FALLBACK_THRESHOLD) return 'layered';
         return mode === 'organic' ? 'fcose' : 'layered';
       }
@@ -578,6 +617,12 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       const layoutStore = createLayoutStore();
       const preloadedSavedKey = layoutKeyRef.current;
       const preloadedSaved = preloadedSavedKey ? layoutStore.load(preloadedSavedKey) : null;
+      // A model edit changes the layout key; the arrangement saved under the
+      // previous key carries over and only the new nodes need a spot.
+      const entityIds = new Set(model.nodes.map(n => n.id));
+      const carried = preloadedSaved ? null : layoutStore.previous(preloadedSavedKey, [...entityIds]);
+      const savedHidden = preloadedSaved ? layoutStore.hidden(preloadedSavedKey) : carried?.hidden ?? [];
+      let hiddenIds = new Set(savedHidden.filter(id => entityIds.has(id)));
 
       // Apply a saved PositionMap onto a cy instance.
       // Skips compound parents (_cluster_*) — setting a parent translates its children,
@@ -629,9 +674,24 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       // (then restore) so a Reset is reproducible while keeping the spectral
       // draft's quality. Non-fCoSE layouts run untouched.
       const runLayout = (m: LayoutMode, onDone: () => void) => {
+        if (effectiveAlgorithm(m) === 'tree') {
+          ++layoutSearchGen;
+          const { nodes, edges } = treeInput();
+          const result = layoutTree(nodes, edges);
+          treeLines = linesOf(result.routes);
+          applySavedPositions(cy, result.positions);
+          onDone();
+          return;
+        }
         if (effectiveAlgorithm(m) !== 'fcose') {
-          cy.one('layoutstop', onDone);
-          cy.layout(buildLayoutOpts(m)).run();
+          const scratch = buildScratchCore(cy, true, hiddenNodeIds());
+          const myGen = ++layoutSearchGen;
+          void layoutByGroup(scratch, buildLayoutOpts(m), layerSpacing).then((positions) => {
+            scratch.destroy();
+            if (cy.destroyed() || layoutSearchGen !== myGen) return;
+            applySavedPositions(cy, positions);
+            onDone();
+          });
           return;
         }
         // The search runs on a HEADLESS scratch mirror of the graph: once the
@@ -641,7 +701,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // graph keeps its current picture until the winner is applied.
         // Above ~150 entities the flat force problem starts to tangle —
         // decompose by colour family via compound regions on the mirror.
-        const scratch = buildScratchCore(cy, entityCount >= 150);
+        const scratch = buildScratchCore(cy, entityCount >= 150, hiddenNodeIds());
         // Snapshot degree-1 leaves from REAL degrees — the group-pull edges
         // added in pass 2 would otherwise give every grouped satellite +1
         // degree and unmask it from the short-leash treatment.
@@ -809,6 +869,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       function settleLayout(): void {
         layoutSettled = true;
         appliedReview = undefined;
+        applyEdgeRouting();
         applyChangeOverlay();
       }
 
@@ -818,7 +879,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       }
 
       function gradeSpans(): void {
-        gradeEdgeSpans(cy.edges().not(`.${CHANGE_GHOST_CLASS}`));
+        gradeEdgeSpans(cy.edges(':visible').not(`.${CHANGE_GHOST_CLASS}`));
       }
 
       function markElement(el: cytoscape.CollectionReturnValue, mark: ChangeMark): void {
@@ -835,14 +896,25 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           .map(neighbourId => cy.$id(neighbourId))
           .filter(neighbour => neighbour.nonempty());
         if (neighbours.length === 0) return nextRowSlot();
-        const sum = neighbours.reduce((acc, n) => ({ x: acc.x + n.position('x'), y: acc.y + n.position('y') }), { x: 0, y: 0 });
-        return { x: sum.x / neighbours.length, y: sum.y / neighbours.length };
+        return centroid(neighbours.reduce((all, n) => all.union(n), cy.collection()));
       }
 
-      function moveToClearSpot(ghost: cytoscape.NodeSingular, start: cytoscape.Position, nextRowSlot: () => cytoscape.Position): void {
+      function centroid(nodes: cytoscape.NodeCollection): cytoscape.Position {
+        let x = 0;
+        let y = 0;
+        nodes.forEach((n) => { x += n.position('x'); y += n.position('y'); });
+        return { x: x / nodes.length, y: y / nodes.length };
+      }
+
+      function moveToClearSpot(
+        ghost: cytoscape.NodeSingular,
+        start: cytoscape.Position,
+        nextRowSlot: () => cytoscape.Position,
+        blockers: cytoscape.NodeCollection = cy.nodes(':visible'),
+      ): void {
         ghost.position(start);
         const home = ghost.boundingBox();
-        const blocked = cy.nodes().not(ghost).map(n => n.boundingBox());
+        const blocked = blockers.not(ghost).map(n => n.boundingBox());
         for (let ring = 0; ring <= GHOST_SEARCH_RINGS; ring++) {
           const spots = ring === 0 ? 1 : 8;
           for (let k = 0; k < spots; k++) {
@@ -859,12 +931,17 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         ghost.position(nextRowSlot());
       }
 
-      function addChangeGhosts(review: ChangeReview, nodeMarks: Map<string, ChangeMark>, edgeMarks: Map<string, ChangeMark>): void {
-        const box = cy.nodes().boundingBox();
+      // Spots along a row under `placed`, for a node with nowhere better to go.
+      function rowSlotsBelow(placed: cytoscape.NodeCollection): () => cytoscape.Position {
+        const box = placed.boundingBox();
         const left = Number.isFinite(box.x1) ? box.x1 : 0;
         const top = Number.isFinite(box.y2) ? box.y2 + GHOST_ROW_GAP : 0;
         let rowSlots = 0;
-        const nextRowSlot = () => ({ x: left + rowSlots++ * GHOST_SPACING, y: top });
+        return () => ({ x: left + rowSlots++ * GHOST_SPACING, y: top });
+      }
+
+      function addChangeGhosts(review: ChangeReview, nodeMarks: Map<string, ChangeMark>, edgeMarks: Map<string, ChangeMark>): void {
+        const nextRowSlot = rowSlotsBelow(cy.nodes(':visible'));
 
         for (const node of review.removedNodes) {
           if (cy.$id(node.id).nonempty()) continue;
@@ -881,6 +958,352 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           markElement(ghost, { change: 'removed', unexplained: edgeMarks.get(graphEdgeId(edge))?.unexplained ?? false });
         }
       }
+
+      // Hover state lives up here: the first layout can land synchronously (a
+      // saved arrangement) and reach the hover through an edit it triggers.
+      let hoverShownId: string | null = null;
+      // Read when a hover settles, after the pointer event that started it is gone.
+      let shiftHeld = false;
+      const graphHover = createHoverIntent(showHover);
+
+      // ── Tree layout edge routing (docs/design/graph-tree-layout.md) ────────
+      // Bends are relative to the endpoints, so they are recomputed whenever a node moves.
+      const TREE_EDGE_CLASSES = 'tree-edge tree-label-source tree-cross';
+      const TREE_EDGE_STYLES = 'segment-weights segment-distances source-endpoint target-endpoint source-text-offset target-text-offset';
+      let treeRoutes = new Map<string, TreeRoute>();
+      // Which lines the last Tree layout drew as tree lines; later routing keeps
+      // them and works from the boxes as they stand, so nothing reorders.
+      let treeLines: Map<string, TreeLine> | null = null;
+
+      function linesOf(routes: Map<string, TreeRoute>): Map<string, TreeLine> {
+        return new Map([...routes].map(([id, r]) => [id, { id, parent: r.parent, child: r.child, kind: r.kind }]));
+      }
+
+      function treeInput(): { nodes: TreeNodeInput[]; edges: TreeEdgeInput[] } {
+        const hidden = hiddenNodeIds();
+        const nodes: TreeNodeInput[] = [];
+        cy.nodes(':childless').not(`.${CHANGE_GHOST_CLASS}`).forEach((n) => {
+          if (hidden.has(n.id())) return;
+          nodes.push({
+            id: n.id(),
+            width: n.outerWidth(),
+            height: n.outerHeight(),
+            group: String(n.data('group') ?? ''),
+            classifier: n.data('classification') === 'Classifier',
+            joiner: n.data('joiner') === 'true',
+          });
+        });
+        const present = new Set(nodes.map(n => n.id));
+        const edges: TreeEdgeInput[] = [];
+        cy.edges().not(`.${CHANGE_GHOST_CLASS}, .${INHERITED_EDGE_CLASS}`).forEach((e) => {
+          if (!present.has(e.source().id()) || !present.has(e.target().id())) return;
+          edges.push({
+            id: e.id(),
+            source: e.source().id(),
+            target: e.target().id(),
+            identifying: e.data('identifying') === 'true',
+            label: String(e.data('predicateFwd') ?? ''),
+          });
+        });
+        return { nodes, edges };
+      }
+
+      // The mode the on-screen positions belong to: a switch still computing has not landed.
+      function positionsMode(): LayoutMode {
+        return pendingRelayout?.before ?? layoutModeRef.current;
+      }
+
+      function applyEdgeRouting(): void {
+        if (cy.destroyed()) return;
+        const edges = cy.edges().not(`.${CHANGE_GHOST_CLASS}, .${INHERITED_EDGE_CLASS}`);
+        if (positionsMode() !== 'tree') {
+          treeLines = null;
+          if (treeRoutes.size === 0) return;
+          treeRoutes = new Map();
+          edges.removeClass(TREE_EDGE_CLASSES).removeStyle(TREE_EDGE_STYLES);
+          return;
+        }
+        const { nodes, edges: links } = treeInput();
+        // Positions restored from a save or an undo: take the lines a layout of this graph would draw.
+        if (treeLines === null) treeLines = linesOf(layoutTree(nodes, links).routes);
+        const known = treeLines;
+        const lines: TreeLine[] = links.map(e => known.get(e.id) ?? { id: e.id, parent: e.source, child: e.target, kind: 'cross' });
+        const positions: PositionMap = {};
+        for (const n of nodes) positions[n.id] = cy.$id(n.id).position();
+        treeRoutes = routeTree(nodes, positions, lines);
+        cy.batch(() => {
+          edges.removeClass(TREE_EDGE_CLASSES).removeStyle(TREE_EDGE_STYLES);
+          routeTreeEdges(edges);
+        });
+      }
+
+      function routeTreeEdges(edges: cytoscape.EdgeCollection): void {
+        edges.forEach((e) => {
+          const route = treeRoutes.get(e.id());
+          if (route) routeTreeEdge(e, route);
+        });
+      }
+
+      const boxOf = (n: cytoscape.NodeSingular): Box =>
+        ({ x: n.position('x'), y: n.position('y'), width: n.outerWidth(), height: n.outerHeight() });
+
+      // Ends are pinned so a line leaves on its lane and enters on its row;
+      // bends become segment weights and distances along source→target.
+      function routeTreeEdge(edge: cytoscape.EdgeSingular, route: TreeRoute): void {
+        const parentNode = cy.$id(route.parent);
+        const childNode = cy.$id(route.child);
+        if (parentNode.empty() || childNode.empty()) return;
+        const g = routeGeometry(route, boxOf(parentNode), boxOf(childNode));
+        const reversed = edge.source().id() === route.child;
+        const bends = reversed ? [...g.bends].reverse() : g.bends;
+        const sourceEnd = reversed ? g.childEnd : g.parentEnd;
+        const targetEnd = reversed ? g.parentEnd : g.childEnd;
+
+        const s = edge.source().position();
+        const t = edge.target().position();
+        const dx = t.x - s.x;
+        const dy = t.y - s.y;
+        const lengthSq = dx * dx + dy * dy;
+        if (lengthSq < 1) return;
+        const length = Math.sqrt(lengthSq);
+        const style: Record<string, string | number> = {
+          'segment-weights': bends.map(b => ((b.x - s.x) * dx + (b.y - s.y) * dy) / lengthSq).join(' '),
+          'segment-distances': bends.map(b => ((b.x - s.x) * -dy + (b.y - s.y) * dx) / length).join(' '),
+          'source-endpoint': `${sourceEnd.x - s.x}px ${sourceEnd.y - s.y}px`,
+          'target-endpoint': `${targetEnd.x - t.x}px ${targetEnd.y - t.y}px`,
+        };
+        // The geometry, not the stored kind, picks the label: a `down` route
+        // drawn as a cross link labels its street.
+        edge.removeClass(TREE_EDGE_CLASSES);
+        if (g.kind === 'cross') {
+          edge.addClass('tree-cross');
+        } else {
+          edge.addClass(reversed ? 'tree-edge tree-label-source' : 'tree-edge');
+          style[reversed ? 'source-text-offset' : 'target-text-offset'] = g.labelOffset;
+        }
+        edge.style(style);
+      }
+
+      // ── Arrangement edits: undo/redo, select mode, hidden nodes ───────────
+      let selectMode = false;
+
+      // Hidden entities plus any joiner diamond whose members are all hidden.
+      function hiddenNodeIds(): Set<string> {
+        const ids = new Set(hiddenIds);
+        cy.nodes('[joiner = "true"]').forEach((j) => {
+          const members = j.outgoers('node');
+          if (members.nonempty() && members.every(m => hiddenIds.has(m.id()))) ids.add(j.id());
+        });
+        return ids;
+      }
+
+      function applyHidden(): void {
+        const ids = hiddenNodeIds();
+        cy.nodes(`.${USER_HIDDEN_CLASS}`).removeClass(USER_HIDDEN_CLASS);
+        cy.nodes().filter(n => ids.has(n.id())).unselect().addClass(USER_HIDDEN_CLASS);
+      }
+
+      let initialLayoutDone = false;
+      // Reset and the mode switch asked for before the first layout lands run
+      // after it, so the first layout's deep-link and restyle steps still happen.
+      let queuedRelayout: { mode: LayoutMode; before: LayoutMode } | null = null;
+      // A Reset or mode switch still computing; `recorded` = it pushed an undo step.
+      let pendingRelayout: { before: LayoutMode; recorded: boolean } | null = null;
+
+      // Drops a pending relayout so it never lands over an edit, leaving no
+      // trace: the mode label and the undo history go back to before it.
+      function cancelPendingRelayout(): boolean {
+        if (pendingRelayout === null) return false;
+        const { before, recorded } = pendingRelayout;
+        pendingRelayout = null;
+        layoutSearchGen++;
+        if (layoutModeRef.current !== before) {
+          layoutModeRef.current = before;
+          onLayoutModeChange(before);
+        }
+        settleLayout();
+        if (recorded) editHistoryRef.current.discardLast();
+        consumePendingPanelTarget();
+        reportEdits();
+        return true;
+      }
+
+      // The first layout has to land before an edit means anything.
+      function readyForEdit(): boolean {
+        if (!initialLayoutDone) return false;
+        cancelPendingRelayout();
+        return true;
+      }
+
+      function snapshot(): GraphSnapshot {
+        const positions: PositionMap = {};
+        cy.nodes(':childless').not(`.${CHANGE_GHOST_CLASS}`).forEach((n) => {
+          const p = n.position();
+          positions[n.id()] = { x: p.x, y: p.y };
+        });
+        // While a switch computes, the positions on screen still belong to the earlier mode.
+        return { positions, hidden: [...hiddenIds].sort(), mode: pendingRelayout?.before ?? layoutModeRef.current };
+      }
+
+      function persist(): void {
+        const key = layoutKeyRef.current;
+        if (!key || cy.destroyed()) return;
+        const { positions, hidden } = snapshot();
+        layoutStore.save(key, positions, hidden);
+      }
+
+      function reportEdits(): void {
+        const history = editHistoryRef.current;
+        onGraphEditsChange({
+          canUndo: history.canUndo(),
+          canRedo: history.canRedo(),
+          selectMode,
+          hidden: [...hiddenIds].sort(),
+        });
+      }
+
+      // Focus tiers follow one pinned node; a multi-node selection pins none.
+      function pinnedNode(): cytoscape.NodeSingular | null {
+        const selected = cy.nodes(':selected');
+        return selected.length === 1 ? selected[0] : null;
+      }
+
+      // Seat each node beside its placed neighbours, in an order that lets a
+      // chain of new nodes grow out from the placed part of the graph.
+      function placeNewNodes(ids: Set<string>): void {
+        const pending = new Set(ids);
+        const placed = () => cy.nodes(':childless:visible').filter(n => !pending.has(n.id()));
+        const nextRowSlot = rowSlotsBelow(placed());
+        while (pending.size > 0) {
+          const waiting = cy.nodes().filter(n => pending.has(n.id()));
+          const anchored = waiting.filter(n => n.neighborhood('node').some(m => !pending.has(m.id())));
+          const node = anchored.nonempty() ? anchored[0] : waiting[0];
+          if (!node) break;
+          const anchors = node.neighborhood('node:childless:visible').filter(m => !pending.has(m.id()));
+          const start = anchors.empty() ? nextRowSlot() : centroid(anchors);
+          moveToClearSpot(node, start, nextRowSlot, placed());
+          pending.delete(node.id());
+        }
+      }
+
+      // A hidden node may have been the hovered or pinned one; its fade must go.
+      function refreshFocus(): void {
+        const hovered = graphHover.applied();
+        if (hovered !== null && hiddenIds.has(hovered)) {
+          hoveredNodeIdRef.current = null;
+          graphHover.applyNow(null);
+          return;
+        }
+        if (hovered === null) showPinnedOrClear();
+      }
+
+      function showPinnedOrClear(): void {
+        const pinned = pinnedNode();
+        if (pinned) {
+          applyFocusTiers(pinned);
+          return;
+        }
+        clearFocusTiers();
+        redrawMarkers();
+      }
+
+      function afterArrangementEdit(): void {
+        applyEdgeRouting();
+        refreshFocus();
+        gradeSpans();
+        redrawMarkers();
+        persist();
+        reportEdits();
+      }
+
+      function restoreSnapshot(target: GraphSnapshot): void {
+        hiddenIds = new Set(target.hidden.filter(id => entityIds.has(id)));
+        applyHidden();
+        applySavedPositions(cy, target.positions);
+        if (target.mode !== layoutModeRef.current) {
+          layoutModeRef.current = target.mode;
+          onLayoutModeChange(target.mode);
+        }
+        // Ghosts sit against the positions that were just replaced.
+        appliedReview = undefined;
+        applyChangeOverlay();
+        afterArrangementEdit();
+      }
+
+      function hideNodes(ids: string[]): void {
+        const fresh = ids.filter(id => entityIds.has(id) && !hiddenIds.has(id));
+        if (fresh.length === 0 || !readyForEdit()) return;
+        editHistoryRef.current.push(snapshot());
+        fresh.forEach(id => hiddenIds.add(id));
+        applyHidden();
+        // The pointer is still over the spot the node left, so cytoscape sends
+        // no mouseout: a hover still waiting on the node is dropped here.
+        if (hoveredNodeIdRef.current !== null && hiddenIds.has(hoveredNodeIdRef.current)) {
+          hoveredNodeIdRef.current = null;
+          graphHover.applyNow(null);
+        }
+        afterArrangementEdit();
+      }
+
+      function showNodes(ids: string[] | null): void {
+        const back = (ids ?? [...hiddenIds]).filter(id => hiddenIds.has(id));
+        if (back.length === 0 || !readyForEdit()) return;
+        editHistoryRef.current.push(snapshot());
+        back.forEach(id => hiddenIds.delete(id));
+        applyHidden();
+        // A layout that ran while they were hidden may have filled their old spots.
+        placeNewNodes(new Set(back.filter(id => overlapsVisible(cy.$id(id)))));
+        afterArrangementEdit();
+      }
+
+      function overlapsVisible(node: cytoscape.NodeSingular): boolean {
+        const box = node.boundingBox();
+        return cy.nodes(':childless:visible').not(node).some(other => boxesOverlap(box, other.boundingBox(), 0));
+      }
+
+      function setSelectMode(on: boolean): void {
+        selectMode = on;
+        // Panning off makes a plain background drag draw a selection box;
+        // additive makes a click toggle a node in or out of the selection.
+        cy.userPanningEnabled(!on);
+        cy.selectionType(on ? 'additive' : 'single');
+        reportEdits();
+      }
+
+      graphEditsRef.current = {
+        undo() {
+          if (!initialLayoutDone) return;
+          // Undo during a pending Reset or mode switch takes back that request.
+          if (cancelPendingRelayout()) return;
+          if (!editHistoryRef.current.canUndo()) return;
+          const previous = editHistoryRef.current.undo(snapshot());
+          if (previous) restoreSnapshot(previous);
+        },
+        redo() {
+          if (!editHistoryRef.current.canRedo() || !readyForEdit()) return;
+          const next = editHistoryRef.current.redo(snapshot());
+          if (next) restoreSnapshot(next);
+        },
+        toggleSelectMode() {
+          setSelectMode(!selectMode);
+        },
+        hideSelection() {
+          hideNodes(cy.nodes(':selected').map(n => n.id()));
+        },
+        showHidden(ids) {
+          showNodes(ids);
+        },
+      };
+
+      cy.on('cxttap', 'node', (evt) => {
+        const node = evt.target;
+        // A two-finger tap also arrives as cxttap; on a phone the edit bar is
+        // hidden, so a node hidden there could never be brought back.
+        if (typeof TouchEvent !== 'undefined' && evt.originalEvent instanceof TouchEvent) return;
+        if (!entityIds.has(node.id())) return;
+        const selected = cy.nodes(':selected');
+        hideNodes(node.selected() ? selected.map(n => n.id()) : [node.id()]);
+      });
 
       function applyChangeOverlay(): void {
         if (cy.destroyed() || !layoutSettled) return;
@@ -952,6 +1375,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (state.entity !== undefined) {
           const target = cy.$(`#${CSS.escape(state.entity)}`);
           if (target.length > 0) {
+            showNodes([state.entity]);
             cy.elements().unselect();
             target.select();
             if (state.pan === undefined) cy.center(target);
@@ -973,8 +1397,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       // two-pass fCoSE run fires layoutstop per pass, so the event can't be
       // the completion signal there).
       const onInitialLayoutDone = () => {
+        initialLayoutDone = true;
         if (preloadedSaved) {
           applySavedPositions(cy, preloadedSaved);
+        } else if (carried) {
+          applySavedPositions(cy, carried.positions);
+          placeNewNodes(new Set(cy.nodes(':childless').filter(n => carried.positions[n.id()] === undefined).map(n => n.id())));
+          persist();
         } else {
           const savedKey = layoutKeyRef.current;
           const saved = savedKey ? layoutStore.load(savedKey) : null;
@@ -984,15 +1413,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           // (Organic local polish — arrangeOrganic — now runs inside
           // runLayout's per-candidate loop, before crossing scoring.)
 
-          if (savedKey && !saved) {
-            const elkPositions: Record<string, { x: number; y: number }> = {};
-            cy.nodes().forEach((node) => {
-              if (node.isParent()) return;
-              const pos = node.position();
-              elkPositions[node.id()] = { x: pos.x, y: pos.y };
-            });
-            layoutStore.save(savedKey, elkPositions);
-          }
+          if (savedKey && !saved) persist();
         }
 
         settleLayout();
@@ -1011,7 +1432,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           layoutStopAt: performance.now(),
           nodes: cy.nodes(':childless').length,
           edges: cy.edges().length,
-          layoutMode: preloadedSaved ? 'preset' : 'elk',
+          layoutMode: preloadedSaved || carried ? 'preset' : 'elk',
         };
 
         const initialState = parseHash(location.hash);
@@ -1021,9 +1442,14 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           applyHashState(initialState);
         }
         consumePendingPanelTarget();
+        reportEdits();
+        if (queuedRelayout !== null) relayout(queuedRelayout.mode, queuedRelayout.before);
       };
 
-      if (preloadedSaved) {
+      // A box selection should hold entities only, not the cluster frame or joiner.
+      cy.nodes('[cluster = "true"], [joiner = "true"]').unselectify();
+      applyHidden();
+      if (preloadedSaved || carried) {
         cy.one('layoutstop', onInitialLayoutDone);
         cy.layout({ name: 'preset', fit: false } satisfies cytoscape.LayoutOptions).run();
       } else {
@@ -1204,12 +1630,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
             return;
           }
         }
-        const selected = cy.nodes(':selected');
-        if (selected.nonempty()) {
-          applyFocusTiers(selected[0]);
-        } else {
-          redrawMarkers();
-        }
+        showPinnedOrClear();
       }
 
       enterLineageHoverRef.current = enterLineageHover;
@@ -1220,9 +1641,6 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       // reads it); showHover renders the settled target: the node's reverse
       // predicates plus its lineage (Shift held) or direct-neighbour fade, or,
       // for null, the selected node's tiers or no fade at all.
-      let hoverShownId: string | null = null;
-      // Read when a hover settles, after the pointer event that started it is gone.
-      let shiftHeld = false;
       function showHover(nodeId: string | null): void {
         if (hoverShownId !== null) showPredicates(hoverShownId, 'fwd');
         hoverShownId = nodeId;
@@ -1238,15 +1656,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           else applyFocusTiers(node[0]);
           return;
         }
-        const selected = cy.nodes(':selected');
-        if (selected.nonempty()) {
-          applyFocusTiers(selected[0]);
-        } else {
-          clearFocusTiers();
-          redrawMarkers();
-        }
+        showPinnedOrClear();
       }
-      const graphHover = createHoverIntent(showHover);
 
       // A hovered node's incoming edges read their reverse predicate ('rev');
       // leaving restores every connected edge to the forward one ('fwd').
@@ -1271,7 +1682,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       // panel navigate, entity-link hops) are never suppressed.
       let suppressTapSelect = false;
       cy.on('tapstart', 'node', (evt) => {
-        suppressTapSelect = evt.originalEvent?.shiftKey !== true;
+        suppressTapSelect = !selectMode && evt.originalEvent?.shiftKey !== true;
       });
       cy.on('tapend', () => {
         setTimeout(() => { suppressTapSelect = false; }, 0);
@@ -1298,6 +1709,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // history entry). GraphView does not write entity= on tap. Lineage
         // (dotted inherited rays + 3-tier focus opacity) is a shift+hover
         // affordance (see showHover).
+        // Select mode: a click toggles the node in the selection instead.
+        if (selectMode) return;
         hoveredNodeIdRef.current = null;
         graphHover.applyNow(null);
         clearInheritedEdges();
@@ -1325,6 +1738,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       navigateToEntityRef.current = (id: string) => {
         const target = cy.$(`#${CSS.escape(id)}`);
         if (target.length === 0) return;
+        showNodes([id]);
         cy.elements().unselect();
         target.select();
         cy.center(target);
@@ -1332,7 +1746,13 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
       let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-      resetLayoutRef.current = () => {
+      // `before` is the mode the undo step returns to.
+      function relayout(mode: LayoutMode, before: LayoutMode = mode): void {
+        if (!initialLayoutDone) {
+          queuedRelayout = { mode, before: queuedRelayout?.before ?? before };
+          return;
+        }
+        queuedRelayout = null;
         if (saveTimer !== null) clearTimeout(saveTimer);
         // Strip ephemeral inherited edges BEFORE re-layout so ELK never lays
         // them out and the saved ELK position set never captures them. Also
@@ -1340,35 +1760,29 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         clearInheritedEdges();
         clearFocusTiers();
         lineageActiveRef.current = false;
-        unsettleLayout();
-        layoutStore.clear(layoutKeyRef.current);
-        runLayout(layoutModeRef.current, () => {
-          settleLayout();
-          gradeSpans();
-          cy.fit(undefined, 30);
-          redrawMarkers();
-          consumePendingPanelTarget();
-          // fit fires a 'zoom' event → readout updates to the real percent.
-        });
-      };
-
-      applyLayoutModeRef.current = (mode) => {
-        if (saveTimer !== null) clearTimeout(saveTimer);
-        // Strip ephemeral inherited edges BEFORE re-layout (never fed to ELK).
-        // Also clear focus tiers so the relaid-out graph returns to full opacity.
-        clearInheritedEdges();
-        clearFocusTiers();
-        lineageActiveRef.current = false;
+        // A second request while one is pending replaces it; the undo step
+        // and the mode to return to stay those of the first.
+        const recorded = pendingRelayout?.recorded ?? layoutSettled;
+        const firstBefore = pendingRelayout?.before ?? before;
+        if (pendingRelayout === null && layoutSettled) editHistoryRef.current.push({ ...snapshot(), mode: before });
+        pendingRelayout = { before: firstBefore, recorded };
+        reportEdits();
         unsettleLayout();
         runLayout(mode, () => {
+          pendingRelayout = null;
           settleLayout();
           gradeSpans();
           cy.fit(undefined, 30);
           redrawMarkers();
+          persist();
+          reportEdits();
           consumePendingPanelTarget();
           // fit fires a 'zoom' event → readout updates to the real percent.
         });
-      };
+      }
+
+      resetLayoutRef.current = () => relayout(layoutModeRef.current);
+      applyLayoutModeRef.current = (mode, before) => relayout(mode, before);
 
       panelNavigateRef.current = (id: string) => {
         if (layoutSettled) panelNavigate(id);
@@ -1385,6 +1799,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       function panelNavigate(id: string): void {
         const target = cy.$(`#${CSS.escape(id)}`);
         if (target.length === 0) return;
+        showNodes([id]);
         cy.elements().unselect();
         target.select();
         cy.center(target);
@@ -1479,26 +1894,44 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       }
 
       cy.on('layoutstop', refreshArrows);
+      cy.on('position', 'node', (evt) => {
+        if (treeRoutes.size === 0) return;
+        routeTreeEdges(evt.target.connectedEdges());
+      });
       cy.on('position', 'node', refreshArrows);
       cy.on('drag', 'node', refreshArrows);
       cy.on('free', 'node', refreshArrows);
       setTimeout(refreshArrows, 0);
 
+      // A selection drag grabs and frees every selected node: snapshot at the
+      // first grab, record once at the first free, only if something moved.
+      let dragBefore: GraphSnapshot | null = null;
+      // mousedown alone fires grab, so a click must not cancel a pending layout.
+      cy.on('grab', 'node', () => {
+        if (dragBefore === null && initialLayoutDone) dragBefore = snapshot();
+      });
+
       cy.on('free', 'node', () => {
         // Re-grade edge spans on drag release — a moved node changes which of
         // its edges count as long-haul.
         gradeSpans();
-        if (saveTimer !== null) clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => {
-          const key = layoutKeyRef.current;
-          if (!key) return;
-          const positions: Record<string, { x: number; y: number }> = {};
-          cy.nodes().not(`.${CHANGE_GHOST_CLASS}`).forEach((node) => {
-            const pos = node.position();
-            positions[node.id()] = { x: pos.x, y: pos.y };
+        if (dragBefore !== null) {
+          const before = dragBefore;
+          dragBefore = null;
+          const moved = cy.nodes(':childless').some((n) => {
+            const was = before.positions[n.id()];
+            return was !== undefined && Math.hypot(was.x - n.position('x'), was.y - n.position('y')) > 0.5;
           });
-          layoutStore.save(key, positions);
-        }, 400);
+          if (moved) {
+            readyForEdit();
+            editHistoryRef.current.push(before);
+            reportEdits();
+            // Once per gesture: every node of a dragged selection fires its own free.
+            if (positionsMode() === 'tree') applyEdgeRouting();
+          }
+        }
+        if (saveTimer !== null) clearTimeout(saveTimer);
+        saveTimer = setTimeout(persist, 400);
       });
 
       function collectLineage(start: cytoscape.NodeCollection) {
@@ -1588,6 +2021,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         panelNavigateRef.current = () => {};
         resetLayoutRef.current = null;
         applyLayoutModeRef.current = null;
+        graphEditsRef.current = null;
         redrawMarkersRef.current = null;
         applySearchClassesRef.current = null;
         applyChangeOverlayRef.current = null;

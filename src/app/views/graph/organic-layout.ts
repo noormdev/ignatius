@@ -569,6 +569,14 @@ export function gradeEdgeSpans(edges: cytoscape.EdgeCollection) {
   }
 }
 
+// A joiner diamond carries no group of its own; in a region layout it belongs
+// with the cluster whose members it feeds, or it floats outside every region.
+function joinerGroup(n: cytoscape.NodeSingular, clusterGroup: Map<string, string>): string | undefined {
+  if (n.data('joiner') !== 'true') return undefined;
+  const memberParent = n.outgoers('node').parent();
+  return memberParent.nonempty() ? clusterGroup.get(memberParent.id()) : undefined;
+}
+
 // Build a HEADLESS scratch mirror of the live graph for the layout search.
 // Once the live core has painted, every element read and write pays renderer
 // bookkeeping — label re-measures, compound-bounds upkeep, listener notify —
@@ -580,14 +588,21 @@ export function gradeEdgeSpans(edges: cytoscape.EdgeCollection) {
 // any label machinery; the `layout-uniform` class gives the global fCoSE
 // passes their fixed structure-only box.
 // groupRegions: wrap each colour family in an invisible compound parent on the
-// scratch mirror. fCoSE is compound-aware (the CoSE lineage is *designed* for
+// scratch mirror. The hierarchical layout lays out each region on its own
+// (grouped-layered.ts). fCoSE is compound-aware (the CoSE lineage is *designed* for
 // compound graphs): with regions, a large model decomposes into per-family
 // sub-layouts plus one small region-vs-region problem, instead of one flat
 // n-node force problem — which at ~400 nodes settles into an unreadable
 // hairball no matter the seed. The regions exist ONLY here; the live core
 // receives bare positions. Cluster compounds nest inside the region of their
 // majority member group; ungrouped nodes stay top-level.
-export function buildScratchCore(live: cytoscape.Core, groupRegions = false): cytoscape.Core {
+// exclude: hidden node ids, left off the mirror with their edges (and any
+// cluster left empty) so the layout closes the space they took.
+export function buildScratchCore(
+  live: cytoscape.Core,
+  groupRegions = false,
+  exclude: ReadonlySet<string> = new Set(),
+): cytoscape.Core {
   const regionId = (g: string) => `_group_${g}`;
   const usedRegions = new Set<string>();
   // Majority group per existing compound (subtype cluster) parent.
@@ -607,14 +622,19 @@ export function buildScratchCore(live: cytoscape.Core, groupRegions = false): cy
     });
   }
   const elements: cytoscape.ElementDefinition[] = [];
-  live.nodes().forEach((n) => {
+  const kept = live.nodes().filter((n) => {
+    if (exclude.has(n.id())) return false;
+    return !n.isParent() || n.children().some(c => !exclude.has(c.id()));
+  });
+  const keptIds = new Set(kept.map(n => n.id()));
+  kept.forEach((n) => {
     const data = { ...n.data() };
     if (!n.isParent()) {
       data.dw = n.outerWidth();
       data.dh = n.outerHeight();
     }
     if (groupRegions && !data.parent) {
-      const g = n.isParent() ? clusterGroup.get(n.id()) : n.data('group');
+      const g = n.isParent() ? clusterGroup.get(n.id()) : (n.data('group') || joinerGroup(n, clusterGroup));
       if (g) {
         data.parent = regionId(g);
         usedRegions.add(g);
@@ -626,6 +646,7 @@ export function buildScratchCore(live: cytoscape.Core, groupRegions = false): cy
     elements.push({ group: 'nodes', data: { id: regionId(g) } });
   });
   live.edges().forEach((e) => {
+    if (!keptIds.has(e.source().id()) || !keptIds.has(e.target().id())) return;
     elements.push({ group: 'edges', data: { ...e.data() } });
   });
   return cytoscape({

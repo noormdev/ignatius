@@ -520,4 +520,39 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
   console.log("PASS T30: i → flowIndex on the flow view only");
 }
 
+// ---------------------------------------------------------------------------
+// T31: Cmd/Ctrl+Z undoes, Cmd/Ctrl+Shift+Z and Ctrl+Y redo a graph arrangement
+//      change — only on the graph, and never while typing, where the chord
+//      must keep undoing the text.
+// ---------------------------------------------------------------------------
+{
+  for (const mod of ['ctrlKey', 'metaKey'] as const) {
+    assert(resolveShortcut(ev('z', { [mod]: true }), 'graph', false)?.type === 'undo', `T31: ${mod}+z on graph → undo`);
+    assert(resolveShortcut(ev('Z', { [mod]: true, shiftKey: true }), 'graph', false)?.type === 'redo', `T31: ${mod}+shift+z on graph → redo`);
+    assert(resolveShortcut(ev('z', { [mod]: true }), 'graph', true) === null, `T31: ${mod}+z while typing → null`);
+    assert(resolveShortcut(ev('z', { [mod]: true }), 'dict', false) === null, `T31: ${mod}+z on dict → null`);
+    assert(resolveShortcut(ev('z', { [mod]: true, altKey: true }), 'graph', false) === null, `T31: ${mod}+alt+z → null`);
+  }
+  assert(resolveShortcut(ev('y', { ctrlKey: true }), 'graph', false)?.type === 'redo', 'T31: ctrl+y on graph → redo');
+  assert(resolveShortcut(ev('y', { metaKey: true }), 'graph', false) === null, 'T31: meta+y → null (browser History)');
+  assert(resolveShortcut(ev('z'), 'graph', false) === null, 'T31: bare z → null');
+  console.log('PASS T31: undo/redo chords on the graph only, never while typing');
+}
+
+// ---------------------------------------------------------------------------
+// T32: s toggles select mode, h hides the selected nodes — graph only, bare
+//      keys, suppressed while typing like every bare key.
+// ---------------------------------------------------------------------------
+{
+  assert(resolveShortcut(ev('s'), 'graph', false)?.type === 'toggleSelectMode', "T32: s on graph → toggleSelectMode");
+  assert(resolveShortcut(ev('h'), 'graph', false)?.type === 'hideSelection', "T32: h on graph → hideSelection");
+  for (const key of ['s', 'h']) {
+    assert(resolveShortcut(ev(key), 'dict', false) === null, `T32: ${key} on dict → null`);
+    assert(resolveShortcut(ev(key), 'flow', false) === null, `T32: ${key} on flow → null`);
+    assert(resolveShortcut(ev(key), 'graph', true) === null, `T32: ${key} while typing → null`);
+    assert(resolveShortcut(ev(key, { metaKey: true }), 'graph', false) === null, `T32: meta+${key} → null`);
+  }
+  console.log('PASS T32: s and h on the graph only');
+}
+
 console.log('\nAll tests passed.');

@@ -1,6 +1,9 @@
 # Graph node position persistence
 
 
+The all-or-nothing restore below was later replaced: a structural change now carries the previous arrangement over and places only the new nodes. See [`graph-arrangement.md`](graph-arrangement.md) for why.
+
+
 ## Problem
 
 

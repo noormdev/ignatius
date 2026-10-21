@@ -20,6 +20,7 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { existsSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { nextLayoutMode, parseLayoutMode } from '../../src/app/views/graph/graph-edits';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODEL = join(ROOT, 'models/key-inherited');
@@ -106,10 +107,10 @@ try {
   );
 
   const layoutAfter = await page.evaluate(() => localStorage.getItem('ignatius-layout-mode') ?? 'organic');
-  const expectedLayout = layoutBefore === 'organic' ? 'hierarchical' : 'organic';
+  const expectedLayout = nextLayoutMode(parseLayoutMode(layoutBefore));
   assert(
     layoutAfter === expectedLayout,
-    `layout toggle flipped from ${layoutBefore} to ${expectedLayout} (got: ${layoutAfter})`,
+    `L stepped the layout from ${layoutBefore} to ${expectedLayout} (got: ${layoutAfter})`,
   );
 
   // ---------------------------------------------------------------------------

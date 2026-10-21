@@ -55,7 +55,7 @@ Ask: "Custom branding? (y/n, default n — uses built-in Noorm branding)"
 
 If yes, collect:
 
-- `title`, optional `subtitle` (max 50 characters each).
+- `title`, optional `subtitle` (max 50 characters each). The page shows each on one line and cuts it with `…` past 200px (title) or 240px (subtitle), about 25 and 40 characters, so suggest text that fits.
 - `logo` — optional path to an SVG, resolved relative to the model root. A single path applies to both modes, or `{ dark, light }` for per-mode logos.
 - `copyright.holder` (the name on the © line) and `copyright.year` (default current year).
 - `poweredBy` flag (default true; `false` hides the footer attribution).

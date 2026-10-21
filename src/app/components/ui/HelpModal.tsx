@@ -36,9 +36,12 @@ const GRAPH_TYPES: Row[] = [
 ];
 
 const GRAPH_EXPLORE: Row[] = [
-  { term: 'Layouts', desc: 'Organic clusters related entities by force; Hierarchical stacks them in dependency layers. Toggle with L.' },
+  { term: 'Layouts', desc: 'Organic clusters related entities by force; Hierarchical gives each colour group its own block, stacked in dependency layers; Tree lays the model out as an outline, each table below and right of the table whose key it inherits, with right-angled lines. L steps through them.' },
   { term: 'Shift + hover', desc: 'Reveals dotted lines to an entity’s whole key-inheritance family — every relative that shares its primary key, however far apart.' },
-  { term: 'Click · drag · zoom', desc: 'Click an entity for full detail; drag to rearrange (positions are saved); scroll or ⌘/Ctrl +/−/0 to zoom.' },
+  { term: 'Click · drag · zoom', desc: 'Click an entity for full detail; drag to rearrange (positions are saved, and survive edits to the model); scroll or ⌘/Ctrl +/−/0 to zoom.' },
+  { term: 'Move several', desc: 'Shift+drag on the background draws a selection box; press S for select mode, where a plain drag boxes and a click adds or removes. Drag any selected entity to move them all.' },
+  { term: 'Undo', desc: '⌘/Ctrl Z takes back a move, a hide, or a layout change; ⌘/Ctrl Shift Z redoes it. The undo and redo arrows above the zoom control do the same.' },
+  { term: 'Hide', desc: 'Right-click an entity, or press H with entities selected, to take it out of the view. The crossed-out eye above the zoom control counts and lists them to bring back; Reset layout lays out without them.' },
   { term: 'Search', desc: 'Type to highlight matches and dim the rest; flip Include descriptions to also match markdown text; Enter cycles through matches.' },
 ];
 
@@ -74,7 +77,12 @@ const FLOW_EXPLORE: Row[] = [
 
 function shortcutRows(view: ViewName): Row[] {
   const rows: Row[] = [{ term: 'G · D · F', desc: 'Switch between Graph, Dictionary, and Flows.' }];
-  if (view === 'graph') rows.push({ term: 'L', desc: 'Toggle the graph layout (Organic / Hierarchical).' });
+  if (view === 'graph') {
+    rows.push({ term: 'L', desc: 'Step through the graph layouts (Organic → Hierarchical → Tree).' });
+    rows.push({ term: 'S', desc: 'Toggle select mode.' });
+    rows.push({ term: 'H', desc: 'Hide the selected entities.' });
+    rows.push({ term: '⌘/Ctrl Z · ⌘/Ctrl ⇧ Z', desc: 'Undo or redo a move, hide, or layout change.' });
+  }
   if (view === 'dict') rows.push({ term: 'B', desc: 'Toggle the dictionary lens (Read / Browse).' });
   if (view === 'flow') rows.push({ term: 'I', desc: 'Open or close the flow index.' });
   if (view === 'graph' || view === 'dict') {

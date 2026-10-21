@@ -39,6 +39,7 @@ Dim-don't-filter with pure matchers and per-view wiring, per `docs/design/graph-
 - SC10 — `bun run test` and `bunx tsc --noEmit` exit 0: all existing checks stay green and the new checks pass. New Playwright checks follow the existing skip-if-dist-absent pattern.
 - SC11 — Bundle-only: no file under `src/server/` or `src/generators/` changes, and the search code paths perform no network requests — live serve and static export share the identical code path by construction.
 - SC12 — Chrome non-collision on the Flows view: the search bar never overlaps the DFD breadcrumb chips, at any breadcrumb depth (proven against the 4-level `test/fixtures/flows-leveling` fixture) — same standing as the graph view's banner non-collision.
+- SC13 — Chrome non-collision on the Graph view: at any viewport width from 375px up, the search bar and its count readout (up to "123 of 456") never overlap the branding block or the help and theme toggles, and stay inside the viewport. The bar is centred while that clears the branding; otherwise its left edge stays right of the measured `--branding-gutter` and its width stops short of the toggles and the count. At 1100px and below both the Graph and Flows bars compact: the switch label stacks onto two lines in smaller type and the input narrows. At 768px and below the Graph bar takes its own row under the branding (or under the global banner, which covers it) and its count drops below it. In every view the side panels start below the top-row search bar (and below the banner when it shows), so they never cover a bar or the count. Above 768px the Flows breadcrumbs start right of the measured branding block and wrap short of the toggles. Out of scope: the Flows results dropdown can still open under the side panels. The branding subtitle is capped at 240px like the title (200px), so the block stays one row tall; on narrow viewports both caps shrink so the block also stops short of the toggles.
 
 
 ## Checkpoints
@@ -51,6 +52,7 @@ Dim-don't-filter with pure matchers and per-view wiring, per `docs/design/graph-
 | CP3 | Flow wiring: shell flow-search state, `searchTokens` threaded `FlowsView` → `FlowDiagramSvg` opacity rules, results dropdown + `selectDiagramById` navigation | `src/app/App.tsx`, `src/app/views/flow/FlowsView.tsx`, `src/flow-view/FlowDiagramSvg.tsx`, `src/app/components/flow/FlowSearchResults.tsx`, `src/app/styles.css`, `test/checks/test-flow-search.ts`, `test/visual/test-flow-search.ts` | SC6/SC7 asserted in the Playwright check, including a sub-DFD navigation; SC9's flow half asserted there (hash gains no search param; flow layout store unchanged) |
 | CP4 | `/` shortcut end-to-end: resolver action, `useKeyboardShortcuts` `onSearch`, shell focus routing, `DictionaryViewHandle.focusSearch()`, HelpModal search + `/` rows, guide/feature-map rows, keymap amendments to the shortcut and help-overlay specs (the repo requires those specs stay current with the keymap) | `src/app/logic/shortcuts.ts`, `src/app/hooks/useKeyboardShortcuts.ts`, `src/app/App.tsx`, `src/app/views/dict/DictionaryView.tsx`, `src/app/components/ui/HelpModal.tsx`, `test/checks/test-shortcuts.ts`, `docs/guides/commands.md`, `docs/spec/keyboard-nav-shortcuts.md`, `docs/spec/help-overlay.md`, `CLAUDE.md` | SC8 resolver cases green in `test-shortcuts.ts`; docs rows present; both keymap specs amended with change-log entries |
 | CP5 | Search-bar refinement: the description toggle becomes a labeled switch, the bar and dropdown get a visual tightening pass within the existing design language (theme tokens, radii, frosted chrome, focus ring, switch styling, count treatment, row hover states — verified by screenshots in both themes), Cmd/Ctrl+K joins `/` as a search-focus chord on all views, and the flow bar no longer collides with the DFD breadcrumb chrome | `src/app/components/ui/SearchBar.tsx`, `src/app/styles.css`, `src/app/logic/shortcuts.ts`, `src/app/components/ui/HelpModal.tsx`, `test/checks/test-shortcuts.ts`, `test/checks/test-graph-search.ts`, `test/checks/test-flow-search.ts`, `docs/guides/commands.md`, `docs/spec/keyboard-nav-shortcuts.md`, `CLAUDE.md` | SC5's switch semantics + SC8's Cmd/Ctrl+K cases asserted in the checks; SC12's non-collision asserted against the deep-nesting fixture; both-theme screenshots reviewed; docs rows updated |
+| CP6 | Narrow-viewport Graph bar: left edge held right of the branding, width capped short of the toggles and the count, compact switch label and input at 1100px and below (Flows bar too), own row with the count below it and the side panels after it at 768px and below, subtitle capped | `src/app/styles.css`, `src/app/App.tsx`, `src/flow-view/FlowChrome.tsx`, `test/checks/test-viewer-search-branding-overlap.ts`, `test/chrome-geometry.ts` | SC13 asserted at 12 widths from 1920px to 375px with the default branding and a 50-character subtitle, a three-digit count, the Flows bar and breadcrumbs at 1440–375px, deep breadcrumbs (test/fixtures/flows-leveling) beside a 50-character subtitle at 1440–800px, and open side panels (models/broken-demo with and without its banner, test/fixtures/broken-flows-model) never covering a bar or the count; screenshots reviewed in both themes and in a static export |
 
 
 ## Change tree
@@ -75,6 +77,9 @@ A test/checks/test-graph-search.ts       — Playwright: dim/highlight/count/Ent
 A test/checks/test-flow-search.ts        — Playwright: dropdown, sub-DFD navigation, in-diagram dim
 A test/visual/test-graph-search.ts       — screenshot: graph search active
 A test/visual/test-flow-search.ts        — screenshot: flow search active + dropdown
+A test/checks/test-viewer-search-branding-overlap.ts — Playwright: Graph bar vs branding and toggles across widths
+A test/chrome-geometry.ts               — shared viewport settle, box and overlap helpers for the chrome checks
+M src/flow-view/FlowChrome.tsx           — breadcrumb row comment: the row wraps short of the toggles
 M docs/guides/commands.md                — '/' keyboard shortcut row
 M docs/spec/keyboard-nav-shortcuts.md    — '/' in the keymap/resolver contract + change-log entry
 M docs/spec/help-overlay.md              — search rows in the view branches + change-log entry
@@ -138,6 +143,12 @@ M CLAUDE.md                              — feature-map row (and '/' added to t
 
 ## Change log
 
+
+### 2026-10-20 — SC13: Graph bar clears the branding on narrow viewports
+
+**What changed:** new SC13 and CP6. The Graph bar keeps its left edge right of `--branding-gutter`, with its width capped short of the help and theme toggles and the count readout. At 1100px and below the Graph and Flows bars compact (stacked switch label, narrower input). At 768px and below the Graph bar takes its own row under the branding, with its count below it. The side panels start below the top-row bar in every view; above 768px the Flows breadcrumbs start right of the measured branding block and wrap short of the toggles. The branding subtitle is capped at 240px.
+
+**Why:** user report: in an export embedded at ~800px the branding block painted over the search input.
 
 ### 2026-09-18 — SC12 no longer names the nav card
 

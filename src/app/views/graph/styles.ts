@@ -1,9 +1,11 @@
 import cytoscape from 'cytoscape';
 import type { ThemeConfig, ThemeMode } from '../../../theme/theme-defaults';
+import { semanticColors } from '../../../theme/theme-defaults';
 import type { GroupConfig } from '../../../model/parse';
 import { blendHex, pastel, lighten } from '../../logic/color';
 import { SPOTLIGHT_LINE_INHERITED } from '../../dom/theme-css-vars';
 import { EDGE_GLOW_SCALE, GLOW_STEADY, TIER_OPACITY, UNEXPLAINED_STEADY_MIX, glowColors } from './change-glow';
+import { USER_HIDDEN_CLASS } from './graph-edits';
 
 /**
  * Graph search match border (graph-flow-search CP2). Distinct gold/yellow so
@@ -174,6 +176,19 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
     });
   }
 
+  // After the per-group rules so the ring wins over a group's border colour; a
+  // lightened border alone vanished at overview zoom.
+  base.push({
+    selector: 'node:selected',
+    style: {
+      'outline-width': 3,
+      'outline-color': semanticColors[mode].link,
+      'outline-offset': 3,
+      'outline-opacity': 1,
+      'overlay-opacity': 0,
+    },
+  });
+
   // Node glows are drawn by createChangeGlow on a canvas behind cytoscape; edge
   // glows are steady underlays here, which createChangeGlow pulses.
   const glow = glowColors(theme, mode);
@@ -284,6 +299,45 @@ export function buildStyles(groups: Record<string, GroupConfig>, theme: ThemeCon
   for (const [tier, opacity] of Object.entries(TIER_OPACITY)) {
     base.push({ selector: `edge[change].${tier}`, style: { 'underlay-opacity': GLOW_STEADY * EDGE_GLOW_SCALE * opacity } });
   }
+
+  // Tree layout: GraphView sets each routed edge's bends; a tree line's
+  // predicate rides its run into the child, a cross link's sits mid-street.
+  base.push(
+    {
+      selector: 'edge.tree-edge',
+      style: {
+        'curve-style': 'segments',
+        'edge-distances': 'node-position',
+        'label': '',
+        'target-label': 'data(edgeLabel)',
+        'target-text-margin-y': -9,
+        'target-text-rotation': 'none',
+      },
+    },
+    {
+      selector: 'edge.tree-label-source',
+      style: {
+        'target-label': '',
+        'source-label': 'data(edgeLabel)',
+        'source-text-margin-y': -9,
+        'source-text-rotation': 'none',
+      },
+    },
+    {
+      selector: 'edge.tree-cross',
+      style: {
+        'curve-style': 'segments',
+        'edge-distances': 'node-position',
+        'text-rotation': 'none',
+        // The street runs just under the parent: the label sits on it, not above it.
+        'text-margin-y': 0,
+        'text-background-padding': '2px',
+      },
+    },
+  );
+
+  // A node the user removed from view; cytoscape hides its edges with it.
+  base.push({ selector: `node.${USER_HIDDEN_CLASS}`, style: { 'display': 'none' } });
 
   return base;
 }

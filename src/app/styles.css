@@ -64,7 +64,8 @@ a {
   font-weight: 700;
   color: var(--color-text);
   line-height: 1.2;
-  max-width: 200px;
+  /* 86px: the block's left offset, padding, logo and gap; then the toggles and a 12px gap. */
+  max-width: min(200px, calc(100vw - 86px - var(--toggle-region) - 12px));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -73,11 +74,21 @@ a {
   font-size: 11px;
   color: var(--color-text-muted);
   line-height: 1.2;
+  /* Capped like the title, so the block stays one row tall and the search bars' clearances hold. */
+  max-width: min(240px, calc(100vw - 86px - var(--toggle-region) - 12px));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Footer — bottom-center, fixed */
 /* --fab-region matches the FAB's right offset + width so the footer stays clear */
 :root { --fab-region: 160px; }
+/* --toggle-region is the help and theme toggles' span from the right edge (.help-toggle right + width). */
+:root { --toggle-region: 96px; }
+/* --below-branding: the row under the branding block (12px top + 48px block + 8px gap).
+   --dict-bar-clearance: the fixed Dictionary search bar's height plus a gap. */
+:root { --below-branding: 68px; --dict-bar-clearance: 76px; }
 .branding-footer {
   position: fixed;
   bottom: 12px;
@@ -717,8 +728,12 @@ code {
 .flow-crumbs {
   position: absolute;
   top: 18px;
-  left: 240px;
+  /* Right of the measured branding block, wrapping short of the toggles; max-width (not right)
+     keeps the row as wide as its chips, so it never covers the canvas beside them. */
+  left: max(240px, calc(28px + var(--branding-gutter, 0px)));
+  max-width: calc(100vw - max(240px, calc(28px + var(--branding-gutter, 0px))) - var(--toggle-region) - 12px);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   z-index: 46;
@@ -1123,7 +1138,7 @@ button.flow-crumb__label:hover {
     top: 64px;
     left: 16px;
     right: 16px;
-    flex-wrap: wrap;
+    max-width: none;
     row-gap: 8px;
   }
 
@@ -1233,8 +1248,164 @@ button.flow-crumb__label:hover {
   outline: none;
 }
 
+.graph-edit-bar {
+  position: fixed;
+  bottom: 120px;
+  right: 24px;
+  /* Same footprint as .zoom-control directly below it. */
+  width: 130px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 2px 4px;
+  z-index: 55;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+
+.graph-edit-bar:hover,
+.graph-edit-bar:focus-within {
+  opacity: 1;
+}
+
+.graph-edit-btn {
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  height: 24px;
+  min-width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 4px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.graph-edit-btn:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.graph-edit-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.graph-edit-btn[aria-pressed='true'],
+.graph-edit-btn[aria-expanded='true'] {
+  background: var(--color-surface-alt);
+  color: var(--color-link);
+}
+
+.graph-edit-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.graph-edit-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.graph-edit-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--color-border);
+}
+
+.graph-edit-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+  color: var(--color-text);
+}
+
+.graph-edit-popover-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.graph-edit-popover-count {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.graph-edit-link {
+  background: none;
+  border: none;
+  color: var(--color-link);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.graph-edit-link:hover {
+  background: var(--color-surface-alt);
+}
+
+.graph-edit-popover ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+}
+
+.graph-edit-popover li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 2px 6px;
+  border-radius: 4px;
+}
+
+.graph-edit-popover li:hover {
+  background: var(--color-surface-alt);
+}
+
+.graph-edit-popover-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
-  .zoom-control {
+  .zoom-control,
+  .graph-edit-bar {
     display: none;
   }
 }
@@ -1330,10 +1501,11 @@ button.flow-crumb__label:hover {
 /* Holds the Changes and Findings panels, stacked so they never overlap. */
 .side-panel-stack {
   position: fixed;
-  /* Top offset clears the theme-toggle (top:16px, 36px tall, 12px gap). */
-  top: 64px;
+  /* 52px below the top of the top-row bar (12px with no banner or Flows bar), clearing the toggles and the bar. */
+  --panel-top: calc(max(var(--search-bar-top, 12px), var(--flow-search-bar-top, 0px)) + 52px);
+  top: var(--panel-top);
   right: 1rem;
-  max-height: calc(100vh - 96px);
+  max-height: calc(100vh - var(--panel-top) - 32px);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -1986,6 +2158,8 @@ button.changes-panel-item:hover {
   z-index: 10;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Anchor jumps land below the fixed search bar. */
+  scroll-padding-top: var(--dict-bar-clearance);
 }
 
 /* CP17: Inner content wrapper — centers and bounds the readable column. */
@@ -1994,7 +2168,7 @@ button.changes-panel-item:hover {
   margin: 0 auto;
   /* Top clears the fixed search bar (~56px bar + 12px gap = 68px).
      Right clears theme-toggle + FAB; bottom/left give breathing room. */
-  padding: 76px 2rem 5rem 2rem;
+  padding: var(--dict-bar-clearance) 2rem 5rem 2rem;
 }
 
 /* CP17: Fixed top search bar — frosted, centered, bounded.
@@ -2031,6 +2205,8 @@ button.changes-panel-item:hover {
     2rem,
     calc(16px + var(--branding-gutter, 0px) + 12px - max(0px, (100vw - 1100px) / 2))
   );
+  /* The same indent on the right clears the help and theme toggles. */
+  padding-right: max(2rem, calc(var(--toggle-region) + 12px - max(0px, (100vw - 1100px) / 2)));
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -2074,8 +2250,8 @@ button.changes-panel-item:hover {
 
 /* graph-flow-search CP2: shared Graph/Flows search bar (SearchBar.tsx).
    Compact frosted pill, top-center — visually consistent with .dict-search-bar
-   but deliberately NOT full-width, so it never collides with the top-right
-   help/theme toggles + FindingsPanel or the top-left branding block. The
+   but NOT full-width. On narrow viewports the Graph bar is held clear of the
+   branding block and the toggles (see .viewer-search-bar--graph below). The
    full-width global error banner is handled separately via --search-bar-top
    (see below) since width alone doesn't avoid a top-anchored, full-width
    banner. */
@@ -2209,9 +2385,9 @@ button.changes-panel-item:hover {
 
 /* Count readout — absolutely positioned OUTSIDE the flex flow so its width
    never contributes to .viewer-search-bar-inner's own size. The bar is
-   horizontally centered (`.viewer-search-bar`'s left:50%+translateX(-50%)),
-   so any width change ripples into a visible shift of the whole pill (the
-   input included) — this keeps the bar's width (and therefore its centered
+   horizontally centered while there is room (`.viewer-search-bar`'s left:50%
+   + translateX), so any width change ripples into a visible shift of the whole
+   pill (the input included) — this keeps the bar's width (and therefore its
    position) constant whether or not the count is showing. Still mounted
    only when matchCount !== null (SearchBar.tsx) — clearing the term removes
    it from the DOM entirely, not just visually. */
@@ -2225,6 +2401,49 @@ button.changes-panel-item:hover {
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+/* The Graph bar is centred while that clears the branding; otherwise its left edge stays
+   right of --branding-gutter, and its width short of the toggles and an 80px count. */
+.viewer-search-bar--graph {
+  transform: translateX(max(-50%, calc(28px + var(--branding-gutter, 0px) - 50vw)));
+  max-width: calc(100vw - 28px - var(--branding-gutter, 0px) - var(--toggle-region) - 12px - 80px);
+}
+.viewer-search-bar--graph .viewer-search-bar-inner {
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .viewer-search-input {
+    width: 160px;
+    min-width: 60px;
+    flex: 1 1 auto;
+  }
+  .viewer-search-switch-label {
+    width: min-content;
+    white-space: normal;
+    font-size: 0.7rem;
+    line-height: 1.15;
+  }
+}
+
+/* No room beside the branding: the Graph bar takes its own row under it (or under the
+   banner, which covers the branding), its count drops below it, and the side panels start after both. */
+@media (max-width: 768px) {
+  .viewer-search-bar--graph {
+    top: max(var(--search-bar-top, 12px), var(--below-branding));
+    transform: translateX(-50%);
+    max-width: calc(100vw - 32px);
+  }
+  .viewer-search-bar--graph .viewer-search-count {
+    left: 50%;
+    top: calc(100% + 4px);
+    transform: translateX(-50%);
+    margin-left: 0;
+  }
+  .side-panel-stack {
+    --panel-top: calc(max(var(--search-bar-top, 12px), var(--flow-search-bar-top, 0px), var(--below-branding)) + 76px);
+  }
 }
 
 /* graph-flow-search CP3: Flows results dropdown, rendered into the SearchBar's
@@ -3077,8 +3296,17 @@ a.dict-link-missing:hover {
 }
 
 @media (max-width: 768px) {
+  /* No room beside the branding: the bar's controls take their own row under it. */
+  :root {
+    --dict-bar-clearance: 136px;
+  }
+
+  .dict-search-bar-inner {
+    padding: var(--below-branding) 0.75rem 8px;
+  }
+
   .dict-view-inner {
-    padding: 76px 0.75rem 4rem 0.75rem;
+    padding: var(--dict-bar-clearance) 0.75rem 4rem 0.75rem;
   }
 
   .dict-group-header {
@@ -3711,7 +3939,8 @@ a.dict-link-missing:hover {
   .dict-findings-panel,
   .dict-fab,
   .dict-theme-toggle,
-  .zoom-control {
+  .zoom-control,
+  .graph-edit-bar {
     display: none !important;
   }
 

@@ -13,7 +13,7 @@ description: Ignatius — Bun/TypeScript markdown-driven ERD modeler with a unif
 
 - Runtime: Bun (all scripts, server, test runner, binary compiler)
 - Language: TypeScript (strict, ESM modules, `type: "module"` in package.json)
-- Frontend: React 19, Cytoscape.js 3.31 + cytoscape-elk 2.2 + cytoscape-fcose 2.2 + cytoscape-navigator 2.0 — ELK drives layered/hierarchical layout (and the organic fallback above `ORGANIC_FALLBACK_THRESHOLD`), fCoSE drives the organic layout's multi-seed force-directed search
+- Frontend: React 19, Cytoscape.js 3.31 + cytoscape-elk 2.2 + cytoscape-fcose 2.2 + cytoscape-navigator 2.0 — ELK drives layered/hierarchical layout (and the organic fallback above `ORGANIC_FALLBACK_THRESHOLD`), fCoSE drives the organic layout's multi-seed force-directed search, and the in-house [`tree-layout.ts`](../../src/app/views/graph/tree-layout.ts) drives the Tree layout
 - Markdown parsing: markdown-it 14; YAML parsing: yaml 2.8
 - No Express, no Vite, no webpack — Bun.serve + Bun HTML imports only
 - Dev tools: Playwright (screenshot/SSE tests), webview-bun

@@ -11,6 +11,8 @@
  *   l → toggleLayout (view==='graph' only; null otherwise)
  *   b → toggleLens   (view==='dict'  only; null otherwise)
  *   i → flowIndex    (view==='flow'  only; null otherwise)
+ *   s → toggleSelectMode (view==='graph' only; null otherwise)
+ *   h → hideSelection    (view==='graph' only; null otherwise)
  *   / → search       (any view; ordinary bare key — unlike '?' it needs no
  *                      Shift, so it resolves in the normal switch below.
  *                      Cmd/Ctrl+k is a second, always-on route to the same
@@ -25,6 +27,8 @@
  *
  * Exception: '?' (Shift+/) is resolved after guard 1 but before guard 2, since
  * the character itself requires Shift; it is still suppressed in editable context.
+ * Graph undo/redo (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, Ctrl+Y) sits in the same slot,
+ * so typing keeps the native text undo.
  *
  * Arrow-key panning (graph/flow views): each keydown pans the active canvas by
  * PAN_STEP screen px, or PAN_STEP_FAST with Shift held — keydown auto-repeat
@@ -74,7 +78,11 @@ export type ShortcutAction =
   | { type: 'zoomReset' }
   | { type: 'help' }
   | { type: 'search' }
-  | { type: 'pan'; dx: number; dy: number };
+  | { type: 'pan'; dx: number; dy: number }
+  | { type: 'undo' }
+  | { type: 'redo' }
+  | { type: 'toggleSelectMode' }
+  | { type: 'hideSelection' };
 
 /** Arrow-key pan step per keydown, in screen px (viewport-movement delta). */
 export const PAN_STEP = 10;
@@ -128,6 +136,14 @@ export function resolveShortcut(
   // Guard 1: typing context (bare keys only)
   if (editable) return null;
 
+  // Undo/redo of a graph arrangement change. After guard 1 so the chord keeps
+  // undoing text in an input.
+  if (view === 'graph' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+    if (key === 'z') return e.shiftKey ? { type: 'redo' } : { type: 'undo' };
+    // Cmd+Y is the browser's History shortcut on macOS.
+    if (key === 'y' && e.ctrlKey && !e.metaKey && !e.shiftKey) return { type: 'redo' };
+  }
+
   // Help overlay: '?' (Shift+/ on most layouts). Resolved AFTER the editable
   // guard but BEFORE the modifier guard, because '?' inherently needs Shift —
   // guard 2 would otherwise swallow it. Gated off ctrl/meta/alt so it never
@@ -154,6 +170,8 @@ export function resolveShortcut(
     case 'd': return { type: 'view', view: 'dict' };
     case 'f': return { type: 'view', view: 'flow' };
     case 'l': return view === 'graph' ? { type: 'toggleLayout' } : null;
+    case 's': return view === 'graph' ? { type: 'toggleSelectMode' } : null;
+    case 'h': return view === 'graph' ? { type: 'hideSelection' } : null;
     case 'b': return view === 'dict'  ? { type: 'toggleLens'   } : null;
     case 'i': return view === 'flow'  ? { type: 'flowIndex'    } : null;
     case '/': return { type: 'search' };

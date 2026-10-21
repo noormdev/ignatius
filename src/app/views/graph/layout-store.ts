@@ -2,7 +2,7 @@
  * layout-store.ts — localStorage helper for persisting graph node positions.
  *
  * Uses a single key (`ignatius-layout-positions`) holding a JSON map:
- *   { [layoutKey: string]: { positions: { [nodeId: string]: { x: number; y: number } }, savedAt: number } }
+ *   { [layoutKey: string]: { positions: { [nodeId: string]: { x: number; y: number } }, savedAt: number, hidden?: string[] } }
  *
  * Dependency-injectable via the StorageLike interface so unit tests can run
  * without a real browser localStorage.
@@ -22,17 +22,23 @@ export type PositionMap = Record<string, { x: number; y: number }>;
 interface LayoutEntry {
   positions: PositionMap;
   savedAt: number;
+  /** Node ids the user removed from view; absent on entries saved before hiding existed. */
+  hidden?: string[];
 }
 
 type LayoutStore = Record<string, LayoutEntry>;
 
 export interface LayoutStoreHandle {
   load(layoutKey: string): PositionMap | null;
-  save(layoutKey: string, positions: PositionMap): void;
+  hidden(layoutKey: string): string[];
+  save(layoutKey: string, positions: PositionMap, hidden?: string[]): void;
   clear(layoutKey: string): void;
   /** Newest saved position of `nodeId` outside `exceptKey`, from an entry that also saved one of
    *  `neighbourIds`; the store is shared by every model, so this keeps out same-named nodes. */
   lastPosition(nodeId: string, exceptKey: string, neighbourIds: string[]): { x: number; y: number } | null;
+  /** The same model before its last edit: the newest entry outside `exceptKey` whose shared ids are
+   *  at least half of `nodeIds` and half of its own entities. Null for an empty key. */
+  previous(exceptKey: string, nodeIds: string[]): { positions: PositionMap; hidden: string[] } | null;
 }
 
 function readStore(storage: StorageLike, storageKey: string): LayoutStore {
@@ -94,10 +100,17 @@ export function createLayoutStore(
       return entry.positions;
     },
 
-    save(layoutKey: string, positions: PositionMap): void {
+    hidden(layoutKey: string): string[] {
+      if (!layoutKey) return [];
+      return readStore(storage, storageKey)[layoutKey]?.hidden ?? [];
+    },
+
+    save(layoutKey: string, positions: PositionMap, hidden: string[] = []): void {
       if (!layoutKey) return;
       const store = readStore(storage, storageKey);
-      store[layoutKey] = { positions, savedAt: clock() };
+      store[layoutKey] = hidden.length > 0
+        ? { positions, savedAt: clock(), hidden }
+        : { positions, savedAt: clock() };
       writeStore(storage, pruneToNewest(store), storageKey);
     },
 
@@ -115,6 +128,24 @@ export function createLayoutStore(
           && neighbourIds.some(id => entry.positions[id] !== undefined))
         .sort(([, a], [, b]) => b.savedAt - a.savedAt);
       return entries[0]?.[1].positions[nodeId] ?? null;
+    },
+
+    previous(exceptKey: string, nodeIds: string[]): { positions: PositionMap; hidden: string[] } | null {
+      // An empty key can never save, so borrowing for it would strand the result.
+      if (!exceptKey || nodeIds.length === 0) return null;
+      const candidates = Object.entries(readStore(storage, storageKey))
+        .filter(([key, entry]) => key !== exceptKey && entry?.positions)
+        .map(([, entry]) => {
+          const shared = nodeIds.filter(id => entry.positions[id] !== undefined).length;
+          // Joiner diamonds are saved too; their ids start with `_`.
+          const saved = Object.keys(entry.positions).filter(id => !id.startsWith('_')).length;
+          return { entry, shared, saved };
+        })
+        // Half of each side, so a larger model holding these names does not qualify.
+        .filter(({ shared, saved }) => shared * 2 >= nodeIds.length && shared * 2 >= saved)
+        .sort((a, b) => b.entry.savedAt - a.entry.savedAt);
+      const entry = candidates[0]?.entry;
+      return entry ? { positions: entry.positions, hidden: entry.hidden ?? [] } : null;
     },
   };
 }

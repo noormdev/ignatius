@@ -3,8 +3,8 @@
 ## Goal
 
 Plain-key keyboard shortcuts in the unified SPA for the three high-frequency
-navigation toggles: jump between Graph/Dictionary/Flows views, toggle the DG
-layout (organic ↔ hierarchical), toggle the DD lens (read ↔ browse). Bare-key
+navigation toggles: jump between Graph/Dictionary/Flows views, step the DG
+layout (organic → hierarchical → tree), toggle the DD lens (read ↔ browse). Bare-key
 shortcuts never fire while typing or under a modifier chord. Implements issue
 #13.
 
@@ -29,14 +29,16 @@ distinct guard class from the bare keys (see Keymap).
 | `g` | view → `graph` | any view |
 | `d` | view → `dict` | any view |
 | `f` | view → `flow` | any view |
-| `l` | toggle DG layout `organic ↔ hierarchical` | `view === 'graph'` |
+| `l` | step the DG layout `organic → hierarchical → tree → organic` | `view === 'graph'` |
 | `b` | toggle DD lens `read ↔ browse` | `view === 'dict'` |
 | `i` | open or close the flow index | `view === 'flow'` |
+| `s` | toggle graph select mode | `view === 'graph'` |
+| `h` | hide the selected graph nodes | `view === 'graph'` |
 | `/` | focus the active view's search input (graph bar, flow bar, or the Dictionary's search box) | any view |
 
 Bare keys bail (no action) when: `ctrlKey || metaKey || altKey || shiftKey`, OR
 focus is an editable target (`input` / `textarea` / `select` /
-`contenteditable` / inside an open `.modal`). `l`, `b`, and `i` resolve to no action
+`contenteditable` / inside an open `.modal`). `l`, `b`, `i`, `s`, and `h` resolve to no action
 when their view is not active. View jumps are idempotent. `/` needs no Shift
 (unlike `?`), so it resolves through the ordinary bare-key switch with no
 special guard slot; typing `/` inside any editable target inserts the literal
@@ -74,6 +76,17 @@ Gated off `ctrl`/`meta`/`alt` (Shift is inherent, so it is not disqualifying).
 Suppressed in editable context (typing a literal `?` in the search box never
 opens the overlay). The overlay content/component is owned by
 `docs/spec/help-overlay.md`; this resolver owns only the key binding.
+
+**Graph undo/redo** — resolved *after* the editable guard (typing keeps the
+native text undo) and *before* the bare-key modifier guard, because the chords
+need `ctrl`/`meta`:
+
+| Chord | Action | Active when |
+|-------|--------|-------------|
+| `Cmd`/`Ctrl` + `z` | `undo` | `view === 'graph'`, not while typing |
+| `Cmd`/`Ctrl` + `Shift` + `z`, `Ctrl` + `y` | `redo` | `view === 'graph'`, not while typing |
+
+`alt` held → null. `Cmd` + `y` → null: it is the browser's History shortcut on macOS. What undo covers is owned by `docs/spec/graph-arrangement.md`.
 
 **Arrow-key panning** — resolved in the same slot as `?` (after the editable
 guard, before the bare-key modifier guard), because Shift is the step
@@ -194,3 +207,17 @@ real-browser Playwright check, per the project's "test the actual runtime" lesso
 **What changed:** `resolveShortcut` returns `{ type: 'flowIndex' }` for bare `i` on the flow view and `null` on Graph and Dictionary; it resolves in the ordinary bare-key switch, after both guards, like `l` and `b`. `useKeyboardShortcuts` carries an `onFlowIndex` callback; the shell routes it to `FlowsViewHandle.toggleIndex()`. `test-shortcuts.ts` T30 covers the flow-only binding, capslock, the editable guard, and every modifier.
 
 **Why:** the flow index (`docs/spec/large-model-nav.md`) is the way into a model with many flows; a key keeps it one stroke away.
+
+### 2026-10-20 — Graph undo/redo, select mode, hide
+
+**What changed:** `resolveShortcut` returns `undo` for `Cmd`/`Ctrl`+`z` and `redo` for `Cmd`/`Ctrl`+`Shift`+`z` or `Ctrl`+`y` on the graph, after the editable guard and before the modifier guard; bare `s` → `toggleSelectMode` and `h` → `hideSelection` on the graph only. `useKeyboardShortcuts` carries `onUndo`, `onRedo`, `onToggleSelectMode`, `onHideSelection`; the shell routes them to the `GraphViewHandle`. `test-shortcuts.ts` T31–T32.
+
+**Why:** the graph arrangement edits in `docs/spec/graph-arrangement.md` need keyboard routes, and the undo chord must leave text undo alone in inputs.
+
+### 2026-10-20 — `l` steps through three layouts
+
+**What changed:** `l` (and the FAB layout item) steps organic → hierarchical → tree → organic instead of toggling two modes; the resolver is unchanged, the shell's toggle uses `nextLayoutMode`.
+
+**Why:** the Tree layout shipped (`docs/spec/graph-tree-layout.md`).
+
+**Superseded:** `l` toggled organic ↔ hierarchical.
