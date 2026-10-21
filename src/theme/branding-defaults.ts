@@ -1,6 +1,7 @@
 import { isAbsolute, resolve as resolvePath } from 'path';
 
-import noormLogoPath from '../../assets/noorm-logo.svg' with { type: 'file' };
+import logoDarkPath from '../../assets/ignatius-logo-dark.svg' with { type: 'file' };
+import logoLightPath from '../../assets/ignatius-logo-light.svg' with { type: 'file' };
 
 export type LogoPair = {
   dark: string;
@@ -20,14 +21,22 @@ export type Branding = {
   poweredBy: boolean;
 };
 
-// Read the embedded SVG at module load and build a data URI.
+// Read the embedded SVGs at module load and build data URIs.
 // WHY: `with { type: "file" }` embeds the file into the compiled binary at
 // $bunfs/ — Bun.file().arrayBuffer() works both in dev and in the binary.
-const noormSvgBytes = new Uint8Array(await Bun.file(noormLogoPath).arrayBuffer());
-const NOORM_DEFAULT_LOGO = `data:image/svg+xml;base64,${Buffer.from(noormSvgBytes).toString('base64')}`;
+async function embedSvg(path: string): Promise<string> {
+  const bytes = new Uint8Array(await Bun.file(path).arrayBuffer());
+  return `data:image/svg+xml;base64,${Buffer.from(bytes).toString('base64')}`;
+}
+
+// The two files differ only in lettering colour: cream on dark, slate on light.
+const DEFAULT_LOGO: LogoPair = {
+  dark: await embedSvg(logoDarkPath),
+  light: await embedSvg(logoLightPath),
+};
 
 export const defaultBranding: Branding = {
-  logo: { dark: NOORM_DEFAULT_LOGO, light: NOORM_DEFAULT_LOGO },
+  logo: DEFAULT_LOGO,
   title: 'Noorm Ignatius',
   subtitle: 'Visualize your data model',
   get copyright(): CopyrightConfig {
@@ -51,8 +60,8 @@ function normalizeLogo(input: RawLogoInput): LogoPair {
   if (typeof input === 'string') {
     return { dark: input, light: input };
   }
-  const dark = input.dark ?? input.light ?? NOORM_DEFAULT_LOGO;
-  const light = input.light ?? input.dark ?? NOORM_DEFAULT_LOGO;
+  const dark = input.dark ?? input.light ?? DEFAULT_LOGO.dark;
+  const light = input.light ?? input.dark ?? DEFAULT_LOGO.light;
   return { dark, light };
 }
 
@@ -96,7 +105,7 @@ const LOGO_MIME_BY_EXT: Record<string, string> = {
  * an exported file is worse than the noorm mark, and parse has no findings
  * channel at the point branding is merged.
  */
-async function inlineLogo(value: string, modelRoot: string): Promise<string> {
+async function inlineLogo(value: string, modelRoot: string, fallback: string): Promise<string> {
   if (value.startsWith('data:') || value.startsWith('http://') || value.startsWith('https://')) {
     return value;
   }
@@ -104,11 +113,11 @@ async function inlineLogo(value: string, modelRoot: string): Promise<string> {
   const dot = value.lastIndexOf('.');
   const mime = dot === -1 ? undefined : LOGO_MIME_BY_EXT[value.slice(dot).toLowerCase()];
 
-  if (mime === undefined) return NOORM_DEFAULT_LOGO;
+  if (mime === undefined) return fallback;
 
   const file = Bun.file(isAbsolute(value) ? value : resolvePath(modelRoot, value));
 
-  if (!(await file.exists())) return NOORM_DEFAULT_LOGO;
+  if (!(await file.exists())) return fallback;
 
   const bytes = new Uint8Array(await file.arrayBuffer());
 
@@ -126,8 +135,8 @@ async function inlineLogo(value: string, modelRoot: string): Promise<string> {
  */
 export async function inlineBrandingLogos(branding: Branding, modelRoot: string): Promise<Branding> {
   const [dark, light] = await Promise.all([
-    inlineLogo(branding.logo.dark, modelRoot),
-    inlineLogo(branding.logo.light, modelRoot),
+    inlineLogo(branding.logo.dark, modelRoot, DEFAULT_LOGO.dark),
+    inlineLogo(branding.logo.light, modelRoot, DEFAULT_LOGO.light),
   ]);
 
   return { ...branding, logo: { dark, light } };
