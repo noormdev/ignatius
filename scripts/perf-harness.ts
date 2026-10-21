@@ -39,7 +39,7 @@ const PORT    = parseInt(argValue('--port', '7799'), 10);
 const RUNS    = parseInt(argValue('--runs', '1'), 10);
 const MODEL_ARG = argValue('--model', '');
 // --mode organic|hierarchical|tree — forces layout mode before measuring; default keeps
-// whatever the browser has stored (usually 'organic' on a cold profile).
+// whatever the browser has stored (tree on a cold profile).
 const MODE_ARG = argValue('--mode', '');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

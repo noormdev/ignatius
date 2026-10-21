@@ -18,9 +18,16 @@ export function nextLayoutMode(mode: LayoutMode): LayoutMode {
   return LAYOUT_CYCLE[(LAYOUT_CYCLE.indexOf(mode) + 1) % LAYOUT_CYCLE.length] ?? 'organic';
 }
 
-/** A stored mode string, or organic when it is missing or unknown. */
+/** A stored mode string, or tree when it is missing or unknown. */
 export function parseLayoutMode(value: string | null): LayoutMode {
-  return LAYOUT_CYCLE.find(mode => mode === value) ?? 'organic';
+  return LAYOUT_CYCLE.find(mode => mode === value) ?? 'tree';
+}
+
+/** The mode a load opens in: the stored one; else organic when an arrangement is already saved
+ *  (Organic was the default before the mode was always stored); else tree. */
+export function loadLayoutMode(storedMode: string | null, hasSavedArrangement: boolean): LayoutMode {
+  if (storedMode !== null) return parseLayoutMode(storedMode);
+  return hasSavedArrangement ? 'organic' : 'tree';
 }
 
 /** Where every node sits, which nodes the user removed from view, and the layout mode. */

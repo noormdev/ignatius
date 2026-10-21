@@ -11,10 +11,10 @@
  *   3. Undo and redo on an empty side return null.
  *   4. The history keeps only the newest `limit` changes.
  *   5. discardLast drops the newest undo step without making it redoable.
- *   6. L cycles organic → hierarchical → tree; unknown stored modes read as organic.
+ *   6. L cycles organic → hierarchical → tree; a first load opens in tree, an older saved arrangement in organic.
  */
 
-import { createEditHistory, nextLayoutMode, parseLayoutMode } from '../../src/app/views/graph/graph-edits';
+import { createEditHistory, loadLayoutMode, nextLayoutMode, parseLayoutMode } from '../../src/app/views/graph/graph-edits';
 import type { GraphSnapshot } from '../../src/app/views/graph/graph-edits';
 import { assert } from '../assert';
 
@@ -77,14 +77,17 @@ function snap(x: number, hidden: string[] = []): GraphSnapshot {
   assert(!createEditHistory().canRedo(), 'FAIL 5c: fresh history has nothing to redo');
 }
 
-// 6. Layout modes: L steps organic → hierarchical → tree → organic; an unknown
-//    stored value falls back to organic.
+// 6. Layout modes: L steps organic → hierarchical → tree → organic; a first load
+//    opens in tree, but an arrangement saved before modes were stored stays organic.
 {
   assert(nextLayoutMode('organic') === 'hierarchical', 'FAIL 6a: organic → hierarchical');
   assert(nextLayoutMode('hierarchical') === 'tree', 'FAIL 6b: hierarchical → tree');
   assert(nextLayoutMode('tree') === 'organic', 'FAIL 6c: tree → organic');
   assert(parseLayoutMode('tree') === 'tree', 'FAIL 6d: stored tree is kept');
-  assert(parseLayoutMode('sideways') === 'organic' && parseLayoutMode(null) === 'organic', 'FAIL 6e: unknown → organic');
+  assert(parseLayoutMode('sideways') === 'tree' && parseLayoutMode(null) === 'tree', 'FAIL 6e: a missing or unknown mode opens in Tree');
+  assert(loadLayoutMode(null, false) === 'tree', 'FAIL 6f: a first load opens in Tree');
+  assert(loadLayoutMode(null, true) === 'organic', 'FAIL 6g: a saved arrangement with no stored mode stays Organic');
+  assert(loadLayoutMode('hierarchical', true) === 'hierarchical', 'FAIL 6h: a stored mode wins');
 }
 
 if (process.exitCode !== 1) console.log('PASS: test-graph-edits');

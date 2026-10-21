@@ -163,7 +163,7 @@ The app responds to single-key shortcuts while no text field is focused and no m
 | `g` | Switch to the Data Graph |
 | `d` | Switch to the Dictionary |
 | `f` | Switch to the Data Flows |
-| `l` | Step through graph layouts (organic → hierarchical → tree) — Graph view |
+| `l` | Step through graph layouts (organic → hierarchical → tree; a first visit opens in tree) — Graph view |
 | `s` | Toggle select mode: a plain drag draws a selection box, a click adds or removes — Graph view |
 | `h` | Hide the selected entities — Graph view |
 | `Cmd`/`Ctrl` + `Z` | Undo the last move, hide, or layout change — Graph view |

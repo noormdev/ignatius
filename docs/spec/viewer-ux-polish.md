@@ -25,7 +25,7 @@ See `docs/design/viewer-ux-polish.md`.
 
 - [x] #1 — A served/exported model named `Foo` produces `document.title` `Foo` (live tab and static-export HTML `<title>`); a nameless model falls back to `Ignatius`. A check asserts the static-export `<title>`.
 - [x] #2 — When a spotlit DD card has a bidirectional (`both`) or multi-edge connection to another card, the overlay draws ≥2 distinct `<path>` elements with distinct connection points (no shared endpoint) — not one path with arrowheads at both ends. A unit test on the splitting/geometry helper proves separation; a visual screenshot confirms.
-- [x] #3 — The readout shows true scale: at Cytoscape `zoom===1` / SVG `scale===1` it reads `100%`, regardless of model size. The initial view fits and reports its real (non-100%) percentage on a large model. Home/reset fits-to-screen. `setPercent(100)` yields 1:1.
+- [x] #3 — The readout shows true scale: at Cytoscape `zoom===1` / SVG `scale===1` it reads `100%`, regardless of model size. The initial view fits and reports its real (non-100%) percentage on a large model. Home/reset fits-to-screen. `setPercent(100)` yields 1:1. On the Graph, every fit (initial view, relayout, Home) uses the band between the bottom of the branding block, search bar and toggles and the top of the footer, 30 px in from each side, so no table sits under them (`test-graph-fit-clear.ts`). A graph too big for that band at the smallest zoom shows its top-left corner there instead of its middle, and a viewport with no room left under the chrome fits the whole canvas.
 - [x] #4 — Trackpad pinch (`ctrl`+wheel) and Cmd/Ctrl `+`/`-`/`0` zoom the canvas and never the browser page, on both DG and DFD. A unit test covers the resolver's new zoom actions; the page does not zoom (`preventDefault`).
 - [x] #5 — A process named `Confirm OTP And Create Individual` renders fully inside its box (no overflow); the box grows to fit and ELK spacing reflects the measured size. A unit test pins the sizing helper; a visual screenshot confirms.
 - [x] #6/#8 — Opening an entity modal pushes a history entry carrying `entity=<id>`; browser Back returns to the previous modal/state; closing the modal removes `entity=` from the URL.
@@ -66,6 +66,14 @@ Docs per CP: update the CLAUDE.md feature↔doc map and any touched guide
 
 ## Change log
 
+
+### 2026-10-21 — Graph fit clears the header and footer
+
+**What changed:** the Graph fits into the band between the header chrome and the footer instead of the whole canvas.
+
+**Why:** the branding block and footer overlay the canvas, and with Tree as the first layout the root table always sits top-left; on orm-pure at 1600×1000, 1440×900 and 1280×720 the fit put `Subscription` under the branding and `SIL_Subscription` under the footer.
+
+**Superseded:** the Graph fit padded 30 px on every side of the whole canvas (`cy.fit(undefined, 30)`).
 
 ### 2026-06-19 — CP7 added (#9 inherited 1:1 key-inheritance connections)
 

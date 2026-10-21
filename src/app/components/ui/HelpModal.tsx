@@ -36,7 +36,7 @@ const GRAPH_TYPES: Row[] = [
 ];
 
 const GRAPH_EXPLORE: Row[] = [
-  { term: 'Layouts', desc: 'Organic clusters related entities by force; Hierarchical gives each colour group its own block, stacked in dependency layers; Tree lays the model out as an outline, each table below and right of the table whose key it inherits, with right-angled lines. L steps through them.' },
+  { term: 'Layouts', desc: 'Organic clusters related entities by force; Hierarchical gives each colour group its own block, stacked in dependency layers; Tree lays the model out as an outline, each table below and right of the table whose key it inherits, with right-angled lines. A first visit opens in Tree; L steps through them and the choice is kept.' },
   { term: 'Shift + hover', desc: 'Reveals dotted lines to an entity’s whole key-inheritance family — every relative that shares its primary key, however far apart.' },
   { term: 'Click · drag · zoom', desc: 'Click an entity for full detail; drag to rearrange (positions are saved, and survive edits to the model); scroll or ⌘/Ctrl +/−/0 to zoom.' },
   { term: 'Move several', desc: 'Shift+drag on the background draws a selection box; press S for select mode, where a plain drag boxes and a click adds or removes. Drag any selected entity to move them all.' },

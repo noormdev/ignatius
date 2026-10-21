@@ -20,7 +20,8 @@ import { Modal } from './components/ui/Modal';
 import { HelpModal } from './components/ui/HelpModal';
 import { ZoomControl } from './components/ui/ZoomControl';
 import { GraphEditBar } from './components/ui/GraphEditBar';
-import { nextLayoutMode, parseLayoutMode } from './views/graph/graph-edits';
+import { loadLayoutMode, nextLayoutMode } from './views/graph/graph-edits';
+import { createLayoutStore } from './views/graph/layout-store';
 import type { GraphEditState } from './views/graph/graph-edits';
 import { SearchBar } from './components/ui/SearchBar';
 import type { SearchBarHandle } from './components/ui/SearchBar';
@@ -199,8 +200,10 @@ export function App() {
   const [graphEdits, setGraphEdits] = useState<GraphEditState>({ canUndo: false, canRedo: false, selectMode: false, hidden: [] });
   // Layout algorithm mode — shell owns it for FAB display; GraphView reads it via prop.
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => {
-    const stored = localStorage.getItem('ignatius-layout-mode');
-    return parseLayoutMode(stored);
+    const mode = loadLayoutMode(localStorage.getItem('ignatius-layout-mode'), createLayoutStore().hasEntries());
+    // Stored at once, so a later load never has to work it out from the saved arrangements again.
+    localStorage.setItem('ignatius-layout-mode', mode);
+    return mode;
   });
 
   // Flow view + collapse level (docs/spec/dfd-store-clusters.md) — global,

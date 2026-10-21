@@ -997,12 +997,15 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         const edges: TreeEdgeInput[] = [];
         cy.edges().not(`.${CHANGE_GHOST_CLASS}, .${INHERITED_EDGE_CLASS}`).forEach((e) => {
           if (!present.has(e.source().id()) || !present.has(e.target().id())) return;
+          const fwd = String(e.data('predicateFwd') ?? '');
+          const rev = String(e.data('predicateRev') ?? '');
           edges.push({
             id: e.id(),
             source: e.source().id(),
             target: e.target().id(),
             identifying: e.data('identifying') === 'true',
-            label: String(e.data('predicateFwd') ?? ''),
+            // Hovering the child swaps in the reverse predicate on the same run.
+            label: rev.length > fwd.length ? rev : fwd,
           });
         });
         return { nodes, edges };
@@ -1027,7 +1030,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         // Positions restored from a save or an undo: take the lines a layout of this graph would draw.
         if (treeLines === null) treeLines = linesOf(layoutTree(nodes, links).routes);
         const known = treeLines;
-        const lines: TreeLine[] = links.map(e => known.get(e.id) ?? { id: e.id, parent: e.source, child: e.target, kind: 'cross' });
+        const lines: TreeLine[] = links.map(e => ({
+          ...(known.get(e.id) ?? { id: e.id, parent: e.source, child: e.target, kind: 'cross' }),
+          label: e.label,
+        }));
         const positions: PositionMap = {};
         for (const n of nodes) positions[n.id] = cy.$id(n.id).position();
         treeRoutes = routeTree(nodes, positions, lines);
@@ -1072,10 +1078,10 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           'source-endpoint': `${sourceEnd.x - s.x}px ${sourceEnd.y - s.y}px`,
           'target-endpoint': `${targetEnd.x - t.x}px ${targetEnd.y - t.y}px`,
         };
-        // The geometry, not the stored kind, picks the label: a `down` route
-        // drawn as a cross link labels its street.
+        // The geometry, not the stored kind, picks the label: a cross link labels its
+        // street unless its drop leaves room on the run into the child.
         edge.removeClass(TREE_EDGE_CLASSES);
-        if (g.kind === 'cross') {
+        if (g.kind === 'cross' && g.labelOffset <= 0) {
           edge.addClass('tree-cross');
         } else {
           edge.addClass(reversed ? 'tree-edge tree-label-source' : 'tree-edge');
@@ -1418,7 +1424,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
 
         settleLayout();
         gradeSpans();
-        cy.fit(undefined, 30);
+        fitGraph();
         cy.style(buildStyles(modelNonNull.groups, modelNonNull.theme, themeModeRef.current));
         cy.forceRender();
         requestAnimationFrame(redrawMarkers);
@@ -1493,10 +1499,37 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         cy.zoom({ level: clamped, renderedPosition: getViewportCenter() });
       };
 
+      // The branding, search bar and toggles sit over the canvas top and the footer over its bottom,
+      // so a fit uses the band between them.
+      function fitGraph(): void {
+        const panel = containerRef.current?.getBoundingClientRect();
+        const bb = cy.elements().boundingBox();
+        if (!panel || bb.w <= 0 || bb.h <= 0) return;
+        const bottomOf = (selector: string) =>
+          Math.max(0, (document.querySelector(selector)?.getBoundingClientRect().bottom ?? panel.top) - panel.top);
+        const top = Math.max(...['.branding-block', '.viewer-search-bar--graph .viewer-search-bar-inner', '.help-toggle', '.theme-toggle'].map(bottomOf));
+        const footer = document.querySelector('.branding-footer')?.getBoundingClientRect();
+        const bottom = footer ? Math.max(0, panel.bottom - footer.top) : 0;
+        const pad = 30;
+        const width = cy.width() - 2 * pad;
+        const height = cy.height() - top - bottom - 2 * pad;
+        if (width <= 0 || height <= 0) {
+          cy.fit(undefined, pad);
+          return;
+        }
+        const zoom = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), width / bb.w, height / bb.h));
+        // Too big even at the smallest zoom: show the top-left corner, where a Tree starts, not the middle.
+        const offset = (room: number, size: number) => (size > room ? 0 : (room - size) / 2);
+        cy.viewport({
+          zoom,
+          pan: { x: pad + offset(width, bb.w * zoom) - bb.x1 * zoom, y: top + pad + offset(height, bb.h * zoom) - bb.y1 * zoom },
+        });
+      }
+
       cyZoomResetRef.current = () => {
         // Home still fits-to-screen; the readout shows the real fit percent
         // (driven by the 'zoom' event), not a forced 100.
-        cy.fit(undefined, 30);
+        fitGraph();
       };
 
       cy.on('position', redrawMarkers);
@@ -1772,7 +1805,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           pendingRelayout = null;
           settleLayout();
           gradeSpans();
-          cy.fit(undefined, 30);
+          fitGraph();
           redrawMarkers();
           persist();
           reportEdits();
