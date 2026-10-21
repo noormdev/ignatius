@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+    <title>ignatius symbol</title>
+    <path fill="#212931" d="M12 12H120V120H12Z"/>
+    <path fill="#212931" d="M52 120H80V204H52Z"/>
+    <path fill="#212931" d="M52 176H136V204H52Z"/>
+    <path fill="#E05742" d="M168 136H212a32 32 0 0 1 32 32V212a32 32 0 0 1 -32 32H168a32 32 0 0 1 -32 -32V168a32 32 0 0 1 32 -32Z"/>
+    <path fill="#212931" d="M114 190a22 22 0 1 0 44 0a22 22 0 1 0 -44 0Z"/>
+</svg>

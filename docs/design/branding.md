@@ -13,7 +13,7 @@ The three output surfaces — interactive viewer, static dict HTML, static graph
 - One config file at the models root drives branding for every surface.
 - Logo + title + subtitle pinned upper-left, immune to pan/zoom.
 - Footer at bottom-center, fixed, displaying user copyright + (by default) a "powered by Noorm" link that the user can disable.
-- Sensible default: when the user supplies no branding, the page brands as Noorm Ignatius with the Noorm logo. Default case works offline.
+- Sensible default: when the user supplies no branding, the page brands as Noorm Ignatius with the ignatius logo. Default case works offline.
 - Static outputs are self-contained: logos inlined as base64 at generation time.
 - Theme-aware: logo can have separate dark/light variants, with a string shorthand for the same-asset case.
 
@@ -52,7 +52,7 @@ Evidence: the parser already implements the "optional `_*.yaml` at models root" 
 
 # Logo: string shorthand OR explicit per-mode object.
 # Each value can be a URL or a filepath relative to the models directory.
-# Falls back to the embedded Noorm logo when absent.
+# Falls back to the embedded ignatius logo when absent.
 logo: "./assets/logo.svg"          # shorthand: same asset for both modes
 # OR
 logo:
@@ -73,7 +73,7 @@ poweredBy: true                     # default true; set false to omit the Noorm 
 ## Defaults (when the file is absent OR a field is unset)
 
 ```yaml
-logo: <embedded Noorm SVG used for both dark and light>
+logo: <embedded ignatius SVG, cream lettering for dark and slate for light>
 title: "Noorm Ignatius"
 subtitle: "Visualize your data model"
 copyright:
@@ -136,7 +136,7 @@ Each value can be:
    - Static outputs: read from disk, base64-inlined.
 
 3. **Unset / null**:
-   - Falls back to the embedded Noorm SVG. No network access for this case.
+   - Falls back to the embedded ignatius SVG for the same mode. No network access for this case.
 
 The Noorm SVG is committed to the repo and imported at compile time via Bun's `with { type: "file" }` attribute, the same mechanism that embeds the React bundle. It is NOT fetched at runtime.
 
