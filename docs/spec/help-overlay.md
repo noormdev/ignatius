@@ -22,7 +22,7 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 ## Success criteria
 
 - [x] `HelpModal` (`src/app/components/ui/HelpModal.tsx`) renders on the shared `Modal` primitive with `className="help-modal"`, switches body content on `view: ViewName`, and titles per view ("About the Graph/Dictionary/Flows").
-- [x] Graph body covers: an ER-diagram intro, the five entity types (Independent, Dependent, Subtype, Associative, Classifier), how-to-explore (layouts — Hierarchical as one block per colour group, Tree as an outline with right-angled lines, Shift+hover lineage, click/drag/zoom with positions kept across model edits, moving several via box select and select mode, undo/redo, hiding entities and the hidden list, search — term matching with a body-text toggle, Enter cycling through matches), and the key-inherited vs surrogate distinction.
+- [x] Graph body covers: an ER-diagram intro, the five entity types (Independent, Dependent, Subtype, Associative, Classifier), how-to-explore (layouts — Hierarchical as one block per colour group, Tree as an outline with right-angled lines and the layout a first visit opens in, `L` stepping through them with the choice kept, Shift+hover lineage, click/drag/zoom with positions kept across model edits, moving several via box select and select mode, undo/redo, hiding entities and the hidden list, search — term matching with a body-text toggle, Enter cycling through matches), and the key-inherited vs surrogate distinction.
 - [x] Dictionary body covers: Read/Browse lenses, spotlight, Shift+hover lineage, search/focus.
 - [x] Flows body covers: a DFD intro, symbols (process/store/external), drill-down + inspect, the flow index (Process Flows chip or `I`), breadcrumb level switching (▾), cross-diagram search (results grouped by diagram, non-matches dimmed in the rendered diagram).
 - [x] A Keyboard section is present on every view and tailored to it (only the keys active there), including `/` to focus that view's search input and, on the Graph, `S`, `H`, and `⌘/Ctrl Z` · `⌘/Ctrl ⇧ Z`; Graph and Flows footnote a pointer to the Legend.
@@ -80,3 +80,9 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 **What changed:** the Graph Layouts row describes the Tree layout and says `L` steps through the three layouts; the Keyboard row for `L` reads "Step through the graph layouts (Organic → Hierarchical → Tree)".
 
 **Why:** the Tree layout shipped (`docs/spec/graph-tree-layout.md`).
+
+### 2026-10-21 — Layouts row names the default
+
+**What changed:** the Graph Layouts row says a first visit opens in Tree and that the layout `L` picks is kept.
+
+**Why:** Tree became the default layout (`docs/spec/graph-tree-layout.md`).

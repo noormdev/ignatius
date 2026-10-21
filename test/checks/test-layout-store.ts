@@ -231,4 +231,17 @@ function makeStorage(): StorageLike {
   console.log('PASS: hidden round-trips and an empty list is not stored');
 }
 
+// 9. hasEntries: whether any arrangement is saved, which keeps a returning user's layout mode
+
+{
+  const storage = makeStorage();
+  const store = createLayoutStore(storage);
+  assert(!store.hasEntries(), 'FAIL: hasEntries — an empty store holds no arrangement');
+  storage.setItem('ignatius-layout-positions', 'not json');
+  assert(!store.hasEntries(), 'FAIL: hasEntries — an unreadable store holds no arrangement');
+  store.save('k', { A: { x: 0, y: 0 } });
+  assert(store.hasEntries(), 'FAIL: hasEntries — a saved arrangement is seen');
+  console.log('PASS: hasEntries reports whether any arrangement is saved');
+}
+
 console.log('\nAll layout-store tests passed.');

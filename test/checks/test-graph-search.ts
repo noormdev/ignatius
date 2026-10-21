@@ -165,9 +165,10 @@ try {
   // ---------------------------------------------------------------------
   // SC4 — hover in/out does not erase active search dimming.
   // ---------------------------------------------------------------------
-  await page.evaluate(() => window.__IGNATIUS_CY__!.$id('Person').emit('mouseover'));
+  // Braced so nothing comes back: emit returns the element, and Playwright serialising it drags in the whole graph.
+  await page.evaluate(() => { window.__IGNATIUS_CY__?.$id('Person').emit('mouseover'); });
   await page.waitForTimeout(200);
-  await page.evaluate(() => window.__IGNATIUS_CY__!.$id('Person').emit('mouseout'));
+  await page.evaluate(() => { window.__IGNATIUS_CY__?.$id('Person').emit('mouseout'); });
   await page.waitForTimeout(200);
 
   const afterHover = await page.evaluate(() => {
@@ -192,10 +193,11 @@ try {
     const active = document.activeElement;
     if (active instanceof HTMLElement) active.blur();
   });
-  const layoutModeBefore = await page.evaluate(() => localStorage.getItem('ignatius-layout-mode') ?? 'organic');
+  const layoutModeBefore = await page.evaluate(() => localStorage.getItem('ignatius-layout-mode'));
+  assert(layoutModeBefore === 'tree', 'a first visit opens in Tree and stores it', String(layoutModeBefore));
   await page.keyboard.press('l');
   await page.waitForFunction(
-    (before: string) => (localStorage.getItem('ignatius-layout-mode') ?? 'organic') !== before,
+    (before: string | null) => localStorage.getItem('ignatius-layout-mode') !== before,
     layoutModeBefore,
     { timeout: 5000 },
   );

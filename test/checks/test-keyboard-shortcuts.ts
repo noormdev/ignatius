@@ -93,20 +93,17 @@ try {
     'on graph view before layout toggle test',
   );
 
-  // Read current layout mode from localStorage (may be null = defaults to organic).
-  const layoutBefore = await page.evaluate(() => localStorage.getItem('ignatius-layout-mode') ?? 'organic');
+  const layoutBefore = await page.evaluate(() => localStorage.getItem('ignatius-layout-mode'));
+  assert(layoutBefore === 'tree', 'a first visit opens in Tree and stores it', String(layoutBefore));
 
   await page.keyboard.press('l');
   await page.waitForFunction(
-    (before: string) => {
-      const current = localStorage.getItem('ignatius-layout-mode') ?? 'organic';
-      return current !== before;
-    },
+    (before: string | null) => localStorage.getItem('ignatius-layout-mode') !== before,
     layoutBefore,
     { timeout: 5000 },
   );
 
-  const layoutAfter = await page.evaluate(() => localStorage.getItem('ignatius-layout-mode') ?? 'organic');
+  const layoutAfter = await page.evaluate(() => localStorage.getItem('ignatius-layout-mode'));
   const expectedLayout = nextLayoutMode(parseLayoutMode(layoutBefore));
   assert(
     layoutAfter === expectedLayout,
