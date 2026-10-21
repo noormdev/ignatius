@@ -12,6 +12,10 @@
  *   5. Clear removes one key's entry without touching others.
  *   6. lastPosition finds a node in the newest other entry that saved it
  *      alongside one of its neighbours; another model's same-named node is ignored.
+ *   7. previous returns the newest other entry whose shared nodes are at
+ *      least half of each side, with its hidden list — an edited model keeps the user's
+ *      arrangement and hidden nodes; another model's layout is never borrowed.
+ *   8. hidden round-trips through save and is dropped when saved empty.
  */
 
 import { createLayoutStore } from '../../src/app/views/graph/layout-store';
@@ -173,6 +177,58 @@ function makeStorage(): StorageLike {
   assert(store.lastPosition('Never', 'key-now', ['Kept']) === null, 'FAIL: lastPosition — an unsaved node should be null');
   assert(store.lastPosition('Gone', 'key-now', []) === null, 'FAIL: lastPosition — a node with no neighbours to match should be null');
   console.log('PASS: lastPosition skips the current key and entries without a neighbour, returns the newest other saved position');
+}
+
+// ---------------------------------------------------------------------------
+// 7. previous: the same model's layout before its last edit
+// ---------------------------------------------------------------------------
+
+{
+  let tick = 0;
+  const store = createLayoutStore(makeStorage(), () => ++tick);
+  store.save('key-before-edit', { A: { x: 1, y: 1 }, B: { x: 2, y: 2 }, C: { x: 3, y: 3 } }, ['C']);
+  store.save('key-other-model', { A: { x: 9, y: 9 }, X: { x: 0, y: 0 }, Y: { x: 0, y: 0 }, Z: { x: 0, y: 0 } });
+
+  // The edit added D: A, B, C survive, so 3 of 4 current nodes are in key-before-edit.
+  const prev = store.previous('key-after-edit', ['A', 'B', 'C', 'D']);
+  assert(prev?.positions['A']?.x === 1, `FAIL: previous — expected key-before-edit, got ${JSON.stringify(prev)}`);
+  assert(prev?.hidden.join(',') === 'C', `FAIL: previous — hidden should carry over, got ${JSON.stringify(prev?.hidden)}`);
+
+  // key-other-model is newer but shares only A (1 of 4): never borrowed.
+  const unrelated = store.previous('key-after-edit', ['A', 'P', 'Q', 'R']);
+  assert(unrelated === null, `FAIL: previous — under half overlap should be null, got ${JSON.stringify(unrelated)}`);
+  assert(store.previous('key-before-edit', ['A', 'B', 'C']) === null, 'FAIL: previous — must skip exceptKey');
+  assert(store.previous('', ['A', 'B', 'C', 'D']) === null, 'FAIL: previous — an empty key can never save, so it borrows nothing');
+
+  // A newer, larger model that contains A–D is not this model's predecessor.
+  const big: PositionMap = { A: { x: 7, y: 7 }, B: { x: 7, y: 7 }, C: { x: 7, y: 7 }, D: { x: 7, y: 7 } };
+  for (const id of ['E', 'F', 'G', 'H', 'I', 'J']) big[id] = { x: 0, y: 0 };
+  store.save('key-bigger-model', big);
+  const stillPrev = store.previous('key-after-edit', ['A', 'B', 'C', 'D']);
+  assert(stillPrev?.positions['A']?.x === 1, `FAIL: previous — a model with mostly other tables must not win, got ${JSON.stringify(stillPrev?.positions['A'])}`);
+
+  // Newest wins among qualifying entries: an edit that re-adds a table an
+  // older arrangement still holds must not bring that older arrangement back.
+  store.save('key-v1', { A: { x: 1, y: 1 }, B: { x: 1, y: 1 }, C: { x: 1, y: 1 }, D: { x: 1, y: 1 } });
+  store.save('key-v2-rearranged', { A: { x: 9, y: 9 }, B: { x: 9, y: 9 }, C: { x: 9, y: 9 } });
+  const newest = store.previous('key-v3', ['A', 'B', 'C', 'D']);
+  assert(newest?.positions['A']?.x === 9, `FAIL: previous — the newest qualifying entry should win, got ${JSON.stringify(newest?.positions['A'])}`);
+  console.log('PASS: previous returns the newest entry sharing half of each side, with its hidden list');
+}
+
+// ---------------------------------------------------------------------------
+// 8. hidden round-trip
+// ---------------------------------------------------------------------------
+
+{
+  const storage = makeStorage();
+  const store = createLayoutStore(storage);
+  store.save('k', { A: { x: 0, y: 0 } }, ['A']);
+  assert(store.hidden('k').join(',') === 'A', `FAIL: hidden — expected [A], got ${JSON.stringify(store.hidden('k'))}`);
+  store.save('k', { A: { x: 0, y: 0 } });
+  assert(store.hidden('k').length === 0, 'FAIL: hidden — saving without hidden should clear it');
+  assert(!(storage.getItem('ignatius-layout-positions') ?? '').includes('hidden'), 'FAIL: hidden — empty list should not be stored');
+  console.log('PASS: hidden round-trips and an empty list is not stored');
 }
 
 console.log('\nAll layout-store tests passed.');

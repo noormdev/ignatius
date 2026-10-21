@@ -23,11 +23,19 @@ interface KeyboardShortcutsConfig {
    *  delta; graph/flow only — the resolver returns null on dict). Fires on every
    *  keydown, so OS auto-repeat gives continuous scrolling while held. */
   onPan: (dx: number, dy: number) => void;
+  /** Cmd/Ctrl+Z — undo the last graph arrangement change (graph only). */
+  onUndo: () => void;
+  /** Cmd/Ctrl+Shift+Z or Ctrl+Y — redo it (graph only). */
+  onRedo: () => void;
+  /** `s` — toggle graph select mode (graph only). */
+  onToggleSelectMode: () => void;
+  /** `h` — hide the selected graph nodes (graph only). */
+  onHideSelection: () => void;
 }
 
 /**
  * useKeyboardShortcuts — registers exactly ONE global keydown listener for the
- * unified SPA keyboard shortcuts (g/d/f/l/b/i).
+ * unified SPA keyboard shortcuts (g/d/f/l/b/i/s/h).
  *
  * Stale-closure hazard: the listener is registered once on mount. To avoid
  * capturing a stale `view`/callbacks reference, we keep the latest config in
@@ -48,11 +56,15 @@ export function useKeyboardShortcuts({
   onHelp,
   onSearch,
   onPan,
+  onUndo,
+  onRedo,
+  onToggleSelectMode,
+  onHideSelection,
 }: KeyboardShortcutsConfig): void {
   // Latest config ref — updated synchronously on every render so the stable
   // listener closure never reads stale values.
-  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan });
-  configRef.current = { view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan };
+  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan, onUndo, onRedo, onToggleSelectMode, onHideSelection });
+  configRef.current = { view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan, onUndo, onRedo, onToggleSelectMode, onHideSelection };
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -94,6 +106,10 @@ export function useKeyboardShortcuts({
         // preventDefault above also stops the browser from scrolling the page
         // on arrow keys while a canvas view is active.
         case 'pan': cfg.onPan(action.dx, action.dy); break;
+        case 'undo': cfg.onUndo(); break;
+        case 'redo': cfg.onRedo(); break;
+        case 'toggleSelectMode': cfg.onToggleSelectMode(); break;
+        case 'hideSelection': cfg.onHideSelection(); break;
       }
     }
 

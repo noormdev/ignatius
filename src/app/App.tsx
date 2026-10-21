@@ -19,6 +19,9 @@ import { entityMatches, searchFlowDiagrams } from './logic/search';
 import { Modal } from './components/ui/Modal';
 import { HelpModal } from './components/ui/HelpModal';
 import { ZoomControl } from './components/ui/ZoomControl';
+import { GraphEditBar } from './components/ui/GraphEditBar';
+import { nextLayoutMode, parseLayoutMode } from './views/graph/graph-edits';
+import type { GraphEditState } from './views/graph/graph-edits';
 import { SearchBar } from './components/ui/SearchBar';
 import type { SearchBarHandle } from './components/ui/SearchBar';
 import { FlowSearchResults } from './components/flow/FlowSearchResults';
@@ -193,10 +196,11 @@ export function App() {
   // Zoom control state for the Graph view.
   // zoomPercent: live readout (100 = fit-to-view baseline). Updated by GraphView via onZoomPercentChange.
   const [zoomPercent, setZoomPercent] = useState(100);
+  const [graphEdits, setGraphEdits] = useState<GraphEditState>({ canUndo: false, canRedo: false, selectMode: false, hidden: [] });
   // Layout algorithm mode — shell owns it for FAB display; GraphView reads it via prop.
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() => {
     const stored = localStorage.getItem('ignatius-layout-mode');
-    return stored === 'hierarchical' ? 'hierarchical' : 'organic';
+    return parseLayoutMode(stored);
   });
 
   // Flow view + collapse level (docs/spec/dfd-store-clusters.md) — global,
@@ -351,10 +355,14 @@ export function App() {
 
   // Shared layout-mode toggle — used by BOTH the FAB button and the keyboard shortcut (l).
   // Extracted so both paths invoke exactly the same logic with no duplication.
+  function storeLayoutMode(mode: LayoutMode) {
+    setLayoutMode(mode);
+    localStorage.setItem('ignatius-layout-mode', mode);
+  }
+
   function handleToggleLayoutMode() {
-    const next = layoutMode === 'organic' ? 'hierarchical' : 'organic';
-    setLayoutMode(next);
-    localStorage.setItem('ignatius-layout-mode', next);
+    const next = nextLayoutMode(layoutMode);
+    storeLayoutMode(next);
     graphViewRef.current?.applyLayoutMode(next);
   }
 
@@ -405,6 +413,10 @@ export function App() {
     onHelp: () => setShowHelp(true),
     onSearch: handleKeyboardSearchFocus,
     onPan: handleKeyboardPan,
+    onUndo: () => graphViewRef.current?.undo(),
+    onRedo: () => graphViewRef.current?.redo(),
+    onToggleSelectMode: () => graphViewRef.current?.toggleSelectMode(),
+    onHideSelection: () => graphViewRef.current?.hideSelection(),
   });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been
@@ -419,13 +431,8 @@ export function App() {
     ? (themeMode === 'dark' ? branding.logo.dark : branding.logo.light)
     : undefined;
 
-  // The branding block is position:fixed, so it is out of flow and no stylesheet
-  // can know how much room to leave for it. Publish its measured width as
-  // `--branding-gutter` so the DD search bar can indent past it at viewport
-  // widths where the two would otherwise share a row (the bar is full-bleed;
-  // the graph/flow pill is narrow and centred, so it never collides). Measured
-  // rather than hard-coded because title and subtitle come from the model's
-  // branding and can be any length.
+  // The fixed branding block is out of flow and its text comes from the model, so its
+  // measured width is published as `--branding-gutter` for the chrome that must clear it.
   const brandingRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = brandingRef.current;
@@ -643,7 +650,7 @@ export function App() {
         changeReview={shownChanges}
         onCyReadyChange={setCyReady}
         onZoomPercentChange={setZoomPercent}
-        onLayoutModeChange={setLayoutMode}
+        onLayoutModeChange={storeLayoutMode}
         onCyInitError={setCyInitError}
         onSelectEntity={(node) => {
           // Route graph node-tap through the shared opener so it pushes ONE
@@ -661,6 +668,7 @@ export function App() {
           setShowEntityModal(true);
           openEntity(node.id);
         }}
+        onGraphEditsChange={setGraphEdits}
         onDeselectEntity={() => {
           // Background tap closes the modal and clears entity= from the URL
           // (replaceState — clean URL, not a Back step).
@@ -762,6 +770,15 @@ export function App() {
           onZoomOut={() => graphViewRef.current?.zoomOut()}
           onSetPercent={(pct) => graphViewRef.current?.setPercent(pct)}
           onReset={() => graphViewRef.current?.resetZoom()}
+        />
+      )}
+      {view === 'graph' && cyReady && (
+        <GraphEditBar
+          state={graphEdits}
+          onUndo={() => graphViewRef.current?.undo()}
+          onRedo={() => graphViewRef.current?.redo()}
+          onToggleSelectMode={() => graphViewRef.current?.toggleSelectMode()}
+          onShowHidden={(ids) => graphViewRef.current?.showHidden(ids)}
         />
       )}
       {/* Zoom control — Flows view: delegates to FlowsView handle (CP23) */}

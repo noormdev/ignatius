@@ -75,8 +75,8 @@ branding:
 | Field | Default | Notes |
 |---|---|---|
 | `logo` | embedded default logo | A single path applies to both modes, or use `{ dark, light }` for per-mode logos |
-| `title` | built-in | Max 50 characters |
-| `subtitle` | built-in | Max 50 characters |
+| `title` | built-in | Max 50 characters; shown on one line, cut with `…` past 200px (less on a phone) |
+| `subtitle` | built-in | Max 50 characters; shown on one line, cut with `…` past 240px (less on a phone) |
 | `copyright` | built-in holder + current year | `{ holder, year }` |
 | `poweredBy` | `true` | Set `false` to hide the footer attribution |
 

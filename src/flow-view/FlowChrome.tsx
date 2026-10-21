@@ -223,15 +223,8 @@ export const FlowChrome = forwardRef<FlowChromeHandle, FlowChromeProps>(
     // clear it (graph-flow-search CP5, SC12).
     const breadcrumbRef = useRef<HTMLDivElement>(null);
 
-    // Search-bar collision avoidance (SC12): the breadcrumb chip row grows
-    // WIDER with drill depth (single line, no wrap — see the div's flex rules
-    // below) but its HEIGHT never changes, so tracking its measured bottom
-    // edge is enough to guarantee the horizontally-centered flow search bar
-    // never overlaps it at any depth. Mirrors App.tsx's --search-bar-top
-    // banner-offset idiom (ResizeObserver → CSS custom property); scoped
-    // locally here — via its own --flow-search-bar-top var, not the banner's
-    // — since FlowChrome owns the breadcrumb DOM and the banner is never
-    // shown on the flow surface anyway (see styles.css .viewer-search-bar--flow).
+    // The crumb row grows with drill depth and wraps short of the toggles; its measured bottom,
+    // published as --flow-search-bar-top (not the banner's var), keeps the flow search bar below it (SC12).
     useLayoutEffect(() => {
       const el = breadcrumbRef.current;
       const root = document.documentElement;

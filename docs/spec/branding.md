@@ -25,6 +25,7 @@ Render configurable logo + title + subtitle in the upper-left and a fixed footer
 - [ ] When a logo value is a filepath relative to the models directory, it is read from disk and base64-inlined for static outputs; served via `/api/asset?path=` for the interactive viewer
 - [ ] `/api/asset?path=` rejects absolute paths and `..` traversal — refuses with a 400
 - [ ] `title` and `subtitle` render top-left across all three surfaces, `position: fixed`, unaffected by graph pan/zoom or dict scroll
+- [x] `title` and `subtitle` each stay on one line, cut with `…` past 200px and 240px (less on narrow viewports, so the block stops short of the help and theme toggles); the search bars' clearances rely on this (`docs/spec/graph-flow-search.md` SC13)
 - [ ] `title` and `subtitle` are validated at parse time: ≤50 characters each; longer values throw with a clear error
 - [ ] Footer renders bottom-center, `position: fixed`, displaying `© {year} {holder}`
 - [ ] When `poweredBy` is true (default), the footer additionally renders `powered by Noorm` as an `<a href="https://noorm.dev">` link below the copyright line
@@ -68,7 +69,11 @@ Render configurable logo + title + subtitle in the upper-left and a fixed footer
 
 ## Change log
 
-<!-- empty during drafting; first entry on first post-approval amendment -->
+### 2026-10-20 — One-line title and subtitle
+
+**What changed:** new criterion: the title and subtitle each stay on one line, cut with `…` past 200px and 240px, shrinking on narrow viewports so the block clears the toggles.
+
+**Why:** an unbounded subtitle could wrap the block or push it under the help toggle, and the search bars' clearances (graph-flow-search SC13) assume a one-row block.
 
 
 ## Implementation log

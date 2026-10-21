@@ -163,14 +163,18 @@ The app responds to single-key shortcuts while no text field is focused and no m
 | `g` | Switch to the Data Graph |
 | `d` | Switch to the Dictionary |
 | `f` | Switch to the Data Flows |
-| `l` | Toggle graph layout (organic ↔ hierarchical) — Graph view |
+| `l` | Step through graph layouts (organic → hierarchical → tree) — Graph view |
+| `s` | Toggle select mode: a plain drag draws a selection box, a click adds or removes — Graph view |
+| `h` | Hide the selected entities — Graph view |
+| `Cmd`/`Ctrl` + `Z` | Undo the last move, hide, or layout change — Graph view |
+| `Cmd`/`Ctrl` + `Shift` + `Z`, `Ctrl` + `Y` | Redo it — Graph view |
 | `b` | Toggle dictionary lens (read ↔ browse) — Dictionary view |
 | `i` | Open or close the flow index — Flows view |
 | `/` or `Cmd`/`Ctrl` + `K` | Focus the search bar — Graph, Dictionary, Flows |
 | `?` | Open the help overlay for the current view |
 | `←` `→` `↑` `↓` | Scroll the canvas 10px — Graph and Flows views; hold `Shift` for 50px |
 
-Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?` is the one exception to the modifier rule — it needs Shift to type, so Shift does not suppress it (but it is still ignored while typing in a field). `Cmd`/`Ctrl` + `K` is a second exception: like the zoom chords below, it focuses search even while a text field is already focused elsewhere. The arrow keys are a third: `Shift` selects their faster stride instead of suppressing them, and holding an arrow scrolls continuously. Arrows keep their normal meaning while typing in a field, and `Cmd`/`Ctrl`/`Alt` arrow chords are left to the OS and browser.
+Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?` is the one exception to the modifier rule — it needs Shift to type, so Shift does not suppress it (but it is still ignored while typing in a field). `Cmd`/`Ctrl` + `K` is a second exception: like the zoom chords below, it focuses search even while a text field is already focused elsewhere. The arrow keys are a third: `Shift` selects their faster stride instead of suppressing them, and holding an arrow scrolls continuously. Arrows keep their normal meaning while typing in a field, and `Cmd`/`Ctrl`/`Alt` arrow chords are left to the OS and browser. The undo and redo chords act on the Graph only while no field is focused; in a field they undo the text.
 
 
 ### Help overlay

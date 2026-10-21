@@ -38,7 +38,7 @@ const N       = parseInt(argValue('--n', '300'), 10);
 const PORT    = parseInt(argValue('--port', '7799'), 10);
 const RUNS    = parseInt(argValue('--runs', '1'), 10);
 const MODEL_ARG = argValue('--model', '');
-// --mode organic|hierarchical — forces layout mode before measuring; default keeps
+// --mode organic|hierarchical|tree — forces layout mode before measuring; default keeps
 // whatever the browser has stored (usually 'organic' on a cold profile).
 const MODE_ARG = argValue('--mode', '');
 
@@ -132,10 +132,10 @@ type PerfResult = {
 
 async function measureRound(): Promise<PerfResult> {
   // Clear any cached layout positions so every run is a cold ELK run.
-  // Optionally override the layout mode via --mode organic|hierarchical.
+  // Optionally override the layout mode via --mode organic|hierarchical|tree.
   await page.evaluate((modeArg: string) => {
     try { localStorage.removeItem('ignatius-layout-positions'); } catch {}
-    if (modeArg === 'organic' || modeArg === 'hierarchical') {
+    if (modeArg === 'organic' || modeArg === 'hierarchical' || modeArg === 'tree') {
       try { localStorage.setItem('ignatius-layout-mode', modeArg); } catch {}
     }
   }, MODE_ARG);

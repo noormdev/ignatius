@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { GroupConfig } from '../../../model/parse';
 import type { ViewName, FlowViewMode, FlowCollapseLevel } from '../../hash-router';
 import type { LayoutMode } from '../../views/graph/GraphView';
+import { LAYOUT_MODE_NAME, nextLayoutMode } from '../../views/graph/graph-edits';
 
 // Action wording names the target level, not just the next state's name — the
 // stores→clusters/clusters→groups direction reads as "Collapse to X" and the
@@ -177,7 +178,7 @@ export function FabMenu({
                 role="menuitem"
                 onClick={() => { setMenuOpen(false); onToggleLayoutMode(); }}
               >
-                {layoutMode === 'organic' ? 'Hierarchical layout' : 'Organic layout'} <kbd className="kbd-hint">L</kbd>
+                {LAYOUT_MODE_NAME[nextLayoutMode(layoutMode)]} layout <kbd className="kbd-hint">L</kbd>
               </button>
               <button
                 className="fab-menu-item"
