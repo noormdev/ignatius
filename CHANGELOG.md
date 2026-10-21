@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.24.0](https://github.com/noormdev/ignatius/compare/v0.23.0...v0.24.0) (2026-10-21)
+
+
+### Features
+
+* **branding:** replace default logo with the ignatius mark ([375752c](https://github.com/noormdev/ignatius/commit/375752c3f5b19696b91e1877782aee8c93151a06))
+* **graph:** add tree layout and arrangement tools ([add1429](https://github.com/noormdev/ignatius/commit/add1429aa227cbcb85b1970f4d3042cb47b2bb2e))
+* **graph:** share trunks and drops in tree layout ([48a0c07](https://github.com/noormdev/ignatius/commit/48a0c071fd7cc194d22c48c9a44652dd7d4c8bc2))
+
 ## [0.23.0](https://github.com/noormdev/ignatius/compare/v0.22.0...v0.23.0) (2026-10-18)
 
 
