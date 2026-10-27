@@ -1,5 +1,5 @@
 /** test-export-mermaid.ts — an export inlines the Mermaid sidecar, escaped and before the app script,
- *  only when some body has a diagram; the live server serves it and tints decision, store and end-state shapes. */
+ *  only when some body has a diagram; the live server serves it, and decisions, stores and end states get their own fills. */
 
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -67,9 +67,9 @@ const without = await exportOf('Plain.', 'Plain.');
 assert(!without.includes(SENTINEL), 'FAIL: a model without diagrams carries no mermaid.js');
 
 // The accent selectors lean on Mermaid's markup (mermaid-render.ts tagFlowchartShapes and
-// the end-state rule in styles.css), so a Mermaid upgrade that changes it fails here.
+// the end-state rule in mermaid-theme.ts themeCSS), so a Mermaid upgrade that changes it fails here.
 const SHAPES_BODY = [
-  '```mermaid\nflowchart TD\n  A[Start] --> B{Valid?}\n  B -->|yes| C[(Orders)]\n  B -->|no| D[/Reject/]\n```',
+  '```mermaid\nflowchart TD\n  A[Start] --> P[Parse] --> B{Valid?}\n  B -->|yes| C[(Orders)]\n  B -->|no| D[/Reject/]\n```',
   '```mermaid\nstateDiagram-v2\n  [*] --> Open\n  Open --> [*]\n```',
 ].join('\n\n');
 
@@ -80,23 +80,17 @@ async function checkShapeAccents(): Promise<void> {
     await page.goto('http://localhost:7437/#view=dict');
     await page.waitForFunction(() => document.querySelectorAll('.mermaid-diagram[data-rendered] svg').length === 2, undefined, { timeout: 30_000 });
     const fills = await page.evaluate(() => {
-      const probe = document.createElement('div');
-      document.body.appendChild(probe);
-      const cssColor = (name: string) => {
-        probe.style.color = getComputedStyle(document.documentElement).getPropertyValue(name);
-        return getComputedStyle(probe).color;
-      };
       const fillOf = (selector: string) => {
         const found = document.querySelectorAll(selector);
         return found.length === 1 && found[0] ? getComputedStyle(found[0]).fill : `${found.length} matches`;
       };
-      const result = {
-        decision: [fillOf('g.node.ignatius-decision > polygon'), cssColor('--badge-dependent-bg')],
-        store: [fillOf('g.node.ignatius-store > path'), cssColor('--badge-independent-bg')],
-        'end state': [fillOf('g.node[id*="_end-"] g:not(.outer-path) > path:first-child'), cssColor('--color-text-muted')],
+      // The decision (3rd node) and store (4th) sit where the cycle would paint them green and orange, so
+      // only the shape rules give them the second and first default fills.
+      return {
+        decision: [fillOf('g.node.ignatius-decision > polygon'), 'rgb(210, 153, 34)'],
+        store: [fillOf('g.node.ignatius-store > path'), 'rgb(88, 166, 255)'],
+        'end state': [fillOf('g.node[id*="_end-"] g:not(.outer-path) > path:first-child'), 'rgb(0, 0, 0)'],
       };
-      probe.remove();
-      return result;
     });
     for (const [shape, [got, want]] of Object.entries(fills)) {
       assert(got === want, `FAIL: the ${shape} accent fills ${want}, got ${got}`);

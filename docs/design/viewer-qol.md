@@ -46,7 +46,7 @@ Every markdown site adds the class `md` next to its existing wrapper class. One 
 
 ### Sidebar tab
 
-A tab fixed to the right edge, visible in the Dictionary view while the sidebar is closed. At rest it shows half its width; on hover or keyboard focus it slides fully in. It holds a three-line icon over the word "Sidebar" and opens the sidebar on click. The panel gains a close button in its header. Open state persists in `ignatius-dict-nav-open`. Like the panel, the tab is hidden at `max-width: 768px` and in print.
+A tab fixed to the right edge, visible in the Dictionary view while the sidebar is closed. At rest only a narrow lip shows: an accent edge with a grip. The reader sees something is there, with no clipped label. On hover or keyboard focus the tab slides fully in and the icon and label appear. It holds a three-line icon over the word "Sidebar" and opens the sidebar on click. The panel gains a close button in its header. Open state persists in `ignatius-dict-nav-open`. Like the panel, the tab is hidden at `max-width: 768px` and in print.
 
 ### Scroll memory
 
@@ -69,9 +69,9 @@ flowchart LR
 ```
 
 - **Parse side.** Both markdown-it instances (`src/model/parse.ts`, `src/flows/flow-markdown.ts`) emit a ```` ```mermaid ```` fence as `<div class="mermaid-diagram">` holding the HTML-escaped source. Every body type gets it with no per-site work.
-- **Browser side.** One `MutationObserver` on the app root finds unrendered `.mermaid-diagram` nodes in any view or modal and renders them. Mermaid is initialised with `startOnLoad: false`, `securityLevel: 'strict'`, `theme: 'base'` and the resolved `themeVariables` for the current mode; a theme-mode switch re-renders. A render error replaces the diagram with the source in a `pre` plus the error message, styled as a warning.
+- **Browser side.** One `MutationObserver` on the app root finds unrendered `.mermaid-diagram` nodes in any view or modal and renders them. Mermaid is initialised with `startOnLoad: false`, `securityLevel: 'strict'`, `theme: 'base'`, `look: 'classic'`, `flowchart.wrappingWidth: 200` (Mermaid 12's 120 px splits short bold labels), and the resolved `themeVariables` and `themeCSS` for the current mode; a theme-mode switch re-renders. A render error replaces the diagram with the source in a `pre` plus the error message, styled as a warning.
 - **Bundle.** Mermaid minified is 5.3 MB against the app's 4.5 MB. It builds as a separate `dist/static/mermaid.js` that sets `window.__IGNATIUS_MERMAID__`. Live mode loads it with a `<script>` tag from `/static/mermaid.js` the first time a diagram appears. `generateApp` inlines it only when a body in the model or flows contains a mermaid diagram.
-- **Theme.** Defaults derive from the resolved theme palette per mode, so a model that recolours `theme.dark.surface` gets matching diagrams. `theme.mermaid.dark` / `theme.mermaid.light` in `ignatius.yml` are passed as Mermaid `themeVariables` on top of the defaults, after `mergeTheme` drops any value outside `SAFE_MERMAID_VALUE` and records it for the `config.mermaid_theme_invalid` warning. Keys are Mermaid's own names, so the guide links to Mermaid's theming reference rather than restating it.
+- **Theme.** The look is bold: full-strength fills cycled per node, thick black outlines, rounded corners, dark soft shadows, bold labels, on a dotted panel. Its fills are ignatius's entity colours, so diagrams read as part of the model. Outline width, radius, shadow and fills are `theme.mermaid` keys that build a Mermaid `themeCSS`, because Mermaid has no theme variable for them. Connector and canvas colours derive from the palette per mode. `theme.mermaid.dark` / `theme.mermaid.light` in `ignatius.yml` are passed as Mermaid `themeVariables` on top of the defaults, after `mergeTheme` drops any value outside `SAFE_MERMAID_VALUE` and records it for the `config.mermaid_theme_invalid` warning. Keys are Mermaid's own names, so the guide links to Mermaid's theming reference rather than restating it.
 
 ### Logic flows in the skill
 
@@ -91,6 +91,6 @@ On boot, `apply-view-state.ts`, imported first by `main.tsx`, applies the snapsh
 ## Risks
 
 
-- **Mermaid output is HTML injected into the page.** `securityLevel: 'strict'` disables click callbacks and sanitizes label HTML with DOMPurify; source goes through markdown-it escaping first. Mermaid writes `themeVariables` into the SVG `<style>` unsanitized, so values from `ignatius.yml` are limited to numbers and strings matching Mermaid's own directive pattern plus `-`.
+- **Mermaid output is HTML injected into the page.** `securityLevel: 'strict'` disables click callbacks and sanitizes label HTML with DOMPurify; source goes through markdown-it escaping first. Mermaid writes `themeVariables` and `themeCSS` into the SVG `<style>` unsanitized. Every `ignatius.yml` value that reaches either one is checked first: mode-block values and the palette's diagram colours must match Mermaid's own directive pattern plus `-`, style keys are numbers in a range or a boolean, and fills are six-digit hex.
 - **Restoring scroll before content has height** clamps to 0. Restore runs after layout (`useLayoutEffect`, then one `requestAnimationFrame` retry), then holds while diagrams grow.
 - **View-state snapshot overwriting the recipient's state.** Bounded by the per-model applied-digest guard (the snapshot applies once per distinct export) and by merging layout entries rather than replacing the stores, so other models' arrangements survive.

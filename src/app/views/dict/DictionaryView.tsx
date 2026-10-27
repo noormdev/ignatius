@@ -962,10 +962,12 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
 
       {!dictNavOpen && (
         <button ref={navTabRef} type="button" className="dict-nav-tab" onClick={toggleNavFromButton} aria-label="Open sidebar">
-          <svg className="dict-nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-            <path d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-          Sidebar
+          <span className="dict-nav-tab-content">
+            <svg className="dict-nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            Sidebar
+          </span>
         </button>
       )}
 

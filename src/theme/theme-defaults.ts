@@ -125,7 +125,7 @@ export type ThemeConfig = {
   spacing: ThemeSpacing;
   /** Per-kind DFD store/external colors. Partial overrides are deep-merged over defaults. */
   flowKinds?: Partial<Record<FlowKindKey, Partial<{ dark: Partial<FlowKindEntry>; light: Partial<FlowKindEntry> }>>>;
-  /** Per-mode Mermaid `themeVariables` overrides; read through resolveMermaidThemeVariables(). */
+  /** Mermaid node style keys and per-mode `themeVariables` overrides; read through resolveMermaidStyle(). */
   mermaid?: MermaidThemeConfig;
   /** ignatius.yml key paths dropped from `theme.mermaid`; validateModel reports each one. */
   invalidMermaidKeys?: string[];
@@ -175,9 +175,12 @@ export function mergeTheme(partial: Partial<{
     ? { ...partial.flowKinds }
     : undefined;
   const { mermaid, invalidKeys } = readMermaidTheme(partial.mermaid);
+  const dark = { ...defaultTheme.dark, ...(partial.dark ?? {}) };
+  const light = { ...defaultTheme.light, ...(partial.light ?? {}) };
+  invalidKeys.push(...unsafeDiagramColors('dark', dark), ...unsafeDiagramColors('light', light));
   return {
-    dark: { ...defaultTheme.dark, ...(partial.dark ?? {}) },
-    light: { ...defaultTheme.light, ...(partial.light ?? {}) },
+    dark,
+    light,
     spacing: { ...defaultTheme.spacing, ...(partial.spacing ?? {}) },
     ...(mergedFlowKinds !== undefined ? { flowKinds: mergedFlowKinds } : {}),
     ...(mermaid !== undefined ? { mermaid } : {}),
@@ -193,13 +196,68 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 // pattern plus `-`, which generic font names need and which cannot end a declaration.
 export const SAFE_MERMAID_VALUE = /^[\d "#%(),.;A-Za-z-]+$/;
 
-/** Keep the numbers and pattern-safe strings of a raw `theme.mermaid` block; `invalidKeys` lists
- *  each dropped part by its ignatius.yml key path. */
+// Six-digit hex only: label colours are picked by contrast against each fill.
+const HEX_COLOR = /^#[\dA-Fa-f]{6}$/;
+
+/** `undefined` when absent, `null` when not a finite number in [min, max]. */
+function readNumberInRange(value: unknown, min: number, max: number): number | null | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? value : null;
+}
+
+/** The palette colours diagrams use. */
+export const DIAGRAM_PALETTE_KEYS = ['background', 'surface', 'text', 'textMuted'] as const;
+
+const MERMAID_KEYS = new Set(['stroke_width', 'radius', 'shadow', 'node_fills', 'dark', 'light']);
+
+function unsafeDiagramColors(mode: ThemeMode, palette: ThemePalette): string[] {
+  return DIAGRAM_PALETTE_KEYS.filter(key => !SAFE_MERMAID_VALUE.test(palette[key])).map(key => `theme.${mode}.${key}`);
+}
+
+const SAFE_CHARS = 'letters, digits, spaces and # % ( ) , . ; - "';
+
+/** The `config.mermaid_theme_invalid` message for one key path from `ThemeConfig.invalidMermaidKeys`. */
+export function mermaidKeyMessage(path: string): string {
+  const key = path.split('.').slice(2).join('.');
+  if (path.startsWith('theme.dark.') || path.startsWith('theme.light.')) {
+    return `"${path}" is not used in Mermaid diagrams: it may hold only ${SAFE_CHARS}. Diagrams use the default color.`;
+  }
+  const problems: Record<string, string> = {
+    '': 'must be a mapping',
+    stroke_width: 'must be a number from 0 to 8',
+    radius: 'must be a number from 0 to 32',
+    shadow: 'must be true or false',
+    node_fills: 'must be a list of 1 to 12 quoted "#rrggbb" colors',
+    dark: 'must be a mapping of Mermaid variables',
+    light: 'must be a mapping of Mermaid variables',
+  };
+  const [first = ''] = key.split('.');
+  const problem = problems[key]
+    ?? (MERMAID_KEYS.has(first)
+      ? `must be a number or a string of ${SAFE_CHARS} only`
+      : `is not a Mermaid theme key; use ${[...MERMAID_KEYS].join(', ')}`);
+  return `"${path}" is ignored: it ${problem}.`;
+}
+
+/** Keep the valid parts of a raw `theme.mermaid` block; `invalidKeys` lists each dropped part by its ignatius.yml key path. */
 function readMermaidTheme(raw: unknown): { mermaid?: MermaidThemeConfig; invalidKeys: string[] } {
   if (raw === undefined) return { invalidKeys: [] };
   if (!isPlainObject(raw)) return { invalidKeys: ['theme.mermaid'] };
   const mermaid: MermaidThemeConfig = {};
-  const invalidKeys: string[] = [];
+  const invalidKeys = Object.keys(raw).filter(key => !MERMAID_KEYS.has(key)).map(key => `theme.mermaid.${key}`);
+  const strokeWidth = readNumberInRange(raw['stroke_width'], 0, 8);
+  if (strokeWidth === null) invalidKeys.push('theme.mermaid.stroke_width');
+  else if (strokeWidth !== undefined) mermaid.stroke_width = strokeWidth;
+  const radius = readNumberInRange(raw['radius'], 0, 32);
+  if (radius === null) invalidKeys.push('theme.mermaid.radius');
+  else if (radius !== undefined) mermaid.radius = radius;
+  const shadow = raw['shadow'];
+  if (typeof shadow === 'boolean') mermaid.shadow = shadow;
+  else if (shadow !== undefined) invalidKeys.push('theme.mermaid.shadow');
+  const fills = raw['node_fills'];
+  if (Array.isArray(fills) && fills.length > 0 && fills.length <= 12 && fills.every((f): f is string => typeof f === 'string' && HEX_COLOR.test(f))) {
+    mermaid.node_fills = fills;
+  } else if (fills !== undefined) invalidKeys.push('theme.mermaid.node_fills');
   for (const mode of ['dark', 'light'] satisfies ThemeMode[]) {
     const block = raw[mode];
     if (block === undefined) continue;

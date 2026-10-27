@@ -9,7 +9,11 @@ declare global {
       startOnLoad: boolean;
       securityLevel: 'strict';
       theme: 'base';
+      look: 'classic';
+      flowchart: { wrappingWidth: number };
+      sequence: { actorFontWeight: number };
       themeVariables: Record<string, unknown>;
+      themeCSS: string;
     }): void;
     render(id: string, text: string): Promise<{ svg: string }>;
   }
