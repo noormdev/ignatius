@@ -8,7 +8,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Playwright 1.60 cannot install Chromium on ubuntu-latest's 26.04 image.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
