@@ -31,7 +31,7 @@ flowchart TD
     Strip --> Cleaned
 ```
 
-Class is looked up from the `RULES` registry, never computed ad hoc at the call site: `entity.*` and `body.unknown_link` rules are always Class A (the offending node stays, flagged); `parse.*`, `config.*`, `edge.unknown_target`, and `cluster.missing_basetype` are always Class B (the offending edge or cluster is dropped from `cleanedModel`); `edge.dangling_fk_column` and `cluster.missing_member`/`no_discriminator` are Class A. Nodes with an invalid `pk` or `columns` shape are additionally coerced to safe defaults (`[]` / `{}`) in `cleanedModel` regardless of class, so downstream renderers never crash on bad data.
+Class is looked up from the `RULES` registry, never computed ad hoc at the call site: `entity.*` and `body.unknown_link` rules are always Class A (the offending node stays, flagged); `parse.*`, `config.index_file_*`, `edge.unknown_target`, and `cluster.missing_basetype` are always Class B (the offending edge or cluster is dropped from `cleanedModel`); `edge.dangling_fk_column`, `cluster.missing_member`/`no_discriminator`, and `config.mermaid_theme_invalid` are Class A. `config.mermaid_theme_invalid` comes from `ThemeConfig.invalidMermaidKeys`, which `mergeTheme` fills with each `theme.mermaid` key path it dropped. Nodes with an invalid `pk` or `columns` shape are additionally coerced to safe defaults (`[]` / `{}`) in `cleanedModel` regardless of class, so downstream renderers never crash on bad data.
 
 | | Class A (degrade) | Class B (omit) |
 |---|---|---|
@@ -76,7 +76,7 @@ flowchart TD
 | `src/model/validate.ts:654,661` `IndexValidationResult` / `validateIndex(root, model, flowModel)` | type / async function | I/O — recomputes router digests via `buildRouters`, walks folders for orphaned index files |
 | `src/model/validate.ts:751` `formatFindingsForStderr(globalErrors, entityErrors, flowErrors?)` | function | sorts (error-before-warning, then ruleId, then location) and formats findings for CLI stderr; drops `liveOnly` rows |
 | `parse.*` | rule prefix (3, all B) | `invalid_yaml`, `missing_id`, `empty_frontmatter` |
-| `config.*` | rule prefix (3, all B) | `index_file_ext`, `index_file_path`, `index_file_entity` |
+| `config.*` | rule prefix (4: B, B, B, A) | `index_file_ext`, `index_file_path`, `index_file_entity`, `mermaid_theme_invalid` |
 | `index.*` | rule prefix (3: B, A, B) | `stale`, `orphaned`, `unreadable_target` |
 | `entity.*` | rule prefix (6, all A) | `missing_pk`, `missing_columns`, `invalid_field_type`, `unknown_group`, `ak_unknown_column`, `example_unknown_column` (L) |
 | `body.*` | rule prefix (1, A) | `unknown_link` |

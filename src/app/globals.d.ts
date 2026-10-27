@@ -3,9 +3,22 @@ import type { FlowDiagram } from '../flows/flow-parse';
 import type { FlowCluster } from '../flows/flow-clusters';
 
 declare global {
+  /** The slice of the Mermaid API the viewer calls; set by src/app/mermaid-entry.ts. */
+  interface IgnatiusMermaid {
+    initialize(config: {
+      startOnLoad: boolean;
+      securityLevel: 'strict';
+      theme: 'base';
+      themeVariables: Record<string, unknown>;
+    }): void;
+    render(id: string, text: string): Promise<{ svg: string }>;
+  }
+
   interface Window {
+    __IGNATIUS_MERMAID__?: IgnatiusMermaid;
     __MODEL__?: import('../parse').Model;
     __THEME_MODE__?: 'dark' | 'light';
+    __VIEW_STATE__?: import('../generators/app').ViewState;
     __IGNATIUS_MODE__?: 'live' | 'static';
     __LAYOUT_KEY__?: string;
     // Change review baked into a static export; absent when the model had no approved baseline.

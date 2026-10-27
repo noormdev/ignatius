@@ -5,7 +5,11 @@ import { layoutFingerprint } from '../model/layout-fingerprint';
 import { parseFlows } from '../flows/flow-parse';
 import { validateFlows } from '../flows/flow-validate';
 import { buildFlowLayoutKeys } from '../flows/flow-fingerprint';
+import { isRecord } from '../flows/flow-markdown';
 import { approve, baselinePath, buildReview, ensureBaseline } from '../model/change-store';
+import { exportModel } from '../generators/export-model';
+import type { ViewState } from '../generators/app';
+import { slugify } from '../router/agents';
 import { resolve, normalize, isAbsolute, join } from 'path';
 import { watch, watchFile, unwatchFile, existsSync, type Stats } from 'fs';
 
@@ -46,6 +50,36 @@ function isSameOrigin(req: Request): boolean {
   } catch {
     return false;
   }
+}
+
+const MAX_EXPORT_BODY_BYTES = 5 * 1024 * 1024;
+
+// Counts bytes as they arrive, so a chunked body with no content-length cannot be buffered past the cap.
+async function readTextCapped(req: Request, maxBytes: number): Promise<string | null> {
+  if (req.body === null) return '';
+  const reader = req.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return text + decoder.decode();
+    bytes += value.byteLength;
+    if (bytes > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+}
+
+// The body comes from the page's localStorage, so anything outside the viewer's own keys is dropped.
+function parseViewState(body: unknown): ViewState | null {
+  if (!isRecord(body) || !isRecord(body.storage)) return null;
+  const entries = Object.entries(body.storage).filter(
+    (entry): entry is [string, string] => entry[0].startsWith('ignatius-') && typeof entry[1] === 'string',
+  );
+  return { storage: Object.fromEntries(entries), hash: typeof body.hash === 'string' ? body.hash : '' };
 }
 
 export type ServeHandle = {
@@ -120,6 +154,42 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
         broadcast('model-changed');
         return Response.json(counts);
       },
+      '/api/export': async (req: Request) => {
+        if (req.method !== 'POST') {
+          return new Response('Method Not Allowed', { status: 405, headers: { Allow: 'POST' } });
+        }
+        if (!isSameOrigin(req) || !isLocalHost(req)) return new Response('Forbidden', { status: 403 });
+        const text = await readTextCapped(req, MAX_EXPORT_BODY_BYTES);
+        if (text === null) return new Response('Export request over 5 MB', { status: 413 });
+        let body: unknown;
+        try {
+          body = JSON.parse(text);
+        } catch {
+          return new Response('Export request is not valid JSON', { status: 400 });
+        }
+        const viewState = parseViewState(body);
+        if (viewState === null) return new Response('Export request needs { storage, hash }', { status: 400 });
+
+        let bundle: import('../generators/embedded-bundle').BundleContent;
+        try {
+          const { loadEmbeddedBundle } = await import('../generators/embedded-bundle');
+          bundle = await loadEmbeddedBundle();
+        } catch {
+          return new Response('Export bundle not built: run bun run build:bundle', { status: 500 });
+        }
+        const themeMode = viewState.storage['ignatius-theme'] === 'light' ? 'light' : 'dark';
+        try {
+          const { html, model } = await exportModel(modelsDir, bundle, { themeMode, viewState });
+          return new Response(html, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Content-Disposition': `attachment; filename="${slugify(model._meta?.name ?? '')}.html"`,
+            },
+          });
+        } catch (err) {
+          return new Response(`Export failed: ${err instanceof Error ? err.message : String(err)}`, { status: 500 });
+        }
+      },
       '/flow': () => Response.redirect('/#view=flow', 302),
       '/api/flow': async () => {
         // Guard: if no flows/ directory, return an empty-state payload (200), not 500.
@@ -150,6 +220,15 @@ export function serveCommand(modelsDir: string, opts: { port?: number } = {}): S
           status: 302,
           headers: { Location: '/#view=dict' },
         });
+      },
+      '/static/mermaid.js': async () => {
+        // Imported on demand so the server still starts from source before dist/static is built.
+        try {
+          const { mermaidJsPath } = await import('../generators/embedded-bundle');
+          return new Response(Bun.file(mermaidJsPath), { headers: { 'Content-Type': 'text/javascript' } });
+        } catch {
+          return new Response('mermaid.js not built: run bun run build:bundle', { status: 404 });
+        }
       },
       '/api/asset': async (req) => {
         const url = new URL(req.url);

@@ -6,10 +6,12 @@ import { defaultTheme, mergeTheme, type ThemeConfig } from '../theme/theme-defau
 import { defaultBranding, mergeBranding, inlineBrandingLogos, type Branding } from '../theme/branding-defaults';
 import { wikiLinkPlugin, type WikiLinkEnv } from './wikilink';
 import { highlightCodeFence } from './markdown-highlight';
+import { mermaidFencePlugin } from './markdown-mermaid';
 import type { GlobalError } from './validate';
 
 const md = new MarkdownIt({ highlight: highlightCodeFence });
 md.use(wikiLinkPlugin);
+md.use(mermaidFencePlugin);
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;

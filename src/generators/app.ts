@@ -11,6 +11,7 @@
  *   - window.__FLOW_LAYOUT_KEYS__ (per-diagram fingerprint map — may be undefined)
  *   - window.__FLOW_CLUSTERS__    (model-root clusters/ registry — may be undefined)
  *   - window.__THEME_MODE__       (dark | light)
+ *   - window.__VIEW_STATE__       (the exporter's view state — only when one is passed)
  *
  * WHY a single generator for all three views:
  * The unified SPA (App.tsx) renders Graph, Dictionary, and Flows from one bundle.
@@ -36,6 +37,14 @@ export type GenerateAppOpts = {
   themeMode?: 'dark' | 'light';
   /** Change review to bake in so the static page shows what changed; null or omitted when no baseline exists. */
   review?: ChangeReview | null;
+  /** The exporter's view state, applied once by the recipient's viewer; see src/app/logic/view-state.ts. */
+  viewState?: ViewState;
+};
+
+/** `ignatius-*` localStorage entries and `location.hash`, as the exporter's viewer had them. */
+export type ViewState = {
+  storage: Record<string, string>;
+  hash: string;
 };
 
 /**
@@ -45,6 +54,11 @@ export type GenerateAppOpts = {
  */
 function escapeScriptClose(s: string): string {
   return s.replace(/</g, () => '\\u003c');
+}
+
+// React's source, and Mermaid's, contain this string.
+function escapeInlineScript(js: string): string {
+  return js.replace(/<\/script>/gi, () => '<\\/script>');
 }
 
 /**
@@ -85,12 +99,9 @@ export async function generateApp(
       ? await loadBundleFromDir(sourceOrDir)
       : sourceOrDir;
 
-  const { htmlTemplate, cssContent, jsContent: jsRaw } = bundle;
+  const { htmlTemplate, cssContent } = bundle;
   const themeMode = opts.themeMode ?? 'dark';
-
-  // Escape </script> in the JS bundle to prevent premature <script> tag close.
-  // WHY: same rationale as generateGraph — React's source contains this string.
-  const jsContent = jsRaw.replace(/<\/script>/gi, () => '<\\/script>');
+  const jsContent = escapeInlineScript(bundle.jsContent);
 
   // Compute the ERD position-restore fingerprint.
   const layoutKey = layoutFingerprint(model);
@@ -114,6 +125,15 @@ export async function generateApp(
     `window.__LAYOUT_KEY__ = ${escapeScriptClose(JSON.stringify(layoutKey))}; ` +
     `window.__THEME_MODE__ = ${escapeScriptClose(JSON.stringify(themeMode))}; ` +
     `</script>`;
+
+  // Every rendered body (entity, group, flow node, cluster, change note) is in the injected JSON.
+  if (injection.includes('class=\\"mermaid-diagram\\"')) {
+    injection += `<script>${escapeInlineScript(bundle.mermaidJs)}</script>`;
+  }
+
+  if (opts.viewState) {
+    injection += `<script>window.__VIEW_STATE__ = ${escapeScriptClose(JSON.stringify(opts.viewState))};</script>`;
+  }
 
   // Inline the CSS (function replacement: $ in cssContent must not be interpolated).
   let html = htmlTemplate.replace(

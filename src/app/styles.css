@@ -4,6 +4,7 @@
 :root {
   --color-background: #0e1116;
   --color-text: #e6edf3;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 html, body, #root {
@@ -336,8 +337,8 @@ a {
   user-select: none;
 }
 
-/* Copy link toast — floats above FAB, outside menu guard */
-.fab-copy-toast {
+/* FAB feedback toast — floats above FAB, outside menu guard */
+.fab-toast {
   position: fixed;
   bottom: 80px;
   right: 24px;
@@ -350,6 +351,11 @@ a {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   z-index: 70;
   pointer-events: none;
+}
+
+/* Hidden by opacity, not display, so the status region stays in the accessibility tree and announces new text. */
+.fab-toast:empty {
+  opacity: 0;
 }
 
 /* Legend swatch (reused in group cards) */
@@ -429,6 +435,30 @@ a {
 }
 .legend-entity--dependent {
   border-radius: 8px;
+}
+
+/* Settings modal */
+.settings-modal {
+  max-width: 480px;
+}
+.settings-row {
+  padding: 8px 0;
+}
+.settings-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.settings-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-link);
+  cursor: pointer;
+}
+.settings-hint {
+  margin: 4px 0 0 26px;
 }
 
 /* Modal */
@@ -516,11 +546,11 @@ a {
 .pk-label {
   font-size: 11px;
   color: var(--color-text-muted);
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
 }
 
 /* Doc content inside modal */
-.doc-section h2, .doc-body h2 {
+.doc-section h2:not(.md h2) {
   font-size: 12px;
   margin: 24px 0 8px 0;
   color: var(--color-text-muted);
@@ -530,50 +560,32 @@ a {
 }
 .doc-body {
   font-size: 14px;
-  line-height: 1.6;
-}
-.doc-body p {
-  margin: 0 0 12px 0;
   color: var(--color-text-secondary);
 }
-.doc-body ul, .doc-body ol {
-  margin: 0 0 12px 0;
-  padding-left: 20px;
-  color: var(--color-text-secondary);
-}
-.doc-body li {
-  margin-bottom: 4px;
+.doc-section + .doc-body {
+  margin-top: 24px;
 }
 
-.doc-section table, .doc-body table {
+.doc-section table:not(.md table) {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
   margin: 8px 0;
 }
-.doc-section th, .doc-body th {
+.doc-section th:not(.md th) {
   text-align: left;
   padding: 6px 8px;
   border-bottom: 2px solid var(--color-surface-alt);
   color: var(--color-text-muted);
   font-weight: 600;
 }
-.doc-section td, .doc-body td {
+.doc-section td:not(.md td) {
   padding: 5px 8px;
   border-bottom: 1px solid var(--color-surface);
   color: var(--color-text-secondary);
 }
-.doc-section tr:hover td, .doc-body tr:hover td {
+.doc-section tr:not(.md tr):hover td {
   background: var(--color-surface);
-}
-/* Body tables come from rendered markdown with no wrapper element, so make the
-   table itself the scroll container — keeps wide sample-row tables inside the
-   modal rather than clipping under the modal's overflow-x: hidden. */
-.doc-body table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 .fk-link {
@@ -626,8 +638,14 @@ a {
   border-bottom: 1px dashed var(--color-text-muted);
 }
 
+/* Ligatures kern `-->`, `=>` and `!=` into glyphs that misrepresent the source. */
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+  font-feature-settings: "calt" 0;
+}
+
 code {
-  font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 12px;
   background: var(--color-surface);
   padding: 1px 5px;
@@ -917,7 +935,7 @@ button.flow-crumb__label:hover {
 }
 
 .flow-level-menu__num {
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-variant-ligatures: none;
   font-size: 11px;
   font-weight: 600;
@@ -1069,7 +1087,7 @@ button.flow-crumb__label:hover {
   min-width: 46px;
   padding: 4px 8px;
   border-right: 1px solid var(--color-border, #30363d);
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-variant-ligatures: none;
   font-size: 11px;
   text-align: center;
@@ -1638,7 +1656,7 @@ button.flow-crumb__label:hover {
   padding: 1px 4px;
   border-radius: 3px;
   flex-shrink: 0;
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   letter-spacing: 0.3px;
 }
 
@@ -1653,7 +1671,7 @@ button.flow-crumb__label:hover {
 }
 
 .finding-rule {
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--color-text-muted);
   flex-shrink: 0;
@@ -1813,10 +1831,12 @@ button.flow-crumb__label:hover {
 
 .changes-panel-note .doc-body {
   font-size: 12px;
+  margin: 6px 0 8px;
 }
 
-.changes-panel-note .doc-body p {
-  margin: 0 0 6px 0;
+/* Body headings must not outrank the note's own title. */
+.changes-panel-note .md :is(h1, h2, h3, h4, h5, h6) {
+  font-size: 1em;
 }
 
 .changes-panel-items {
@@ -2693,12 +2713,6 @@ button.changes-panel-item:hover {
   margin-top: 0.25rem;
 }
 
-.dict-group-desc p {
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  margin-top: 0.25rem;
-}
-
 /* Entity sections */
 .dict-entity-section {
   background: var(--color-surface);
@@ -2824,7 +2838,7 @@ button.changes-panel-item:hover {
 
 .dict-predicate-arrow {
   color: var(--color-text-muted);
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
 }
 
@@ -2887,44 +2901,8 @@ button.changes-panel-item:hover {
   font-size: 0.88rem;
 }
 
-.dict-entity-body h1,
-.dict-entity-body h2,
-.dict-entity-body h3,
-.dict-entity-body h4 {
-  color: var(--color-text);
-  font-size: 0.95rem;
-  margin: 0.75rem 0 0.25rem;
-}
-
-.dict-entity-body p {
-  margin-bottom: 0.5rem;
-}
-
-.dict-entity-body ul,
-.dict-entity-body ol {
-  padding-left: 1.25rem;
-  margin-bottom: 0.5rem;
-}
-
 /* entity-link / entity-link--missing already defined in modal styles (shared class names
    in bodyHtml output from wikilink.ts); no re-definition needed */
-
-.dict-entity-body table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-  margin-bottom: 0.75rem;
-}
-
-.dict-entity-body th,
-.dict-entity-body td {
-  padding: 0.3rem 0.5rem;
-  border: 1px solid var(--color-border);
-}
-
-.dict-entity-body th {
-  background: var(--color-surface-alt);
-}
 
 /* Examples accordion (dict variant) */
 .dict-examples {
@@ -3004,12 +2982,8 @@ button.changes-panel-item:hover {
 }
 
 /* Truncation happens in JS on a character budget, so this only has to keep the
-   preview on one line. Ligatures are off because `-->`, `=>` and `!=` inside a
-   JSON string kern into glyphs that misrepresent the underlying text. */
+   preview on one line. */
 .json-value-preview {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-variant-ligatures: none;
-  font-feature-settings: "calt" 0;
   font-size: 0.85em;
   white-space: nowrap;
   color: var(--color-text-muted);
@@ -3044,15 +3018,13 @@ button.changes-panel-item:hover {
 /* ── Highlighted code blocks (shiki) ──
    Two producers, one appearance: body code fences, highlighted at parse time
    by src/model/markdown-highlight.ts, and the expanded JSON document,
-   highlighted in the browser by src/app/logic/json-highlight.ts. */
+   highlighted in the browser by src/app/logic/json-highlight.ts. Fences
+   shiki leaves unhighlighted wear the same box through `.md pre`. */
 
-.shiki {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-variant-ligatures: none;
-  font-feature-settings: "calt" 0;
+.shiki,
+.md pre {
   font-size: 13px;
   line-height: 1.5;
-  margin: 0;
   overflow-x: auto;
   padding: 16px;
   background: var(--color-surface-alt);
@@ -3063,7 +3035,8 @@ button.changes-panel-item:hover {
 
 /* The global `code` rule paints a background and padding for inline snippets.
    Inside a block it repeats per line box and stripes the document. */
-.shiki code {
+.shiki code,
+.md pre code {
   background: none;
   padding: 0;
   border-radius: 0;
@@ -3087,6 +3060,206 @@ button.changes-panel-item:hover {
 .json-value-full .shiki {
   max-height: 60vh;
   overflow: auto;
+}
+
+
+.md {
+  line-height: 1.65;
+}
+
+.md p,
+.md ul,
+.md ol,
+.md pre,
+.md blockquote,
+.md table,
+.md .mermaid-diagram {
+  margin: 0 0 0.85em;
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.5em;
+}
+
+/* Rendered markdown gives tables no wrapper element, so the table is its own
+   scroll container; wide tables stay inside a modal's overflow-x: hidden. */
+.md table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.md th,
+.md td {
+  padding: 0.4em 0.75em;
+  border: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md th {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.md li + li {
+  margin-top: 0.3em;
+}
+
+.md li > ul,
+.md li > ol {
+  margin-top: 0.3em;
+  margin-bottom: 0;
+}
+
+.md :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.4em 0 0.5em;
+  color: var(--color-text);
+  font-weight: 600;
+  line-height: 1.3;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.md h1 { font-size: 1.4em; }
+.md h2 { font-size: 1.25em; }
+.md h3 { font-size: 1.1em; }
+.md h4 { font-size: 1em; }
+.md h5 { font-size: 0.9em; }
+.md h6 { font-size: 0.9em; color: var(--color-text-muted); }
+
+.md blockquote {
+  padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.md hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 1.4em 0;
+}
+
+.md img {
+  max-width: 100%;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child,
+.md :is(blockquote, li) > :last-child {
+  margin-bottom: 0;
+}
+
+/* ── Mermaid diagrams ── colours come from src/theme/mermaid-theme.ts; these
+   rules cover what Mermaid paints outside its variables. */
+
+.mermaid-diagram {
+  padding: 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow-x: auto;
+  text-align: center;
+  line-height: normal;
+  white-space: pre;
+}
+
+/* The escaped source sits in the div until the SVG replaces it. */
+.mermaid-diagram:not([data-source]) {
+  color: transparent;
+  user-select: none;
+}
+
+.mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  white-space: normal;
+}
+
+/* Mermaid measures labels outside the body, then places them here, where
+   `.md` margins and line-height would push the text out of its box. */
+.md .mermaid-diagram :is(p, ul, ol) {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.mermaid-diagram :is(.node, .cluster) :is(rect, polygon, circle, ellipse, path) {
+  stroke-width: 1px;
+}
+
+.mermaid-diagram .node rect,
+.mermaid-diagram rect.actor,
+.mermaid-diagram .labelBox,
+.mermaid-diagram rect.note {
+  rx: 6px;
+  ry: 6px;
+}
+
+.mermaid-diagram .cluster rect {
+  rx: 8px;
+  ry: 8px;
+}
+
+.mermaid-diagram .edgeLabel,
+.mermaid-diagram .edgeLabel :is(p, span) {
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: 4px;
+}
+
+/* Decisions and stores, tagged by tagFlowchartShapes in mermaid-render.ts.
+   `!important` beats Mermaid's own rules, which it scopes by the SVG's id. */
+.mermaid-diagram g.node.ignatius-decision > polygon {
+  fill: var(--badge-dependent-bg) !important;
+  stroke: var(--badge-dependent-fg) !important;
+}
+
+.mermaid-diagram g.node.ignatius-store > path {
+  fill: var(--badge-independent-bg) !important;
+  stroke: var(--badge-independent-fg) !important;
+}
+
+/* The end-state dot takes the node border colour, near-invisible on the node fill. */
+.mermaid-diagram g.node[id*="_end-"] g:not(.outer-path) > path:first-child {
+  fill: var(--color-text-muted) !important;
+}
+
+/* Mermaid derives ER row fills from `background` by lightness and ignores the
+   row variables; CSS outranks the presentation attribute it sets. */
+.mermaid-diagram g.row-rect-odd > path {
+  fill: var(--color-surface);
+}
+
+.mermaid-diagram g.row-rect-even > path {
+  fill: var(--color-surface-alt);
+}
+
+.mermaid-diagram.mermaid-error {
+  text-align: left;
+  white-space: normal;
+  border-color: var(--badge-dependent-fg);
+}
+
+.mermaid-diagram.mermaid-error pre {
+  margin: 0 0 0.75em;
+  padding: 0;
+  border: 0;
+  background: none;
+  white-space: pre-wrap;
+}
+
+.mermaid-error-message {
+  color: var(--badge-dependent-fg);
+  font-size: 0.9em;
 }
 
 /* ── CP7: Entity ↔ Process cross-reference ── */
@@ -3217,6 +3390,16 @@ a.dict-link-missing:hover {
 }
 
 /* Side nav panel */
+.dict-nav-panel,
+.dict-nav-tab {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+  z-index: 40;
+}
+
 .dict-nav-panel {
   position: fixed;
   top: 72px;
@@ -3224,12 +3407,6 @@ a.dict-link-missing:hover {
   width: 280px;
   max-height: 80vh;
   overflow-y: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
-  z-index: 40;
   transform: translateX(100%);
   transition: transform 200ms ease;
 }
@@ -3238,8 +3415,93 @@ a.dict-link-missing:hover {
   transform: translateX(0);
 }
 
+.dict-nav-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dict-nav-title,
+.dict-nav-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dict-nav-title {
+  color: var(--color-text-muted);
+}
+
+.dict-nav-close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dict-nav-close:hover {
+  color: var(--color-text);
+  background: var(--color-surface-alt);
+}
+
 .dict-nav-inner {
-  padding: 0.75rem 0;
+  padding: 0.25rem 0 0.75rem;
+}
+
+.dict-nav-tab {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 10px;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transform: translate(50%, -50%);
+  transition: transform 150ms ease, color 150ms ease;
+}
+
+.dict-nav-tab:hover,
+.dict-nav-tab:focus-visible {
+  color: var(--color-text);
+  transform: translate(0, -50%);
+}
+
+.dict-nav-tab:focus-visible {
+  outline: 2px solid var(--color-link);
+  outline-offset: -2px;
+}
+
+.dict-nav-tab-icon {
+  width: 16px;
+  height: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dict-nav-tab {
+    transition: none;
+  }
 }
 
 .dict-nav-group {
@@ -3251,10 +3513,6 @@ a.dict-link-missing:hover {
 }
 
 .dict-nav-group-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   padding: 0.25rem 1rem 0.35rem;
 }
 
@@ -3325,7 +3583,8 @@ a.dict-link-missing:hover {
     flex-wrap: wrap;
   }
 
-  .dict-nav-panel {
+  .dict-nav-panel,
+  .dict-nav-tab {
     display: none;
   }
 }
@@ -3362,7 +3621,7 @@ a.dict-link-missing:hover {
 
 .graph-error-fallback-box pre {
   font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   background: rgba(0, 0, 0, 0.25);
   padding: 10px 14px;
   border-radius: 6px;
@@ -3428,7 +3687,6 @@ a.dict-link-missing:hover {
   color: var(--color-text-muted);
   font-size: 0.88rem;
 }
-.flow-node-body p { margin-bottom: 0.25rem; }
 
 /* Process-specific: adds a visual separator above the body */
 .flow-node-body--process {
@@ -3436,9 +3694,6 @@ a.dict-link-missing:hover {
   padding-top: 0.75rem;
   margin-top: 0.75rem;
 }
-.flow-node-body--process p { margin-bottom: 0.5rem; }
-.flow-node-body--process ul,
-.flow-node-body--process ol { padding-left: 1.25rem; margin-bottom: 0.5rem; }
 
 /* Store sections */
 .flow-stores { margin-bottom: 2rem; }
@@ -3649,7 +3904,7 @@ a.dict-link-missing:hover {
 
 .dict-grid-card-pk-col {
   font-size: 0.72rem;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--color-text-muted);
   background: var(--color-background);
   border: 1px solid var(--color-border);
@@ -3674,7 +3929,7 @@ a.dict-link-missing:hover {
 /* Process card: dotted number rendered as a small mono prefix. */
 .dict-flow-card-number {
   font-size: 0.72rem;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-family: var(--font-mono);
   color: var(--color-text-muted);
   letter-spacing: 0.02em;
 }
@@ -3927,6 +4182,7 @@ a.dict-link-missing:hover {
   .dict-search-bar,
   .viewer-search-bar,
   .dict-nav-panel,
+  .dict-nav-tab,
   .findings-panel,
   .changes-panel,
   .theme-toggle,

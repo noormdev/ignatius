@@ -50,6 +50,40 @@ While serving, a findings panel lists any schema problems and updates on every s
 `serve` also diffs the model against the last approved state and marks what changed in all three views, with a Changes panel that lists each change beside the note that explains it. See [Change review](change-review.md).
 
 
+### Settings
+
+
+The FAB menu (the round button, bottom right) has a **Settings** item in every view, in `serve` and in an exported file. It opens a dialog of viewer preferences, saved in the browser's localStorage under `ignatius-settings` so they survive a reload.
+
+| Setting | Default | Effect |
+|---|---|---|
+| Always open examples | off | Opens every example table, in the Dictionary, the entity dialog, and process dialogs. Off, a table opens only when it has 3 rows or fewer. |
+
+
+### Dictionary sidebar
+
+
+The Dictionary's contents sidebar opens from the **Sidebar** tab on the right edge of the screen or from the FAB's **Toggle sidebar** item. The browser remembers whether it was open, so a reload keeps it that way. The tab sits half off-screen until you hover or focus it, and it disappears while the sidebar is open. The close button at the top of the sidebar closes it and brings the tab back. Like the sidebar itself, the tab is hidden on screens 768px wide or narrower and in print.
+
+The Dictionary and its sidebar each keep their scroll position, per browser tab, through a model reload after a save, a switch to another view and back, and a page refresh. Opening a process from an entity dialog still scrolls to that process.
+
+
+### Export HTML
+
+
+The FAB's **Export HTML** item downloads the model as one HTML file, as you see it now. It appears in every view while serving, and not in an exported file, because it needs the server. The file is the same as `ignatius export` produces, plus your view state, and is named after the model (`key-inherited.html` for a model named "Key-Inherited").
+
+What travels with the file:
+
+- Your graph and flow arrangements for this model: node positions and hidden entities. Arrangements of other models served from the same address stay out.
+- Your preferences: theme, graph layout mode, minimap, Dictionary lens, sidebar open state, flow view and collapse level, and Settings.
+- The URL hash, so the file opens on the view, diagram, or entity you had open.
+
+Scroll positions do not travel. On a failure, the server's error message shows beside the FAB.
+
+The view state applies once, the first time a browser opens that export. It replaces the recipient's preferences, including clearing ones the export did not carry, and merges the arrangements in beside any other models the recipient has opened. The hash is set only when the URL has none. Reloading the same file afterwards keeps whatever the recipient changed since; a new export with different state applies again.
+
+
 ## export
 
 
@@ -60,6 +94,8 @@ ignatius export [path] -o model.html [--theme light|dark] [--model <key>]
 ```
 
 `-o` is required; omitting it prints an error and exits `1`.
+
+To export what you see in `serve`, with your arrangement, hidden entities, and preferences, use the FAB's [Export HTML](#export-html) item instead.
 
 The file includes the Graph, Dictionary, and Flows views with full interactivity: view switching, live Dictionary search, entity dialog, theme toggle, and graph and flow node-position persistence — all offline, from `file://`. The export injects both the entity model and the flow model, so both position-restore keys work without a server.
 
@@ -181,6 +217,12 @@ Shortcuts are ignored while typing in a search box or any other input, and when 
 
 
 Every view has a `?` button in the top bar, next to the light/dark toggle. It opens a short, view-aware overview — what you are looking at, how to explore it, and the keys that work here. The Graph explains entity types and key-inheritance lineage; the Dictionary explains its lenses and spotlight; the Flows view explains DFD symbols, drill-down, the flow index, and the breadcrumb level menus. Press `?` or click the button; press Escape or click outside to close. For the exact diagram symbols, use the **Legend** instead.
+
+
+### Dialogs
+
+
+Every dialog (entity, process, groups, legend, help, settings) keeps keyboard focus inside itself while it is open. Opening one focuses its close button. `Tab` and `Shift` + `Tab` cycle through the dialog's controls and wrap at either end, and focus that lands behind the dialog moves back into it. Escape closes the dialog and returns focus to the control that opened it. When one dialog opens another, such as a JSON value expanded from an entity dialog, only the top one responds to Tab and Escape.
 
 
 ### Zoom

@@ -6,6 +6,7 @@ paths:
   - "src/model/model-index.ts"
   - "src/model/change-review.ts"
   - "src/model/change-store.ts"
+  - "src/model/markdown-mermaid.ts"
 ---
 
 Domain: parser. `ignatius.yml` config loading → ParseResult: {model, globalErrors}; nodes, edges, cardinality + classification derivation; wiki-link inline rule + two-pass body rendering (`linkStateNeutral`); `buildModelIndex` lookup maps; change review: `change-review.ts` diffs model + flows against the approved baseline kept by `change-store.ts` and cross-checks agent change notes

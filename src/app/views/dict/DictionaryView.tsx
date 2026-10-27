@@ -22,6 +22,7 @@ import { buildFlowSpotlightConnections } from '../../logic/flow-spotlight';
 import { buildInheritedConnections } from '../../logic/spotlight-inherited';
 import { animationsAllowed, createHoverIntent, scrollBehaviorWithin } from '../../logic/motion';
 import { buildFlowDocResolver } from '../../logic/doc-resolver';
+import { useScrollMemory } from '../../hooks/useScrollMemory';
 import type { FlowDocResult } from '../../logic/doc-resolver';
 import { SpotlightOverlay } from '../../components/entity/SpotlightOverlay';
 import { EntityCard } from '../../components/entity/EntityCard';
@@ -68,6 +69,7 @@ interface DictionaryViewProps {
   onSearchChange: (v: string) => void;
   dictNavOpen: boolean;
   onToggleNav: () => void;
+  active: boolean;
   onOpenEntity: (id: string) => void;
   themeMode: 'dark' | 'light';
   /** Changes to mark; null hides every marker and the Removed section. */
@@ -86,6 +88,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   onSearchChange,
   dictNavOpen,
   onToggleNav,
+  active,
   onOpenEntity,
   themeMode,
   changeReview,
@@ -124,6 +127,27 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   // Ref to the dict search input — focused by the `/` keyboard shortcut via
   // DictionaryViewHandle.focusSearch().
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const navTabRef = useRef<HTMLButtonElement>(null);
+  const navCloseRef = useRef<HTMLButtonElement>(null);
+  // Set only by the tab and close button, so a reload or the FAB toggle leaves focus where it is.
+  const navFocusPendingRef = useRef(false);
+
+  function toggleNavFromButton() {
+    navFocusPendingRef.current = true;
+    onToggleNav();
+  }
+
+  const dictViewRef = useRef<HTMLDivElement>(null);
+  const navPanelRef = useRef<HTMLElement>(null);
+  useScrollMemory(dictViewRef, 'ignatius-scroll-dict', [active, model]);
+  useScrollMemory(navPanelRef, 'ignatius-scroll-dict-nav', [dictNavOpen, model]);
+
+  useEffect(() => {
+    if (!navFocusPendingRef.current) return;
+    navFocusPendingRef.current = false;
+    (dictNavOpen ? navCloseRef : navTabRef).current?.focus({ preventScroll: true });
+  }, [dictNavOpen]);
 
   function switchLens(next: 'read' | 'browse') {
     try {
@@ -850,9 +874,17 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     <>
       {/* Side nav panel — entity groups + process nav */}
       <nav
+        ref={navPanelRef}
         className={`dict-nav-panel${dictNavOpen ? ' dict-nav-open' : ''}`}
         aria-label="Entity and process navigation"
+        inert={!dictNavOpen}
       >
+        <div className="dict-nav-header">
+          <span className="dict-nav-title">Contents</span>
+          <button ref={navCloseRef} type="button" className="dict-nav-close" onClick={toggleNavFromButton} aria-label="Close sidebar">
+            ×
+          </button>
+        </div>
         <div className="dict-nav-inner">
           {groupOrder.map(key => {
             const cfg = model.groups[key];
@@ -928,6 +960,15 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
         </div>
       </nav>
 
+      {!dictNavOpen && (
+        <button ref={navTabRef} type="button" className="dict-nav-tab" onClick={toggleNavFromButton} aria-label="Open sidebar">
+          <svg className="dict-nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          Sidebar
+        </button>
+      )}
+
       {/* CP17: Fixed top search bar — frosted, centered, sits above scrolled content. */}
       <div className="dict-search-bar">
         <div className="dict-search-bar-inner">
@@ -966,6 +1007,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
 
       {/* Main dict content */}
       <div
+        ref={dictViewRef}
         className="dict-view"
         data-ignatius="dict-view"
         data-motion={animationsAllowed(totalVisible + totalFlowVisible) ? undefined : 'off'}
@@ -1296,7 +1338,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                     <h1 className="dict-group-title" style={{ color: cfg.color }}>{cfg.label}</h1>
                     {cfg.desc && (
                       <div
-                        className="dict-group-desc"
+                        className="dict-group-desc md"
                         dangerouslySetInnerHTML={{ __html: cfg.desc }}
                       />
                     )}
@@ -1424,7 +1466,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                     <ExternalCard key={ext.id} external={ext}>
                       {ext.bodyHtml && (
                         <div
-                          className="dict-entity-body"
+                          className="dict-entity-body md"
                           dangerouslySetInnerHTML={{ __html: ext.bodyHtml }}
                           onClick={handleDdBodyClick}
                         />
@@ -1446,7 +1488,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                       <StoreCard key={store.name} store={store}>
                         {store.bodyHtml && (
                           <div
-                            className="dict-entity-body"
+                            className="dict-entity-body md"
                             dangerouslySetInnerHTML={{ __html: store.bodyHtml }}
                             onClick={handleDdBodyClick}
                           />

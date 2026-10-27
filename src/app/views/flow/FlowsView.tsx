@@ -12,6 +12,7 @@ import { StackDialog } from '../../components/flow-node/StackDialog';
 import { resolveFlowKindPalette } from '../../../theme/theme-defaults';
 import type { ThemeConfig } from '../../../theme/theme-defaults';
 import { createLayoutStore } from '../graph/layout-store';
+import { FLOW_LAYOUT_STORAGE_KEY } from '../../logic/storage-keys';
 import type { PositionMap } from '../graph/layout-store';
 import { buildAllFlowNodeIds } from '../../logic/flow-node-ids';
 import { buildFlowDocResolver } from '../../logic/doc-resolver';
@@ -315,7 +316,7 @@ export function initFlowGraphCore(
   const flowLayoutStore = createLayoutStore(
     globalThis.localStorage,
     undefined,
-    'ignatius-flow-layout-positions',
+    FLOW_LAYOUT_STORAGE_KEY,
   );
 
   // Breadcrumb stack: array of { diagram, label } from the selected top-level DFD down.

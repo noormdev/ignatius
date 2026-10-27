@@ -9,6 +9,7 @@ import { parse as parseYaml } from 'yaml';
 import MarkdownIt from 'markdown-it';
 import { wikiLinkPlugin } from '../model/wikilink';
 import { highlightCodeFence } from '../model/markdown-highlight';
+import { mermaidFencePlugin } from '../model/markdown-mermaid';
 
 export const md = new MarkdownIt({ highlight: highlightCodeFence });
 // `[[Target]]` links in flow markdown (process / external / store / cluster
@@ -17,6 +18,7 @@ export const md = new MarkdownIt({ highlight: highlightCodeFence });
 // navigable anchor and the flow viewer resolves it at click time across flow
 // nodes + ERD entities.
 md.use(wikiLinkPlugin);
+md.use(mermaidFencePlugin);
 
 export function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null && !Array.isArray(v);

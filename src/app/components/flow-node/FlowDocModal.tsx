@@ -11,7 +11,7 @@ export function FlowDocModal({ doc, onClose, onNavigate }: {
   return (
     <Modal title={doc.title.replace(/_/g, ' ')} onClose={onClose}>
       <div
-        className="doc-body"
+        className="doc-body md"
         onClick={e => {
           // Injected HTML can't carry React handlers — delegate clicks on
           // `[[…]]` anchors through the same navigation path.

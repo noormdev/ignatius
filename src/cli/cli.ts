@@ -4,9 +4,10 @@ import { existsSync } from 'node:fs';
 import { serveWithPortFallback } from './serve-port';
 import { parseModels } from '../model/parse';
 import { pickModel } from './resolve-model';
-// Static on purpose: lazy-importing this module, which server.ts imports statically,
-// makes the compiled binary throw `__promiseAll is not defined` at startup.
-import { approve, readReview } from '../model/change-store';
+// Static on purpose: lazy-importing change-store or export-model, which server.ts imports
+// statically, makes the compiled binary throw `__promiseAll is not defined` at startup.
+import { approve } from '../model/change-store';
+import { exportModel } from '../generators/export-model';
 import { VERSION } from './version';
 import type { RouterFile } from '../router/build';
 
@@ -312,37 +313,6 @@ const exportCmd = defineCommand({
     const dir = await pickModel(base, args.model);
     const mode = args.theme === 'light' ? 'light' : 'dark';
 
-    // Parse entity model.
-    const { model, globalErrors: parseGlobalErrors } = await parseModels(dir);
-    const { validateModel, formatFindingsForStderr, RULES } = await import('../model/validate');
-    const validation = validateModel(model);
-    const allGlobalErrors = [...parseGlobalErrors, ...validation.globalErrors];
-
-    // Parse and validate flows when a flows/ directory exists.
-    let flowModel: import('../flows/flow-parse').FlowModel | null = null;
-    let flowErrors: import('../flows/flow-validate').FlowError[] = [];
-    let hasClassBFlowErrors = false;
-    const flowsDir = `${dir}/flows`;
-    if (existsSync(flowsDir)) {
-      const { parseFlows } = await import('../flows/flow-parse');
-      const { validateFlows } = await import('../flows/flow-validate');
-      const parsed = await parseFlows(dir);
-      allGlobalErrors.push(...parsed.globalErrors);
-      flowModel = parsed.flowModel;
-      const flowConfig = model._meta?.flowRules;
-      const flowValidation = validateFlows(flowModel, model, flowConfig);
-      flowErrors = flowValidation.flowErrors;
-      // Class B is the authoritative exit signal — derived from the rule registry,
-      // not from the severity field, so the two cannot silently diverge.
-      hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
-    }
-
-    // Print all findings to stderr before writing output.
-    const stderrLines = formatFindingsForStderr(allGlobalErrors, validation.entityErrors, flowErrors);
-    for (const line of stderrLines) {
-      process.stderr.write(line + '\n');
-    }
-
     // Load the embedded React bundle.
     let bundle: import('../generators/embedded-bundle').BundleContent;
     try {
@@ -358,17 +328,19 @@ const exportCmd = defineCommand({
       process.exit(1);
     }
 
-    const { generateApp } = await import('../generators/app');
-    const review = await readReview(dir, model).catch((err: unknown) => {
-      process.stderr.write(`ignatius: could not build the change review: ${err instanceof Error ? err.message : String(err)}\n`);
-      return null;
-    });
-    const html = await generateApp(model, flowModel, bundle, { themeMode: mode, review });
+    const { html, globalErrors, entityErrors, flowErrors } = await exportModel(dir, bundle, { themeMode: mode });
+    const { formatFindingsForStderr, RULES } = await import('../model/validate');
+    for (const line of formatFindingsForStderr(globalErrors, entityErrors, flowErrors)) {
+      process.stderr.write(line + '\n');
+    }
+    // Class B is the authoritative exit signal — derived from the rule registry,
+    // not from the severity field, so the two cannot silently diverge.
+    const hasClassBFlowErrors = flowErrors.some(e => RULES[e.ruleId].class === 'B');
     await Bun.write(outputPath, html);
     console.log(`Wrote export to ${outputPath}`);
 
     // Exit 1 when any entity global/Class-B OR flow Class-B errors are present.
-    process.exit(allGlobalErrors.length > 0 || hasClassBFlowErrors ? 1 : 0);
+    process.exit(globalErrors.length > 0 || hasClassBFlowErrors ? 1 : 0);
   },
 });
 

@@ -26,6 +26,9 @@ export interface FabMenuProps {
   onSetView: (v: ViewName) => void;
   onShowLegend: () => void;
   onShowGroups: () => void;
+  onShowSettings: () => void;
+  /** Present in live mode only: a static export has no server to export from. */
+  onExportHtml?: () => Promise<void>;
   onToggleMinimap: () => void;
   onToggleLayoutMode: () => void;
   onResetLayout: () => void;
@@ -45,6 +48,8 @@ export function FabMenu({
   onSetView,
   onShowLegend,
   onShowGroups,
+  onShowSettings,
+  onExportHtml,
   onToggleMinimap,
   onToggleLayoutMode,
   onResetLayout,
@@ -53,7 +58,8 @@ export function FabMenu({
   onCycleCollapseLevel,
 }: FabMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [copyConfirm, setCopyConfirm] = useState(false);
+  const [toast, setToast] = useState('');
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -86,11 +92,34 @@ export function FabMenu({
     };
   }, [menuOpen]);
 
+  useEffect(() => () => {
+    if (toastTimerRef.current !== null) clearTimeout(toastTimerRef.current);
+  }, []);
+
+  function showToast(message: string, ms: number) {
+    if (toastTimerRef.current !== null) clearTimeout(toastTimerRef.current);
+    setToast(message);
+    toastTimerRef.current = setTimeout(() => setToast(''), ms);
+  }
+
   function handleCopyLink() {
     navigator.clipboard.writeText(window.location.href).then(() => {
-      setCopyConfirm(true);
       setMenuOpen(false);
-      setTimeout(() => setCopyConfirm(false), 1500);
+      showToast('Copied!', 1500);
+    });
+  }
+
+  // Modal returns focus to whatever held it on mount; the clicked item unmounts with the menu.
+  function openDialog(open: () => void) {
+    setMenuOpen(false);
+    fabRef.current?.focus();
+    open();
+  }
+
+  function handleExportHtml(exportHtml: () => Promise<void>) {
+    setMenuOpen(false);
+    exportHtml().catch((err: unknown) => {
+      showToast(err instanceof Error ? err.message : String(err), 5000);
     });
   }
 
@@ -149,7 +178,7 @@ export function FabMenu({
             <button
               className="fab-menu-item"
               role="menuitem"
-              onClick={() => { setMenuOpen(false); onShowLegend(); }}
+              onClick={() => openDialog(onShowLegend)}
             >
               Legend
             </button>
@@ -161,7 +190,7 @@ export function FabMenu({
                 <button
                   className="fab-menu-item"
                   role="menuitem"
-                  onClick={() => { setMenuOpen(false); onShowGroups(); }}
+                  onClick={() => openDialog(onShowGroups)}
                 >
                   Groups
                 </button>
@@ -225,6 +254,22 @@ export function FabMenu({
               Toggle sidebar
             </button>
           )}
+          <button
+            className="fab-menu-item"
+            role="menuitem"
+            onClick={() => openDialog(onShowSettings)}
+          >
+            Settings
+          </button>
+          {onExportHtml && (
+            <button
+              className="fab-menu-item"
+              role="menuitem"
+              onClick={() => handleExportHtml(onExportHtml)}
+            >
+              Export HTML
+            </button>
+          )}
           {/* Copy link — graph, dict, and flow */}
           {(view === 'graph' || view === 'dict' || view === 'flow') && (
             <button
@@ -237,9 +282,7 @@ export function FabMenu({
           )}
         </div>
       )}
-      {copyConfirm && (
-        <div className="fab-copy-toast">Copied!</div>
-      )}
+      <div className="fab-toast" role="status">{toast}</div>
     </>
   );
 }

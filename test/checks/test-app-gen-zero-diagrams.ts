@@ -42,6 +42,7 @@ const stubBundle: BundleContent = {
         '</body></html>',
     cssContent: '/* stub css */',
     jsContent: '/* stub js */',
+    mermaidJs: '',
 };
 
 // ── Minimal model fixture (structure only — no real entities needed) ──────────

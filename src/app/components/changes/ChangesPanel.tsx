@@ -196,7 +196,7 @@ export function ChangesPanel({
             {notes.map(note => (
               <article key={note.file} className="changes-panel-note">
                 <h4>{note.title}</h4>
-                <div className="doc-body" dangerouslySetInnerHTML={{ __html: note.bodyHtml }} />
+                <div className="doc-body md" dangerouslySetInnerHTML={{ __html: note.bodyHtml }} />
                 {itemList(items.filter(item => item.notes.includes(note.file)))}
               </article>
             ))}

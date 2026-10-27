@@ -18,6 +18,8 @@ import { buildAllFlowNodeIds } from './logic/flow-node-ids';
 import { entityMatches, searchFlowDiagrams } from './logic/search';
 import { Modal } from './components/ui/Modal';
 import { HelpModal } from './components/ui/HelpModal';
+import { SettingsModal } from './components/ui/SettingsModal';
+import { downloadExport } from './logic/view-state';
 import { ZoomControl } from './components/ui/ZoomControl';
 import { GraphEditBar } from './components/ui/GraphEditBar';
 import { loadLayoutMode, nextLayoutMode } from './views/graph/graph-edits';
@@ -41,6 +43,7 @@ import { FabMenu } from './components/ui/FabMenu';
 import { useModelData } from './hooks/useModelData';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useThemeMode } from './hooks/useThemeMode';
+import { useMermaid } from './hooks/useMermaid';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { scrollBehaviorWithin } from './logic/motion';
 
@@ -112,6 +115,8 @@ export function App() {
   });
 
   const { themeMode, toggleTheme } = useThemeMode(model?.theme, model);
+  const appRef = useRef<HTMLDivElement>(null);
+  useMermaid(appRef, model, themeMode);
 
   // Zoom readout for the Flows view ZoomControl — updated by FlowsView via onZoomPercentChange.
   const [flowZoomPercent, setFlowZoomPercent] = useState(100);
@@ -121,6 +126,7 @@ export function App() {
   const [showGroups, setShowGroups] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [minimapOpen, setMinimapOpen] = useState(() => {
     return localStorage.getItem('ignatius-minimap') === 'true';
   });
@@ -137,7 +143,11 @@ export function App() {
   const pendingChangeDiagramRef = useRef<string | null>(null);
   // Dictionary state — keep-mounted so search text + scroll survive view switches.
   const [dictSearchText, setDictSearchText] = useState('');
-  const [dictNavOpen, setDictNavOpen] = useState(false);
+  const [dictNavOpen, setDictNavOpen] = useState(() => localStorage.getItem('ignatius-dict-nav-open') === 'true');
+  useEffect(() => {
+    if (dictNavOpen) localStorage.setItem('ignatius-dict-nav-open', 'true');
+    else localStorage.removeItem('ignatius-dict-nav-open');
+  }, [dictNavOpen]);
   // Graph search state (graph-flow-search CP2) — term + includeBody, survive
   // view switches the same way dictSearchText does (shell-owned useState, not
   // reset on unmount since GraphView stays mounted across view switches).
@@ -613,7 +623,7 @@ export function App() {
   modelIndexRef.current = modelIndex;
 
   return (
-    <div className="app">
+    <div className="app" ref={appRef}>
       {/* ── ERD surface chrome (hidden on flow surface) ── */}
       {bannerVisible && (
         <div className="graph-global-banner" role="alert" ref={bannerRef}>
@@ -695,6 +705,7 @@ export function App() {
             onSearchChange={setDictSearchText}
             dictNavOpen={dictNavOpen}
             onToggleNav={() => setDictNavOpen(prev => !prev)}
+            active={view === 'dict'}
             onOpenEntity={id => openEntityById(id)}
             themeMode={themeMode}
             changeReview={shownChanges}
@@ -823,6 +834,8 @@ export function App() {
         onSetView={setView}
         onShowLegend={() => setShowLegend(true)}
         onShowGroups={() => setShowGroups(true)}
+        onShowSettings={() => setShowSettings(true)}
+        onExportHtml={window.__IGNATIUS_MODE__ === 'static' ? undefined : downloadExport}
         onToggleMinimap={toggleMinimapOpen}
         onToggleLayoutMode={handleToggleLayoutMode}
         onToggleFlowView={handleToggleFlowView}
@@ -842,7 +855,7 @@ export function App() {
                 <strong>{cfg.label}</strong>
               </div>
               {cfg.desc && (
-                <div className="doc-body" dangerouslySetInnerHTML={{ __html: cfg.desc }} />
+                <div className="doc-body md" dangerouslySetInnerHTML={{ __html: cfg.desc }} />
               )}
             </div>
           ))}
@@ -850,6 +863,7 @@ export function App() {
       )}
       {showLegend && <LegendModal onClose={() => setShowLegend(false)} view={view} themeMode={themeMode} kindPalette={resolveFlowKindPalette(themeMode, model?.theme?.flowKinds)} />}
       {showHelp && <HelpModal view={view} onClose={() => setShowHelp(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {selected && showEntityModal && (
         <EntityModal
           selected={selected}

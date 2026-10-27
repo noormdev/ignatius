@@ -104,7 +104,7 @@ function StackDialogExtra({ node, clusters, groups, processLabelById, onOpenEnti
     return (
       <div className="doc-section">
         <h2>About</h2>
-        <div className="doc-body" dangerouslySetInnerHTML={{ __html: cluster.bodyHtml }} />
+        <div className="doc-body md" dangerouslySetInnerHTML={{ __html: cluster.bodyHtml }} />
       </div>
     );
   }

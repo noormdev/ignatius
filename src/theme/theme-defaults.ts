@@ -1,3 +1,5 @@
+import type { MermaidThemeConfig } from './mermaid-theme';
+
 export type ThemePalette = {
   background: string;
   surface: string;
@@ -123,6 +125,10 @@ export type ThemeConfig = {
   spacing: ThemeSpacing;
   /** Per-kind DFD store/external colors. Partial overrides are deep-merged over defaults. */
   flowKinds?: Partial<Record<FlowKindKey, Partial<{ dark: Partial<FlowKindEntry>; light: Partial<FlowKindEntry> }>>>;
+  /** Per-mode Mermaid `themeVariables` overrides; read through resolveMermaidThemeVariables(). */
+  mermaid?: MermaidThemeConfig;
+  /** ignatius.yml key paths dropped from `theme.mermaid`; validateModel reports each one. */
+  invalidMermaidKeys?: string[];
 };
 
 export const defaultTheme: ThemeConfig = {
@@ -158,6 +164,7 @@ export function mergeTheme(partial: Partial<{
   light: Partial<ThemePalette>;
   spacing: Partial<ThemeSpacing>;
   flowKinds: Partial<Record<FlowKindKey, Partial<{ dark: Partial<FlowKindEntry>; light: Partial<FlowKindEntry> }>>>;
+  mermaid: unknown;
 }>): ThemeConfig {
   // Carried through as the user's RAW overrides — deliberately NOT merged against
   // the defaults here. `resolveFlowKindPalette()` does that merge per mode, at the
@@ -167,12 +174,47 @@ export function mergeTheme(partial: Partial<{
   const mergedFlowKinds: ThemeConfig['flowKinds'] = partial.flowKinds
     ? { ...partial.flowKinds }
     : undefined;
+  const { mermaid, invalidKeys } = readMermaidTheme(partial.mermaid);
   return {
     dark: { ...defaultTheme.dark, ...(partial.dark ?? {}) },
     light: { ...defaultTheme.light, ...(partial.light ?? {}) },
     spacing: { ...defaultTheme.spacing, ...(partial.spacing ?? {}) },
     ...(mergedFlowKinds !== undefined ? { flowKinds: mergedFlowKinds } : {}),
+    ...(mermaid !== undefined ? { mermaid } : {}),
+    ...(invalidKeys.length > 0 ? { invalidMermaidKeys: invalidKeys } : {}),
   };
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+// Mermaid writes themeVariables into the SVG's <style> unsanitized. This is its own directive
+// pattern plus `-`, which generic font names need and which cannot end a declaration.
+export const SAFE_MERMAID_VALUE = /^[\d "#%(),.;A-Za-z-]+$/;
+
+/** Keep the numbers and pattern-safe strings of a raw `theme.mermaid` block; `invalidKeys` lists
+ *  each dropped part by its ignatius.yml key path. */
+function readMermaidTheme(raw: unknown): { mermaid?: MermaidThemeConfig; invalidKeys: string[] } {
+  if (raw === undefined) return { invalidKeys: [] };
+  if (!isPlainObject(raw)) return { invalidKeys: ['theme.mermaid'] };
+  const mermaid: MermaidThemeConfig = {};
+  const invalidKeys: string[] = [];
+  for (const mode of ['dark', 'light'] satisfies ThemeMode[]) {
+    const block = raw[mode];
+    if (block === undefined) continue;
+    if (!isPlainObject(block)) {
+      invalidKeys.push(`theme.mermaid.${mode}`);
+      continue;
+    }
+    const kept: Record<string, string | number> = {};
+    for (const [key, value] of Object.entries(block)) {
+      if (typeof value === 'number' || (typeof value === 'string' && SAFE_MERMAID_VALUE.test(value))) kept[key] = value;
+      else invalidKeys.push(`theme.mermaid.${mode}.${key}`);
+    }
+    mermaid[mode] = kept;
+  }
+  return { mermaid, invalidKeys };
 }
 
 /**
