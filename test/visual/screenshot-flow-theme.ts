@@ -13,6 +13,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp');
@@ -91,18 +92,6 @@ async function selectFlowDiagram(diagramId: string): Promise<void> {
   await assertFlowReady(`after selecting DFD "${diagramId}"`);
 }
 
-/** Click the theme-toggle button. Works on both the ERD view (.theme-toggle)
- *  and the flow view (FlowChrome inline button with title attribute). */
-async function toggleTheme(): Promise<void> {
-  // The ERD view uses .theme-toggle; the FlowChrome uses title="Switch to light mode"
-  // or title="Switch to dark mode" without a class name. Match by title attribute.
-  const byTitle = page.locator('button[title="Switch to light mode"], button[title="Switch to dark mode"]');
-  const count = await byTitle.count();
-  if (count === 0) fail('Theme toggle button not found (tried title="Switch to light/dark mode")');
-  await byTitle.first().click();
-  await page.waitForTimeout(400);
-}
-
 /** Return the background color of the flow SVG element. */
 async function svgBackground(): Promise<string> {
   return page.evaluate(() => {
@@ -155,7 +144,7 @@ try {
   }
 
   // ── 2. Toggle to light mode, verify re-theme ─────────────────────────────
-  await toggleTheme();
+  await toggleTheme(page);
 
   const lightShot = join(TMP, 'flow-theme-light.png');
   await page.screenshot({ path: lightShot });
@@ -178,7 +167,7 @@ try {
   note('Theme toggle re-themed the DFD (background changed)');
 
   // ── 3. Toggle back to dark, select second DFD, toggle theme — verify DFD preserved ──
-  await toggleTheme();  // back to dark
+  await toggleTheme(page);  // back to dark
   await page.waitForTimeout(300);
 
   // Get the first DFD id and check for a second one
@@ -196,7 +185,7 @@ try {
     note(`Selected DFD "refund" confirmed`);
 
     // Toggle theme — selected DFD must be preserved
-    await toggleTheme();
+    await toggleTheme(page);
     await page.waitForTimeout(400);
 
     const afterToggle = await activeDfd();

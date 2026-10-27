@@ -22,7 +22,7 @@ import { SettingsModal } from './components/ui/SettingsModal';
 import { downloadExport } from './logic/view-state';
 import { ZoomControl } from './components/ui/ZoomControl';
 import { GraphEditBar } from './components/ui/GraphEditBar';
-import { loadLayoutMode, nextLayoutMode } from './views/graph/graph-edits';
+import { loadLayoutMode, nextLayoutMode, prevLayoutMode } from './views/graph/graph-edits';
 import { createLayoutStore } from './views/graph/layout-store';
 import type { GraphEditState } from './views/graph/graph-edits';
 import { SearchBar } from './components/ui/SearchBar';
@@ -39,7 +39,7 @@ import { DictionaryView } from './views/dict/DictionaryView';
 import type { DictionaryViewHandle } from './views/dict/DictionaryView';
 import { GraphView } from './views/graph/GraphView';
 import type { GraphViewHandle, LayoutMode } from './views/graph/GraphView';
-import { FabMenu } from './components/ui/FabMenu';
+import { FabMenu, type FabMenuHandle } from './components/ui/FabMenu';
 import { useModelData } from './hooks/useModelData';
 import { useHashRoute } from './hooks/useHashRoute';
 import { useThemeMode } from './hooks/useThemeMode';
@@ -52,6 +52,7 @@ export function App() {
   // Handle to GraphView — provides navigateToEntity, panelNavigate, resetLayout,
   // applyLayoutMode, zoom ops, retheme.
   const graphViewRef = useRef<GraphViewHandle>(null);
+  const fabMenuRef = useRef<FabMenuHandle>(null);
   // Minimap container: rendered in shell JSX, ref passed down to GraphView.
   const minimapRef = useRef<HTMLDivElement>(null);
   // Global-error banner: ref used ONLY to measure its rendered height (see the
@@ -114,7 +115,7 @@ export function App() {
     onRestoreCollapseLevel: (l) => setCollapseLevel(l),
   });
 
-  const { themeMode, toggleTheme } = useThemeMode(model?.theme, model);
+  const { themeMode, setTheme } = useThemeMode(model?.theme, model);
   const appRef = useRef<HTMLDivElement>(null);
   useMermaid(appRef, model, themeMode);
 
@@ -373,10 +374,18 @@ export function App() {
     localStorage.setItem('ignatius-layout-mode', mode);
   }
 
-  function handleToggleLayoutMode() {
-    const next = nextLayoutMode(layoutMode);
+  function applyLayoutMode(next: LayoutMode) {
     storeLayoutMode(next);
     graphViewRef.current?.applyLayoutMode(next);
+  }
+
+  function handleToggleLayoutMode() {
+    applyLayoutMode(nextLayoutMode(layoutMode));
+  }
+
+  function handleResetLayout() {
+    if (view === 'graph') graphViewRef.current?.resetLayout();
+    else if (view === 'flow') flowsViewRef.current?.resetLayout();
   }
 
   // Keyboard-zoom (Cmd/Ctrl +/-/0) routes to the ACTIVE view's canvas zoom
@@ -430,6 +439,11 @@ export function App() {
     onRedo: () => graphViewRef.current?.redo(),
     onToggleSelectMode: () => graphViewRef.current?.toggleSelectMode(),
     onHideSelection: () => graphViewRef.current?.hideSelection(),
+    onHideSelectionGroups: () => graphViewRef.current?.hideSelectionGroups(),
+    onPrevLayout: () => applyLayoutMode(prevLayoutMode(layoutMode)),
+    onToggleFlowView: handleToggleFlowView,
+    onResetLayout: handleResetLayout,
+    onCopyLink: () => fabMenuRef.current?.copyLink(),
   });
 
   // NOTE: cy-init effect, navigator toggle effect, and all cy-specific refs have been
@@ -438,6 +452,11 @@ export function App() {
 
 
   const groupEntries = model ? Object.entries(model.groups) : [];
+
+  function groupHidden(group: string): boolean {
+    const members = model?.nodes.filter(n => n.group === group) ?? [];
+    return members.length > 0 && members.every(n => graphEdits.hidden.includes(n.id));
+  }
 
   const branding = model?.branding;
   const logoSrc = branding
@@ -816,14 +835,12 @@ export function App() {
           </div>
         </div>
       )}
-      {/* ── Shared chrome: help, theme toggle, FAB (all views) ── */}
+      {/* ── Shared chrome: help, FAB (all views) ── */}
       <button className="help-toggle" onClick={() => setShowHelp(true)} title="What am I looking at? (?)" aria-label="Help">
         ?
       </button>
-      <button className="theme-toggle" onClick={toggleTheme} title={themeMode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-        {themeMode === 'dark' ? '☀' : '☾'}
-      </button>
       <FabMenu
+        ref={fabMenuRef}
         view={view}
         hasFlows={(flowDiagrams?.length ?? 0) > 0}
         groupEntries={groupEntries}
@@ -840,10 +857,7 @@ export function App() {
         onToggleLayoutMode={handleToggleLayoutMode}
         onToggleFlowView={handleToggleFlowView}
         onCycleCollapseLevel={handleCycleCollapseLevel}
-        onResetLayout={() => {
-          if (view === 'graph') graphViewRef.current?.resetLayout();
-          else if (view === 'flow') flowsViewRef.current?.resetLayout();
-        }}
+        onResetLayout={handleResetLayout}
         onToggleDictNav={() => setDictNavOpen(prev => !prev)}
       />
       {showGroups && (
@@ -853,6 +867,11 @@ export function App() {
               <div className="group-card-header">
                 <span className="legend-swatch" style={{ background: cfg.color }} />
                 <strong>{cfg.label}</strong>
+                {groupHidden(name) ? (
+                  <button className="group-card-toggle" onClick={() => graphViewRef.current?.showGroups([name])}>Show</button>
+                ) : (
+                  <button className="group-card-toggle" onClick={() => graphViewRef.current?.hideGroups([name])}>Hide</button>
+                )}
               </div>
               {cfg.desc && (
                 <div className="doc-body md" dangerouslySetInnerHTML={{ __html: cfg.desc }} />
@@ -863,7 +882,7 @@ export function App() {
       )}
       {showLegend && <LegendModal onClose={() => setShowLegend(false)} view={view} themeMode={themeMode} kindPalette={resolveFlowKindPalette(themeMode, model?.theme?.flowKinds)} />}
       {showHelp && <HelpModal view={view} onClose={() => setShowHelp(false)} />}
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal themeMode={themeMode} onSetTheme={setTheme} onClose={() => setShowSettings(false)} />}
       {selected && showEntityModal && (
         <EntityModal
           selected={selected}

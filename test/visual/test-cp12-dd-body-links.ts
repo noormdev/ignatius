@@ -16,6 +16,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const PORT = 7292;
@@ -268,14 +269,9 @@ try {
   await page.screenshot({ path: join(tmpDir, 'cp12-dd-body-links-dark.png'), fullPage: false });
   note('  Saved: tmp/cp12-dd-body-links-dark.png');
 
-  // Light screenshot — click theme toggle
-  const toggle = page.locator('.theme-toggle');
-  if (await toggle.count() > 0) {
-    await toggle.click();
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: join(tmpDir, 'cp12-dd-body-links-light.png'), fullPage: false });
-    note('  Saved: tmp/cp12-dd-body-links-light.png');
-  }
+  await setTheme(page, 'light');
+  await page.screenshot({ path: join(tmpDir, 'cp12-dd-body-links-light.png'), fullPage: false });
+  note('  Saved: tmp/cp12-dd-body-links-light.png');
 
   note('\nAll CP12 DD body-link assertions passed.');
 } finally {

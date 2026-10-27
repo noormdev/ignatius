@@ -134,7 +134,7 @@ try {
   note('\n── 3. Chrome overlays hidden under print ────────────────────────────────');
 
   // For elements that are always rendered (.fab, .dict-search, .dict-nav-panel,
-  // .theme-toggle), read computed display directly.
+  // .help-toggle), read computed display directly.
   // For .findings-panel and .dict-findings-panel (absent when zero findings),
   // inject throwaway elements into the DOM so we actually exercise the CSS hide
   // rule rather than vacuously treating "absent" as "hidden".
@@ -158,7 +158,7 @@ try {
       searchHidden: isHidden('.dict-search-bar'),
       fabHidden: isHidden('.fab'),
       navHidden: isHidden('.dict-nav-panel'),
-      themeToggleHidden: isHidden('.theme-toggle'),
+      helpToggleHidden: isHidden('.help-toggle'),
       // Inject + measure to verify the CSS rule fires regardless of whether the
       // app rendered these elements (key-inherited has zero findings).
       findingsHidden: isCssRuleHiding('findings-panel'),
@@ -177,8 +177,8 @@ try {
   if (!chromeVisible.navHidden) fail('.dict-nav-panel should be display:none under print');
   note('OK: .dict-nav-panel hidden under print');
 
-  if (!chromeVisible.themeToggleHidden) fail('.theme-toggle should be display:none under print');
-  note('OK: .theme-toggle hidden under print');
+  if (!chromeVisible.helpToggleHidden) fail('.help-toggle should be display:none under print');
+  note('OK: .help-toggle hidden under print');
 
   if (!chromeVisible.findingsHidden) fail('.findings-panel CSS print rule should set display:none');
   note('OK: .findings-panel CSS print rule hides element under print');

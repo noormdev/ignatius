@@ -24,7 +24,7 @@ theme:
     nodeSep: 60
 ```
 
-The interactive viewer has a light/dark toggle that persists across reloads. The static `dict` and `graph` commands default to the dark palette; pass `--theme light` for the light one.
+The interactive viewer switches between light and dark from **Settings** in the FAB menu, and remembers the choice across reloads. The static `dict` and `graph` commands default to the dark palette; pass `--theme light` for the light one.
 
 
 ### DFD store and external colors

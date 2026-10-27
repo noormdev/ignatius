@@ -8,7 +8,8 @@
  *   - the flow index (FlowIndex) over the canvas
  *   - minimap bottom-left: live SVG overview of the current diagram + viewport rect
  *
- * Theme toggle and FAB are shared app-level chrome (App.tsx) — not rendered here.
+ * The help button and FAB (with Settings, where the theme lives) are shared app-level
+ * chrome (App.tsx) — not rendered here.
  *
  * Driven by the imperative core (initFlowGraphCore) via a forwarded ref exposing:
  *   handle.setStack(stack)             — called on every breadcrumb change

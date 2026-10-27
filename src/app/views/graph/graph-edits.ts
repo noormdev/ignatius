@@ -5,7 +5,7 @@ export const USER_HIDDEN_CLASS = 'user-hidden';
 
 export type LayoutMode = 'hierarchical' | 'organic' | 'tree';
 
-/** The order `L` and the FAB step through. */
+/** The order `L` and the FAB step through; `Shift+L` steps back. */
 const LAYOUT_CYCLE: readonly LayoutMode[] = ['organic', 'hierarchical', 'tree'];
 
 export const LAYOUT_MODE_NAME: Record<LayoutMode, string> = {
@@ -16,6 +16,10 @@ export const LAYOUT_MODE_NAME: Record<LayoutMode, string> = {
 
 export function nextLayoutMode(mode: LayoutMode): LayoutMode {
   return LAYOUT_CYCLE[(LAYOUT_CYCLE.indexOf(mode) + 1) % LAYOUT_CYCLE.length] ?? 'organic';
+}
+
+export function prevLayoutMode(mode: LayoutMode): LayoutMode {
+  return LAYOUT_CYCLE[(LAYOUT_CYCLE.indexOf(mode) + LAYOUT_CYCLE.length - 1) % LAYOUT_CYCLE.length] ?? 'organic';
 }
 
 /** A stored mode string, or tree when it is missing or unknown. */

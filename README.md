@@ -62,7 +62,7 @@ Edit any file in the folder and the graph reloads in the browser without a refre
 | [Bidirectional predicates](docs/guides/predicates.md) | Forward and reverse edge labels with hover-swap |
 | [Process flows](docs/guides/flows.md) | Data flow diagrams: processes, externals, stores, sub-DFDs |
 | [Validation and findings](docs/guides/validation.md) | The linter, severity tiers, and where findings surface |
-| [Themes and branding](docs/guides/themes-and-branding.md) | Color palettes, the light/dark toggle, logo and copyright |
+| [Themes and branding](docs/guides/themes-and-branding.md) | Color palettes, light and dark themes, logo and copyright |
 | [The modeling skill](docs/guides/modeling-skill.md) | `/ignatius-modeling` Q&A authoring in Claude Code |
 | [Building from source](docs/guides/building-from-source.md) | Build stages, project layout, and tests |
 

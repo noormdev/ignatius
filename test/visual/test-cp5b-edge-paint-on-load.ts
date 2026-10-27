@@ -20,6 +20,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP  = join(ROOT, 'tmp', 'cp5b-edge-paint-on-load');
@@ -130,10 +131,7 @@ await page.screenshot({ path: join(TMP, 'elk-dark-no-hover.png') });
 note('Saved elk-dark-no-hover.png');
 
 // Light mode screenshot
-await page.evaluate(() => {
-  const btn = document.querySelector<HTMLButtonElement>('[data-testid="theme-toggle"]');
-  if (btn) btn.click();
-});
+await setTheme(page, 'light');
 await page.waitForTimeout(400);
 await page.screenshot({ path: join(TMP, 'elk-light-no-hover.png') });
 note('Saved elk-light-no-hover.png');

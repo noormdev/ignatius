@@ -15,6 +15,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp26-process-examples-in-dd');
@@ -64,16 +65,6 @@ async function shot(name: string): Promise<void> {
   note(`Screenshot: ${p}`);
 }
 
-async function setTheme(theme: 'dark' | 'light'): Promise<void> {
-  const currentTheme = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme') ?? 'dark',
-  );
-  if (currentTheme !== theme) {
-    await page.locator('.theme-toggle').click();
-    await page.waitForTimeout(300);
-  }
-}
-
 async function switchToDict(): Promise<void> {
   const currentView = await page.evaluate(() => {
     const h = location.hash;
@@ -103,7 +94,7 @@ note('\n── Assertion (a): Collect-Payment DD card shows in/out example table
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToDict();
 
   // Scroll to the Collect-Payment process section in the DD
@@ -171,7 +162,7 @@ note('\n── Assertion (b): Issue-Invoice DD card shows no .flow-process-examp
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToDict();
 
   // Scroll to the Issue-Invoice process section

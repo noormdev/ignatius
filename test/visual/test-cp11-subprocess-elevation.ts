@@ -16,6 +16,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp');
@@ -83,14 +84,6 @@ async function clickErdFabItem(label: string): Promise<void> {
   if (await item.count() === 0) fail(`ERD FAB item "${label}" not found`);
   await item.click();
   await page.waitForTimeout(500);
-}
-
-async function toggleTheme(): Promise<void> {
-  const byTitle = page.locator('button[title="Switch to light mode"], button[title="Switch to dark mode"]');
-  const count = await byTitle.count();
-  if (count === 0) fail('Theme toggle button not found');
-  await byTitle.first().click();
-  await page.waitForTimeout(400);
 }
 
 /**
@@ -176,7 +169,7 @@ try {
 
   // ── Toggle to light mode, re-verify ──────────────────────────────────────
 
-  await toggleTheme();
+  await toggleTheme(page);
 
   await assertElevation('Create-Sales-Order', true, '(light mode)');
   await assertElevation('Collect-Payment', false, '(light mode)');

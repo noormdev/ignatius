@@ -22,7 +22,7 @@ const watchdog = setTimeout(() => {
   process.exit(1);
 }, WATCHDOG_MS);
 
-const CHROME = ['.branding-block', '.viewer-search-bar--graph .viewer-search-bar-inner', '.help-toggle', '.theme-toggle', '.branding-footer'];
+const CHROME = ['.branding-block', '.viewer-search-bar--graph .viewer-search-bar-inner', '.help-toggle', '.branding-footer'];
 
 let failures = 0;
 function check(cond: boolean, label: string): void {

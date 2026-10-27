@@ -13,6 +13,7 @@ Requests from the model owner after daily use of the viewer:
 5. `ignatius export` writes the model with default view state. What the user arranged (hidden entities, positions, layout mode, lens, theme) is lost.
 6. The dictionary scroll position resets when the model reloads over SSE, when the view is shown again after a detour, and on page refresh. The sidebar scroll position has the same problem.
 7. `Modal` focuses its close button on mount but does not keep focus inside, so Tab walks into the page behind it.
+8. Reviewing the branch, the requester asked for keys for the previous layout, layout reset, copy link and hiding a whole group, and a Hide / Show button per group in the Groups dialog.
 
 
 ## Goals / Non-goals
@@ -42,7 +43,7 @@ Every markdown site adds the class `md` next to its existing wrapper class. One 
 
 ### Settings
 
-`ignatius-settings` holds one JSON object. A module-level store in `useSettings.ts` reads it once when the module loads and merges it over defaults (unknown or wrong-typed fields fall back to the default). `useSettings()` reads the store through `useSyncExternalStore`; an update merges, writes, and notifies subscribers. No provider is needed, so the flow dialogs, which render in their own React root, see the same settings as the app shell. A Settings modal, opened from a FAB item present in every view, lists the toggles. First setting: `alwaysOpenExamples` (default `false`): when on, every example `<details>` renders open regardless of row count.
+`ignatius-settings` holds one JSON object. A module-level store in `useSettings.ts` reads it once when the module loads and merges it over defaults (unknown or wrong-typed fields fall back to the default). `useSettings()` reads the store through `useSyncExternalStore`; an update merges, writes, and notifies subscribers. No provider is needed, so the flow dialogs, which render in their own React root, see the same settings as the app shell. A Settings modal, opened from a FAB item present in every view, lists the toggles. First setting: `alwaysOpenExamples` (default `false`): when on, every example `<details>` renders open regardless of row count. The theme lives here too, under Appearance, so the header loses its theme button and the viewer has one place for preferences; it keeps its own `ignatius-theme` key.
 
 ### Sidebar tab
 

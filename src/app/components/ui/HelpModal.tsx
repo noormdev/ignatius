@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Modal } from './Modal';
 import type { ViewName } from '../../hash-router';
 
@@ -12,6 +13,63 @@ import type { ViewName } from '../../hash-router';
  */
 
 type Row = { term: string; desc: string };
+
+/** A key name, a set of interchangeable keys (`+ / − / 0`), or plain words such as "hover". */
+type KeyPart = string | string[] | { text: string };
+/** Keys pressed together. */
+type Chord = KeyPart[];
+/** Chords that do the same thing, shown separated by `·`. */
+type ShortcutRow = { keys: Chord[]; desc: string };
+
+const MOD = '⌘/Ctrl';
+const HOVER = { text: 'hover' };
+
+function KeyPartView({ part }: { part: KeyPart }) {
+  if (typeof part === 'string') return <kbd>{part}</kbd>;
+  if (!Array.isArray(part)) return <span>{part.text}</span>;
+  return (
+    <>
+      {part.map((key, i) => (
+        <Fragment key={key}>
+          {i > 0 && <span className="help-keys-sep">/</span>}
+          <kbd>{key}</kbd>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+function Keys({ chords }: { chords: Chord[] }) {
+  return (
+    <span className="help-term help-keys">
+      {chords.map((chord, c) => (
+        <Fragment key={c}>
+          {c > 0 && <span className="help-keys-sep">·</span>}
+          {chord.map((part, p) => (
+            <Fragment key={p}>
+              {p > 0 && <span>+</span>}
+              <KeyPartView part={part} />
+            </Fragment>
+          ))}
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
+function ShortcutSection({ rows }: { rows: ShortcutRow[] }) {
+  return (
+    <section className="help-section">
+      <h2 className="help-section-title">Keyboard</h2>
+      {rows.map((r) => (
+        <div key={r.desc} className="help-row">
+          <Keys chords={r.keys} />
+          <span className="help-desc">{r.desc}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
 
 function HelpSection({ title, rows }: { title: string; rows: Row[] }) {
   return (
@@ -36,12 +94,12 @@ const GRAPH_TYPES: Row[] = [
 ];
 
 const GRAPH_EXPLORE: Row[] = [
-  { term: 'Layouts', desc: 'Organic clusters related entities by force; Hierarchical gives each colour group its own block, stacked in dependency layers; Tree lays the model out as an outline, each table below and right of the table whose key it inherits, with right-angled lines. A first visit opens in Tree; L steps through them and the choice is kept.' },
+  { term: 'Layouts', desc: 'Organic clusters related entities by force; Hierarchical gives each colour group its own block, stacked in dependency layers; Tree lays the model out as an outline, each table below and right of the table whose key it inherits, with right-angled lines. A first visit opens in Tree; L steps through them, Shift+L steps back, and the choice is kept.' },
   { term: 'Shift + hover', desc: 'Reveals dotted lines to an entity’s whole key-inheritance family — every relative that shares its primary key, however far apart.' },
   { term: 'Click · drag · zoom', desc: 'Click an entity for full detail; drag to rearrange (positions are saved, and survive edits to the model); scroll or ⌘/Ctrl +/−/0 to zoom.' },
   { term: 'Move several', desc: 'Shift+drag on the background draws a selection box; press S for select mode, where a plain drag boxes and a click adds or removes. Drag any selected entity to move them all.' },
   { term: 'Undo', desc: '⌘/Ctrl Z takes back a move, a hide, or a layout change; ⌘/Ctrl Shift Z redoes it. The undo and redo arrows above the zoom control do the same.' },
-  { term: 'Hide', desc: 'Right-click an entity, or press H with entities selected, to take it out of the view. The crossed-out eye above the zoom control counts and lists them to bring back; Reset layout lays out without them.' },
+  { term: 'Hide', desc: 'Right-click an entity, or press H with entities selected, to take it out of the view; Shift+H hides every entity in the selected entities’ groups, and Groups in the menu hides or shows a whole group. The crossed-out eye above the zoom control counts and lists them to bring back; Reset layout lays out without them.' },
   { term: 'Search', desc: 'Type to highlight matches and dim the rest; flip Include descriptions to also match markdown text; Enter cycles through matches.' },
 ];
 
@@ -75,25 +133,34 @@ const FLOW_EXPLORE: Row[] = [
   { term: 'Search', desc: 'Type to find matches across every diagram, including sub-DFDs — flip Include descriptions to also match markdown text; results list by diagram, click one to navigate there. Non-matches dim in the diagram.' },
 ];
 
-function shortcutRows(view: ViewName): Row[] {
-  const rows: Row[] = [{ term: 'G · D · F', desc: 'Switch between Graph, Dictionary, and Flows.' }];
+function shortcutRows(view: ViewName): ShortcutRow[] {
+  const rows: ShortcutRow[] = [{ keys: [['G'], ['D'], ['F']], desc: 'Switch between Graph, Dictionary, and Flows.' }];
   if (view === 'graph') {
-    rows.push({ term: 'L', desc: 'Step through the graph layouts (Organic → Hierarchical → Tree).' });
-    rows.push({ term: 'S', desc: 'Toggle select mode.' });
-    rows.push({ term: 'H', desc: 'Hide the selected entities.' });
-    rows.push({ term: '⌘/Ctrl Z · ⌘/Ctrl ⇧ Z', desc: 'Undo or redo a move, hide, or layout change.' });
+    rows.push({ keys: [['L']], desc: 'Step through the graph layouts (Organic → Hierarchical → Tree).' });
+    rows.push({ keys: [['Shift', 'L']], desc: 'Step back to the previous layout.' });
+    rows.push({ keys: [['R']], desc: 'Reset the layout.' });
+    rows.push({ keys: [['S']], desc: 'Toggle select mode.' });
+    rows.push({ keys: [['H']], desc: 'Hide the selected entities.' });
+    rows.push({ keys: [['Shift', 'H']], desc: 'Hide every entity in the selected entities’ groups.' });
+    rows.push({ keys: [[MOD, 'Z']], desc: 'Undo a move, hide, or layout change.' });
+    rows.push({ keys: [[MOD, 'Shift', 'Z']], desc: 'Redo it.' });
   }
-  if (view === 'dict') rows.push({ term: 'B', desc: 'Toggle the dictionary lens (Read / Browse).' });
-  if (view === 'flow') rows.push({ term: 'I', desc: 'Open or close the flow index.' });
+  if (view === 'dict') rows.push({ keys: [['B']], desc: 'Toggle the dictionary lens (Read / Browse).' });
+  if (view === 'flow') {
+    rows.push({ keys: [['I']], desc: 'Open or close the flow index.' });
+    rows.push({ keys: [['L'], ['Shift', 'L']], desc: 'Switch between the per-process and connected views.' });
+    rows.push({ keys: [['R']], desc: 'Reset the layout.' });
+  }
   if (view === 'graph' || view === 'dict') {
-    rows.push({ term: 'Shift + hover', desc: 'Reveal key-inheritance lineage.' });
+    rows.push({ keys: [['Shift', HOVER]], desc: 'Reveal key-inheritance lineage.' });
   }
   if (view === 'graph' || view === 'flow') {
-    rows.push({ term: '⌘/Ctrl +/−/0', desc: 'Zoom the canvas in, out, or reset.' });
-    rows.push({ term: '← ↑ ↓ →', desc: 'Scroll the canvas; hold Shift to scroll faster.' });
+    rows.push({ keys: [[MOD, ['+', '−', '0']]], desc: 'Zoom the canvas in, out, or reset.' });
+    rows.push({ keys: [[['←', '↑', '↓', '→']]], desc: 'Scroll the canvas; hold Shift to scroll faster.' });
   }
-  rows.push({ term: '/ · ⌘/Ctrl K', desc: 'Focus the search bar.' });
-  rows.push({ term: '?', desc: 'Open this help.' });
+  rows.push({ keys: [[MOD, 'C']], desc: 'Copy a link to this view (when no text is selected).' });
+  rows.push({ keys: [['/'], [MOD, 'K']], desc: 'Focus the search bar.' });
+  rows.push({ keys: [['?']], desc: 'Open this help.' });
   return rows;
 }
 
@@ -137,7 +204,7 @@ export function HelpModal({ view, onClose }: { view: ViewName; onClose: () => vo
         </>
       )}
 
-      <HelpSection title="Keyboard" rows={shortcutRows(view)} />
+      <ShortcutSection rows={shortcutRows(view)} />
 
       {(view === 'graph' || view === 'flow') && (
         <p className="help-footnote">

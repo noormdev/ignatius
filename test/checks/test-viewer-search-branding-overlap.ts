@@ -44,14 +44,13 @@ async function assertGraphClear(page: Page, label: string, width: number): Promi
   const pill = await box(page, '.viewer-search-bar--graph .viewer-search-bar-inner');
   const count = await box(page, '.viewer-search-count');
   const help = await box(page, '.help-toggle');
-  const theme = await box(page, '.theme-toggle');
-  if (!brand || !pill || !count || !help || !theme) {
+  if (!brand || !pill || !count || !help) {
     check(false, `${label} ${width}px: chrome present`);
     return;
   }
-  const clear = !overlaps(brand, pill) && !overlaps(pill, help) && !overlaps(pill, theme)
-    && !overlaps(count, help) && !overlaps(count, theme) && !overlaps(count, brand)
-    && !overlaps(brand, help) && !overlaps(brand, theme);
+  const clear = !overlaps(brand, pill) && !overlaps(pill, help)
+    && !overlaps(count, help) && !overlaps(count, brand)
+    && !overlaps(brand, help);
   const inside = pill.left >= 0 && pill.right <= width && count.left >= 0 && count.right <= width;
   if (!clear || !inside) await page.screenshot({ path: join(TMP, `${label.replace(/\W+/g, '-')}-${width}.png`) });
   check(clear && inside, `${label} ${width}px: bar ${Math.round(pill.left)}..${Math.round(pill.right)}, count ..${Math.round(count.right)} clear of brand (..${Math.round(brand.right)}) and toggles (${Math.round(help.left)}..)`);
@@ -142,11 +141,10 @@ try {
     }, undefined, { timeout: 5000 });
     const crumbs = await box(deep, '.flow-crumbs');
     const help = await box(deep, '.help-toggle');
-    const theme = await box(deep, '.theme-toggle');
     const brand = await box(deep, '.branding-block');
     const bar = await box(deep, '.viewer-search-bar--flow .viewer-search-bar-inner');
-    const clear = crumbs !== null && help !== null && theme !== null && brand !== null && bar !== null
-      && !overlaps(crumbs, help) && !overlaps(crumbs, theme) && !overlaps(crumbs, brand) && !overlaps(crumbs, bar);
+    const clear = crumbs !== null && help !== null && brand !== null && bar !== null
+      && !overlaps(crumbs, help) && !overlaps(crumbs, brand) && !overlaps(crumbs, bar);
     if (!clear) await deep.screenshot({ path: join(TMP, `deep-crumbs-${width}.png`) });
     check(clear, `deep breadcrumbs ${width}px: crumbs ${Math.round(crumbs?.left ?? 0)}..${Math.round(crumbs?.right ?? 0)} clear of the branding, the toggles and the bar`);
   }

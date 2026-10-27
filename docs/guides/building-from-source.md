@@ -29,7 +29,7 @@ The `serve` and `validate` subcommands work without a prior bundle build. `expor
 | `src/server/server.ts` | The `serve` server with live reload over SSE |
 | `src/model/parse.ts` | Reads the folder, parses frontmatter, derives the model |
 | `src/model/validate.ts` | Pure linter: rules, severities, and the cleaned model |
-| `src/app/App.tsx` | The React SPA: Graph, Dictionary, and Flows views; findings panel; theme toggle |
+| `src/app/App.tsx` | The React SPA: Graph, Dictionary, and Flows views; findings panel; Settings modal |
 | `src/generators/` | Static output for `export` |
 | `models/` | Reference schemas used as the default folder |
 | `docs/design/` | Design documents for the format and the CLI |

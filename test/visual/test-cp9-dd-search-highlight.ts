@@ -11,7 +11,7 @@
  *  5. The --dd-search-highlight CSS var resolves to DISTINCT values in light vs dark
  *     (proving applyThemeCssVars fired for both modes via the real app toggle).
  *
- * Theme is switched via the REAL app .theme-toggle button so applyThemeCssVars
+ * Theme is switched through the REAL app Settings dialog so applyThemeCssVars
  * fires through React — the same mechanism used by CP1 (test-cp1-minimap-parity.ts).
  *
  * Uses models/key-inherited.
@@ -22,6 +22,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp9-dd-search-highlight');
@@ -65,16 +66,6 @@ async function shot(name: string): Promise<void> {
   const p = join(TMP, name);
   await page.screenshot({ path: p, fullPage: false });
   note(`Screenshot: ${p}`);
-}
-
-// Flip theme via the REAL app toggle so React's setThemeMode → applyThemeCssVars fires.
-async function clickThemeToggle(): Promise<void> {
-  const btn = page.locator('.theme-toggle');
-  const c = await btn.count();
-  if (c === 0) fail('.theme-toggle button not found — cannot switch theme through the app');
-  await btn.click();
-  // Wait for React to re-render and applyThemeCssVars to write the new CSS vars.
-  await page.waitForTimeout(400);
 }
 
 // Navigate to DD view via the hash (avoids FAB dep, keeps the test focused on CP9).
@@ -205,8 +196,8 @@ try {
 
   // Switch to light mode via the REAL app toggle — this fires setThemeMode →
   // applyThemeCssVars so the --dd-search-highlight var updates to the light value.
-  note('\n── Switching to LIGHT mode via app .theme-toggle ────────────────────────');
-  await clickThemeToggle();
+  note('\n── Switching to LIGHT mode via app Settings ────────────────────────────');
+  await toggleTheme(page);
 
   const lightHighlightVar = await runChecks('light');
 

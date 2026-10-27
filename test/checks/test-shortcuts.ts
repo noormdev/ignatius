@@ -81,8 +81,8 @@ for (const view of VIEWS) {
 }
 {
   const result = resolveShortcut(ev('l'), 'flow', false);
-  assert(result === null, "T4: l in 'flow' → null");
-  console.log("PASS T4: l in view='flow' → null");
+  assert(result?.type === 'toggleFlowView', "T4: l in 'flow' → toggleFlowView");
+  console.log("PASS T4: l in view='flow' → { type:'toggleFlowView' }");
 }
 
 // ---------------------------------------------------------------------------
@@ -553,6 +553,58 @@ for (const key of ['g', 'd', 'f', 'l', 'b']) {
     assert(resolveShortcut(ev(key, { metaKey: true }), 'graph', false) === null, `T32: meta+${key} → null`);
   }
   console.log('PASS T32: s and h on the graph only');
+}
+
+// T33: Shift+L steps the layout back on graph, flips the flow view on flow.
+{
+  assert(resolveShortcut(ev('L', { shiftKey: true }), 'graph', false)?.type === 'prevLayout', 'T33: shift+L on graph → prevLayout');
+  assert(resolveShortcut(ev('L', { shiftKey: true }), 'flow', false)?.type === 'toggleFlowView', 'T33: shift+L on flow → toggleFlowView');
+  assert(resolveShortcut(ev('L', { shiftKey: true }), 'dict', false) === null, 'T33: shift+L on dict → null');
+  assert(resolveShortcut(ev('L', { shiftKey: true }), 'graph', true) === null, 'T33: shift+L while typing → null');
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey'] as const) {
+    assert(resolveShortcut(ev('L', { shiftKey: true, [mod]: true }), 'graph', false) === null, `T33: ${mod}+shift+L → null`);
+    assert(resolveShortcut(ev('l', { [mod]: true }), 'flow', false) === null, `T33: ${mod}+l on flow → null`);
+  }
+  console.log('PASS T33: Shift+L previous layout on graph; L / Shift+L flip the flow view');
+}
+
+// T34: r resets the layout on the two canvas views; dict has no layout.
+{
+  assert(resolveShortcut(ev('r'), 'graph', false)?.type === 'resetLayout', 'T34: r on graph → resetLayout');
+  assert(resolveShortcut(ev('r'), 'flow', false)?.type === 'resetLayout', 'T34: r on flow → resetLayout');
+  assert(resolveShortcut(ev('r'), 'dict', false) === null, 'T34: r on dict → null');
+  assert(resolveShortcut(ev('r'), 'graph', true) === null, 'T34: r while typing → null');
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey', 'shiftKey'] as const) {
+    assert(resolveShortcut(ev('r', { [mod]: true }), 'graph', false) === null, `T34: ${mod}+r → null (Cmd/Ctrl+R reloads)`);
+  }
+  console.log('PASS T34: r → resetLayout on graph and flow');
+}
+
+// T35: Cmd/Ctrl+C copies the link; the hook leaves it to the browser when text is selected.
+{
+  for (const mod of ['ctrlKey', 'metaKey'] as const) {
+    for (const view of VIEWS) {
+      assert(resolveShortcut(ev('c', { [mod]: true }), view, false)?.type === 'copyLink', `T35: ${mod}+c on ${view} → copyLink`);
+    }
+    assert(resolveShortcut(ev('c', { [mod]: true }), 'graph', true) === null, `T35: ${mod}+c while typing → null`);
+    assert(resolveShortcut(ev('C', { [mod]: true, shiftKey: true }), 'graph', false) === null, `T35: ${mod}+shift+c → null`);
+    assert(resolveShortcut(ev('c', { [mod]: true, altKey: true }), 'graph', false) === null, `T35: ${mod}+alt+c → null`);
+  }
+  assert(resolveShortcut(ev('c'), 'graph', false) === null, 'T35: bare c → null');
+  console.log('PASS T35: Cmd/Ctrl+C → copyLink outside editable context');
+}
+
+// T36: Shift+H hides the whole group of each selected entity — graph only.
+{
+  assert(resolveShortcut(ev('H', { shiftKey: true }), 'graph', false)?.type === 'hideSelectionGroups', 'T36: shift+H on graph → hideSelectionGroups');
+  assert(resolveShortcut(ev('H', { shiftKey: true }), 'flow', false) === null, 'T36: shift+H on flow → null');
+  assert(resolveShortcut(ev('H', { shiftKey: true }), 'dict', false) === null, 'T36: shift+H on dict → null');
+  assert(resolveShortcut(ev('H', { shiftKey: true }), 'graph', true) === null, 'T36: shift+H while typing → null');
+  for (const mod of ['ctrlKey', 'metaKey', 'altKey'] as const) {
+    assert(resolveShortcut(ev('H', { shiftKey: true, [mod]: true }), 'graph', false) === null, `T36: ${mod}+shift+H → null`);
+  }
+  assert(resolveShortcut(ev('h'), 'graph', false)?.type === 'hideSelection', 'T36: bare h still → hideSelection');
+  console.log('PASS T36: Shift+H → hideSelectionGroups on the graph only');
 }
 
 console.log('\nAll tests passed.');

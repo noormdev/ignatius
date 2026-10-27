@@ -26,7 +26,7 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 - [x] Dictionary body covers: Read/Browse lenses, spotlight, Shift+hover lineage, search/focus.
 - [x] Flows body covers: a DFD intro, symbols (process/store/external), drill-down + inspect, the flow index (Process Flows chip or `I`), breadcrumb level switching (▾), cross-diagram search (results grouped by diagram, non-matches dimmed in the rendered diagram).
 - [x] A Keyboard section is present on every view and tailored to it (only the keys active there), including `/` to focus that view's search input and, on the Graph, `S`, `H`, and `⌘/Ctrl Z` · `⌘/Ctrl ⇧ Z`; Graph and Flows footnote a pointer to the Legend.
-- [x] A `?` top-bar button sits just left of the theme toggle (shared chrome, all views), opens the overlay, and is hidden in `@media print`.
+- [x] A `?` button sits in the top-right corner (shared chrome, all views), opens the overlay, and is hidden in `@media print`.
 - [x] `resolveShortcut` returns `{ type: 'help' }` for `?`: resolved after the editable guard, before the bare-key modifier guard (Shift is inherent), and gated off ctrl/meta/alt. `useKeyboardShortcuts` carries an `onHelp` callback; the shell opens the overlay.
 - [x] Editable guard holds: typing `?` in the search box inserts a literal `?` and does NOT open the overlay.
 - [x] Escape (via the `Modal` primitive) and backdrop click close it.
@@ -86,3 +86,11 @@ primitive, view-switched on `ViewName`, with static term→description content; 
 **What changed:** the Graph Layouts row says a first visit opens in Tree and that the layout `L` picks is kept.
 
 **Why:** Tree became the default layout (`docs/spec/graph-tree-layout.md`).
+
+### 2026-10-27 — Help button in the top-right corner
+
+**What changed:** the `?` button sits in the top-right corner; the header no longer carries a theme button.
+
+**Why:** the theme moved into Settings → Appearance (`docs/spec/viewer-qol.md`).
+
+**Superseded:** the `?` button sat just left of the theme toggle.

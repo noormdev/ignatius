@@ -67,6 +67,17 @@ async function alwaysOpenChecked(page: Page) {
   return checked;
 }
 
+/** The theme Settings shows as chosen; with `choose`, picks that theme first. */
+async function settingsTheme(page: Page, choose?: 'dark' | 'light') {
+  await openFabItem(page, 'Settings');
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  if (choose) await dialog.getByRole('radio', { name: choose === 'dark' ? 'Dark' : 'Light' }).check();
+  const dark = await dialog.getByRole('radio', { name: 'Dark' }).isChecked();
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached', timeout: 5_000 });
+  return dark ? 'dark' : 'light';
+}
+
 async function fabLayoutLabel(page: Page) {
   await page.click('.fab');
   const label = await page.getByRole('menuitem', { name: / layout/ }).filter({ hasNotText: 'Reset' }).innerText();
@@ -137,14 +148,13 @@ try {
       await file.getByRole('group', { name: 'Dictionary lens' }).waitFor({ timeout: 15_000 });
       assert(await lensPressed(file, 'Read') === 'true', 'FAIL: a reload keeps the recipient\'s lens change instead of re-applying the snapshot');
 
-      const toggle = file.locator('.theme-toggle');
-      const exportedTheme = await toggle.getAttribute('title');
-      await toggle.click();
-      const recipientTheme = await toggle.getAttribute('title');
-      assert(recipientTheme !== exportedTheme, `FAIL: fixture: the theme toggle switches the theme (stayed "${exportedTheme}")`);
+      const exportedTheme = await settingsTheme(file);
+      const recipientTheme = exportedTheme === 'dark' ? 'light' : 'dark';
+      await settingsTheme(file, recipientTheme);
+      assert(await settingsTheme(file) === recipientTheme, `FAIL: fixture: Settings switches the theme (stayed "${exportedTheme}")`);
       await file.reload();
       await file.getByRole('group', { name: 'Dictionary lens' }).waitFor({ timeout: 15_000 });
-      const reloadedTheme = await toggle.getAttribute('title');
+      const reloadedTheme = await settingsTheme(file);
       assert(reloadedTheme === recipientTheme, `FAIL: a reload keeps the recipient's theme (expected "${recipientTheme}", got "${reloadedTheme}")`);
     } finally {
       await recipient.close();

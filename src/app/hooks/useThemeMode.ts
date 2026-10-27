@@ -11,7 +11,7 @@ import type { Model, ThemeConfig } from '../../model/parse';
 // future refactor). Matches the base [model, themeMode] dependency semantics.
 export function useThemeMode(themeConfig: ThemeConfig | undefined, model?: Model | null): {
   themeMode: ThemeMode;
-  toggleTheme: () => void;
+  setTheme: (mode: ThemeMode) => void;
 } {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     if (window.__THEME_MODE__) return window.__THEME_MODE__;
@@ -26,11 +26,10 @@ export function useThemeMode(themeConfig: ThemeConfig | undefined, model?: Model
     if (themeConfig) applyThemeCssVars(themeConfig, themeMode);
   }, [themeConfig, themeMode, model]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function toggleTheme() {
-    const next: ThemeMode = themeMode === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('ignatius-theme', next);
-    setThemeMode(next);
+  function setTheme(mode: ThemeMode) {
+    localStorage.setItem('ignatius-theme', mode);
+    setThemeMode(mode);
   }
 
-  return { themeMode, toggleTheme };
+  return { themeMode, setTheme };
 }

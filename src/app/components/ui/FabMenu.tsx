@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { GroupConfig } from '../../../model/parse';
 import type { ViewName, FlowViewMode, FlowCollapseLevel } from '../../hash-router';
 import type { LayoutMode } from '../../views/graph/GraphView';
@@ -37,7 +37,12 @@ export interface FabMenuProps {
   onCycleCollapseLevel: () => void;
 }
 
-export function FabMenu({
+/** Lets the Cmd/Ctrl+C shortcut share the menu's copy and its toast. */
+export interface FabMenuHandle {
+  copyLink(): void;
+}
+
+export const FabMenu = forwardRef<FabMenuHandle, FabMenuProps>(function FabMenu({
   view,
   hasFlows,
   groupEntries,
@@ -56,7 +61,7 @@ export function FabMenu({
   onToggleDictNav,
   onToggleFlowView,
   onCycleCollapseLevel,
-}: FabMenuProps) {
+}, ref) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -108,6 +113,8 @@ export function FabMenu({
       showToast('Copied!', 1500);
     });
   }
+
+  useImperativeHandle(ref, () => ({ copyLink: handleCopyLink }));
 
   // Modal returns focus to whatever held it on mount; the clicked item unmounts with the menu.
   function openDialog(open: () => void) {
@@ -214,7 +221,7 @@ export function FabMenu({
                 role="menuitem"
                 onClick={() => { setMenuOpen(false); onResetLayout(); }}
               >
-                Reset layout
+                Reset layout <kbd className="kbd-hint">R</kbd>
               </button>
             </>
           )}
@@ -226,7 +233,7 @@ export function FabMenu({
                 role="menuitem"
                 onClick={() => { setMenuOpen(false); onToggleFlowView(); }}
               >
-                {flowView === 'per-process' ? 'Connected view' : 'Per-process view'}
+                {flowView === 'per-process' ? 'Connected view' : 'Per-process view'} <kbd className="kbd-hint">L</kbd>
               </button>
               <button
                 className="fab-menu-item"
@@ -240,7 +247,7 @@ export function FabMenu({
                 role="menuitem"
                 onClick={() => { setMenuOpen(false); onResetLayout(); }}
               >
-                Reset layout
+                Reset layout <kbd className="kbd-hint">R</kbd>
               </button>
             </>
           )}
@@ -285,4 +292,4 @@ export function FabMenu({
       <div className="fab-toast" role="status">{toast}</div>
     </>
   );
-}
+});

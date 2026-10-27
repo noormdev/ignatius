@@ -150,9 +150,15 @@ export interface GraphViewHandle {
   hideSelection(): void;
   /** Put hidden nodes back; null = all of them. */
   showHidden(ids: string[] | null): void;
+  /** Remove every entity of the named groups from view. */
+  hideGroups(groups: string[]): void;
+  /** Put the hidden entities of the named groups back. */
+  showGroups(groups: string[]): void;
+  /** Remove every entity sharing a group with a selected node. */
+  hideSelectionGroups(): void;
 }
 
-type GraphEditActions = Pick<GraphViewHandle, 'undo' | 'redo' | 'toggleSelectMode' | 'hideSelection' | 'showHidden'>;
+type GraphEditActions = Pick<GraphViewHandle, 'undo' | 'redo' | 'toggleSelectMode' | 'hideSelection' | 'showHidden' | 'hideGroups' | 'showGroups' | 'hideSelectionGroups'>;
 
 // ---------------------------------------------------------------------------
 // GraphViewProps
@@ -359,6 +365,15 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
       },
       showHidden(ids: string[] | null) {
         graphEditsRef.current?.showHidden(ids);
+      },
+      hideGroups(groups: string[]) {
+        graphEditsRef.current?.hideGroups(groups);
+      },
+      showGroups(groups: string[]) {
+        graphEditsRef.current?.showGroups(groups);
+      },
+      hideSelectionGroups() {
+        graphEditsRef.current?.hideSelectionGroups();
       },
     }), []);
 
@@ -1262,6 +1277,11 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         afterArrangementEdit();
       }
 
+      function groupMembers(groups: string[]): string[] {
+        const wanted = new Set(groups.filter(g => g !== ''));
+        return modelNonNull.nodes.filter(n => wanted.has(n.group ?? '')).map(n => n.id);
+      }
+
       function overlapsVisible(node: cytoscape.NodeSingular): boolean {
         const box = node.boundingBox();
         return cy.nodes(':childless:visible').not(node).some(other => boxesOverlap(box, other.boundingBox(), 0));
@@ -1298,6 +1318,15 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         },
         showHidden(ids) {
           showNodes(ids);
+        },
+        hideGroups(groups) {
+          hideNodes(groupMembers(groups));
+        },
+        showGroups(groups) {
+          showNodes(groupMembers(groups));
+        },
+        hideSelectionGroups() {
+          hideNodes(groupMembers(cy.nodes(':selected').map(n => String(n.data('group') ?? ''))));
         },
       };
 
@@ -1507,7 +1536,7 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
         if (!panel || bb.w <= 0 || bb.h <= 0) return;
         const bottomOf = (selector: string) =>
           Math.max(0, (document.querySelector(selector)?.getBoundingClientRect().bottom ?? panel.top) - panel.top);
-        const top = Math.max(...['.branding-block', '.viewer-search-bar--graph .viewer-search-bar-inner', '.help-toggle', '.theme-toggle'].map(bottomOf));
+        const top = Math.max(...['.branding-block', '.viewer-search-bar--graph .viewer-search-bar-inner', '.help-toggle'].map(bottomOf));
         const footer = document.querySelector('.branding-footer')?.getBoundingClientRect();
         const bottom = footer ? Math.max(0, panel.bottom - footer.top) : 0;
         const pad = 30;

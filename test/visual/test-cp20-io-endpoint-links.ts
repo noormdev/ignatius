@@ -21,6 +21,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp20-io-endpoint-links');
@@ -68,16 +69,6 @@ async function shot(name: string): Promise<void> {
   const p = join(TMP, name);
   await page.screenshot({ path: p, fullPage: false });
   note(`Screenshot: ${p}`);
-}
-
-async function setTheme(theme: 'dark' | 'light'): Promise<void> {
-  const currentTheme = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme') ?? 'dark',
-  );
-  if (currentTheme !== theme) {
-    await page.locator('.theme-toggle').click();
-    await page.waitForTimeout(300);
-  }
 }
 
 async function switchToFlow(): Promise<void> {
@@ -133,7 +124,7 @@ note('\n── Assertion (a): non-db IO endpoints are clickable .entity-link anc
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   const dialogOpened = await openCollectPaymentDialog();
@@ -197,7 +188,7 @@ note('\n── Assertion (b): clicking ext:Customer opens in-place (hash stays #
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   const dialogOpened = await openCollectPaymentDialog();
@@ -254,7 +245,7 @@ note('\n── Assertion (c): db:Payment still opens rich entity dialog in place
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   const dialogOpened = await openCollectPaymentDialog();

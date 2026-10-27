@@ -27,6 +27,7 @@ import type { Page } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { setTheme, toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODEL = join(ROOT, 'test/fixtures/hub-dfd');
@@ -73,11 +74,6 @@ async function waitFlowReady(): Promise<void> {
   await page.waitForTimeout(400); // let ELK settle
 }
 
-async function toggleTheme(): Promise<void> {
-  await page.locator('.theme-toggle').click();
-  await page.waitForTimeout(200);
-}
-
 try {
   // 1. Default per-process view, dark.
   await page.goto(`http://localhost:${PORT}/#view=flow&dfd=hub-diagram`, { waitUntil: 'load' });
@@ -85,9 +81,9 @@ try {
   await shot('01-per-process-dark.png');
 
   // 1b. Same view, light.
-  await toggleTheme();
+  await toggleTheme(page);
   await shot('02-per-process-light.png');
-  await toggleTheme();
+  await toggleTheme(page);
 
   // 2. Connected view at the "clusters" collapse level — a fresh navigation is
   // required: App reads flowview=/collapse= from the hash on mount and
@@ -105,17 +101,17 @@ try {
   await page.waitForSelector('.modal', { timeout: 5000 });
   await shot('04-stack-dialog-adjacency-dark.png');
 
-  // 3b. Same dialog, light — close first: the theme toggle sits behind the
+  // 3b. Same dialog, light — close first: the FAB sits behind the
   // modal backdrop.
   await page.locator('.modal-close').first().click();
   await page.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
-  await toggleTheme();
+  await toggleTheme(page);
   await page.locator(`g[data-token="${ADJACENCY_STACK}"]`).first().click();
   await page.waitForSelector('.modal', { timeout: 5000 });
   await shot('05-stack-dialog-adjacency-light.png');
   await page.locator('.modal-close').first().click();
   await page.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
-  await toggleTheme(); // back to dark
+  await toggleTheme(page); // back to dark
 
   // Both views at every collapse level, dark theme.
   const COLLAPSE_LEVELS = ['stores', 'clusters', 'groups'] as const;
@@ -136,11 +132,11 @@ try {
   await page.waitForSelector('.fab-menu', { timeout: 5000 });
   await shotAt(page, VIEW_TOGGLE_TMP, 'fab-menu-dark.png');
   await page.keyboard.press('Escape');
-  await toggleTheme();
+  await toggleTheme(page);
   await page.locator('.fab').click();
   await page.waitForSelector('.fab-menu', { timeout: 5000 });
   await shotAt(page, VIEW_TOGGLE_TMP, 'fab-menu-light.png');
-  await toggleTheme();
+  await toggleTheme(page);
 } finally {
   await page.close();
   await browser.close();
@@ -179,14 +175,14 @@ try {
 
   await tagPage.locator('.modal-close').first().click();
   await tagPage.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
-  await tagPage.locator('.theme-toggle').click();
+  await setTheme(tagPage, 'light');
   await tagPage.waitForTimeout(200);
   await tagChip.click();
   await tagPage.waitForSelector('.modal', { timeout: 5000 });
   await shotAt(tagPage, TAG_TMP, '08-tag-junctions-contract-light.png');
   await tagPage.locator('.modal-close').first().click();
   await tagPage.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
-  await tagPage.locator('.theme-toggle').click(); // back to dark
+  await setTheme(tagPage, 'dark');
   await tagPage.waitForTimeout(200);
 
   // Default per-process view: Merge Tag's write side is one stack (all 6

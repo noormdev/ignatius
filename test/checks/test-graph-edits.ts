@@ -11,10 +11,10 @@
  *   3. Undo and redo on an empty side return null.
  *   4. The history keeps only the newest `limit` changes.
  *   5. discardLast drops the newest undo step without making it redoable.
- *   6. L cycles organic → hierarchical → tree; a first load opens in tree, an older saved arrangement in organic.
+ *   6. L cycles organic → hierarchical → tree, Shift+L backwards; a first load opens in tree, an older saved arrangement in organic.
  */
 
-import { createEditHistory, loadLayoutMode, nextLayoutMode, parseLayoutMode } from '../../src/app/views/graph/graph-edits';
+import { createEditHistory, loadLayoutMode, nextLayoutMode, parseLayoutMode, prevLayoutMode } from '../../src/app/views/graph/graph-edits';
 import type { GraphSnapshot } from '../../src/app/views/graph/graph-edits';
 import { assert } from '../assert';
 
@@ -83,6 +83,9 @@ function snap(x: number, hidden: string[] = []): GraphSnapshot {
   assert(nextLayoutMode('organic') === 'hierarchical', 'FAIL 6a: organic → hierarchical');
   assert(nextLayoutMode('hierarchical') === 'tree', 'FAIL 6b: hierarchical → tree');
   assert(nextLayoutMode('tree') === 'organic', 'FAIL 6c: tree → organic');
+  assert(prevLayoutMode('organic') === 'tree', 'FAIL 6c2: Shift+L organic → tree');
+  assert(prevLayoutMode('tree') === 'hierarchical', 'FAIL 6c3: Shift+L tree → hierarchical');
+  assert(prevLayoutMode('hierarchical') === 'organic', 'FAIL 6c4: Shift+L hierarchical → organic');
   assert(parseLayoutMode('tree') === 'tree', 'FAIL 6d: stored tree is kept');
   assert(parseLayoutMode('sideways') === 'tree' && parseLayoutMode(null) === 'tree', 'FAIL 6e: a missing or unknown mode opens in Tree');
   assert(loadLayoutMode(null, false) === 'tree', 'FAIL 6f: a first load opens in Tree');

@@ -8,11 +8,17 @@
  *   g → view graph   (any view)
  *   d → view dict    (any view)
  *   f → view flow    (any view)
- *   l → toggleLayout (view==='graph' only; null otherwise)
+ *   l → toggleLayout (view==='graph'); toggleFlowView (view==='flow')
+ *   r → resetLayout  (view==='graph' or 'flow'; null on dict)
  *   b → toggleLens   (view==='dict'  only; null otherwise)
  *   i → flowIndex    (view==='flow'  only; null otherwise)
  *   s → toggleSelectMode (view==='graph' only; null otherwise)
  *   h → hideSelection    (view==='graph' only; null otherwise)
+ *   Shift+L → prevLayout (graph) / toggleFlowView (flow)
+ *   Shift+H → hideSelectionGroups (graph)
+ *   Cmd/Ctrl+C → copyLink (any view; after guard 1 so typing keeps native
+ *                      copy — the hook also leaves it to the browser while
+ *                      text is selected)
  *   / → search       (any view; ordinary bare key — unlike '?' it needs no
  *                      Shift, so it resolves in the normal switch below.
  *                      Cmd/Ctrl+k is a second, always-on route to the same
@@ -25,8 +31,9 @@
  *   1. editable === true → null
  *   2. ctrlKey || metaKey || altKey || shiftKey → null
  *
- * Exception: '?' (Shift+/) is resolved after guard 1 but before guard 2, since
- * the character itself requires Shift; it is still suppressed in editable context.
+ * Exception: '?' (Shift+/), Shift+L and Shift+H are resolved after guard 1 but
+ * before guard 2, since Shift is part of the key; they are still suppressed in
+ * editable context and with ctrl/meta/alt.
  * Graph undo/redo (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, Ctrl+Y) sits in the same slot,
  * so typing keeps the native text undo.
  *
@@ -82,7 +89,12 @@ export type ShortcutAction =
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'toggleSelectMode' }
-  | { type: 'hideSelection' };
+  | { type: 'hideSelection' }
+  | { type: 'hideSelectionGroups' }
+  | { type: 'prevLayout' }
+  | { type: 'toggleFlowView' }
+  | { type: 'resetLayout' }
+  | { type: 'copyLink' };
 
 /** Arrow-key pan step per keydown, in screen px (viewport-movement delta). */
 export const PAN_STEP = 10;
@@ -144,6 +156,8 @@ export function resolveShortcut(
     if (key === 'y' && e.ctrlKey && !e.metaKey && !e.shiftKey) return { type: 'redo' };
   }
 
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && key === 'c') return { type: 'copyLink' };
+
   // Help overlay: '?' (Shift+/ on most layouts). Resolved AFTER the editable
   // guard but BEFORE the modifier guard, because '?' inherently needs Shift —
   // guard 2 would otherwise swallow it. Gated off ctrl/meta/alt so it never
@@ -162,6 +176,12 @@ export function resolveShortcut(
     return { type: 'pan', dx: panDir.dx * step, dy: panDir.dy * step };
   }
 
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (key === 'l' && view === 'graph') return { type: 'prevLayout' };
+    if (key === 'l' && view === 'flow') return { type: 'toggleFlowView' };
+    if (key === 'h' && view === 'graph') return { type: 'hideSelectionGroups' };
+  }
+
   // Guard 2: modifier chords (bare keys only — any modifier suppresses)
   if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return null;
 
@@ -169,7 +189,10 @@ export function resolveShortcut(
     case 'g': return { type: 'view', view: 'graph' };
     case 'd': return { type: 'view', view: 'dict' };
     case 'f': return { type: 'view', view: 'flow' };
-    case 'l': return view === 'graph' ? { type: 'toggleLayout' } : null;
+    case 'l':
+      if (view === 'graph') return { type: 'toggleLayout' };
+      return view === 'flow' ? { type: 'toggleFlowView' } : null;
+    case 'r': return view === 'dict' ? null : { type: 'resetLayout' };
     case 's': return view === 'graph' ? { type: 'toggleSelectMode' } : null;
     case 'h': return view === 'graph' ? { type: 'hideSelection' } : null;
     case 'b': return view === 'dict'  ? { type: 'toggleLens'   } : null;
