@@ -67,13 +67,13 @@ const BROKEN_SOURCE = 'flowchart TD\n  A -->';
 const BROKEN_BODY = `\n\`\`\`mermaid\n${BROKEN_SOURCE}\n\`\`\`\n`;
 
 const OVERRIDE = `  mermaid:
+    node_fills: ["#2a1f4a"]
+    stroke_width: 2
+    radius: 2
+    shadow: false
     dark:
-      primaryColor: "#2a1f4a"
-      primaryBorderColor: "#8b6cf0"
       lineColor: "#8b6cf0"
     light:
-      primaryColor: "#efe9ff"
-      primaryBorderColor: "#6d4fd8"
       lineColor: "#6d4fd8"
 `;
 
@@ -113,8 +113,9 @@ async function waitForDiagrams(page: Page, scope: string, count: number): Promis
 }
 
 const DIAGRAMS = [
-  ['#process-Collect-Payment', 0, 'flowchart'],
-  ['#process-Collect-Payment', 1, 'sequence'],
+  ['#process-Collect-Payment', 0, 'logic'],
+  ['#process-Collect-Payment', 1, 'flowchart'],
+  ['#process-Collect-Payment', 2, 'sequence'],
   ['#entity-Payment', 0, 'state'],
   ['#entity-Payment', 1, 'er'],
 ] as const;
@@ -133,6 +134,13 @@ async function firstNodeFill(page: Page): Promise<string> {
     .evaluate(el => getComputedStyle(el).fill);
 }
 
+const EDGE = '#process-Collect-Payment .mermaid-diagram .flowchart-link';
+
+// Node fills stay the same in both modes; the connectors carry the mode.
+async function firstEdgeStroke(page: Page): Promise<string> {
+  return page.locator(EDGE).first().evaluate(el => getComputedStyle(el).stroke);
+}
+
 const proc = Bun.spawn(
   ['bun', 'src/cli/cli.ts', 'serve', FIXTURE, '--port', String(PORT)],
   { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' },
@@ -143,7 +151,7 @@ try {
   try {
     if (!await waitForServer(BASE)) throw new Error('server did not start within 12 seconds');
 
-    const fills: Record<string, string> = {};
+    const strokes: Record<string, string> = {};
     for (const theme of ['dark', 'light'] as const) {
       const ctx = await browser.newContext({ viewport: { width: 1440, height: 1400 } });
       await ctx.addInitScript(t => localStorage.setItem('ignatius-theme', t), theme);
@@ -159,32 +167,26 @@ try {
         const wrapper = document.querySelector('[data-ignatius="dict-view"]')?.parentElement;
         if (wrapper) wrapper.style.display = 'block';
       });
-      await waitForDiagrams(page, '#process-Collect-Payment', 2)
+      await waitForDiagrams(page, '#process-Collect-Payment', 3)
         .catch(() => fail(`[${theme}] diagrams render when a style change reveals them`));
       await page.click('.fab');
       await page.getByRole('menuitem', { name: /Dictionary/ }).click();
       await page.waitForSelector('.dict-view', { state: 'visible', timeout: 20_000 });
-      await waitForDiagrams(page, '#process-Collect-Payment', 2);
+      await waitForDiagrams(page, '#process-Collect-Payment', 3);
       await waitForDiagrams(page, '#entity-Payment', 2);
-      fills[theme] = await firstNodeFill(page);
+      strokes[theme] = await firstEdgeStroke(page);
       const accents = await page.evaluate(() => {
-        const css = getComputedStyle(document.documentElement);
         const fillOf = (sel: string) => {
           const el = document.querySelector(`#process-Collect-Payment ${sel}`);
           return el ? getComputedStyle(el).fill : 'missing';
         };
-        const probe = document.createElement('div');
-        document.body.appendChild(probe);
-        const rgb = (v: string) => { probe.style.color = css.getPropertyValue(v); return getComputedStyle(probe).color; };
-        const result = {
-          decision: [fillOf('g.node.ignatius-decision > polygon'), rgb('--badge-dependent-bg')],
-          store: [fillOf('g.node.ignatius-store > path'), rgb('--badge-independent-bg')],
+        return {
+          decision: [fillOf('g.node.ignatius-decision > polygon'), 'rgb(210, 153, 34)'],
+          store: [fillOf('g.node.ignatius-store > path'), 'rgb(88, 166, 255)'],
         };
-        probe.remove();
-        return result;
       });
       for (const [shape, [got, want]] of Object.entries(accents)) {
-        if (got !== want) fail(`[${theme}] ${shape} nodes take the badge fill ${want}, got ${got}`);
+        if (got !== want) fail(`[${theme}] ${shape} nodes take the fill ${want}, got ${got}`);
       }
 
       const broken = page.locator('#entity-PaymentAllocation .mermaid-diagram.mermaid-error');
@@ -197,17 +199,17 @@ try {
       for (const [scope, index, kind] of DIAGRAMS) await shoot(page, scope, index, `mermaid-${kind}-${theme}.png`);
       await ctx.close();
     }
-    if (fills['dark'] === fills['light']) fail(`node fill is the same in both themes (${fills['dark']})`);
+    if (strokes['dark'] === strokes['light']) fail(`connector colour is the same in both themes (${strokes['dark']})`);
 
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 1400 } });
     await ctx.addInitScript(() => localStorage.setItem('ignatius-theme', 'dark'));
     const page = await ctx.newPage();
     await page.goto(`${BASE}/#view=dict`);
-    await waitForDiagrams(page, '#process-Collect-Payment', 2);
+    await waitForDiagrams(page, '#process-Collect-Payment', 3);
     await page.click('.theme-toggle');
     await page.waitForFunction(
-      want => getComputedStyle(document.querySelector('#process-Collect-Payment .mermaid-diagram .node :is(rect, path, polygon)') ?? document.body).fill === want,
-      fills['light'],
+      ({ selector, want }) => getComputedStyle(document.querySelector(selector) ?? document.body).stroke === want,
+      { selector: EDGE, want: strokes['light'] },
       { timeout: 10_000 },
     ).catch(() => fail('a theme toggle re-renders diagrams with the other mode\'s colours'));
     await ctx.close();
@@ -219,10 +221,14 @@ try {
       const page = await ctx.newPage();
       await page.goto(`${BASE}/#view=dict`);
       await page.waitForSelector('.dict-view', { timeout: 20_000 });
-      await waitForDiagrams(page, '#process-Collect-Payment', 2);
+      await waitForDiagrams(page, '#process-Collect-Payment', 3);
       const fill = await firstNodeFill(page);
-      const want = theme === 'dark' ? 'rgb(42, 31, 74)' : 'rgb(239, 233, 255)';
-      if (fill !== want) fail(`[${theme}] theme.mermaid override fills nodes ${want}, got ${fill}`);
+      if (fill !== 'rgb(42, 31, 74)') fail(`[${theme}] theme.mermaid.node_fills fills nodes rgb(42, 31, 74), got ${fill}`);
+      const outline = await page.locator('#process-Collect-Payment .mermaid-diagram .node :is(rect, path, polygon)').first()
+        .evaluate(el => ({ width: getComputedStyle(el).strokeWidth, filter: getComputedStyle(el).filter }));
+      if (outline.width !== '2px' || outline.filter !== 'none') fail(`[${theme}] stroke_width and shadow apply, got ${JSON.stringify(outline)}`);
+      const label = await page.locator('#process-Collect-Payment .mermaid-diagram .nodeLabel').first().evaluate(el => getComputedStyle(el).color);
+      if (label !== 'rgb(255, 255, 255)') fail(`[${theme}] labels on a dark node fill turn white, got ${label}`);
       await page.locator('.changes-panel .side-panel-collapse').click();
       await shoot(page, '#process-Collect-Payment', 0, `mermaid-override-${theme}.png`);
       await ctx.close();

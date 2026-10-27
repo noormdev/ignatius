@@ -29,7 +29,7 @@ Seven viewer fixes: markdown typography, a persisted settings store with a Setti
 **Markdown typography**
 
 - [x] Every markdown site listed in the design (`App.tsx` groups modal, `DictionaryView` group desc, externals, stores, `EntityModal`, `EntityCard`, `FlowNodeModal`, `FlowDocModal`, `StackDialog`, `ChangesPanel`, `ProcessCard`) carries class `md` beside its existing wrapper class.
-- [x] `.md` in `styles.css` defines: `line-height: 1.65`; paragraph and list bottom margin `0.85em`; `li + li` top margin `0.3em`; nested lists without bottom margin; `h1`–`h6` scale with top margin `1.4em` and bottom margin `0.5em`; first child top margin 0 and last child bottom margin 0; `pre` (non-shiki) styled like `.shiki`; `blockquote` with a left border in `--color-border` and muted text; `hr`; `img { max-width: 100% }`; tables spaced `0.85em` from neighbours. Colours only from existing CSS variables.
+- [x] `.md` in `styles.css` defines: `line-height: 1.65`; paragraph and list bottom margin `0.85em`; `li + li` top margin `0.3em`; nested lists without bottom margin; `h1`–`h6` scale with top margin `1.4em` and bottom margin `0.5em`; first child top margin 0 and last child bottom margin 0; `pre` (non-shiki) styled like `.shiki`; `blockquote` with a left border in `--color-border` and muted text; `hr`; `img { max-width: 100% }`; tables spaced `0.85em` from neighbours; direct-child paragraphs, lists, blockquotes and headings capped at `max-width: 72ch` (tables, code and diagrams keep the full width). Colours only from existing CSS variables.
 - [x] Wrapper rules for `p`, `ul`, `ol`, `li`, `h1`–`h6` under `.doc-body`, `.dict-entity-body`, `.flow-node-body` and `.flow-node-body--process` that `.md` replaces are removed. `.doc-section h2` (section labels outside markdown) is unchanged.
 - [x] Screenshots of an entity body, a process body and the entity modal in both themes show the new rhythm (`test/visual/screenshot-md-typography.ts`).
 
@@ -43,7 +43,7 @@ Seven viewer fixes: markdown typography, a persisted settings store with a Setti
 
 **Sidebar tab**
 
-- [x] In the Dictionary view with the sidebar closed, a `button.dict-nav-tab` (aria-label "Open sidebar") is fixed to the right edge, vertically centred. It shows a three-line icon above the text "Sidebar". At rest it is translated so half its width is off-screen; on `:hover` or `:focus-visible` it is fully on-screen, with a transform transition under 200 ms that is disabled under `prefers-reduced-motion`.
+- [x] In the Dictionary view with the sidebar closed, a `button.dict-nav-tab` (aria-label "Open sidebar") is fixed to the right edge, vertically centred. It shows a three-line icon above the text "Sidebar". At rest only a 10-16 px lip is on-screen: a 4 px `--color-link` left edge and a dotted grip, with the icon and label at opacity 0. On `:hover` or `:focus-visible` it is fully on-screen and the icon and label show, with a transform transition under 200 ms that is disabled under `prefers-reduced-motion`. An invisible hover target extends 16 px left of the tab, so the lip is easy to catch.
 - [x] Clicking it opens the sidebar. While the sidebar is open the tab is not rendered.
 - [x] `.dict-nav-panel` gains a close button (aria-label "Close sidebar") in its top row.
 - [x] Open state persists in localStorage `ignatius-dict-nav-open` (`'true'`/absent). FAB "Toggle sidebar" keeps working.
@@ -60,31 +60,29 @@ Seven viewer fixes: markdown typography, a persisted settings store with a Setti
 - [x] Both markdown-it instances render a fence whose info string is `mermaid` as `<div class="mermaid-diagram">ESCAPED_SOURCE</div>`. Other fences are unchanged. Covered by `test/checks/test-mermaid-fence.ts` for an entity body and a process body.
 - [x] `src/app/mermaid-entry.ts` imports `mermaid` and assigns it to `window.__IGNATIUS_MERMAID__`. `build:bundle` also builds it to `dist/static/mermaid.js` (stable name, minified). `mermaid` is a dependency in `package.json`.
 - [x] The server serves `GET /static/mermaid.js` (`text/javascript`) from the embedded file. `embedded-bundle.ts` loads it alongside the other bundle files as `mermaidJs`.
-- [x] `src/app/logic/mermaid-render.ts`: `loadMermaid()` resolves `window.__IGNATIUS_MERMAID__` and, when absent in live mode, injects `<script src="/static/mermaid.js">` once and awaits it. `renderMermaidIn(root, themeVariables)` renders every `.mermaid-diagram:not([data-rendered])` with `mermaid.render`. It sets `data-rendered` and keeps the source in `data-source`, so a theme change can re-render. A failed render shows the source in a `pre` plus the error text inside `.mermaid-diagram.mermaid-error`.
-- [x] `useMermaid(rootRef, model, themeMode)` in the app shell: observes the root with a `MutationObserver`, initialises Mermaid with `startOnLoad: false`, `securityLevel: 'strict'`, `theme: 'base'` and the resolved variables. On theme-mode change it re-renders all diagrams. It loads nothing when no `.mermaid-diagram` exists.
-- [x] `src/theme/mermaid-theme.ts`: `MermaidThemeConfig = { dark?: Record<string, string | number>; light?: … }` on `ThemeConfig.mermaid`. `resolveMermaidThemeVariables(theme, mode)` returns the defaults below, overridden by `theme.mermaid[mode]`:
+- [x] `src/app/logic/mermaid-render.ts`: `loadMermaid()` resolves `window.__IGNATIUS_MERMAID__` and, when absent in live mode, injects `<script src="/static/mermaid.js">` once and awaits it. `renderMermaidIn(root, style)` renders every `.mermaid-diagram:not([data-rendered])` with `mermaid.render`. It sets `data-rendered` and keeps the source in `data-source`, so a theme change can re-render. A failed render shows the source in a `pre` plus the error text inside `.mermaid-diagram.mermaid-error`.
+- [x] `useMermaid(rootRef, model, themeMode)` in the app shell: observes the root with a `MutationObserver`, initialises Mermaid with `startOnLoad: false`, `securityLevel: 'strict'`, `theme: 'base'`, `look: 'classic'`, `flowchart.wrappingWidth: 200`, `sequence.actorFontWeight: 600` and the resolved `MermaidStyle` (`themeVariables` plus `themeCSS`). On theme-mode change it re-renders all diagrams. It loads nothing when no `.mermaid-diagram` exists.
+- [x] `src/theme/mermaid-theme.ts`: `MermaidThemeConfig = { stroke_width?: number; radius?: number; shadow?: boolean; node_fills?: string[]; dark?: Record<string, string | number>; light?: … }` on `ThemeConfig.mermaid`. `resolveMermaidStyle(theme, mode)` returns `{ themeVariables, themeCSS }`. The palette's `background`, `surface`, `text` and `textMuted` reach both only after `SAFE_MERMAID_VALUE`; an unsafe one is replaced by the default and reported by `mergeTheme`.
+    - `node_fills` default `DEFAULT_MERMAID_FILLS`: the dark-mode `semanticColors` independent, dependent, subtype and associative `fg` plus `defaultFlowKinds.dark.queue.fg` (`#58a6ff`, `#d29922`, `#3fb950`, `#f0883e`, `#c4b5fd`), the same in both modes. Each label is coloured against the surface it sits on: a node label black or white, whichever contrasts more with its fill; composite-state and cluster titles palette `text`; ER attribute labels black on their light rows; a Mermaid slot that one colour serves for every fill (gantt task text, pie section text) black or white, whichever has the better worst-case contrast across the fills.
+    - `resolveMermaidThemeVariables(theme, mode)` returns the defaults below, overridden by `theme.mermaid[mode]`:
 
     | Mermaid variable | Default |
     |---|---|
     | `fontFamily` | the app's body font stack |
     | `fontSize` | `14px` |
-    | `background` | palette `background` |
-    | `primaryColor` | palette `surface` |
-    | `primaryBorderColor` | palette `border` blended 35% toward `textMuted` |
-    | `primaryTextColor` | palette `text` |
-    | `secondaryColor`, `tertiaryColor` | palette `surface` mixed 50% with `background` |
-    | `lineColor` | palette `textMuted` |
+    | `background`, `clusterBkg`, `edgeLabelBackground` | palette `background` |
+    | `primaryColor`, `secondaryColor`, `tertiaryColor` | node fills 1, 2, 3 |
+    | `primaryTextColor` | black or white on node fill 1 |
+    | `primaryBorderColor`, `clusterBorder` | `#000000` |
+    | `lineColor` | palette `text` in light mode, `textMuted` in dark mode |
     | `textColor` | palette `text` |
-    | `noteBkgColor` | mode `semanticColors` dependent bg |
-    | `noteTextColor` | mode `semanticColors` dependent fg |
-    | `clusterBkg` | palette `background` |
-    | `clusterBorder` | palette `border` blended 35% toward `textMuted` |
-    | `edgeLabelBackground` | palette `surface` |
+    | `noteBkgColor` | node fill 3 |
 
-    Beyond the table, the defaults name every diagram family's variables (sequence actors, signals, label boxes, notes, activation; state; class; ER; gantt; pie `pie1`–`pie12`; git `git0`–`git7`; `cScale0`–`cScale11`; quadrant; xy chart; sankey), so no family falls back to Mermaid's built-in colours. Categorical series cycle the five `semanticColors` badge backgrounds of the mode plus its `link` colour, and each label colour on a filled shape is whichever of palette `text` or white contrasts more with that fill. Reference implementation to port onto the ignatius palette: `mermaidThemeVars()` in `/Users/alonso/projects/atomic/atomic-claude/atomic/internal/serve/frontend/src/utils/mermaid.ts`.
+    Beyond the table, the defaults name every diagram family's variables (sequence actors, signals, label boxes, notes, activation; state; class; ER; gantt; pie `pie1`–`pie12`; git `git0`–`git7`; `cScale0`–`cScale11`; quadrant; xy chart; sankey), so no family falls back to Mermaid's built-in colours. Categorical series cycle the node fills. ER attribute rows are white and a 12% tint of fill 1.
+    - The theme CSS, built from the resolved variables: node outlines `#000000` at `stroke_width` px (default 3), corner radius `radius` px (default 8), `drop-shadow(3px 5px 8px …)` dark in both modes unless `shadow: false`, node fills cycled per node by `nth-child`, stores (cylinder) on fill 1 and decisions (rhombus) on fill 2, the end state's inner dot black, node labels weight 600 (sequence actor names through `sequence.actorFontWeight: 600` in `mermaid.initialize`, which Mermaid writes inline), connectors at 85% of `stroke_width` (at least 1 px) in `lineColor`, edge labels bold in `transitionLabelColor` on a `background` chip. Node fills, outlines and labels come only from this CSS, so `primaryColor`, `primaryBorderColor` and `primaryTextColor` overrides do not reach flowchart, state, class or ER nodes. `mermaid-render.ts` tags stores and decisions by geometry after insertion, because Mermaid emits no shape class.
 
-- [x] Diagram frame and node styling in `styles.css`, ported from `/Users/alonso/projects/atomic/atomic-claude/atomic/internal/serve/frontend/public/app.css` (the `pre.mermaid` rules, lines 1657–2065). The `.mermaid-diagram` frame has a `--color-background` background (nodes are `surface`, so they stand off the frame), a 1 px `--color-border` border, an 8 px radius and 16 px padding. Node shapes have 1 px borders and rounded rect corners. Flowchart decisions (rhombus) take the mode's dependent badge bg fill and fg stroke; stores (cylinder) take the independent badge colours; `mermaid-render.ts` tags them by geometry after insertion because Mermaid emits no shape class. ER row fills use `--color-surface` and `--color-surface-alt`. Edge labels sit on a surface-coloured box. `.md` rules for `p`, lists and headings never reach Mermaid labels: the frame resets `p` margins inside it. The raw source is hidden until the SVG replaces it, so the source never flashes.
-- [x] `mergeTheme` copies `theme.mermaid.dark` / `.light`, keeping only numbers and strings that match `/^[\d "#%(),.;A-Za-z-]+$/`. That is Mermaid's directive pattern plus `-` for generic font families. Mermaid writes `initialize()` theme values into the SVG `<style>` unsanitized, so anything else could inject CSS. Any other value, and a non-object block, is dropped; the dropped key paths are recorded on `ThemeConfig.invalidMermaidKeys`, and `validateModel` emits one Tier A warning `config.mermaid_theme_invalid` per path (entity id `ignatius.yml`), so `ignatius validate` prints it and still exits 0.
+- [x] Diagram panel in `styles.css`, on the svg: 12 px padding and a 1 px `--color-border` border (`CANVAS_INSET` 13 in `mermaid-render.ts`, which widens the svg's inline `max-width` by twice that), 10 px radius, `--color-background` with an 18 px dot grid in `--color-border`, `overflow: visible` so shadows paint into the padding. The `.mermaid-diagram` wrapper keeps room for the shadows and scrolls horizontally when the diagram is wider. Inside `.md` the panel is left-aligned with the prose column. `.md` rules for `p`, lists and headings never reach Mermaid labels: the wrapper resets `p` margins inside it. The raw source is hidden until the SVG replaces it, so the source never flashes.
+- [x] `mergeTheme` keeps `stroke_width` in 0-8, `radius` in 0-32, a boolean `shadow`, and `node_fills` of 1-12 `#rrggbb` colours. In `theme.mermaid.dark` / `.light` it keeps only numbers and strings that match `/^[\d "#%(),.;A-Za-z-]+$/`. That is Mermaid's directive pattern plus `-` for generic font families. Mermaid writes `initialize()` theme values into the SVG `<style>` unsanitized, so anything else could inject CSS. Any other value, and a non-object block, is dropped; the dropped key paths are recorded on `ThemeConfig.invalidMermaidKeys`, and `validateModel` emits one Tier A warning `config.mermaid_theme_invalid` per path (entity id `ignatius.yml`), so `ignatius validate` prints it and still exits 0.
 - [x] `generateApp` inlines `mermaid.js` (escaped like the app JS) before the app script only when a `mermaid-diagram` div occurs in any entity, group, flow node, cluster or change-note body. `test/checks/test-export-mermaid.ts` asserts presence for a model with a fence and absence for one without.
 - [x] Mermaid SVG fits its container (`max-width: 100%`, centred, horizontal scroll when wider) and inherits the `.md` block spacing.
 - [x] Screenshots: a flowchart and a sequence diagram in a process body, dark and light, plus one with a `theme.mermaid` override (`test/visual/screenshot-mermaid.ts`).
@@ -165,7 +163,7 @@ src/
 ├── flows/flow-markdown.ts .......................... M  (mermaid fence rule)
 ├── model/markdown-mermaid.ts ....................... A  (shared fence rule plugin)
 ├── model/validate.ts ............................... M  (config.mermaid_theme_invalid)
-├── theme/theme-defaults.ts ......................... M  (ThemeConfig.mermaid, mergeTheme)
+├── theme/theme-defaults.ts ......................... M  (ThemeConfig.mermaid, mergeTheme, mermaidKeyMessage)
 ├── theme/mermaid-theme.ts .......................... A
 ├── generators/app.ts ............................... M  (viewState, conditional mermaid inline)
 ├── generators/export-model.ts ...................... A  (parse → validate → flows → review → generateApp, shared by CLI and server)
@@ -231,8 +229,18 @@ src/model/markdown-mermaid.ts
   mermaidFencePlugin — markdown-it fence override for info string 'mermaid'
 
 src/theme/mermaid-theme.ts
-  MermaidThemeConfig — per-mode Mermaid themeVariables overrides
-  resolveMermaidThemeVariables — palette-derived defaults merged with overrides
+  MermaidThemeConfig — node style keys plus per-mode Mermaid themeVariables overrides
+  DEFAULT_MERMAID_FILLS — entity colours at full strength
+  resolveMermaidThemeVariables — palette and fill defaults merged with overrides
+  themeCSS — outlines, radius, shadow, fill cycle, label colours and weight
+  safePalette — palette colours that pass SAFE_MERMAID_VALUE, else defaults
+  resolveMermaidStyle — both halves for mermaid.initialize
+
+src/theme/theme-defaults.ts
+  readMermaidTheme — keep valid style keys and mode values, list the rest
+  readNumberInRange — range check for stroke_width and radius
+  mermaidKeyMessage — the finding text per invalid key path
+  DIAGRAM_PALETTE_KEYS — palette colours diagrams use, checked in mergeTheme
 
 src/app/logic/mermaid-render.ts
   loadMermaid — global or one-time script injection
@@ -308,8 +316,8 @@ skills/ignatius-modeling/references/entity-flow.md
 
 1. Parser renders the process body; the fence becomes `div.mermaid-diagram`.
 2. Dictionary renders the body → `MutationObserver` sees an unrendered diagram.
-3. `loadMermaid` injects `/static/mermaid.js` once → `mermaid.initialize` with resolved variables → `mermaid.render` → SVG replaces the source.
-4. User toggles theme → `rerenderAll` with the other mode's variables.
+3. `loadMermaid` injects `/static/mermaid.js` once → `mermaid.initialize` with the resolved `MermaidStyle` (`themeVariables` and `themeCSS`) → `mermaid.render` → SVG replaces the source → `widenForPadding` and `tagFlowchartShapes`.
+4. User toggles theme → `rerenderAll` with the other mode's `MermaidStyle`.
 
 **Export as seen**
 
@@ -427,6 +435,32 @@ skills/ignatius-modeling/references/entity-flow.md
 **Why:** Final audit. A recipient's theme toggle was lost on reload, focus fell to `<body>` after a FAB dialog closed, and several spec sections lagged the build.
 
 **Superseded:** The snapshot theme won only on first apply.
+
+### 2026-10-27 — Bold diagrams, sidebar lip, prose width
+
+**What changed:**
+- Mermaid diagrams use a bold look with ignatius's entity colours: full-strength cycled node fills, 3 px black outlines, 8 px radius, dark drop shadows, bold labels, thicker connectors, and a dotted panel on the svg.
+- `theme.mermaid` gains `stroke_width`, `radius`, `shadow` and `node_fills`, validated and reported through `config.mermaid_theme_invalid`. `resolveMermaidStyle` passes a `themeCSS` alongside the variables.
+- Mermaid is initialised with `look: 'classic'` and `flowchart.wrappingWidth: 200`.
+- The sidebar tab rests as a 10-16 px lip with an accent edge and grip; the icon and label show only on hover or focus.
+- `.md` prose is capped at `72ch`.
+
+**Why:** The requester reviewed the shipped build: the tab never looked hidden, and the diagrams looked unstyled. An independent review found the palette had been copied from an older atomic viewer than the bold theme the requester meant, and that the half-hidden tab showed a clipped "Side" at rest. The same review's captures showed prose running about 160 characters per line. Mermaid 12 wraps flowchart labels at 120 px, which split the bold labels mid-word, and its default `neo` look painted gradient strokes over the outlines.
+
+**Superseded:** Surface-coloured nodes with 1 px borders on a bordered frame; decisions and stores on pale badge colours set with `!important` page CSS; a tab resting half off-screen.
+
+### 2026-10-27 — Diagram theme safety and label surfaces
+
+**What changed:**
+- Palette `background`, `surface`, `text` and `textMuted` pass `SAFE_MERMAID_VALUE` before reaching `themeVariables` or `themeCSS`; an unsafe one falls back to the default and is reported.
+- Labels are coloured against the surface they sit on (composite titles, ER attribute rows, single-colour gantt and pie slots).
+- Unknown `theme.mermaid` keys are reported, and each invalid key's finding states its own rule.
+- `themeCSS` reads connector and label colours from the resolved variables, so a mode-block `lineColor` reaches every connector.
+- The end-state dot moves from page CSS into `themeCSS`, the svg widening counts the panel border, and diagrams inside `.md` are left-aligned with the prose.
+
+**Why:** Final audit of the rework. A palette colour containing CSS made diagrams fetch an outside URL; composite-state titles were black on the dark page; a dark node fill turned ER attribute rows white-on-white.
+
+**Superseded:** Palette colours reached the diagram stylesheet unfiltered; composite titles and ER attribute labels took the first fill's label colour.
 
 ## Implementation log
 

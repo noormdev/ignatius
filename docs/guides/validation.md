@@ -116,7 +116,7 @@ These check `ignatius.yml` and the reserved router filename it declares. The `in
 | `config.index_file_ext` | B | `index_file` does not end in `.md`. |
 | `config.index_file_path` | B | `index_file` contains a path separator or `..`; it must be a bare filename. |
 | `config.index_file_entity` | B | A file under `data/` uses the reserved `index_file` name but declares `entity:`. Every scan skips that name, so the entity is dropped; rename the file. |
-| `config.mermaid_theme_invalid` | A | A `theme.mermaid` block, or its `dark`/`light` block, is not a mapping, or a value in it is neither a number nor a string of letters, digits, spaces and `# % ( ) , . ; - "`. That part is ignored. See [Themes and branding](themes-and-branding.md#mermaid-diagrams). |
+| `config.mermaid_theme_invalid` | A | A `theme.mermaid` block, or its `dark`/`light` block, is not a mapping, a value in a mode block is neither a number nor a string of letters, digits, spaces and `# % ( ) , . ; - "`, `stroke_width`, `radius`, `shadow` or `node_fills` is outside its type or range, a key under `theme.mermaid` is unknown, or a `theme.dark`/`theme.light` `background`, `surface`, `text` or `textMuted` color holds other characters. That part is ignored; for a palette color, only diagrams ignore it. See [Themes and branding](themes-and-branding.md#mermaid-diagrams). |
 
 
 ### Index rules

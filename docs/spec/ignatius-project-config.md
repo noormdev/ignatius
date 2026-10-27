@@ -27,7 +27,7 @@ Introduce `ignatius.yml` as the single per-model config file (meta + theme + bra
 
 - [ ] `parseModels(modelRoot)` reads `modelRoot/ignatius.yml` for theme, branding, and meta; the `_theme.yaml`/`_branding.yaml`/`_meta.yaml` code paths no longer exist (`grep _theme.yaml src/` → 0).
 - [ ] An `ignatius.yml` with only `name:` parses; theme/branding default; `grep -r '_theme.yaml\|_branding.yaml\|_meta.yaml' src/` returns nothing.
-- [ ] `theme.mermaid` is optional: `{ dark?: Record<string, string | number>; light?: Record<string, string | number> }`, keyed by Mermaid `themeVariables` names and applied over the palette-derived defaults for that mode (`resolveMermaidThemeVariables`, `src/theme/mermaid-theme.ts`). `mergeTheme` keeps numbers and strings matching `SAFE_MERMAID_VALUE` (`src/theme/theme-defaults.ts`) and drops anything else, as well as a `theme.mermaid`, `dark` or `light` value that is not a mapping. Each dropped key path is recorded on `ThemeConfig.invalidMermaidKeys`, and `validateModel` reports it as the Tier A warning `config.mermaid_theme_invalid` (entity id `ignatius.yml`), so `ignatius validate` prints it and still exits 0. Contract: `docs/spec/viewer-qol.md`.
+- [ ] `theme.mermaid` is optional: `{ stroke_width?: number; radius?: number; shadow?: boolean; node_fills?: string[]; dark?: Record<string, string | number>; light?: Record<string, string | number> }`. The four style keys feed the diagram's theme CSS in both modes (`resolveMermaidStyle`); `dark`/`light` are keyed by Mermaid `themeVariables` names and applied over the defaults for that mode (`resolveMermaidThemeVariables`, `src/theme/mermaid-theme.ts`). `mergeTheme` keeps `stroke_width` in 0-8, `radius` in 0-32, a boolean `shadow`, and `node_fills` of 1-12 six-digit hex colors; in the mode blocks it keeps numbers and strings matching `SAFE_MERMAID_VALUE` (`src/theme/theme-defaults.ts`). It drops anything else, unknown keys, and a `theme.mermaid`, `dark` or `light` value that is not a mapping. A `theme.dark`/`theme.light` `background`, `surface`, `text` or `textMuted` that fails `SAFE_MERMAID_VALUE` is reported the same way; the app keeps it, and diagrams use the default color in its place. Each dropped key path is recorded on `ThemeConfig.invalidMermaidKeys`, and `validateModel` reports it as the Tier A warning `config.mermaid_theme_invalid` (entity id `ignatius.yml`), so `ignatius validate` prints it and still exits 0. Contract: `docs/spec/viewer-qol.md`.
 - [ ] `models/{key-inherited,orm-hybrid,orm-pure}/ignatius.yml` exist, each with a distinct `name`; all three render via discovery (`dict` + `graph` exit 0).
 - [ ] Discovery: a base dir containing `ignatius.yml` resolves to itself; a base with no `ignatius.yml` but `ignatius.yml` files below resolves to the set; a base inside a model resolves up to the enclosing root; a base with none errors with a clear message.
 - [ ] `ignatius dict models -o out.html` with 3 models present, **non-TTY**, no `--model` → exits non-zero and lists the available keys (`key-inherited`, `orm-hybrid`, `orm-pure`).
@@ -87,6 +87,12 @@ Introduce `ignatius.yml` as the single per-model config file (meta + theme + bra
 **What changed:** `ignatius.yml` gains the optional `theme.mermaid.dark` / `.light` blocks of Mermaid `themeVariables` overrides, filtered by a safe-value pattern, with the `config.mermaid_theme_invalid` warning for each dropped key.
 
 **Why:** Mermaid diagrams in markdown bodies (`docs/spec/viewer-qol.md`) take their colors from the theme, and a model needs a way to override them.
+
+### 2026-10-27 — `theme.mermaid` style keys
+
+**What changed:** `theme.mermaid` gains `stroke_width`, `radius`, `shadow` and `node_fills`, each range- or format-checked. Unknown keys under `theme.mermaid` are reported. The `theme.dark`/`theme.light` `background`, `surface`, `text` and `textMuted` colors are checked against `SAFE_MERMAID_VALUE` too: an unsafe one is reported, and diagrams use the default color in its place.
+
+**Why:** The diagrams moved to a bold look whose outline, radius, shadow and fills Mermaid exposes only through `themeCSS`. Review showed palette colors reach the diagram stylesheet as written, so an unsafe one could inject CSS.
 
 
 ## Implementation log

@@ -35,6 +35,10 @@ function tabBox(page: Page) {
   });
 }
 
+function contentOpacity(page: Page) {
+  return page.locator(`${TAB} .dict-nav-tab-content`).evaluate(el => getComputedStyle(el).opacity);
+}
+
 // The panel slides out by transform, so "open" means it sits inside the viewport.
 function panelOnScreen(page: Page) {
   return page.locator(PANEL).evaluate(el => el.getBoundingClientRect().left < window.innerWidth - 1);
@@ -75,11 +79,9 @@ try {
         assert(await tab.locator('svg').count() === 1, `FAIL: [${theme}] the tab carries one icon`);
 
         const rest = await tabBox(page);
-        const hidden = rest.right - VIEWPORT.width;
-        assert(
-          Math.abs(hidden - rest.width / 2) <= 2,
-          `FAIL: [${theme}] at rest half the tab is off-screen (off by ${hidden}px of ${rest.width}px)`,
-        );
+        const lip = VIEWPORT.width - rest.left;
+        assert(lip >= 10 && lip <= 16, `FAIL: [${theme}] at rest a 10-16px lip of the tab shows, got ${lip}px of ${rest.width}px`);
+        assert(await contentOpacity(page) === '0', `FAIL: [${theme}] at rest the icon and label are hidden, not clipped`);
         const middle = (rest.top + rest.bottom) / 2;
         assert(Math.abs(middle - VIEWPORT.height / 2) <= 2, `FAIL: [${theme}] the tab is vertically centred (middle ${middle})`);
         await page.screenshot({ path: join(TMP, `sidebar-tab-rest-${theme}.png`) });
@@ -99,17 +101,20 @@ try {
           Math.abs(focused.right - VIEWPORT.width) <= 0.5,
           `FAIL: [${theme}] keyboard focus brings the tab fully on-screen (right ${focused.right})`,
         );
+        assert(await contentOpacity(page) === '1', `FAIL: [${theme}] keyboard focus shows the icon and label`);
         await page.evaluate(() => {
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         });
 
-        await tab.hover();
+        // 14px left of the lip: inside the tab's wider hover target, outside the tab itself.
+        await page.mouse.move(VIEWPORT.width - lip - 14, middle);
         await settle(page);
         const hovered = await tabBox(page);
         assert(
           hovered.right <= VIEWPORT.width + 0.5 && hovered.right >= VIEWPORT.width - 2,
           `FAIL: [${theme}] hover brings the tab fully on-screen (right ${hovered.right})`,
         );
+        assert(await contentOpacity(page) === '1', `FAIL: [${theme}] hover shows the icon and label`);
         await page.screenshot({ path: join(TMP, `sidebar-tab-hover-${theme}.png`) });
 
         await tab.click();

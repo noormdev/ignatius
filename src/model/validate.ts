@@ -10,6 +10,7 @@
  */
 
 import type { Model, ModelNode, ModelEdge, SubtypeCluster } from './parse';
+import { mermaidKeyMessage } from '../theme/theme-defaults';
 // Type-only import from flow-validate. Both directions are import type (erased at runtime)
 // so there is no runtime circular dependency — flow-validate.ts imports type RuleId from here.
 import type { FlowError } from '../flows/flow-validate';
@@ -197,7 +198,7 @@ export const RULES: Record<RuleId, RuleEntry> = {
   },
   'config.mermaid_theme_invalid': {
     title: 'Invalid Mermaid theme value',
-    explanation: '`ignatius.yml`\'s `theme.mermaid` block, or one of its `dark`/`light` blocks, is not a mapping, or a value in it is neither a number nor a string made only of letters, digits, spaces and `# % ( ) , . ; - "`. Values reach the diagram\'s stylesheet as written, so anything else could inject CSS. That part is ignored and diagrams use the default for it.',
+    explanation: 'A part of `ignatius.yml` that reaches the Mermaid diagram stylesheet is invalid. `theme.mermaid`, `theme.mermaid.dark` and `theme.mermaid.light` must be mappings. A value in `dark` or `light` must be a number or a string made only of letters, digits, spaces and `# % ( ) , . ; - "`. `stroke_width` must be 0-8, `radius` 0-32, `shadow` a boolean, and `node_fills` 1-12 `#rrggbb` colors. Other keys under `theme.mermaid` are unknown. The `theme.dark`/`theme.light` `background`, `surface`, `text` and `textMuted` colors must use the same characters as mode-block values. Values reach the stylesheet as written, so anything else could inject CSS. The part is ignored and diagrams use the default for it.',
     class: 'A',
   },
   'index.stale': {
@@ -587,7 +588,7 @@ export function validateModel(model: Model): ValidationResult {
       ruleId: 'config.mermaid_theme_invalid',
       entityId: 'ignatius.yml',
       severity: 'warning',
-      message: `"${key}" is ignored: Mermaid theme blocks must be mappings, and their values numbers or strings of letters, digits, spaces and # % ( ) , . ; - " only.`,
+      message: mermaidKeyMessage(key),
     });
   }
 

@@ -3067,6 +3067,11 @@ button.changes-panel-item:hover {
   line-height: 1.65;
 }
 
+/* Prose lines past ~75 characters are hard to track; tables, code and diagrams keep the full width. */
+.md > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6) {
+  max-width: 72ch;
+}
+
 .md p,
 .md ul,
 .md ol,
@@ -3157,14 +3162,12 @@ button.changes-panel-item:hover {
   margin-bottom: 0;
 }
 
-/* ── Mermaid diagrams ── colours come from src/theme/mermaid-theme.ts; these
-   rules cover what Mermaid paints outside its variables. */
+/* ── Mermaid diagrams ── colours and shapes inside the svg come from resolveMermaidStyle
+   (src/theme/mermaid-theme.ts); these rules cover the panel around it and the host page. */
 
 .mermaid-diagram {
-  padding: 16px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  /* Room for the node shadows, which paint past the svg box. */
+  padding: 4px 10px 12px 4px;
   overflow-x: auto;
   text-align: center;
   line-height: normal;
@@ -3177,11 +3180,20 @@ button.changes-panel-item:hover {
   user-select: none;
 }
 
+/* Padding plus border is CANVAS_INSET in src/app/logic/mermaid-render.ts, which widens the svg to fit it. */
 .mermaid-diagram svg {
   display: block;
+  box-sizing: border-box;
   max-width: 100%;
   height: auto;
   margin: 0 auto;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background-color: var(--color-background);
+  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 18px 18px;
+  overflow: visible;
   white-space: normal;
 }
 
@@ -3192,61 +3204,21 @@ button.changes-panel-item:hover {
   line-height: 1.5;
 }
 
-.mermaid-diagram :is(.node, .cluster) :is(rect, polygon, circle, ellipse, path) {
-  stroke-width: 1px;
+/* Prose stops at 72ch, so a centred diagram would sit right of the text column. */
+.md .mermaid-diagram {
+  text-align: left;
 }
 
-.mermaid-diagram .node rect,
-.mermaid-diagram rect.actor,
-.mermaid-diagram .labelBox,
-.mermaid-diagram rect.note {
-  rx: 6px;
-  ry: 6px;
-}
-
-.mermaid-diagram .cluster rect {
-  rx: 8px;
-  ry: 8px;
-}
-
-.mermaid-diagram .edgeLabel,
-.mermaid-diagram .edgeLabel :is(p, span) {
-  background-color: var(--color-surface);
-  color: var(--color-text-muted);
-  border-radius: 4px;
-}
-
-/* Decisions and stores, tagged by tagFlowchartShapes in mermaid-render.ts.
-   `!important` beats Mermaid's own rules, which it scopes by the SVG's id. */
-.mermaid-diagram g.node.ignatius-decision > polygon {
-  fill: var(--badge-dependent-bg) !important;
-  stroke: var(--badge-dependent-fg) !important;
-}
-
-.mermaid-diagram g.node.ignatius-store > path {
-  fill: var(--badge-independent-bg) !important;
-  stroke: var(--badge-independent-fg) !important;
-}
-
-/* The end-state dot takes the node border colour, near-invisible on the node fill. */
-.mermaid-diagram g.node[id*="_end-"] g:not(.outer-path) > path:first-child {
-  fill: var(--color-text-muted) !important;
-}
-
-/* Mermaid derives ER row fills from `background` by lightness and ignores the
-   row variables; CSS outranks the presentation attribute it sets. */
-.mermaid-diagram g.row-rect-odd > path {
-  fill: var(--color-surface);
-}
-
-.mermaid-diagram g.row-rect-even > path {
-  fill: var(--color-surface-alt);
+.md .mermaid-diagram svg {
+  margin: 0;
 }
 
 .mermaid-diagram.mermaid-error {
   text-align: left;
   white-space: normal;
-  border-color: var(--badge-dependent-fg);
+  padding: 16px;
+  border: 1px solid var(--badge-dependent-fg);
+  border-radius: 8px;
 }
 
 .mermaid-diagram.mermaid-error pre {
@@ -3463,29 +3435,72 @@ a.dict-link-missing:hover {
   padding: 0.25rem 0 0.75rem;
 }
 
+/* At rest only a lip shows: an accent edge and a grip. Hover or focus slides the tab fully out. */
 .dict-nav-tab {
+  --dict-nav-tab-lip: 14px;
   position: fixed;
   top: 50%;
   right: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 10px;
+  padding: 14px 12px 14px 16px;
+  border-left: 4px solid var(--color-link);
   color: var(--color-text-muted);
   font: inherit;
   font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: pointer;
-  transform: translate(50%, -50%);
-  transition: transform 150ms ease, color 150ms ease;
+  transform: translate(calc(100% - var(--dict-nav-tab-lip)), -50%);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), color 150ms ease, box-shadow 150ms ease;
+}
+
+/* Grip: two columns of dots inside the lip. */
+.dict-nav-tab::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 6px;
+  height: 22px;
+  transform: translateY(-50%);
+  background-image: radial-gradient(var(--color-text-muted) 1.2px, transparent 1.4px);
+  background-size: 3px 5.5px;
+  transition: opacity 150ms ease;
+}
+
+/* A hover target 16px wider than the lip; offsets start inside the 4px left border. */
+.dict-nav-tab::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: -20px;
+  width: 20px;
+}
+
+.dict-nav-tab-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 150ms ease;
 }
 
 .dict-nav-tab:hover,
 .dict-nav-tab:focus-visible {
   color: var(--color-text);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.25);
   transform: translate(0, -50%);
+}
+
+.dict-nav-tab:hover::before,
+.dict-nav-tab:focus-visible::before {
+  opacity: 0;
+}
+
+.dict-nav-tab:hover .dict-nav-tab-content,
+.dict-nav-tab:focus-visible .dict-nav-tab-content {
+  opacity: 1;
 }
 
 .dict-nav-tab:focus-visible {
@@ -3499,7 +3514,9 @@ a.dict-link-missing:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dict-nav-tab {
+  .dict-nav-tab,
+  .dict-nav-tab::before,
+  .dict-nav-tab-content {
     transition: none;
   }
 }

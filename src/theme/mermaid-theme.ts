@@ -1,17 +1,49 @@
 import { blendHex } from '../app/logic/color';
-import { semanticColors, type ThemeConfig, type ThemeMode } from './theme-defaults';
+import {
+  defaultFlowKinds,
+  defaultTheme,
+  DIAGRAM_PALETTE_KEYS,
+  SAFE_MERMAID_VALUE,
+  semanticColors,
+  type ThemeConfig,
+  type ThemeMode,
+  type ThemePalette,
+} from './theme-defaults';
 
-/** `theme.mermaid` in ignatius.yml: Mermaid `themeVariables` per mode, using Mermaid's own key names. */
+/** `theme.mermaid` in ignatius.yml: node style keys, plus Mermaid `themeVariables` per mode under Mermaid's own key names. */
 export type MermaidThemeConfig = {
+  stroke_width?: number;
+  radius?: number;
+  shadow?: boolean;
+  node_fills?: string[];
   dark?: Record<string, string | number>;
   light?: Record<string, string | number>;
 };
 
 export type MermaidThemeVariables = Record<string, string | number | Record<string, string | number>>;
 
+/** What `mermaid.initialize` takes for one theme mode. */
+export type MermaidStyle = { themeVariables: MermaidThemeVariables; themeCSS: string };
+
+/** The entity colours at full strength, bright enough for black labels in both modes. */
+export const DEFAULT_MERMAID_FILLS: readonly string[] = [
+  semanticColors.dark.independent.fg,
+  semanticColors.dark.dependent.fg,
+  semanticColors.dark.subtype.fg,
+  semanticColors.dark.associative.fg,
+  defaultFlowKinds.dark.queue.fg,
+];
+const DEFAULT_MERMAID_STROKE_WIDTH = 3;
+const DEFAULT_MERMAID_RADIUS = 8;
+
 /** Keep in step with `body` in src/app/styles.css. */
 const BODY_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
 const WHITE = '#ffffff';
+const BLACK = '#000000';
+const OUTLINE = BLACK;
+
+// Every node outline except the start dot and the ER attribute rows, which share the `.node` group.
+const NODE_SHAPE = ':is(rect, polygon, path, circle):not(.state-start):not(:is(.row-rect-odd, .row-rect-even, .divider) *)';
 
 function relativeLuminance(hex: string): number {
   const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
@@ -30,142 +62,167 @@ function contrastRatio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
+function labelOn(fill: string): string {
+  return contrastRatio(BLACK, fill) >= contrastRatio(WHITE, fill) ? BLACK : WHITE;
+}
+
+/** The one label colour for a slot drawn on any of `fills`: the one whose worst contrast is best. */
+function labelOnAll(fills: readonly string[]): string {
+  const worst = (ink: string) => Math.min(...fills.map(fill => contrastRatio(ink, fill)));
+  return worst(BLACK) >= worst(WHITE) ? BLACK : WHITE;
+}
+
+function erRowEven(fills: readonly string[]): string {
+  return blendHex(WHITE, fills[0] ?? WHITE, 0.12);
+}
+
+function nodeFills(theme: ThemeConfig): readonly string[] {
+  const fills = theme.mermaid?.node_fills;
+  return fills && fills.length > 0 ? fills : DEFAULT_MERMAID_FILLS;
+}
+
+// Mermaid writes the palette into the diagram's <style> unescaped; mergeTheme reports each value replaced here.
+function safePalette(theme: ThemeConfig, mode: ThemeMode): ThemePalette {
+  const safe = { ...theme[mode] };
+  for (const key of DIAGRAM_PALETTE_KEYS) {
+    if (!SAFE_MERMAID_VALUE.test(safe[key])) safe[key] = defaultTheme[mode][key];
+  }
+  return safe;
+}
+
 /** Mermaid themeVariables for `mode`: palette-derived defaults for every diagram family (Mermaid fills
  *  an unnamed family with colours that ignore the theme), overridden by `theme.mermaid[mode]`. */
 export function resolveMermaidThemeVariables(theme: ThemeConfig, mode: ThemeMode): MermaidThemeVariables {
-  const p = theme[mode];
-  const sc = semanticColors[mode];
+  const p = safePalette(theme, mode);
   const ink = p.text;
   const inkSoft = p.textMuted;
-  const surface = p.surface;
   const paper = p.background;
   const sunk = blendHex(p.surface, p.background, 0.5);
-  // The palette border is tuned for cards on a page and goes faint around small shapes.
-  const border = blendHex(p.border, p.textMuted, 0.35);
-  const line = p.textMuted;
-  const accent = sc.dependent.fg;
-  const note = sc.dependent;
-
-  const series = [sc.independent.bg, sc.dependent.bg, sc.classifier.bg, sc.subtype.bg, sc.associative.bg, sc.link];
-  const fillAt = (i: number) => series[i % series.length] ?? surface;
-  const labelOn = (fill: string) => (contrastRatio(ink, fill) >= contrastRatio(WHITE, fill) ? ink : WHITE);
+  // Dark mode draws connectors in the muted text tone so they stay quieter than the nodes.
+  const line = mode === 'light' ? ink : inkSoft;
+  const label = mode === 'light' ? ink : blendHex(inkSoft, ink, 0.35);
+  const series = nodeFills(theme);
+  const fillAt = (i: number) => series[i % series.length] ?? WHITE;
+  const onSeries = labelOnAll(series);
+  const accent = fillAt(1);
 
   const vars: MermaidThemeVariables = {
     fontFamily: BODY_FONT,
     fontSize: '14px',
     background: paper,
-    // Nodes read mainBkg/nodeBorder/nodeTextColor, which Mermaid derives from these three;
-    // naming them too would stop an override of these from reaching the nodes.
-    primaryColor: surface,
-    primaryTextColor: ink,
-    primaryBorderColor: border,
-    secondaryColor: sunk,
-    secondaryTextColor: ink,
-    secondaryBorderColor: border,
-    tertiaryColor: sunk,
-    tertiaryTextColor: ink,
-    tertiaryBorderColor: border,
+    // Node fills, outlines and labels come from the theme CSS; these reach the shapes it does not paint.
+    primaryColor: fillAt(0),
+    primaryTextColor: labelOn(fillAt(0)),
+    primaryBorderColor: OUTLINE,
+    secondaryColor: fillAt(1),
+    secondaryTextColor: labelOn(fillAt(1)),
+    secondaryBorderColor: OUTLINE,
+    tertiaryColor: fillAt(2),
+    tertiaryTextColor: labelOn(fillAt(2)),
+    tertiaryBorderColor: OUTLINE,
     lineColor: line,
     arrowheadColor: line,
     textColor: ink,
     titleColor: ink,
-    edgeLabelBackground: surface,
+    edgeLabelBackground: paper,
     clusterBkg: paper,
-    clusterBorder: border,
-    // Mermaid's default is a light grey shadow, a smudge on a dark surface.
+    clusterBorder: OUTLINE,
+    // The theme CSS draws the shadow; Mermaid's own is a light grey smudge on a dark surface.
     dropShadow: 'none',
-    errorBkgColor: sc.associative.bg,
-    errorTextColor: sc.associative.fg,
+    errorBkgColor: fillAt(3),
+    errorTextColor: labelOn(fillAt(3)),
 
-    actorBkg: surface,
-    actorBorder: border,
-    actorTextColor: ink,
+    actorBkg: fillAt(1),
+    actorBorder: OUTLINE,
+    actorTextColor: labelOn(fillAt(1)),
     actorLineColor: line,
-    signalColor: ink,
+    signalColor: line,
     signalTextColor: ink,
-    labelBoxBkgColor: sunk,
-    labelBoxBorderColor: border,
-    labelTextColor: ink,
+    labelBoxBkgColor: fillAt(0),
+    labelBoxBorderColor: OUTLINE,
+    labelTextColor: labelOn(fillAt(0)),
     loopTextColor: ink,
-    noteBkgColor: note.bg,
-    noteBorderColor: note.fg,
-    noteTextColor: note.fg,
-    activationBkgColor: sunk,
-    activationBorderColor: border,
+    noteBkgColor: fillAt(2),
+    noteBorderColor: OUTLINE,
+    noteTextColor: labelOn(fillAt(2)),
+    activationBkgColor: fillAt(3),
+    activationBorderColor: OUTLINE,
     sequenceNumberColor: labelOn(line),
 
-    stateBkg: surface,
+    stateBkg: fillAt(0),
     stateLabelColor: ink,
     labelColor: ink,
     altBackground: sunk,
     compositeBackground: paper,
     compositeTitleBackground: sunk,
-    compositeBorder: border,
+    compositeBorder: OUTLINE,
     transitionColor: line,
-    transitionLabelColor: ink,
+    transitionLabelColor: label,
     specialStateColor: inkSoft,
     innerEndBackground: inkSoft,
 
-    classText: ink,
+    classText: labelOn(fillAt(0)),
     relationColor: line,
-    relationLabelColor: ink,
-    relationLabelBackground: surface,
-    requirementBackground: surface,
-    requirementBorderColor: border,
-    requirementTextColor: ink,
+    relationLabelColor: label,
+    relationLabelBackground: paper,
+    requirementBackground: fillAt(0),
+    requirementBorderColor: OUTLINE,
+    requirementTextColor: labelOn(fillAt(0)),
 
-    rowOdd: surface,
-    rowEven: sunk,
-    attributeBackgroundColorOdd: surface,
-    attributeBackgroundColorEven: sunk,
+    // ER attribute rows stay light in both modes; their labels are black whatever the node fills.
+    rowOdd: WHITE,
+    rowEven: erRowEven(series),
+    attributeBackgroundColorOdd: WHITE,
+    attributeBackgroundColorEven: erRowEven(series),
 
-    // Text on a gantt bar takes the label colour for the bar's fill; text beside a bar takes the page ink.
+    // Gantt text inside a bar takes the bar's label colour. Mermaid reuses taskTextDarkColor for text
+    // beside a bar and on done bars (both on the page tone) and on active bars, which themeCSS recolours.
     sectionBkgColor: sunk,
     altSectionBkgColor: paper,
     sectionBkgColor2: sunk,
-    gridColor: border,
+    gridColor: inkSoft,
     taskBkgColor: fillAt(0),
-    taskBorderColor: border,
+    taskBorderColor: OUTLINE,
     taskTextColor: labelOn(fillAt(0)),
     taskTextLightColor: labelOn(fillAt(0)),
-    taskTextDarkColor: labelOn(fillAt(0)),
+    taskTextDarkColor: ink,
     taskTextOutsideColor: ink,
-    taskTextClickableColor: sc.link,
-    activeTaskBkgColor: fillAt(1),
-    activeTaskBorderColor: accent,
+    taskTextClickableColor: semanticColors[mode].link,
+    activeTaskBkgColor: fillAt(2),
+    activeTaskBorderColor: OUTLINE,
     doneTaskBkgColor: sunk,
-    doneTaskBorderColor: border,
-    critBkgColor: fillAt(4),
-    critBorderColor: sc.associative.fg,
+    doneTaskBorderColor: inkSoft,
+    critBkgColor: fillAt(3),
+    critBorderColor: OUTLINE,
     todayLineColor: accent,
     vertLineColor: accent,
 
     pieTitleTextColor: ink,
-    pieSectionTextColor: labelOn(fillAt(0)),
+    pieSectionTextColor: onSeries,
     pieLegendTextColor: ink,
-    pieStrokeColor: paper,
-    pieOuterStrokeColor: border,
-    quadrant1Fill: surface,
-    quadrant2Fill: sunk,
-    quadrant3Fill: surface,
-    quadrant4Fill: sunk,
-    quadrant1TextFill: ink,
-    quadrant2TextFill: ink,
-    quadrant3TextFill: ink,
-    quadrant4TextFill: ink,
-    quadrantPointFill: sc.link,
+    pieStrokeColor: OUTLINE,
+    pieOuterStrokeColor: OUTLINE,
+    quadrant1Fill: fillAt(0),
+    quadrant2Fill: fillAt(1),
+    quadrant3Fill: fillAt(2),
+    quadrant4Fill: fillAt(3),
+    quadrant1TextFill: labelOn(fillAt(0)),
+    quadrant2TextFill: labelOn(fillAt(1)),
+    quadrant3TextFill: labelOn(fillAt(2)),
+    quadrant4TextFill: labelOn(fillAt(3)),
+    quadrantPointFill: ink,
     quadrantPointTextFill: ink,
     quadrantXAxisTextFill: inkSoft,
     quadrantYAxisTextFill: inkSoft,
-    quadrantInternalBorderStrokeFill: border,
-    quadrantExternalBorderStrokeFill: border,
+    quadrantInternalBorderStrokeFill: OUTLINE,
+    quadrantExternalBorderStrokeFill: OUTLINE,
     quadrantTitleFill: ink,
 
     commitLabelColor: ink,
     commitLabelBackground: sunk,
-    tagLabelColor: note.fg,
-    tagLabelBackground: note.bg,
-    tagLabelBorder: note.fg,
+    tagLabelColor: labelOn(fillAt(2)),
+    tagLabelBackground: fillAt(2),
+    tagLabelBorder: OUTLINE,
 
     // xychart reads a nested object rather than flat keys. Sankey takes only
     // textColor from the theme; its node fills come from Mermaid's sankey config.
@@ -174,12 +231,12 @@ export function resolveMermaidThemeVariables(theme: ThemeConfig, mode: ThemeMode
       titleColor: ink,
       xAxisLabelColor: ink,
       xAxisTitleColor: ink,
-      xAxisTickColor: border,
-      xAxisLineColor: border,
+      xAxisTickColor: inkSoft,
+      xAxisLineColor: inkSoft,
       yAxisLabelColor: ink,
       yAxisTitleColor: ink,
-      yAxisTickColor: border,
-      yAxisLineColor: border,
+      yAxisTickColor: inkSoft,
+      yAxisLineColor: inkSoft,
       plotColorPalette: series.join(','),
     },
   };
@@ -200,4 +257,60 @@ export function resolveMermaidThemeVariables(theme: ThemeConfig, mode: ThemeMode
   }
 
   return { ...vars, ...(theme.mermaid?.[mode] ?? {}) };
+}
+
+/** Mermaid `themeCSS` for `mode`: outlines, radius, shadow, the per-node fill cycle, and label colours,
+ *  none of which Mermaid exposes as a theme variable. Colours come from the resolved `vars`, already filtered. */
+function themeCSS(theme: ThemeConfig, mode: ThemeMode, vars: MermaidThemeVariables): string {
+  const stroke = theme.mermaid?.stroke_width ?? DEFAULT_MERMAID_STROKE_WIDTH;
+  const radius = theme.mermaid?.radius ?? DEFAULT_MERMAID_RADIUS;
+  // Dark in both modes: a light shadow on a dark page reads as a glow.
+  const shadowColor = mode === 'light' ? 'rgba(0, 0, 0, 0.35)' : 'rgba(0, 0, 0, 0.85)';
+  const filter = theme.mermaid?.shadow === false ? 'none' : `drop-shadow(3px 5px 8px ${shadowColor})`;
+  const fills = nodeFills(theme);
+  const canvas = String(vars['background']);
+  const ink = String(vars['textColor']);
+  const line = String(vars['lineColor']);
+  const label = String(vars['transitionLabelColor']);
+  const activeTaskText = labelOn(String(vars['activeTaskBkgColor']));
+  const edge = Math.max(1, Math.round(stroke * 0.85 * 10) / 10);
+  const fillRule = (selector: string, fill: string) =>
+    `${selector} ${NODE_SHAPE} { fill: ${fill}; }\n${selector} .nodeLabel { color: ${labelOn(fill)}; }`;
+  const cycle = fills.map((fill, i) => fillRule(`.node:nth-child(${fills.length}n+${i + 1})`, fill)).join('\n');
+  const store = fills[0] ?? WHITE;
+  const decision = fills[1 % fills.length] ?? WHITE;
+
+  return `
+.node ${NODE_SHAPE}, rect.actor, rect.note, .cluster rect, .labelBox {
+  stroke: ${OUTLINE};
+  stroke-width: ${stroke}px;
+  rx: ${radius}px;
+  ry: ${radius}px;
+  filter: ${filter};
+}
+${cycle}
+${fillRule('.node.ignatius-store', store)}
+${fillRule('.node.ignatius-decision', decision)}
+.cluster rect { fill: ${canvas}; filter: none; }
+.cluster-label .nodeLabel { color: ${ink}; }
+.row-rect-odd > path { fill: ${WHITE}; }
+.row-rect-even > path { fill: ${erRowEven(fills)}; }
+.node .label:is(.attribute-name, .attribute-type, .attribute-keys, .attribute-comment) .nodeLabel { color: ${BLACK}; }
+.nodeLabel { font-weight: 600; }
+.state-start { stroke: ${OUTLINE} !important; stroke-width: ${stroke}px; }
+/* The end state's inner dot is a node path too, so the fill cycle would paint it the colour of its ring. */
+.node[id*="_end-"] g:not(.outer-path) > path:first-child { fill: ${OUTLINE}; }
+.flowchart-link, .edgePath > path, .transition, .messageLine0, .messageLine1, .relationshipLine { stroke-width: ${edge}px; }
+.actor-line { stroke-width: 2px; stroke-dasharray: 6 4; }
+.loopLine { stroke: ${line}; stroke-width: 2px; }
+.edgeLabel, .edgeLabel p, .edgeLabel span, .labelBkg { background-color: ${canvas}; color: ${label}; font-weight: 600; }
+.edgeLabel p { margin: 0; padding: 0 4px; border-radius: 4px; }
+:is(.activeText0, .activeText1, .activeText2, .activeText3) { fill: ${activeTaskText} !important; }
+`;
+}
+
+/** Both halves of the Mermaid theme for `mode`. */
+export function resolveMermaidStyle(theme: ThemeConfig, mode: ThemeMode): MermaidStyle {
+  const themeVariables = resolveMermaidThemeVariables(theme, mode);
+  return { themeVariables, themeCSS: themeCSS(theme, mode, themeVariables) };
 }

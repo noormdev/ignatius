@@ -56,40 +56,55 @@ The store kinds are `db`, `cache`, `queue`, `file`, `doc`, `manual`, `other`, pl
 ### Mermaid diagrams
 
 
-Mermaid diagrams in markdown bodies (see [Diagrams in the body](folder-format.md#diagrams-in-the-body)) take their colors from the active palette, so a model that recolors `theme.dark.surface` gets matching diagrams with no extra config. Every diagram renders with Mermaid's `base` theme, and ignatius fills its `themeVariables` from the palette for each mode.
+Mermaid diagrams in markdown bodies (see [Diagrams in the body](folder-format.md#diagrams-in-the-body)) render in a bold style by default: nodes filled with the entity colors at full strength, 3px black outlines, 8px corners, soft drop shadows, and bold labels. Each diagram sits on a dotted panel in the page background color. Node fills are the same in both modes. Connectors follow the mode: `text` in light mode, `textMuted` in dark mode. Edge labels use `text` in light mode and a mix of `textMuted` and `text` in dark mode.
 
-To change a diagram color, set Mermaid variables under `theme.mermaid.dark` and `theme.mermaid.light`. The keys are Mermaid's own variable names, listed in Mermaid's [theming reference](https://mermaid.js.org/config/theming.html). Each value replaces the default for that key in that mode; keys you leave out keep their defaults.
+Four keys under `theme.mermaid` change the node style in both modes. Node outlines are always black, and node colors come only from `node_fills`. Quote each color: YAML reads an unquoted `#58a6ff` as a comment.
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `node_fills` | list of `#rrggbb`, 1 to 12 | `#58a6ff`, `#d29922`, `#3fb950`, `#f0883e`, `#c4b5fd` | Node fills, cycled node by node. Stores (cylinders) take the first fill and decisions (diamonds) the second. Each label is black or white, whichever reads better on its fill. |
+| `stroke_width` | number, 0 to 8 | `3` | Node outline width in px. Connectors are drawn at 85% of it, at least 1px. |
+| `radius` | number, 0 to 32 | `8` | Corner radius of node boxes in px. |
+| `shadow` | boolean | `true` | `false` removes the node drop shadows. |
+
+For anything else, set Mermaid variables under `theme.mermaid.dark` and `theme.mermaid.light`. The keys are Mermaid's own variable names, listed in Mermaid's [theming reference](https://mermaid.js.org/config/theming.html). Each value replaces the default for that key in that mode; keys you leave out keep their defaults. `primaryColor`, `primaryBorderColor`, and `primaryTextColor` do not reach flowchart, state, class, or ER nodes; use `node_fills` for those. `lineColor` recolors every connector.
 
 ```yaml
 theme:
   mermaid:
+    node_fills: ["#58a6ff", "#d29922", "#3fb950"]
+    stroke_width: 2
+    radius: 6
+    shadow: false
     dark:
-      primaryColor: "#2a1f4a"
-      primaryBorderColor: "#8b6cf0"
       lineColor: "#8b6cf0"
     light:
-      primaryColor: "#efe9ff"
-      primaryBorderColor: "#6d4fd8"
       lineColor: "#6d4fd8"
 ```
 
-The main variables and the palette value each one defaults to:
+The main variables and the value each one defaults to:
 
 | Mermaid variable | Default |
 |---|---|
 | `fontFamily` | the viewer's body font stack |
 | `fontSize` | `14px` |
-| `background`, `clusterBkg` | `background` |
-| `primaryColor`, `edgeLabelBackground` | `surface` |
-| `primaryTextColor`, `textColor` | `text` |
-| `primaryBorderColor`, `clusterBorder` | `border` blended 35% toward `textMuted` |
-| `secondaryColor`, `tertiaryColor` | `surface` blended halfway to `background` |
-| `lineColor` | `textMuted` |
-| `noteBkgColor`, `noteTextColor` | the mode's Dependent badge background and text color |
+| `background`, `clusterBkg`, `edgeLabelBackground` | `background` |
+| `primaryColor`, `secondaryColor`, `tertiaryColor` | the first, second, and third node fill |
+| `primaryTextColor` | black or white, whichever reads better on the first fill |
+| `primaryBorderColor`, `clusterBorder` | `#000000` |
+| `textColor` | `text` |
+| `lineColor` | `text` in light mode, `textMuted` in dark mode |
+| `noteBkgColor` | the third node fill |
 
-Node fills, borders, and text derive from `primaryColor`, `primaryBorderColor`, and `primaryTextColor`, so override those three to restyle flowchart nodes. Decision and store shapes are the exception: they keep the Dependent and Independent badge colors whatever `theme.mermaid` sets. The defaults also cover sequence, state, class, ER, gantt, pie, quadrant, git, and XY charts. Their series colors cycle the five classification badge backgrounds of the mode plus its link color, and a label on a filled shape uses `text` or white, whichever contrasts more with the fill.
+The defaults also cover sequence, state, class, ER, gantt, pie, quadrant, git, and XY charts. Their series colors cycle the node fills. A label on a filled shape is black or white, whichever contrasts more with the fill; where Mermaid has one label color for every fill (gantt bars, pie slices), it is the one that reads on all of them. Composite-state titles use `text`, and ER attribute rows stay white with black labels in both modes.
 
-Values must be numbers, or strings made only of letters, digits, spaces, and `# % ( ) , . ; - "`. Mermaid writes these values into the diagram's stylesheet unescaped, so ignatius drops any other value, along with a `theme.mermaid`, `dark`, or `light` block that is not a mapping. Each dropped key is reported as the `config.mermaid_theme_invalid` warning (see [Validation and findings](validation.md#config-rules)), and diagrams use the default for it. A warning does not fail `ignatius validate`.
+Mermaid writes theme values into the diagram's stylesheet unescaped, so ignatius checks every value that reaches it:
+
+- Values in the `dark` and `light` blocks must be numbers, or strings made only of letters, digits, spaces, and `# % ( ) , . ; - "`.
+- The palette's `background`, `surface`, `text`, and `textMuted` colors must use the same characters. The rest of the viewer keeps an unsafe one; only diagrams replace it.
+- The four style keys must be within their type and range, and `theme.mermaid`, `dark`, and `light` must be mappings. Any other key under `theme.mermaid` is unknown.
+
+Anything that fails is dropped and reported as the `config.mermaid_theme_invalid` warning (see [Validation and findings](validation.md#config-rules)), and diagrams use the default for it. A warning does not fail `ignatius validate`.
 
 
 ## Branding

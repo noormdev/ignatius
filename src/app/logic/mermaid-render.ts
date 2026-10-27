@@ -1,4 +1,4 @@
-import type { MermaidThemeVariables } from '../../theme/mermaid-theme';
+import type { MermaidStyle } from '../../theme/mermaid-theme';
 
 const PENDING = '.mermaid-diagram:not([data-rendered])';
 
@@ -8,7 +8,7 @@ let renderCount = 0;
 // React 19 rewrites a body's innerHTML on every re-render of its card, putting the placeholder back;
 // reusing the last SVG for that source, synchronously, keeps it from flashing or shifting the layout.
 const svgBySource = new Map<string, { id: string; svg: string }>();
-let cachedVariables = '';
+let cachedStyle = '';
 
 function nextRenderId(): string {
   renderCount += 1;
@@ -65,10 +65,22 @@ function tagFlowchartShapes(el: HTMLElement): void {
   }
 }
 
+/** The `.mermaid-diagram svg` padding plus border in src/app/styles.css. */
+const CANVAS_INSET = 13;
+
+// Mermaid caps the svg at its natural width inline; the panel's padding and border sit inside
+// that cap (border-box), so without widening it the drawing shrinks by them.
+function widenForPadding(el: HTMLElement): void {
+  const svg = el.querySelector('svg');
+  const natural = Number.parseFloat(svg?.style.maxWidth ?? '');
+  if (svg && Number.isFinite(natural)) svg.style.maxWidth = `${natural + CANVAS_INSET * 2}px`;
+}
+
 function showSvg(el: HTMLElement, source: string, svg: string): void {
   el.dataset.source = source;
   el.classList.remove('mermaid-error');
   el.innerHTML = svg;
+  widenForPadding(el);
   tagFlowchartShapes(el);
 }
 
@@ -85,14 +97,14 @@ function showError(el: HTMLElement, source: string, err: unknown): void {
 
 /** Render every visible, unrendered diagram under `root`. Hidden ones wait for a later
  *  pass: Mermaid measures text, and a `display:none` subtree measures 0. */
-export async function renderMermaidIn(root: ParentNode, themeVariables: MermaidThemeVariables): Promise<void> {
+export async function renderMermaidIn(root: ParentNode, style: MermaidStyle): Promise<void> {
   const visible = Array.from(root.querySelectorAll<HTMLElement>(PENDING)).filter(el => el.offsetParent !== null);
   if (visible.length === 0) return;
 
-  const variablesKey = JSON.stringify(themeVariables);
-  if (variablesKey !== cachedVariables) {
+  const styleKey = JSON.stringify(style);
+  if (styleKey !== cachedStyle) {
     svgBySource.clear();
-    cachedVariables = variablesKey;
+    cachedStyle = styleKey;
   }
 
   const pending: { el: HTMLElement; source: string }[] = [];
@@ -116,12 +128,22 @@ export async function renderMermaidIn(root: ParentNode, themeVariables: MermaidT
     return;
   }
 
-  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', themeVariables });
+  // Mermaid 12 wraps flowchart labels at 120px, which splits short bold labels mid-word.
+  // Actor names take their weight inline from config, out of themeCSS's reach.
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    theme: 'base',
+    look: 'classic',
+    flowchart: { wrappingWidth: 200 },
+    sequence: { actorFontWeight: 600 },
+    ...style,
+  });
   for (const { el, source } of pending) {
     const id = nextRenderId();
     try {
       const { svg } = await mermaid.render(id, source);
-      if (cachedVariables === variablesKey) svgBySource.set(source, { id, svg });
+      if (cachedStyle === styleKey) svgBySource.set(source, { id, svg });
       showSvg(el, source, svg);
     } catch (err) {
       showError(el, source, err);
@@ -130,7 +152,7 @@ export async function renderMermaidIn(root: ParentNode, themeVariables: MermaidT
 }
 
 /** Render every diagram under `root` again, e.g. with another theme mode's variables. */
-export function rerenderAll(root: ParentNode, themeVariables: MermaidThemeVariables): Promise<void> {
+export function rerenderAll(root: ParentNode, style: MermaidStyle): Promise<void> {
   for (const el of Array.from(root.querySelectorAll('.mermaid-diagram[data-rendered]'))) el.removeAttribute('data-rendered');
-  return renderMermaidIn(root, themeVariables);
+  return renderMermaidIn(root, style);
 }

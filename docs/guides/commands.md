@@ -63,7 +63,7 @@ The FAB menu (the round button, bottom right) has a **Settings** item in every v
 ### Dictionary sidebar
 
 
-The Dictionary's contents sidebar opens from the **Sidebar** tab on the right edge of the screen or from the FAB's **Toggle sidebar** item. The browser remembers whether it was open, so a reload keeps it that way. The tab sits half off-screen until you hover or focus it, and it disappears while the sidebar is open. The close button at the top of the sidebar closes it and brings the tab back. Like the sidebar itself, the tab is hidden on screens 768px wide or narrower and in print.
+The Dictionary's contents sidebar opens from the **Sidebar** tab on the right edge of the screen or from the FAB's **Toggle sidebar** item. The browser remembers whether it was open, so a reload keeps it that way. At rest only a thin lip of the tab shows at the screen edge: an accent-colored edge with a grip. Hovering or focusing it slides the tab out. The tab disappears while the sidebar is open. The close button at the top of the sidebar closes it and brings the tab back. Like the sidebar itself, the tab is hidden on screens 768px wide or narrower and in print.
 
 The Dictionary and its sidebar each keep their scroll position, per browser tab, through a model reload after a save, a switch to another view and back, and a page refresh. Opening a process from an entity dialog still scrolls to that process.
 

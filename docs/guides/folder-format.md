@@ -202,7 +202,7 @@ flowchart TD
 ```
 ~~~
 
-The viewer loads Mermaid the first time a diagram appears, so a model with no `mermaid` fence never downloads it. `ignatius export` and the in-app Export HTML include Mermaid in the file only when some body holds a diagram. Diagrams follow the light/dark toggle and the model's palette; [Themes and branding](themes-and-branding.md#mermaid-diagrams) covers the defaults and the `theme.mermaid` overrides. A diagram that fails to parse shows its source and Mermaid's error message in its place, so the body stays readable.
+The viewer loads Mermaid the first time a diagram appears, so a model with no `mermaid` fence never downloads it. `ignatius export` and the in-app Export HTML include Mermaid in the file only when some body holds a diagram. Diagrams follow the light/dark toggle, with nodes in the entity colors; [Themes and branding](themes-and-branding.md#mermaid-diagrams) covers the defaults and the `theme.mermaid` overrides. A diagram that fails to parse shows its source and Mermaid's error message in its place, so the body stays readable.
 
 A process body is the usual home for a diagram: a `## Logic` section can show the branches, reads, and writes inside one process, named after the process's own inputs, outputs, and stores. The diagram explains the process; it never replaces a flow, store, or process in the DFD. See [`Collect-Payment.md`](../../models/key-inherited/flows/order-to-cash/Collect-Payment.md) in the `key-inherited` example.
 
