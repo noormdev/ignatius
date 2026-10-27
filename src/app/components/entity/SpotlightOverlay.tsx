@@ -637,7 +637,7 @@ export function SpotlightOverlay({
         chipText.setAttribute('y', String(rowY));
         chipText.setAttribute('text-anchor', 'end');
         chipText.setAttribute('font-size', '9');
-        chipText.setAttribute('font-family', 'ui-monospace, "SFMono-Regular", Menlo, monospace');
+        chipText.style.fontFamily = 'var(--font-mono)';
         chipText.setAttribute('fill', 'var(--color-text-muted, #666)');
         chipText.textContent = label.cardinality;
         svg.appendChild(chipText);

@@ -278,6 +278,24 @@ navigable.
   and the reason any structural complexity exists. The demo `Create-Sales-Order.md` is the
   shape.
 
+- **Process `## Logic` (optional)** — a Mermaid diagram of how the process handles the data
+  it receives: the branches, the order of reads and writes, the failure path. The DFD says
+  what moves where; the logic flow says what the process does with it. It complements the
+  DFD and never replaces a flow, store, or process. Every actor, store, and data item a logic
+  flow names must already be on the DFD; if it needs a new one, add it to the DFD first
+  (an external at F3, a store at F4, an `inputs:`/`outputs:` entry at F5).
+    - **When to ask** — after the process body, ask "Does this process branch, write to more
+      than one store in a set order, or have a failure path worth showing?" Offer one when it
+      does; skip it for a process that reads, transforms, and writes in one straight line.
+    - **How to draw it** — a `flowchart TD` in a ```` ```mermaid ```` fence under `## Logic`.
+      Name nodes with the process's own flow labels, entity ids, and store slugs
+      (`stored payment method`, `PaymentMethod`, `gateway-log`) so the diagram reads against
+      the DFD. `{diamond}` for a decision, `[(cylinder)]` for a store read or write,
+      `[/parallelogram/]` for data arriving from or leaving to an external. Use a
+      `sequenceDiagram` instead when the order of exchanges between actors is the point.
+      Quote labels that hold punctuation (`A["amount positive?"]`).
+    - The demo `Collect-Payment.md` carries one; the process template shows where it goes.
+
 - **External body (required: role + what they do + expectations)** — paint the full picture of
   this actor's relationship with the business:
     - **Role** — who they are and how they relate to the business (and how they differ from any

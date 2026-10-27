@@ -109,13 +109,14 @@ These run whenever the model has a `flows/` directory (see [Process flows](flows
 ### Config rules
 
 
-These check `ignatius.yml` and the reserved router filename it declares. They are Class B for the exit code because a malformed `index_file` means routers cannot be generated or verified. Only `config.index_file_entity` omits anything: the misnamed entity is dropped, since every scan skips the reserved name before reading it as an entity.
+These check `ignatius.yml` and the reserved router filename it declares. The `index_file` rules are Class B for the exit code because a malformed `index_file` means routers cannot be generated or verified. Only `config.index_file_entity` omits anything: the misnamed entity is dropped, since every scan skips the reserved name before reading it as an entity. `config.mermaid_theme_invalid` is Class A: the bad value is ignored, diagrams fall back to the default, and the command still exits `0`.
 
 | Rule ID | Class | Meaning |
 |---|---|---|
 | `config.index_file_ext` | B | `index_file` does not end in `.md`. |
 | `config.index_file_path` | B | `index_file` contains a path separator or `..`; it must be a bare filename. |
 | `config.index_file_entity` | B | A file under `data/` uses the reserved `index_file` name but declares `entity:`. Every scan skips that name, so the entity is dropped; rename the file. |
+| `config.mermaid_theme_invalid` | A | A `theme.mermaid` block, or its `dark`/`light` block, is not a mapping, or a value in it is neither a number nor a string of letters, digits, spaces and `# % ( ) , . ; - "`. That part is ignored. See [Themes and branding](themes-and-branding.md#mermaid-diagrams). |
 
 
 ### Index rules

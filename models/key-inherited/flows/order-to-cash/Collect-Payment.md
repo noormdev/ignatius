@@ -59,3 +59,22 @@ This process is the reason `PaymentAllocation` is a five-part key: the
 allocation is uniquely identified by the paying party, the method, the
 payment, and the specific invoice line — every column this flow writes is
 part of that key.
+
+## Logic
+
+A non-positive amount is rejected before the charge is authorised. Every gateway
+response is logged, declined or not, and the settlement is written only once
+the charge is captured.
+
+```mermaid
+flowchart TD
+    In[/"payment details<br/>from Customer"/] --> Method[("read PaymentMethod<br/>stored payment method")]
+    Method --> Amount{"amount positive?"}
+    Amount -->|no| Receipt[/"receipt to Customer"/]
+    Amount -->|yes| Charge["authorise the charge"]
+    Charge --> Log[("write gateway-log<br/>gateway response")]
+    Log --> Captured{"captured?"}
+    Captured -->|"no: declined"| Receipt
+    Captured -->|yes| Settle[("write settlement<br/>settled payment")]
+    Settle -->|captured| Receipt
+```

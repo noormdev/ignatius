@@ -27,6 +27,8 @@ A tagged code fence in an entity or flow body is syntax-highlighted by the viewe
 
 Tag every fence you write; an untagged one, or one tagged with a language outside that set, renders as plain preformatted text. Prefer `sql` for the query snippets that most often earn a place in an entity body.
 
+A fence tagged `mermaid` is not highlighted: it renders as a Mermaid diagram, in every body. Use it for a process's `## Logic` section (dfd-authoring Step F7) or an entity's logic flow (entity-flow Step E9). A logic flow complements the DFD and never replaces a flow, store, or process. Colors come from the model's theme; `theme.mermaid` in `ignatius.yml` overrides them, and an unsafe value there trips `config.mermaid_theme_invalid`.
+
 ### Column properties
 
 | Property | Required | Notes |

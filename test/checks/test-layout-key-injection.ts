@@ -73,6 +73,7 @@ const fakeBundle: BundleContent = {
     htmlTemplate: `<!doctype html><html><head><link rel="stylesheet" href="index-abc123.css"></head><body><script>window.__IGNATIUS_MODE__ = 'live';</script><script type="module" src="index-abc123.js"></script></body></html>`,
     cssContent: 'body { margin: 0; }',
     jsContent: 'console.log("app");',
+    mermaidJs: '',
 };
 
 const html = await generateApp(model, null, fakeBundle, { themeMode: 'dark' });

@@ -1,5 +1,6 @@
 import type { FlowProcess, FlowExample } from '../../../flows/flow-parse';
 import { ExampleCell } from '../ui/ExampleCell';
+import { useSettings } from '../../hooks/useSettings';
 
 /**
  * Renders the `examples: { in, out }` data from a FlowProcess as a series of
@@ -9,6 +10,7 @@ import { ExampleCell } from '../ui/ExampleCell';
  * Returns null when the process has no examples (no empty section rendered).
  */
 export function ProcessExamples({ examples }: { examples: FlowProcess['examples'] }) {
+  const [{ alwaysOpenExamples }] = useSettings();
   if (!examples) return null;
   const allEntries: Array<{ direction: 'in' | 'out'; entry: FlowExample }> = [
     ...examples.in.map(e => ({ direction: 'in' as const, entry: e })),
@@ -36,7 +38,8 @@ export function ProcessExamples({ examples }: { examples: FlowProcess['examples'
         if (cols.length === 0 && entry.rows.length === 0) return null;
 
         return (
-          <details key={i} className="modal-examples doc-section" open={entry.rows.length <= 3 || undefined}>
+          // The setting is in the key so a <details> the user toggled remounts and takes the new `open`.
+          <details key={`${i}-${alwaysOpenExamples}`} className="modal-examples doc-section" open={alwaysOpenExamples || entry.rows.length <= 3 || undefined}>
             <summary>{caption} ({entry.rows.length} row{entry.rows.length === 1 ? '' : 's'})</summary>
             <div className="table-scroll">
               <table>

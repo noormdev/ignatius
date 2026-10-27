@@ -31,7 +31,7 @@ description: Order entry through invoicing and cash collection.
 
 ### Process `.md` template
 
-```markdown
+````markdown
 ---
 process: <Imperative Verb Phrase>   # e.g. Collect Payment
 number: <n>                         # process id within the diagram
@@ -75,13 +75,31 @@ examples:                           # always present — never omit
 <What the process does and why, in business terms. What it reads and what that
 tells it; what it writes and the rules on those writes; the reason for any
 structural complexity. Link entities and other nodes with [[wiki-links]].>
+
+## Logic
+
+<Optional (dfd-authoring Step F7). One or two sentences on the rule the diagram
+shows, then the diagram. Name nodes with this process's own flow labels, entity
+ids, and store slugs; never name an actor, store, or data item that is not on
+the DFD. The logic flow explains the process and replaces no flow, store, or
+process in the DFD.>
+
+```mermaid
+flowchart TD
+    In[/"<input label><br/>from <External>"/] --> Read[("read <Entity><br/><input label>")]
+    Read --> Check{"<decision>?"}
+    Check -->|no| Fail[/"<output label> to <External>"/]
+    Check -->|yes| Write[("write <Entity or slug><br/><output label>")]
+    Write --> Done[/"<output label> to <External>"/]
 ```
+````
 
 Worked example — a process reading from and writing to a mix of `ext:`, `cluster:`, `db:`,
-and `file:`, with a `label:` on every entry and seeded examples (the demo `Collect-Payment.md`,
-its two settlement stores written as one cluster; the cluster file follows):
+and `file:`, with a `label:` on every entry, seeded examples, and a `## Logic` flow whose nodes
+reuse the entries' labels and store names (the demo `Collect-Payment.md`, its two settlement
+stores written as one cluster; the cluster file follows):
 
-```markdown
+````markdown
 ---
 process: Collect Payment
 number: 3
@@ -143,7 +161,26 @@ This process is the reason `PaymentAllocation` is a five-part key: the
 allocation is uniquely identified by the paying party, the method, the
 payment, and the specific invoice line — every column this flow writes is
 part of that key.
+
+## Logic
+
+A non-positive amount is rejected before the charge is authorised. Every gateway
+response is logged, declined or not, and the settlement is written only once
+the charge is captured.
+
+```mermaid
+flowchart TD
+    In[/"payment details<br/>from Customer"/] --> Method[("read PaymentMethod<br/>stored payment method")]
+    Method --> Amount{"amount positive?"}
+    Amount -->|no| Receipt[/"receipt to Customer"/]
+    Amount -->|yes| Charge["authorise the charge"]
+    Charge --> Log[("write gateway-log<br/>gateway response")]
+    Log --> Captured{"captured?"}
+    Captured -->|"no: declined"| Receipt
+    Captured -->|yes| Settle[("write settlement<br/>settled payment")]
+    Settle -->|captured| Receipt
 ```
+````
 
 The cluster it writes, `clusters/settlement.md`:
 

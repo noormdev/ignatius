@@ -45,6 +45,7 @@ Parse stderr. Format: `<sev>  <ruleId>  <location>  <message>` (two spaces betwe
 | `config.index_file_ext` | error | B | `index_file` value doesn't end in `.md` | Change `index_file:` in `ignatius.yml` to a `.md` filename |
 | `config.index_file_path` | error | B | `index_file` value is a path, not a bare filename | Use a bare filename (e.g. `index.md`), no `/` or `..` |
 | `config.index_file_entity` | error | B | Entity file uses the reserved `index_file` name | Rename the entity file — that basename is reserved for the generated router (Step E1) |
+| `config.mermaid_theme_invalid` | warn | A | A `theme.mermaid` value in `ignatius.yml` is unsafe, or a block is not a mapping | Use a number or a plain color/size string (letters, digits, spaces, `# % ( ) , . ; - "`), under `theme.mermaid.dark` / `.light` |
 | `index.stale` | error | B | A router's digest doesn't match its current files (`validate --index` only) | Run `ignatius index <model-root>` to regenerate, then re-run `validate --index` |
 | `index.orphaned` | warn | A | A router file left behind after `index_file` changed (`validate --index` only) | Delete the orphaned file, or restore the prior `index_file` value |
 | `index.unreadable_target` | error | B | A file a router row points at could not be read, so its digest cannot be trusted (`validate --index` only) | Fix file access or remove the stale reference, then run `ignatius index <model-root>` |

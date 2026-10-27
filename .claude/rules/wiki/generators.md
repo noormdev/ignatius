@@ -4,7 +4,7 @@ paths:
   - "src/generators/**"
 ---
 
-Domain: generators. Unified static HTML export via `generateApp` (single file — graph + dict + flows), now embedding `window.__FLOW_CLUSTERS__`; sole static generator
+Domain: generators. Unified static HTML export via `generateApp` (single file — graph + dict + flows), embedding `window.__FLOW_CLUSTERS__` and the Mermaid runtime; `exportModel` (`export-model.ts`) is the shared export path for CLI and server
 
 Map:
   - docs/wiki/generators.md

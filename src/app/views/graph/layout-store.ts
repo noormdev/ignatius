@@ -8,8 +8,9 @@
  * without a real browser localStorage.
  */
 
-const DEFAULT_STORAGE_KEY = 'ignatius-layout-positions';
-const MAX_ENTRIES = 10;
+import { GRAPH_LAYOUT_STORAGE_KEY } from '../../logic/storage-keys';
+
+export const MAX_ENTRIES = 10;
 
 export interface StorageLike {
   getItem(key: string): string | null;
@@ -33,6 +34,9 @@ export interface LayoutStoreHandle {
   hidden(layoutKey: string): string[];
   save(layoutKey: string, positions: PositionMap, hidden?: string[]): void;
   clear(layoutKey: string): void;
+  /** Add the entries of a serialized store from another browser, replacing same-key entries and keeping others'.
+   *  They count as saved now, so pruning drops the recipient's oldest entries, not them. */
+  merge(serialized: string): void;
   /** True when any arrangement is saved, for any model. */
   hasEntries(): boolean;
   /** Newest saved position of `nodeId` outside `exceptKey`, from an entry that also saved one of
@@ -44,7 +48,10 @@ export interface LayoutStoreHandle {
 }
 
 function readStore(storage: StorageLike, storageKey: string): LayoutStore {
-  const raw = storage.getItem(storageKey);
+  return parseStore(storage.getItem(storageKey));
+}
+
+function parseStore(raw: string | null): LayoutStore {
   if (!raw) return {};
   // Only this JSON.parse is guarded — it reads untrusted stored data.
   try {
@@ -56,6 +63,15 @@ function readStore(storage: StorageLike, storageKey: string): LayoutStore {
   } catch {
     return {};
   }
+}
+
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// The readers index `entry.positions` directly, so an imported entry must at least have that shape.
+function hasPositionMap(entry: unknown): boolean {
+  return isPlainObject(entry) && isPlainObject(entry.positions);
 }
 
 function writeStore(storage: StorageLike, store: LayoutStore, storageKey: string): void {
@@ -90,7 +106,7 @@ function pruneToNewest(store: LayoutStore): LayoutStore {
 export function createLayoutStore(
   storage: StorageLike = globalThis.localStorage,
   now: (() => number) | undefined = undefined,
-  storageKey: string = DEFAULT_STORAGE_KEY,
+  storageKey: string = GRAPH_LAYOUT_STORAGE_KEY,
 ): LayoutStoreHandle {
   const clock = now ?? (() => Date.now());
   return {
@@ -121,6 +137,15 @@ export function createLayoutStore(
       const store = readStore(storage, storageKey);
       delete store[layoutKey];
       writeStore(storage, store, storageKey);
+    },
+
+    merge(serialized: string): void {
+      const store = readStore(storage, storageKey);
+      const savedAt = clock();
+      for (const [layoutKey, entry] of Object.entries(parseStore(serialized))) {
+        if (hasPositionMap(entry)) store[layoutKey] = { ...entry, savedAt };
+      }
+      writeStore(storage, pruneToNewest(store), storageKey);
     },
 
     hasEntries(): boolean {

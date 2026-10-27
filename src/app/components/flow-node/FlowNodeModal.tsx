@@ -108,7 +108,7 @@ export function FlowNodeModal({ node, allProcesses, doc, onClose, onNavigate, al
       {doc.bodyHtml && (
         <div
           ref={bodyRef}
-          className="doc-body"
+          className="doc-body md"
           onClick={handleBodyClick}
           dangerouslySetInnerHTML={{ __html: doc.bodyHtml }}
         />

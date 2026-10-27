@@ -1,7 +1,9 @@
 import type { ModelNode } from '../../../model/parse';
 import { ExampleCell } from '../ui/ExampleCell';
+import { useSettings } from '../../hooks/useSettings';
 
 export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode; variant?: 'modal' | 'dict' }) {
+  const [{ alwaysOpenExamples }] = useSettings();
   const examples = node.examples;
   if (!examples || examples.length === 0) return null;
 
@@ -9,7 +11,7 @@ export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode
   for (const k of node.pk) pkSet[k] = true;
   const declaredCols = Object.keys(node.columns).filter(k => !pkSet[k]);
   const headers = [...node.pk, ...declaredCols];
-  const isOpen = examples.length <= 3;
+  const isOpen = alwaysOpenExamples || examples.length <= 3;
 
   const cell = (row: Record<string, unknown>, h: string, emptyClassName: string) => (
     <ExampleCell
@@ -22,7 +24,8 @@ export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode
 
   if (variant === 'dict') {
     return (
-      <details className="dict-examples" open={isOpen || undefined}>
+      // React re-applies `open` only when the prop changes, so the key remounts a <details> the user toggled.
+      <details key={String(alwaysOpenExamples)} className="dict-examples" open={isOpen || undefined}>
         <summary>Examples ({examples.length} row{examples.length === 1 ? '' : 's'})</summary>
         <div className="dict-examples-table-wrap">
           <table className="dict-examples-table">
@@ -45,7 +48,7 @@ export function ExamplesAccordion({ node, variant = 'modal' }: { node: ModelNode
   }
 
   return (
-    <details className="modal-examples doc-section" open={isOpen || undefined}>
+    <details key={String(alwaysOpenExamples)} className="modal-examples doc-section" open={isOpen || undefined}>
       <summary>Examples ({examples.length})</summary>
       <div className="table-scroll">
         <table>

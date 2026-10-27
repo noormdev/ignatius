@@ -130,6 +130,8 @@ The `data:` field is the flow's contract. On a `db:` endpoint it is **always col
 
 Bodies support the same `[[Entity]]` wiki-links as entity files, and they can also link to processes, externals, and stores by name. Links open the target's dialog in place.
 
+A body may also carry an optional `## Logic` section: a Mermaid diagram of how the process handles the data it receives, named with its own inputs, outputs, and stores (see [Diagrams in the body](folder-format.md#diagrams-in-the-body)).
+
 
 ## Endpoints: externals, stores, processes
 

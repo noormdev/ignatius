@@ -53,6 +53,45 @@ theme:
 The store kinds are `db`, `cache`, `queue`, `file`, `doc`, `manual`, `other`, plus `external` for external entities. See the [glossary](../glossary.md) for what each term means.
 
 
+### Mermaid diagrams
+
+
+Mermaid diagrams in markdown bodies (see [Diagrams in the body](folder-format.md#diagrams-in-the-body)) take their colors from the active palette, so a model that recolors `theme.dark.surface` gets matching diagrams with no extra config. Every diagram renders with Mermaid's `base` theme, and ignatius fills its `themeVariables` from the palette for each mode.
+
+To change a diagram color, set Mermaid variables under `theme.mermaid.dark` and `theme.mermaid.light`. The keys are Mermaid's own variable names, listed in Mermaid's [theming reference](https://mermaid.js.org/config/theming.html). Each value replaces the default for that key in that mode; keys you leave out keep their defaults.
+
+```yaml
+theme:
+  mermaid:
+    dark:
+      primaryColor: "#2a1f4a"
+      primaryBorderColor: "#8b6cf0"
+      lineColor: "#8b6cf0"
+    light:
+      primaryColor: "#efe9ff"
+      primaryBorderColor: "#6d4fd8"
+      lineColor: "#6d4fd8"
+```
+
+The main variables and the palette value each one defaults to:
+
+| Mermaid variable | Default |
+|---|---|
+| `fontFamily` | the viewer's body font stack |
+| `fontSize` | `14px` |
+| `background`, `clusterBkg` | `background` |
+| `primaryColor`, `edgeLabelBackground` | `surface` |
+| `primaryTextColor`, `textColor` | `text` |
+| `primaryBorderColor`, `clusterBorder` | `border` blended 35% toward `textMuted` |
+| `secondaryColor`, `tertiaryColor` | `surface` blended halfway to `background` |
+| `lineColor` | `textMuted` |
+| `noteBkgColor`, `noteTextColor` | the mode's Dependent badge background and text color |
+
+Node fills, borders, and text derive from `primaryColor`, `primaryBorderColor`, and `primaryTextColor`, so override those three to restyle flowchart nodes. Decision and store shapes are the exception: they keep the Dependent and Independent badge colors whatever `theme.mermaid` sets. The defaults also cover sequence, state, class, ER, gantt, pie, quadrant, git, and XY charts. Their series colors cycle the five classification badge backgrounds of the mode plus its link color, and a label on a filled shape uses `text` or white, whichever contrasts more with the fill.
+
+Values must be numbers, or strings made only of letters, digits, spaces, and `# % ( ) , . ; - "`. Mermaid writes these values into the diagram's stylesheet unescaped, so ignatius drops any other value, along with a `theme.mermaid`, `dark`, or `light` block that is not a mapping. Each dropped key is reported as the `config.mermaid_theme_invalid` warning (see [Validation and findings](validation.md#config-rules)), and diagrams use the default for it. A warning does not fail `ignatius validate`.
+
+
 ## Branding
 
 

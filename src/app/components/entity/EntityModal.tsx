@@ -82,7 +82,7 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
       />
       <div
         ref={bodyRef}
-        className="doc-body"
+        className="doc-body md"
         onClick={(e) => {
           // Body HTML is injected, so its `[[…]]` anchors can't carry React
           // handlers — delegate: intercept clicks on entity links and route

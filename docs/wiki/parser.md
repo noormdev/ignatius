@@ -1,7 +1,7 @@
 ---
 type: Domain
 description: Parses an ignatius model root into a typed Model, derives classification/cardinality by structure, builds lookup indices, and diffs the model against an approved baseline for change review.
-tags: [model, markdown, derivation, change-review]
+tags: [model, markdown, mermaid, derivation, change-review]
 ---
 
 # parser
@@ -47,6 +47,10 @@ flowchart LR
 ```
 
 `wikiLinkPlugin` ([`src/model/wikilink.ts`](../../src/model/wikilink.ts)) is a markdown-it inline rule registered before the `link` rule, so `[[…]]` is recognized ahead of standard link syntax. It never raises an error itself: an unresolved target renders as a non-navigating span, and is reported separately by `validate.ts`'s `body.unknown_link` rule.
+
+### Mermaid fences
+
+`mermaidFencePlugin` ([`src/model/markdown-mermaid.ts`](../../src/model/markdown-mermaid.ts)) wraps the markdown-it `fence` renderer. A fence whose info string starts with the word `mermaid` renders as `<div class="mermaid-diagram">` holding the HTML-escaped source; every other fence goes to the previous `fence` rule, so shiki highlighting is unchanged. The parser never runs Mermaid: the browser renders the placeholders ([`src/app/hooks/useMermaid.ts`](../../src/app/hooks/useMermaid.ts)). `parse.ts` registers it with `md.use(mermaidFencePlugin)` after `wikiLinkPlugin`, and [`src/flows/flow-markdown.ts`](../../src/flows/flow-markdown.ts) registers it on its own `MarkdownIt` instance too, so flow bodies render mermaid fences the same way.
 
 ### Baseline lifecycle
 
@@ -140,6 +144,7 @@ A dangling edge (unknown target, or an FK column absent from the child's PK) is 
 |------|---------|------|
 | [`src/model/parse.ts`](../../src/model/parse.ts) | `parseModels(dir): Promise<ParseResult>`, `normalizePredicate()`, `ModelNode`, `ModelEdge`, `Model`, `ParseResult`, `ModelMeta`, `Predicate`, `ColumnDef`, `SubtypeCluster`, `GroupConfig`, `Cardinality`, `ThemeConfig`, `Branding`, `HarnessMode` | Reads `ignatius.yml` (`_meta`, `theme:`, `branding:`) and `data/**/*.md` + `groups/*.md`; owns all derivation logic and the shared `MarkdownIt` instance |
 | [`src/model/wikilink.ts`](../../src/model/wikilink.ts) | `WikiLinkEnv`, `splitWikiTarget()`, `wikiLinkPlugin(md)`, `linkStateNeutral()` | markdown-it inline rule for `[[Target]]` / `[[Target\|label]]`; `linkStateNeutral(html)` rewrites missing-link spans as live anchors so two renders of one body compare equal whichever targets exist; registered onto `parse.ts`'s `md` via `md.use(wikiLinkPlugin)`. Types markdown-it's state/instance via minimal local interfaces (`InlineToken`, `InlineState`, `MarkdownItLike`) rather than casting to `any`, because markdown-it 14 ships no types in this repo. |
+| [`src/model/markdown-mermaid.ts`](../../src/model/markdown-mermaid.ts) | `mermaidFencePlugin(md)` | markdown-it plugin turning `mermaid` fences into `.mermaid-diagram` placeholders; types markdown-it through minimal local interfaces (`FenceToken`, `MarkdownItLike`) |
 | [`src/model/model-index.ts`](../../src/model/model-index.ts) | `buildModelIndex(model): ModelIndex`, `endpointKey(source, target)`, `ModelIndex` | Pure, no Bun/Node/DOM imports; browser-safe. Builds `nodeById`, `edgesBySource`/`edgesByTarget`/`edgeByEndpointPair`, `pkByNode`/`columnsByNode`, `akColumnsByNode`/`fkColumnsByNode`, subtype-cluster maps, `nodesByGroup` |
 | [`src/model/change-review.ts`](../../src/model/change-review.ts) | `diffSnapshots()`, `parseChangeNote()`, `crossCheck()`, `ModelSnapshot`, `ChangeKind`, `FlowNodeKind`, `ChangeItem`, `ChangeNote`, `ChangeNoteError`, `ReviewedItem`, `ChangeClaim`, `ChangeReview` | Diff of two `ModelSnapshot`s and the note cross-check. Imports `md` and `parseFrontmatter` from [`src/flows/flow-markdown.ts`](../../src/flows/flow-markdown.ts) at runtime |
 | [`src/model/change-store.ts`](../../src/model/change-store.ts) | `baselinePath()`, `ensureBaseline()`, `buildReview()`, `readReview()`, `approve()`, `ensureGitignore()` | Filesystem side of change review: reads and writes `.ignatius/baseline.json`, reads `.ignatius/changes/*.md`, calls `parseModels` and `parseFlows` for the current snapshot |

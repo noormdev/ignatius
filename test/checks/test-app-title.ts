@@ -44,6 +44,7 @@ function makeStubBundle(titleText: string = 'Ignatius'): BundleContent {
             '</body></html>',
         cssContent: '/* stub css */',
         jsContent: '/* stub js */',
+        mermaidJs: '',
     };
 }
 

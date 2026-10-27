@@ -9,7 +9,8 @@
  * `bun build --compile` can resolve them at compile time.
  *
  * The stable names (index.html, index.js, index.css) are produced by the
- * build:bundle script, which copies the hashed outputs to fixed names.
+ * build:bundle script, which copies the hashed outputs to fixed names;
+ * mermaid.js is built under its stable name directly.
  */
 
 import { Glob } from 'bun';
@@ -18,9 +19,12 @@ import { join } from 'node:path';
 import bundleHtmlPath from '../../dist/static/index.html' with { type: 'file' };
 import bundleJsPath from '../../dist/static/index.js' with { type: 'file' };
 import bundleCssPath from '../../dist/static/index.css' with { type: 'file' };
+import mermaidJsPath from '../../dist/static/mermaid.js' with { type: 'file' };
+
+export { mermaidJsPath };
 
 /**
- * The raw content of the three compiled bundle assets.
+ * The raw content of the compiled bundle assets.
  *
  * WHY here (not graph.ts): this is the canonical producer of BundleContent —
  * the embedded binary reads it via loadEmbeddedBundle; the disk-read path
@@ -34,6 +38,8 @@ export type BundleContent = {
   cssContent: string;
   /** Raw JS content (the full bundled module, unescaped). */
   jsContent: string;
+  /** Raw Mermaid sidecar (dist/static/mermaid.js), inlined only into exports that have a diagram. */
+  mermaidJs: string;
 };
 
 /**
@@ -81,8 +87,9 @@ export async function loadBundleFromDir(bundleDir: string): Promise<BundleConten
 
   const jsContent = await Bun.file(join(bundleDir, jsFilename)).text();
   const cssContent = await Bun.file(join(bundleDir, cssFilename)).text();
+  const mermaidJs = await Bun.file(join(bundleDir, 'mermaid.js')).text();
 
-  return { htmlTemplate, cssContent, jsContent };
+  return { htmlTemplate, cssContent, jsContent, mermaidJs };
 }
 
 /**
@@ -99,21 +106,22 @@ export async function loadEmbeddedBundle(): Promise<BundleContent> {
   const htmlFile = Bun.file(bundleHtmlPath);
   const jsFile = Bun.file(bundleJsPath);
   const cssFile = Bun.file(bundleCssPath);
+  const mermaidFile = Bun.file(mermaidJsPath);
 
-  const [htmlExists, jsExists, cssExists] = await Promise.all([
-    htmlFile.exists(), jsFile.exists(), cssFile.exists(),
+  const [htmlExists, jsExists, cssExists, mermaidExists] = await Promise.all([
+    htmlFile.exists(), jsFile.exists(), cssFile.exists(), mermaidFile.exists(),
   ]);
-  if (!htmlExists || !jsExists || !cssExists) {
+  if (!htmlExists || !jsExists || !cssExists || !mermaidExists) {
     throw new Error(
-      'Bundle missing — dist/static/{index.html,index.js,index.css} not found.\n' +
+      'Bundle missing — dist/static/{index.html,index.js,index.css,mermaid.js} not found.\n' +
       'Run: bun run build:bundle\n' +
       'Or:  bun run build:cli  (full build with stable names + compile)',
     );
   }
 
-  const [htmlTemplate, jsContent, cssContent] = await Promise.all([
-    htmlFile.text(), jsFile.text(), cssFile.text(),
+  const [htmlTemplate, jsContent, cssContent, mermaidJs] = await Promise.all([
+    htmlFile.text(), jsFile.text(), cssFile.text(), mermaidFile.text(),
   ]);
 
-  return { htmlTemplate, cssContent, jsContent };
+  return { htmlTemplate, cssContent, jsContent, mermaidJs };
 }

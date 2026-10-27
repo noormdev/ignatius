@@ -27,6 +27,7 @@ Introduce `ignatius.yml` as the single per-model config file (meta + theme + bra
 
 - [ ] `parseModels(modelRoot)` reads `modelRoot/ignatius.yml` for theme, branding, and meta; the `_theme.yaml`/`_branding.yaml`/`_meta.yaml` code paths no longer exist (`grep _theme.yaml src/` → 0).
 - [ ] An `ignatius.yml` with only `name:` parses; theme/branding default; `grep -r '_theme.yaml\|_branding.yaml\|_meta.yaml' src/` returns nothing.
+- [ ] `theme.mermaid` is optional: `{ dark?: Record<string, string | number>; light?: Record<string, string | number> }`, keyed by Mermaid `themeVariables` names and applied over the palette-derived defaults for that mode (`resolveMermaidThemeVariables`, `src/theme/mermaid-theme.ts`). `mergeTheme` keeps numbers and strings matching `SAFE_MERMAID_VALUE` (`src/theme/theme-defaults.ts`) and drops anything else, as well as a `theme.mermaid`, `dark` or `light` value that is not a mapping. Each dropped key path is recorded on `ThemeConfig.invalidMermaidKeys`, and `validateModel` reports it as the Tier A warning `config.mermaid_theme_invalid` (entity id `ignatius.yml`), so `ignatius validate` prints it and still exits 0. Contract: `docs/spec/viewer-qol.md`.
 - [ ] `models/{key-inherited,orm-hybrid,orm-pure}/ignatius.yml` exist, each with a distinct `name`; all three render via discovery (`dict` + `graph` exit 0).
 - [ ] Discovery: a base dir containing `ignatius.yml` resolves to itself; a base with no `ignatius.yml` but `ignatius.yml` files below resolves to the set; a base inside a model resolves up to the enclosing root; a base with none errors with a clear message.
 - [ ] `ignatius dict models -o out.html` with 3 models present, **non-TTY**, no `--model` → exits non-zero and lists the available keys (`key-inherited`, `orm-hybrid`, `orm-pure`).
@@ -80,6 +81,12 @@ Introduce `ignatius.yml` as the single per-model config file (meta + theme + bra
 ## Change log
 
 <!-- Populated on first amendment after the spec is approved. Do not log drafting/refinement turns. -->
+
+### 2026-10-27 — `theme.mermaid`
+
+**What changed:** `ignatius.yml` gains the optional `theme.mermaid.dark` / `.light` blocks of Mermaid `themeVariables` overrides, filtered by a safe-value pattern, with the `config.mermaid_theme_invalid` warning for each dropped key.
+
+**Why:** Mermaid diagrams in markdown bodies (`docs/spec/viewer-qol.md`) take their colors from the theme, and a model needs a way to override them.
 
 
 ## Implementation log

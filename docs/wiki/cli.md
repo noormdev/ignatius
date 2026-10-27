@@ -8,7 +8,7 @@ tags: [cli, dispatch, model-resolution]
 
 ## What it does
 
-[`src/cli/cli.ts`](../../src/cli/cli.ts) is the single entry point a user or CI job runs: the compiled `dist/ignatius` binary, or `bun src/cli/cli.ts` in a dev checkout. `cli.ts` registers the subcommand definitions (`serve`/`server` share one, so `server` is an alias). The CLI reaches every other domain in this repo (server, parser, validate, flows, generators, router, model change review) only through those subcommands. The one other caller of `serveCommand` is the dev-only `import.meta.main` block in [`src/server/server.ts`](../../src/server/server.ts); nothing else calls `generateApp`. `parseModels`, though, is also called directly by [`src/server/server.ts`](../../src/server/server.ts), and `buildRouters` also directly by `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts) (see Coupling). Two responsibilities exist outside dispatch: finding which directory on disk is "the model" when the user did not say, and keeping the installed binary current against GitHub Releases, streaming the download with a live progress line rather than buffering it.
+[`src/cli/cli.ts`](../../src/cli/cli.ts) is the single entry point a user or CI job runs: the compiled `dist/ignatius` binary, or `bun src/cli/cli.ts` in a dev checkout. `cli.ts` registers the subcommand definitions (`serve`/`server` share one, so `server` is an alias). The CLI reaches every other domain in this repo (server, parser, validate, flows, generators, router, model change review) only through those subcommands. The one other caller of `serveCommand` is the dev-only `import.meta.main` block in [`src/server/server.ts`](../../src/server/server.ts); `exportModel` ([`src/generators/export-model.ts`](../../src/generators/export-model.ts)) is also called by [`src/server/server.ts`](../../src/server/server.ts), and only it calls `generateApp`. `parseModels`, though, is also called directly by [`src/server/server.ts`](../../src/server/server.ts), and `buildRouters` also directly by `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts) (see Coupling). Two responsibilities exist outside dispatch: finding which directory on disk is "the model" when the user did not say, and keeping the installed binary current against GitHub Releases, streaming the download with a live progress line rather than buffering it.
 
 ## How it works
 
@@ -17,13 +17,13 @@ tags: [cli, dispatch, model-resolution]
 | `serve` (alias `server`) | `path`, `--port`/`-p` (default `3000`), `--model`, `--open`/`-o` | Resolves the model dir via `pickModel`, binds via `serveWithPortFallback`; `--open` dynamically imports `open-browser.ts` |
 | `validate` | `path`, `--model`, `--index` | `parseModels` → `validateModel`; folds in `parseFlows`/`validateFlows` when `<dir>/flows` exists; `--index` additionally calls `validateIndex` to recompute router digests and report drift, without writing anything |
 | `index` | `path`, `--model`, `--agents` | Full parse + validate + flow pipeline, then `buildRouters`/`writeRouters` writes `index.md` routers into every organizing folder; `--agents` also writes `AGENTS.md`/`SKILL.md` and, when the harness resolves to Claude, [`CLAUDE.md`](../../CLAUDE.md) |
-| `export` | `path`, `--out`/`-o` (required), `--theme` (`light`\|`dark`), `--model` | Same parse/validate/flow pipeline as `validate`, then `readReview()` (null with no baseline; never writes `.ignatius/`) + `loadEmbeddedBundle()` + `generateApp()` writes one self-contained HTML file carrying `window.__CHANGE_REVIEW__` when a baseline exists |
+| `export` | `path`, `--out`/`-o` (required), `--theme` (`light`\|`dark`), `--model` | `loadEmbeddedBundle()`, then `exportModel(dir, bundle, { themeMode })` parses, validates (flows too when `<dir>/flows` exists), reads the change review (null with no baseline; never writes `.ignatius/`) and renders the HTML. `cli.ts` prints the returned findings to stderr, writes one self-contained HTML file carrying `window.__CHANGE_REVIEW__` when a baseline exists, and exits on the findings |
 | `approve` | `path`, `--model` | Resolves the model dir via `pickModel`, then calls `approve(dir)` from [`src/model/change-store.ts`](../../src/model/change-store.ts): the current parse becomes the change-review baseline and every change note is deleted. Prints `Approved <items> change(s), cleared <notes> note(s).` |
 | `dict`, `graph`, `flow` | none | Removal stubs: write `"<name> was removed — use: ignatius export -o model.html"` to stderr, exit 1 |
 | `version` | none | Prints `VERSION` (baked from [`package.json`](../../package.json) at compile time) |
 | `update` | `--check`, `--yes`/`-y` | Delegates to `runUpdateCommand()`, exits with its returned code |
 
-`serve`, `validate`, `index`, `export`, and `approve` all resolve the model dir through `pickModel` before doing anything else. `validate`, `index`, and `export` then run `parseModels` → `validateModel`. `validate` and `export` call `parseFlows`/`validateFlows` only when `<dir>/flows` exists, and diverge from each other only at the last step; `index` calls the same two functions unconditionally, with no existence guard, so it diverges from `validate`/`export` mid-pipeline, not just at the end.
+`serve`, `validate`, `index`, `export`, and `approve` all resolve the model dir through `pickModel` before doing anything else. `validate` and `index` then run `parseModels` → `validateModel` inline in `cli.ts`; `export` runs the same steps inside `exportModel`. `validate` and `exportModel` call `parseFlows`/`validateFlows` only when `<dir>/flows` exists; `index` calls the same two functions unconditionally, with no existence guard.
 
 ### Model resolution
 
@@ -44,9 +44,9 @@ flowchart TD
 
 `resolveModel` ([`src/cli/discover.ts`](../../src/cli/discover.ts)) itself has no TTY dependency: it checks `base/ignatius.yml` first, then searches down (skipping `_`-prefixed dirs and `node_modules`, `.git`, `dist`, `tmp`, [`trash/`](../../trash), `.worktrees/`, [`.claude/`](../../.claude), treating any directory holding `ignatius.yml` as a leaf), then walks up if nothing was found below. `pickModel` ([`src/cli/resolve-model.ts`](../../src/cli/resolve-model.ts)) exits 2 on non-TTY stdin before reaching `select`; it is also the only file that imports `select`.
 
-### Shared validate/export pipeline
+### Validate and export pipeline
 
-`validate` and `export` share every step through the optional flow pass, and diverge only at the last call:
+`validate` runs these steps inline and `export` runs them inside `exportModel`; they diverge only at the last call:
 
 ```mermaid
 flowchart TD
@@ -56,7 +56,7 @@ flowchart TD
     C -->|no| F{subcommand}
     E --> F
     F -->|"validate --index"| G[validateIndex]
-    F -->|export| H[generateApp]
+    F -->|export| H["readReview + generateApp"]
 ```
 
 With `--index`, `validate` calls `parseFlows` even when `<dir>/flows` is absent, because `validateIndex` needs a flow model to hash router targets.
@@ -65,7 +65,7 @@ With `--index`, `validate` calls `parseFlows` even when `<dir>/flows` is absent,
 
 ### index pipeline
 
-`index` skips the `flows/`-exists guard that `validate` and `export` use — it always runs the flow pipeline, and `--agents` is its only branch:
+`index` skips the `flows/`-exists guard that `validate` and `exportModel` use — it always runs the flow pipeline, and `--agents` is its only branch:
 
 ```mermaid
 flowchart TD
@@ -137,7 +137,7 @@ stateDiagram-v2
 
 | Path | Responsibility |
 |---|---|
-| [`src/cli/cli.ts`](../../src/cli/cli.ts) | citty `defineCommand`/`runMain` entry point; registers the subcommand definitions (`server` is an alias of `serve`); statically imports `approve` from [`src/model/change-store.ts`](../../src/model/change-store.ts) |
+| [`src/cli/cli.ts`](../../src/cli/cli.ts) | citty `defineCommand`/`runMain` entry point; registers the subcommand definitions (`server` is an alias of `serve`); statically imports `approve` from [`src/model/change-store.ts`](../../src/model/change-store.ts) and `exportModel` from [`src/generators/export-model.ts`](../../src/generators/export-model.ts) |
 | [`src/cli/discover.ts`](../../src/cli/discover.ts) | `resolveModel(base, opts)` — pure, TTY-agnostic model-root search; exports the `ModelCandidate`/`ResolveResult` types |
 | [`src/cli/resolve-model.ts`](../../src/cli/resolve-model.ts) | `pickModel(base, modelKey)` — the shared resolution+prompt layer used by `serve`, `validate`, `index`, `export`, `approve`; the only file that imports `@clack/prompts`'s `select` |
 | [`src/cli/serve-port.ts`](../../src/cli/serve-port.ts) | `serveWithPortFallback`, `findAvailablePort`, `isAddrInUse` — port-conflict recovery for `serve` |
@@ -159,7 +159,7 @@ stateDiagram-v2
 
 Other constraints observed in the source:
 
-- `approve` is a static import in `cli.ts`, not a lazy one: [`src/server/server.ts`](../../src/server/server.ts) imports `change-store` statically too, and lazy-importing a module the server also imports statically makes the compiled binary throw `__promiseAll is not defined` at startup.
+- `approve` and `exportModel` are static imports in `cli.ts`, not lazy ones: [`src/server/server.ts`](../../src/server/server.ts) imports `change-store` and `export-model` statically too, and lazy-importing a module the server also imports statically makes the compiled binary throw `__promiseAll is not defined` at startup.
 - `validate`, `export`, and `index` all read `RULES[ruleId].class` (`'B'` = error) to decide their exit code rather than each finding's own severity field, so the exit code and the rule registry cannot silently diverge; all three reach an equivalent exit condition (`validate` writes it as `errorCount > 0 || hasClassBFlowErrors`).
 - `dict`, `graph`, and `flow` stay registered as citty subcommands (rather than being removed outright) purely so they can print a redirect message to `export` — deleting them would surface citty's generic "unknown command" error instead.
 - `@clack/prompts` is imported dynamically, only inside the files that need a prompt (`resolve-model.ts`, `serve-port.ts`, `update.ts`). The prompts are lazy-loaded and TTY-guarded at each call site.
@@ -168,7 +168,7 @@ Other constraints observed in the source:
 
 ## Coupling
 
-- `cli.ts` calls into **server** (`serveCommand`, reached through `serve-port.ts`), **parser** (`parseModels` in [`src/model/parse.ts`](../../src/model/parse.ts)), **validate** (`validateModel`, `formatFindingsForStderr`, `RULES`, `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts)), **flows** (`parseFlows` in [`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts), `validateFlows` in [`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts)), and **generators** (`loadEmbeddedBundle` in [`src/generators/embedded-bundle.ts`](../../src/generators/embedded-bundle.ts), `generateApp` in [`src/generators/app.ts`](../../src/generators/app.ts)) — a signature change in any of those exports forces a change in `cli.ts`.
+- `cli.ts` calls into **server** (`serveCommand`, reached through `serve-port.ts`), **parser** (`parseModels` in [`src/model/parse.ts`](../../src/model/parse.ts)), **validate** (`validateModel`, `formatFindingsForStderr`, `RULES`, `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts)), **flows** (`parseFlows` in [`src/flows/flow-parse.ts`](../../src/flows/flow-parse.ts), `validateFlows` in [`src/flows/flow-validate.ts`](../../src/flows/flow-validate.ts)), and **generators** (`loadEmbeddedBundle` in [`src/generators/embedded-bundle.ts`](../../src/generators/embedded-bundle.ts), `exportModel` in [`src/generators/export-model.ts`](../../src/generators/export-model.ts)) — a signature change in any of those exports forces a change in `cli.ts`.
 - `cli.ts`'s `index` subcommand additionally calls into **router**: `buildRouters` and `writeRouters` ([`src/router/build.ts`](../../src/router/build.ts), [`src/router/write.ts`](../../src/router/write.ts)), and — only under `--agents` — `resolveHarness` ([`src/router/detect.ts`](../../src/router/detect.ts)) and `writeGuidance` ([`src/router/agents.ts`](../../src/router/agents.ts)). `validate --index` reaches the same router domain indirectly, through `validateIndex` in [`src/model/validate.ts`](../../src/model/validate.ts), which dynamically imports `buildRouters` itself.
 - `validate`, `index`, and `export` all read `RULES[ruleId].class` from **validate** to decide their exit code — renaming or restructuring the rule-class scheme in [`src/model/validate.ts`](../../src/model/validate.ts) breaks those subcommands' exit-code logic.
 - `cli.ts`'s `approve` subcommand calls `approve` in [`src/model/change-store.ts`](../../src/model/change-store.ts), the same module that `buildReview` and the server's change-review path use (**parser** and **server** domains); a change to the `{ items, notes }` return shape breaks the printed summary line.

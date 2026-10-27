@@ -4,7 +4,7 @@ paths:
   - "src/app/**"
 ---
 
-Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; change-review overlay (`ChangesPanel`, `ChangeBadge`/`ChangeDot`, `logic/change-marks.ts`) marks graph, Dictionary, flow nodes, flow index and level-menu rows, with removed items in warning red; modals stack above the global findings banner; `flowview=`/`collapse=` hash params; views own cy/SVG lifecycle
+Domain: frontend. React 19 unified SPA (Graph/Dictionary/Flows views); shell (`App.tsx`) owns state + composition; change-review overlay (`ChangesPanel`, `ChangeBadge`/`ChangeDot`, `logic/change-marks.ts`) marks graph, Dictionary, flow nodes, flow index and level-menu rows, with removed items in warning red; modals stack above the global findings banner; `flowview=`/`collapse=` hash params; views own cy/SVG lifecycle; FAB Settings modal + Export HTML with saved view state; client Mermaid rendering
 
 Map:
   - docs/wiki/frontend.md

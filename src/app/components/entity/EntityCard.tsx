@@ -110,7 +110,7 @@ export function EntityCard({
 
       {node.bodyHtml && (
         <div
-          className="dict-entity-body"
+          className="dict-entity-body md"
           dangerouslySetInnerHTML={{ __html: node.bodyHtml }}
           onClick={e => {
             const t = e.target;

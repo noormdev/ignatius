@@ -74,7 +74,7 @@ export function ProcessCard({
 
       {process.bodyHtml && (
         <div
-          className="flow-node-body flow-node-body--process"
+          className="flow-node-body flow-node-body--process md"
           dangerouslySetInnerHTML={{ __html: process.bodyHtml }}
           onClick={e => resolveBodyClick(e, onScrollToSection)}
         />

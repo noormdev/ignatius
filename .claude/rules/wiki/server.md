@@ -4,7 +4,7 @@ paths:
   - "src/server/**"
 ---
 
-Domain: server. Bun.serve with `/api/model` (carries the change-review `diff`), `POST /api/approve`, `/api/flow` (returns `clusters`), `/events` SSE live-reload driven by fs.watch plus a `baseline.json` stat poll; `/dict`, `/flow`, `/flow-dict` redirect to SPA hash routes
+Domain: server. Bun.serve with `/api/model` (carries the change-review `diff`), `POST /api/approve`, `/api/flow` (returns `clusters`), `POST /api/export` (HTML export with client view state), `/static/mermaid.js`, `/events` SSE live-reload driven by fs.watch plus a `baseline.json` stat poll; `/dict`, `/flow`, `/flow-dict` redirect to SPA hash routes
 
 Map:
   - docs/wiki/server.md

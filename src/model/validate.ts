@@ -29,6 +29,7 @@ export type RuleId =
   | 'config.index_file_ext'
   | 'config.index_file_path'
   | 'config.index_file_entity'
+  | 'config.mermaid_theme_invalid'
   // router index drift
   | 'index.stale'
   | 'index.orphaned'
@@ -193,6 +194,11 @@ export const RULES: Record<RuleId, RuleEntry> = {
     title: 'Reserved index filename used as an entity file',
     explanation: 'A file under `data/` matches the configured `index_file` name but declares an `entity` field. Its frontmatter is read to detect this, and once detected the entity is dropped from the model. Rename the entity file or change `index_file` in `ignatius.yml`.',
     class: 'B',
+  },
+  'config.mermaid_theme_invalid': {
+    title: 'Invalid Mermaid theme value',
+    explanation: '`ignatius.yml`\'s `theme.mermaid` block, or one of its `dark`/`light` blocks, is not a mapping, or a value in it is neither a number nor a string made only of letters, digits, spaces and `# % ( ) , . ; - "`. Values reach the diagram\'s stylesheet as written, so anything else could inject CSS. That part is ignored and diagrams use the default for it.',
+    class: 'A',
   },
   'index.stale': {
     title: 'Router digest is out of date',
@@ -574,6 +580,15 @@ export function validateModel(model: Model): ValidationResult {
       ...checkExampleColumns(node),
       ...checkBodyLinks(node, nodeIds),
     );
+  }
+
+  for (const key of model.theme.invalidMermaidKeys ?? []) {
+    entityErrors.push({
+      ruleId: 'config.mermaid_theme_invalid',
+      entityId: 'ignatius.yml',
+      severity: 'warning',
+      message: `"${key}" is ignored: Mermaid theme blocks must be mappings, and their values numbers or strings of letters, digits, spaces and # % ( ) , . ; - " only.`,
+    });
   }
 
   // Edge rules — Class B (unknown_target) strips edge from cleanedModel
