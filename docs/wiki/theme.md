@@ -1,6 +1,6 @@
 ---
 type: Domain
-description: Default theme palettes, DFD flow-kind colors, Mermaid themeVariables, and branding config with their merge functions
+description: Default theme palettes, DFD flow-kind colors, Mermaid themeVariables and themeCSS, and branding config with their merge functions
 tags: [theme, frontend, branding]
 ---
 
@@ -8,7 +8,7 @@ tags: [theme, frontend, branding]
 
 ## What it does
 
-Owns the built-in color/spacing defaults and branding (logo/title/copyright) for the app, plus the merge functions that layer a project's `ignatius.yml` `theme:`/`branding:` overrides on top of those defaults. It also derives the Mermaid `themeVariables` that make diagrams in entity markdown bodies follow the active palette. Without it, every render path (Graph, Dictionary, Flows, static export) would need its own fallback logic for colors and logos instead of reading one resolved `ThemeConfig`/`Branding` object. Consumed by [`src/model/parse.ts`](../../src/model/parse.ts), the only caller of `mergeTheme`/`mergeBranding`, and by frontend/flow-view rendering code that reads the resulting values.
+Owns the built-in color/spacing defaults and branding (logo/title/copyright) for the app, plus the merge functions that layer a project's `ignatius.yml` `theme:`/`branding:` overrides on top of those defaults. It also derives the Mermaid `themeVariables` and `themeCSS` that make diagrams in entity markdown bodies follow the active palette. Without it, every render path (Graph, Dictionary, Flows, static export) would need its own fallback logic for colors and logos instead of reading one resolved `ThemeConfig`/`Branding` object. Consumed by [`src/model/parse.ts`](../../src/model/parse.ts), the only caller of `mergeTheme`/`mergeBranding`, and by frontend/flow-view rendering code that reads the resulting values.
 
 ## How it works
 
@@ -28,24 +28,28 @@ flowchart TD
 
 `dark`, `light`, and `spacing` each get the identical one-level object-spread shown above; only which default object and which partial object get spread differs. `mergeTheme` never touches `flowKinds` beyond a shallow copy, so `ThemeConfig.flowKinds` after a merge is the raw override set, not a resolved palette. Every consumer that needs actual flow-kind colors calls `resolveFlowKindPalette(mode, theme.flowKinds)` itself rather than reading `theme.flowKinds` directly.
 
-### Mermaid themeVariables
+### Mermaid themeVariables and themeCSS
 
-**`mergeTheme` filters `theme.mermaid` at parse time; `resolveMermaidThemeVariables` builds the full variable set per mode at render time, with the user's values applied last.**
+**`mergeTheme` filters `theme.mermaid` and the diagram palette colours at parse time; `resolveMermaidStyle` builds `{ themeVariables, themeCSS }` per mode at render time, with the user's mode-block values applied last.**
 
 ```mermaid
 flowchart TD
     %% source: docs/design/viewer-qol.md, src/theme/theme-defaults.ts, src/theme/mermaid-theme.ts, src/app/hooks/useMermaid.ts
     Raw["ignatius.yml theme.mermaid"] --> Read["readMermaidTheme(raw)"]
     Read --> Safe{"number, or string matching SAFE_MERMAID_VALUE?"}
-    Safe -->|yes| Kept["ThemeConfig.mermaid[mode][key]"]
+    Safe -->|yes| Kept["ThemeConfig.mermaid"]
     Safe -->|no| Dropped["ThemeConfig.invalidMermaidKeys"]
     Dropped --> Validate["validateModel reports each key path"]
-    Kept --> Resolve["resolveMermaidThemeVariables(theme, mode)"]
+    Kept --> Resolve["resolveMermaidStyle(theme, mode)"]
     Palette["theme[mode] + semanticColors[mode]"] --> Resolve
-    Resolve --> Hook["useMermaid: themeVariables for mermaid"]
+    Resolve --> Hook["useMermaid: themeVariables + themeCSS"]
 ```
 
-`resolveMermaidThemeVariables` derives a value for every diagram family from `theme[mode]` and `semanticColors[mode]`, because Mermaid fills a family it is not given with colors that ignore the theme. Families covered: flowchart nodes and clusters, sequence, state, class, requirement, ER, gantt, pie, quadrant, commit graph, `cScale`, and the nested `xyChart` object. Series fills cycle through the `independent`, `dependent`, `classifier`, `subtype`, and `associative` backgrounds and `link`. `labelOn(fill)` picks the page ink or white, whichever has the higher contrast ratio against the fill. The result is `{ ...derived, ...theme.mermaid[mode] }`, so a user key replaces the derived one by exact name.
+`readMermaidTheme` accepts four top-level keys besides the `dark`/`light` mode blocks: `stroke_width` (number 0-8, default 3), `radius` (number 0-32, default 8), `shadow` (boolean), and `node_fills` (1 to 12 `#rrggbb` strings). Any other top-level key, and any value out of type or range, lands in `invalidMermaidKeys`. `mergeTheme` also lists each `theme.dark`/`theme.light` `background`, `surface`, `text`, or `textMuted` colour (`DIAGRAM_PALETTE_KEYS`) that fails `SAFE_MERMAID_VALUE`; at render time `safePalette` swaps such a colour for the default, so only diagrams ignore it.
+
+`resolveMermaidThemeVariables` derives a value for every diagram family from the safe palette and the node-fill series, because Mermaid fills a family it is not given with colors that ignore the theme. Families covered: flowchart nodes and clusters, sequence, state, class, requirement, ER, gantt, pie, quadrant, commit graph, `cScale`, and the nested `xyChart` object. The series is `theme.mermaid.node_fills`, or `DEFAULT_MERMAID_FILLS` (the dark-mode `independent`, `dependent`, `subtype`, and `associative` entity colours plus the `queue` flow-kind colour) when absent; the same bright fills serve both modes. `labelOn(fill)` picks black or white, whichever has the higher contrast ratio against the fill, and `labelOnAll(fills)` picks the one whose worst contrast across the series is best. The variables end as `{ ...derived, ...theme.mermaid[mode] }`, so a mode-block key replaces the derived one by exact name.
+
+`themeCSS(theme, mode, vars)` paints what the variables cannot: black node outlines at `stroke_width`, corner `rx`/`ry` at `radius`, a `drop-shadow` filter (dark in both modes; `none` when `shadow: false`), the per-node fill cycle through the series with a contrast-picked label colour per fill, and edge-label padding. `resolveMermaidStyle` returns both, and `renderMermaidIn` spreads them into `mermaid.initialize`.
 
 ### Logo resolution has two independent fallback points
 
@@ -107,15 +111,15 @@ Each of the 8 `FlowKindKey` values gets one `FlowKindEntry` (`bg`, `fg`, `border
 
 | Path | What |
 |---|---|
-| [`src/theme/theme-defaults.ts`](../../src/theme/theme-defaults.ts) | `ThemeConfig`/`ThemePalette`/`ThemeSpacing`/`ThemeMode`/`FlowKindEntry`/`FlowKindKey` types, `defaultTheme`, `mergeTheme()`, `semanticColors`, `FLOW_KIND_KEYS`, `FLOW_STORE_KIND_SYMBOLS`, `defaultFlowKinds`, `resolveFlowKindPalette()`, `SAFE_MERMAID_VALUE`, and the `readMermaidTheme()` filter behind `mergeTheme` |
-| [`src/theme/mermaid-theme.ts`](../../src/theme/mermaid-theme.ts) | `MermaidThemeConfig`, `MermaidThemeVariables`, `resolveMermaidThemeVariables()` |
+| [`src/theme/theme-defaults.ts`](../../src/theme/theme-defaults.ts) | `ThemeConfig`/`ThemePalette`/`ThemeSpacing`/`ThemeMode`/`FlowKindEntry`/`FlowKindKey` types, `defaultTheme`, `mergeTheme()`, `semanticColors`, `FLOW_KIND_KEYS`, `FLOW_STORE_KIND_SYMBOLS`, `defaultFlowKinds`, `resolveFlowKindPalette()`, `SAFE_MERMAID_VALUE`, `DIAGRAM_PALETTE_KEYS`, `mermaidKeyMessage()` (the `config.mermaid_theme_invalid` message per key path), and the `readMermaidTheme()` filter behind `mergeTheme` |
+| [`src/theme/mermaid-theme.ts`](../../src/theme/mermaid-theme.ts) | `MermaidThemeConfig` (`stroke_width`, `radius`, `shadow`, `node_fills`, `dark`, `light`), `MermaidThemeVariables`, `MermaidStyle`, `DEFAULT_MERMAID_FILLS`, `resolveMermaidThemeVariables()`, `resolveMermaidStyle()` (the entry `useMermaid` calls) |
 | [`src/theme/branding-defaults.ts`](../../src/theme/branding-defaults.ts) | `Branding`/`LogoPair`/`CopyrightConfig` types, `defaultBranding`, `mergeBranding()`, `inlineBrandingLogos()` |
 | [`assets/noorm-logo.svg`](../../assets/noorm-logo.svg) | Embedded default logo, imported via Bun's `with { type: 'file' }` |
 | [`docs/design/branding.md`](../design/branding.md) | Design doc for the branding system |
 | [`docs/spec/branding.md`](../spec/branding.md) | Implementation spec for the branding system |
 | [`docs/guides/themes-and-branding.md`](../guides/themes-and-branding.md) | User-facing guide: `theme:`/`branding:` blocks in `ignatius.yml`, defaults when absent |
 
-`ThemeConfig` also carries optional `mermaid` (per-mode `themeVariables` overrides in Mermaid's own key names) and `invalidMermaidKeys` (the `ignatius.yml` key paths `readMermaidTheme` dropped).
+`ThemeConfig` also carries optional `mermaid` (the four style keys plus per-mode `themeVariables` overrides in Mermaid's own key names) and `invalidMermaidKeys` (the `ignatius.yml` key paths `readMermaidTheme` dropped).
 
 `ThemePalette` (per mode) holds `background`, `surface`, `border`, `text`, `textMuted`, `edgeIdentifying`, `edgeReferential`, `pastelMix` (number). `ThemeSpacing` holds `nodeSep`, `markerOffset`, `markerScale: [number, number]`. `defaultTheme` supplies concrete dark/light values (dark `background: '#0e1116'`, light `background: '#ffffff'`) and `spacing: { nodeSep: 60, markerOffset: 10, markerScale: [0.5, 2.5] }`.
 
@@ -130,8 +134,8 @@ Each of the 8 `FlowKindKey` values gets one `FlowKindEntry` (`bg`, `fg`, `border
 | `mergeTheme` merge depth | Shallow, one level of object-spread per palette (`dark`, `light`, `spacing`). A partial `dark: { background }` override keeps the rest of `defaultTheme.dark` intact, but a nested field inside a non-palette object would not merge this way. |
 | `flowKinds` bypasses `mergeTheme` | `mergeTheme` passes `partial.flowKinds` through unresolved (a shallow copy, or omitted entirely when absent). Reading `ThemeConfig.flowKinds` directly gets the override set, not usable colors; always go through `resolveFlowKindPalette(mode, flowKinds)`. |
 | `resolveFlowKindPalette` merge depth | Per-kind, per-mode, at the `FlowKindEntry` level: `{...defaults[key], ...modeOverride}`. A caller does not need to supply the full `{bg, fg, border}` triple: a partial `{ bg }` override keeps the default `fg`/`border` for that kind. |
-| `theme.mermaid` value filter | A value survives only if it is a number or a string matching `SAFE_MERMAID_VALUE` (`/^[\d "#%(),.;A-Za-z-]+$/`). Mermaid writes `themeVariables` into the SVG `<style>` unsanitized, so other strings are dropped and listed in `invalidMermaidKeys`. A non-object `theme.mermaid` or `theme.mermaid.<mode>` is dropped whole and listed under that path. |
-| Override keys are Mermaid's names | `theme.mermaid[mode]` keys are not checked against Mermaid's variable names. Nodes read `mainBkg`/`nodeBorder`/`nodeTextColor`, which Mermaid derives from `primaryColor`/`primaryBorderColor`/`primaryTextColor`; the resolver names only the latter, so override those to restyle nodes. |
+| `theme.mermaid` value filter | A mode-block value survives only if it is a number or a string matching `SAFE_MERMAID_VALUE` (`/^[\d "#%(),.;A-Za-z-]+$/`). Mermaid writes `themeVariables` and the palette into the SVG `<style>` unsanitized, so other strings are dropped and listed in `invalidMermaidKeys`. A non-object `theme.mermaid` or `theme.mermaid.<mode>` is dropped whole and listed under that path. `node_fills` is stricter: six-digit hex only, since labels are picked by contrast against each fill. |
+| Overriding `primaryColor` does not restyle nodes | `themeCSS` sets each node's fill from the series, so it wins over `primaryColor`/`mainBkg`. Restyle nodes with `theme.mermaid.node_fills`; mode-block keys reach only the shapes `themeCSS` does not paint. Mode-block keys are not checked against Mermaid's variable names. |
 | `BODY_FONT` duplicates CSS | `mermaid-theme.ts` repeats the `body` font stack from [`src/app/styles.css`](../../src/app/styles.css); the two are kept in step by hand. |
 | `title`/`subtitle` length | `mergeBranding` throws `Error` if either exceeds 50 characters. |
 | Explicit `null` in object-form logo | Falls through to `NOORM_DEFAULT_LOGO`, by design (documented in a `WHY` comment in `normalizeLogo`). |
@@ -140,7 +144,7 @@ Each of the 8 `FlowKindKey` values gets one `FlowKindEntry` (`bg`, `fg`, `border
 
 ## Coupling
 
-- [`src/app/hooks/useMermaid.ts`](../../src/app/hooks/useMermaid.ts) calls `resolveMermaidThemeVariables(model.theme, themeMode)`; `mermaid-theme.ts` imports `blendHex` from [`src/app/logic/color.ts`](../../src/app/logic/color.ts) and `semanticColors` from `theme-defaults.ts`. [`src/model/validate.ts`](../../src/model/validate.ts) reads `model.theme.invalidMermaidKeys` to report each dropped key.
+- [`src/app/hooks/useMermaid.ts`](../../src/app/hooks/useMermaid.ts) calls `resolveMermaidStyle(model.theme, themeMode)`; `mermaid-theme.ts` imports `blendHex` from [`src/app/logic/color.ts`](../../src/app/logic/color.ts) and `semanticColors` from `theme-defaults.ts`. [`src/model/validate.ts`](../../src/model/validate.ts) reads `model.theme.invalidMermaidKeys` to report each dropped key.
 - [`src/model/parse.ts`](../../src/model/parse.ts) is the sole caller of `mergeTheme()` and `mergeBranding()`: `parseModels()` reads `ignatius.yml` and passes its `theme:`/`branding:` block through the respective merge function when present, otherwise uses `defaultTheme`/`defaultBranding` directly. `parse.ts` also re-exports the `ThemeConfig` and `Branding` types, but most `ThemeConfig` consumers import it directly from [`src/theme/theme-defaults.ts`](../../src/theme/theme-defaults.ts) instead: [`src/app/dom/theme-css-vars.ts`](../../src/app/dom/theme-css-vars.ts), [`src/app/views/graph/markers.ts`](../../src/app/views/graph/markers.ts), [`src/app/views/graph/styles.ts`](../../src/app/views/graph/styles.ts), and [`src/app/views/flow/FlowsView.tsx`](../../src/app/views/flow/FlowsView.tsx) all do, and only [`src/app/hooks/useThemeMode.ts`](../../src/app/hooks/useThemeMode.ts) goes through `../model/parse`. `Branding` has no consumer outside test files to characterize either way.
 - `resolveFlowKindPalette()` is imported directly from [`src/theme/theme-defaults.ts`](../../src/theme/theme-defaults.ts) (not re-exported through `parse.ts`) by [`src/app/App.tsx`](../../src/app/App.tsx), [`src/app/views/flow/LegendModal.tsx`](../../src/app/views/flow/LegendModal.tsx), [`src/app/views/dict/DictionaryView.tsx`](../../src/app/views/dict/DictionaryView.tsx), and [`src/app/views/flow/FlowsView.tsx`](../../src/app/views/flow/FlowsView.tsx) to render DFD flow-kind swatches and legends.
 - `FLOW_STORE_KIND_SYMBOLS` is imported by [`src/app/components/process/KindMarker.tsx`](../../src/app/components/process/KindMarker.tsx) (renders the store kind glyph on a flow endpoint), [`src/app/views/flow/LegendModal.tsx`](../../src/app/views/flow/LegendModal.tsx) (renders the symbol next to each kind's legend label), and [`src/flow-view/flow-layout.ts`](../../src/flow-view/flow-layout.ts) (its `storeCapLabel()` appends a per-stack store number, e.g. `D1`, `C2`). `defaultFlowKinds` and `FLOW_KIND_KEYS` are referenced only inside [`src/theme/theme-defaults.ts`](../../src/theme/theme-defaults.ts) itself and in test files, not by any of those consumers.
