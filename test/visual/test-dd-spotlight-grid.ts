@@ -15,6 +15,7 @@ import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { SYNTHETIC_DIAGRAM_IDS } from '../../src/flows/flow-derive-levels';
 import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'dd-spotlight-grid');
@@ -1890,17 +1891,7 @@ try {
 
   note('\n── CP6: Light-mode visual review ────────────────────────────────────────');
 
-  // Helper: flip theme via the REAL app .theme-toggle button (same mechanism as
-  // test-cp9-dd-search-highlight.ts) so React setThemeMode → applyThemeCssVars fires.
-  async function clickThemeToggle(): Promise<void> {
-    const btn = page.locator('.theme-toggle');
-    const c = await btn.count();
-    if (c === 0) fail('.theme-toggle button not found — cannot switch theme through the app');
-    await btn.click();
-    await page.waitForTimeout(400);
-  }
-
-  // Navigate to a fresh page first so theme toggle is accessible.
+  // Navigate to a fresh page first so the FAB is accessible.
   await page.goto(`${BASE}/#view=dict`);
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(1200);
@@ -1920,8 +1911,8 @@ try {
   }
 
   // Switch to light mode via the REAL app toggle.
-  note('CP6: Switching to LIGHT mode via .theme-toggle …');
-  await clickThemeToggle();
+  note('CP6: Switching to LIGHT mode via Settings …');
+  await toggleTheme(page);
   await shot('32-cp6-light-mode-initial.png');
 
   // Read the LIGHT spotlight color vars AFTER toggling.
@@ -2085,7 +2076,7 @@ try {
   // Release pin and restore to dark mode (leave the test environment as we found it).
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
-  await clickThemeToggle(); // back to dark
+  await toggleTheme(page); // back to dark
   await page.waitForTimeout(300);
 
   await shot('35-cp6-final.png');
@@ -3242,8 +3233,8 @@ try {
   }
 
   // Switch to light mode via the real app toggle (same helper as CP6).
-  note('CP13: Switching to LIGHT mode via .theme-toggle …');
-  await clickThemeToggle();
+  note('CP13: Switching to LIGHT mode via Settings …');
+  await toggleTheme(page);
   await shot('50-cp13-light-mode-initial.png');
 
   // Read the LIGHT value.
@@ -3551,7 +3542,7 @@ try {
 
   // ── CP13.5: Restore dark mode ─────────────────────────────────────────────────
   note('\n── CP13.5: Restoring dark mode ──────────────────────────────────────────────');
-  await clickThemeToggle(); // back to dark
+  await toggleTheme(page); // back to dark
   await page.waitForTimeout(300);
   await shot('56-cp13-dark-mode-restored.png');
 
@@ -4540,13 +4531,13 @@ try {
   note('Saved dark-mode screenshot: tmp/dd-spotlight-grid/70-cp17-dark-browse-scrollbar-at-edge.png');
 
   // Switch to light mode for light screenshot.
-  await page.locator('.theme-toggle').click();
+  await toggleTheme(page);
   await page.waitForTimeout(400);
   await shot('71-cp17-light-browse-scrollbar-at-edge.png');
   note('Saved light-mode screenshot: tmp/dd-spotlight-grid/71-cp17-light-browse-scrollbar-at-edge.png');
 
   // Restore dark mode.
-  await page.locator('.theme-toggle').click();
+  await toggleTheme(page);
   await page.waitForTimeout(300);
 
   note('\n══ CP17 PASS ════════════════════════════════════════════════════════════');

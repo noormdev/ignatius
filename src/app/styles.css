@@ -85,8 +85,8 @@ a {
 /* Footer — bottom-center, fixed */
 /* --fab-region matches the FAB's right offset + width so the footer stays clear */
 :root { --fab-region: 160px; }
-/* --toggle-region is the help and theme toggles' span from the right edge (.help-toggle right + width). */
-:root { --toggle-region: 96px; }
+/* --toggle-region is the help toggle's span from the right edge (.help-toggle right + width). */
+:root { --toggle-region: 52px; }
 /* --below-branding: the row under the branding block (12px top + 48px block + 8px gap).
    --dict-bar-clearance: the fixed Dictionary search bar's height plus a gap. */
 :root { --below-branding: 68px; --dict-bar-clearance: 76px; }
@@ -124,37 +124,10 @@ a {
   text-decoration: underline;
 }
 
-/* Theme toggle */
-.theme-toggle {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: border-color 0.15s, color 0.15s;
-  line-height: 1;
-}
-.theme-toggle:hover {
-  border-color: var(--color-link);
-  color: var(--color-text);
-}
-
-/* Help toggle — sits just left of the theme toggle, same pill treatment */
 .help-toggle {
   position: fixed;
   top: 16px;
-  right: 60px;
+  right: 16px;
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -220,19 +193,16 @@ a {
   color: var(--color-text-muted);
   margin: 20px 0 0 0;
 }
-.help-modal kbd {
-  display: inline-block;
-  min-width: 18px;
-  padding: 1px 6px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  line-height: 1.5;
+.help-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+.help-keys-sep {
+  color: var(--color-text-muted);
 }
 @media (max-width: 560px) {
   .help-row {
@@ -319,22 +289,31 @@ a {
   outline: none;
 }
 
-/* Keyboard shortcut hint — subtle keycap badge used inside FAB menu items and lens controls */
-.kbd-hint {
+.kbd-hint,
+.help-modal kbd {
   display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0 0.3rem;
+  padding: 0 0.35em;
   font-family: inherit;
-  font-size: 0.7em;
   font-style: normal;
   font-weight: 600;
   line-height: 1.5;
-  color: var(--color-text-muted);
-  background: var(--color-surface-alt);
+  text-align: center;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 3px;
+  border-bottom-width: 2px;
+  border-radius: 4px;
   vertical-align: middle;
   user-select: none;
+}
+.kbd-hint {
+  margin-left: 0.5rem;
+  font-size: 0.7em;
+  color: var(--color-text-muted);
+}
+.help-modal kbd {
+  min-width: 1.7em;
+  font-size: 12px;
+  color: var(--color-text);
 }
 
 /* FAB feedback toast — floats above FAB, outside menu guard */
@@ -378,6 +357,21 @@ a {
   gap: 10px;
   margin-bottom: 8px;
   font-size: 14px;
+  color: var(--color-text);
+}
+.group-card-toggle {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.group-card-toggle:hover {
+  background: var(--color-surface-alt);
   color: var(--color-text);
 }
 
@@ -439,26 +433,146 @@ a {
 
 /* Settings modal */
 .settings-modal {
-  max-width: 480px;
+  max-width: 520px;
 }
-.settings-row {
-  padding: 8px 0;
+.settings-section + .settings-section {
+  margin-top: 20px;
 }
-.settings-option {
+.settings-section-title {
+  margin: 0 0 8px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.settings-card {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-background);
+}
+.settings-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+label.settings-item {
   cursor: pointer;
 }
-.settings-option input {
+label.settings-item:hover {
+  background: var(--color-surface-alt);
+}
+.settings-item + .settings-item {
+  border-top: 1px solid var(--color-border);
+}
+.settings-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.settings-item-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.settings-item-hint {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.settings-segmented {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.settings-segment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+/* The radio stays the click target, stretched invisibly over the whole segment. */
+.settings-segment input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.settings-segment:hover {
+  color: var(--color-text);
+}
+.settings-segment.is-active {
+  background: var(--color-link);
+  color: var(--color-background);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.settings-segment:has(input:focus-visible) {
+  outline: 2px solid var(--color-link);
+  outline-offset: 2px;
+}
+
+/* On/off switch drawn on a native checkbox, so keyboard and labels work as usual. */
+.settings-switch {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.settings-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
   width: 16px;
   height: 16px;
-  margin: 0;
-  accent-color: var(--color-link);
-  cursor: pointer;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 150ms ease, background 150ms ease;
 }
-.settings-hint {
-  margin: 4px 0 0 26px;
+.settings-switch:checked {
+  border-color: var(--color-link);
+  background: var(--color-link);
+}
+.settings-switch:checked::after {
+  background: #ffffff;
+  transform: translateX(16px);
+}
+.settings-switch:focus-visible {
+  outline: 2px solid var(--color-link);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-segment,
+  .settings-switch,
+  .settings-switch::after {
+    transition: none;
+  }
 }
 
 /* Modal */
@@ -2187,7 +2301,7 @@ button.changes-panel-item:hover {
   max-width: 1100px;
   margin: 0 auto;
   /* Top clears the fixed search bar (~56px bar + 12px gap = 68px).
-     Right clears theme-toggle + FAB; bottom/left give breathing room. */
+     Right clears help-toggle + FAB; bottom/left give breathing room. */
   padding: var(--dict-bar-clearance) 2rem 5rem 2rem;
 }
 
@@ -2225,7 +2339,7 @@ button.changes-panel-item:hover {
     2rem,
     calc(16px + var(--branding-gutter, 0px) + 12px - max(0px, (100vw - 1100px) / 2))
   );
-  /* The same indent on the right clears the help and theme toggles. */
+  /* The same indent on the right clears the help toggle. */
   padding-right: max(2rem, calc(var(--toggle-region) + 12px - max(0px, (100vw - 1100px) / 2)));
   display: flex;
   align-items: center;
@@ -3045,7 +3159,7 @@ button.changes-panel-item:hover {
 
 /* Shiki runs with defaultColor:false, so every token carries both theme values
    as custom properties and commits to neither. The app's own theme class picks
-   one, which is what keeps these blocks on the in-app theme toggle rather than
+   one, which is what keeps these blocks on the in-app theme setting rather than
    on the OS colour scheme. */
 .theme-light .shiki,
 .theme-light .shiki span {
@@ -4187,7 +4301,7 @@ a.dict-link-missing:hover {
 /*
  * The dict-view is a fixed+scrollable overlay on screen. In print we need it
  * to flow naturally across pages like a document, not clip to one viewport.
- * All chrome overlays (FAB, findings, search, side nav, theme toggle, minimap,
+ * All chrome overlays (FAB, findings, search, side nav, minimap,
  * copy-toast, global banner, graph panel) are hidden so only content prints.
  * Break-inside avoidance prevents entity/process cards splitting mid-page.
  */
@@ -4202,7 +4316,6 @@ a.dict-link-missing:hover {
   .dict-nav-tab,
   .findings-panel,
   .changes-panel,
-  .theme-toggle,
   .help-toggle,
   .fab,
   .fab-menu,

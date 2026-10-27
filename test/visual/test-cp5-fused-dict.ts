@@ -20,6 +20,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const PORT = 7283;
@@ -176,14 +177,9 @@ try {
   await page.screenshot({ path: join(tmpDir, 'cp5-fused-dict-dark.png'), fullPage: false });
   note('  Saved: tmp/cp5-fused-dict-dark.png');
 
-  // Light screenshot — click theme toggle
-  const toggle = page.locator('.theme-toggle');
-  if (await toggle.count() > 0) {
-    await toggle.click();
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: join(tmpDir, 'cp5-fused-dict-light.png'), fullPage: false });
-    note('  Saved: tmp/cp5-fused-dict-light.png');
-  }
+  await setTheme(page, 'light');
+  await page.screenshot({ path: join(tmpDir, 'cp5-fused-dict-light.png'), fullPage: false });
+  note('  Saved: tmp/cp5-fused-dict-light.png');
 
   note('\nAll CP5 fused Dictionary assertions passed.');
 } finally {

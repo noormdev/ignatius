@@ -27,6 +27,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp25-dd-endpoint-links');
@@ -74,16 +75,6 @@ async function shot(name: string): Promise<void> {
   const p = join(TMP, name);
   await page.screenshot({ path: p, fullPage: false });
   note(`Screenshot: ${p}`);
-}
-
-async function setTheme(theme: 'dark' | 'light'): Promise<void> {
-  const currentTheme = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme') ?? 'dark',
-  );
-  if (currentTheme !== theme) {
-    await page.locator('.theme-toggle').click();
-    await page.waitForTimeout(300);
-  }
 }
 
 async function switchToDict(): Promise<void> {
@@ -143,7 +134,7 @@ note('\n── Assertion (a): DD card endpoint link state ──');
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToDict();
 
   // Wait for the process section to exist in the DOM
@@ -253,7 +244,7 @@ note('\n── Assertion (b): Dialog for 1.1 Validate Customer (sub-DFD) shows C
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   // Navigate to the sub-DFD: order-to-cash > Create-Sales-Order.

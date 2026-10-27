@@ -3,13 +3,13 @@
  *
  * Proves:
  *  1. The branding block + footer appear on all three views (graph / flow / dict-stub).
- *  2. The theme toggle (.theme-toggle) is present on all three views.
+ *  2. The help toggle (.help-toggle) is present on all three views.
  *  3. The FAB (.fab) is present on all three views with contextual menu items:
  *     - graph view: shows graph-specific items (Legend, Reset layout, etc.) and view-switch items
  *     - flow view: shows flow-specific items (Reset layout) and view-switch items; NOT Cytoscape-only items
  *     - dict view: shows view-switch items; no Cytoscape-only items
  *  4. Toggling theme from the flow view re-themes the DFD (CP2a invariant holds).
- *  5. FlowChrome no longer renders its own FAB or theme toggle.
+ *  5. FlowChrome no longer renders its own FAB or help toggle.
  *  6. SelectedEntityModal still opens from a graph node tap.
  *
  * NOT run by `bun run test` — manual visual check only.
@@ -18,6 +18,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'chrome-unification');
@@ -72,16 +73,6 @@ async function assertFlowReady(ctx: string): Promise<void> {
   ).then(() => true).catch(() => false);
   if (!ok) fail(`__IGNATIUS_FLOW_READY__ did not become true ${ctx}`);
   note(`Flow ready: ${ctx}`);
-}
-
-/** Click the shared theme toggle (.theme-toggle) */
-async function clickThemeToggle(): Promise<void> {
-  const toggle = page.locator('.theme-toggle');
-  const count = await toggle.count();
-  if (count === 0) fail('Shared .theme-toggle not found');
-  if (count > 1) fail(`Multiple theme toggles found (${count}) — FlowChrome may still have its own`);
-  await toggle.click();
-  await page.waitForTimeout(400);
 }
 
 /** Open the shared FAB (.fab) */
@@ -143,12 +134,12 @@ try {
   await page.waitForLoadState('domcontentloaded');
   await assertCyDefined('on boot (graph view)');
 
-  // ── 1. Graph view: branding + theme toggle + FAB ──────────────────────────
+  // ── 1. Graph view: branding + help toggle + FAB ──────────────────────────
   note('\n── 1. Graph view ─────────────────────────────────────────────────────');
 
   await assertExists('.branding-block', 'graph view');
   await assertExists('.branding-footer', 'graph view');
-  await assertExists('.theme-toggle', 'graph view');
+  await assertExists('.help-toggle', 'graph view');
   await assertExists('.fab', 'graph view');
 
   // Open FAB, verify graph-specific items present
@@ -175,13 +166,13 @@ try {
   // Shared chrome present on flow view
   await assertExists('.branding-block', 'flow view');
   await assertExists('.branding-footer', 'flow view');
-  await assertExists('.theme-toggle', 'flow view');
+  await assertExists('.help-toggle', 'flow view');
   await assertExists('.fab', 'flow view');
 
-  // FlowChrome must NOT have its own theme toggle (only 1 total)
-  const themeToggleCount = await page.locator('.theme-toggle').count();
-  if (themeToggleCount !== 1) fail(`Expected 1 .theme-toggle on flow view, got ${themeToggleCount}`);
-  note(`OK: exactly 1 .theme-toggle on flow view`);
+  // FlowChrome must NOT have its own help toggle (only 1 total)
+  const helpToggleCount = await page.locator('.help-toggle').count();
+  if (helpToggleCount !== 1) fail(`Expected 1 .help-toggle on flow view, got ${helpToggleCount}`);
+  note(`OK: exactly 1 .help-toggle on flow view`);
 
   // Open FAB on flow view — verify flow items, NO Cytoscape-only items
   await openFab();
@@ -218,7 +209,7 @@ try {
   const bgBefore = await svgBackground();
   note(`DFD background before toggle: ${bgBefore}`);
 
-  await clickThemeToggle();
+  await toggleTheme(page);
 
   const bgAfter = await svgBackground();
   note(`DFD background after toggle: ${bgAfter}`);
@@ -231,13 +222,13 @@ try {
   await page.screenshot({ path: flowDarkShot, fullPage: false });
   note(`Flow (dark) screenshot: ${flowDarkShot}`);
 
-  await clickThemeToggle(); // toggle back to light
+  await toggleTheme(page); // toggle back to light
   const flowLightShot = join(TMP, '04-flow-light.png');
   await page.screenshot({ path: flowLightShot, fullPage: false });
   note(`Flow (light) screenshot: ${flowLightShot}`);
 
   // Reset to dark for remaining steps
-  await clickThemeToggle();
+  await toggleTheme(page);
   await page.waitForTimeout(300);
 
   // ── 4. Switch to Dict view ──────────────────────────────────────────────
@@ -253,7 +244,7 @@ try {
   // Shared chrome present on dict view
   await assertExists('.branding-block', 'dict view');
   await assertExists('.branding-footer', 'dict view');
-  await assertExists('.theme-toggle', 'dict view');
+  await assertExists('.help-toggle', 'dict view');
   await assertExists('.fab', 'dict view');
 
   // Open FAB on dict view — verify minimal items (view-switch)

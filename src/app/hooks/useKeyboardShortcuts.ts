@@ -31,11 +31,21 @@ interface KeyboardShortcutsConfig {
   onToggleSelectMode: () => void;
   /** `h` — hide the selected graph nodes (graph only). */
   onHideSelection: () => void;
+  /** Shift+H — hide every entity in the groups of the selected nodes (graph only). */
+  onHideSelectionGroups: () => void;
+  /** Shift+L — step the graph layout back (graph only). */
+  onPrevLayout: () => void;
+  /** `l` / Shift+L — flip per-process ↔ connected (flow only). */
+  onToggleFlowView: () => void;
+  /** `r` — re-run the active canvas layout (graph/flow). */
+  onResetLayout: () => void;
+  /** Cmd/Ctrl+C with no text selected — copy the page link. */
+  onCopyLink: () => void;
 }
 
 /**
  * useKeyboardShortcuts — registers exactly ONE global keydown listener for the
- * unified SPA keyboard shortcuts (g/d/f/l/b/i/s/h).
+ * unified SPA keyboard shortcuts (see `logic/shortcuts.ts` for the keymap).
  *
  * Stale-closure hazard: the listener is registered once on mount. To avoid
  * capturing a stale `view`/callbacks reference, we keep the latest config in
@@ -44,27 +54,11 @@ interface KeyboardShortcutsConfig {
  * Editable guard: returns true when the event target is an input, textarea,
  * select, contenteditable element, or any element inside a `.modal` root.
  */
-export function useKeyboardShortcuts({
-  view,
-  onView,
-  onToggleLayout,
-  onToggleLens,
-  onFlowIndex,
-  onZoomIn,
-  onZoomOut,
-  onZoomReset,
-  onHelp,
-  onSearch,
-  onPan,
-  onUndo,
-  onRedo,
-  onToggleSelectMode,
-  onHideSelection,
-}: KeyboardShortcutsConfig): void {
+export function useKeyboardShortcuts(config: KeyboardShortcutsConfig): void {
   // Latest config ref — updated synchronously on every render so the stable
   // listener closure never reads stale values.
-  const configRef = useRef<KeyboardShortcutsConfig>({ view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan, onUndo, onRedo, onToggleSelectMode, onHideSelection });
-  configRef.current = { view, onView, onToggleLayout, onToggleLens, onFlowIndex, onZoomIn, onZoomOut, onZoomReset, onHelp, onSearch, onPan, onUndo, onRedo, onToggleSelectMode, onHideSelection };
+  const configRef = useRef<KeyboardShortcutsConfig>(config);
+  configRef.current = config;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -86,6 +80,7 @@ export function useKeyboardShortcuts({
       const cfg = configRef.current;
       const action = resolveShortcut(e, cfg.view, editable);
       if (action === null) return;
+      if (action.type === 'copyLink' && window.getSelection()?.isCollapsed === false) return;
 
       // preventDefault for every matched action — critically, this is what
       // stops the browser from page-zooming on Cmd/Ctrl +/-/0 (the zoom
@@ -110,6 +105,11 @@ export function useKeyboardShortcuts({
         case 'redo': cfg.onRedo(); break;
         case 'toggleSelectMode': cfg.onToggleSelectMode(); break;
         case 'hideSelection': cfg.onHideSelection(); break;
+        case 'hideSelectionGroups': cfg.onHideSelectionGroups(); break;
+        case 'prevLayout': cfg.onPrevLayout(); break;
+        case 'toggleFlowView': cfg.onToggleFlowView(); break;
+        case 'resetLayout': cfg.onResetLayout(); break;
+        case 'copyLink': cfg.onCopyLink(); break;
       }
     }
 

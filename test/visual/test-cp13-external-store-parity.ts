@@ -19,6 +19,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp13-external-store-parity');
@@ -66,18 +67,6 @@ async function shot(name: string): Promise<void> {
   const p = join(TMP, name);
   await page.screenshot({ path: p, fullPage: false });
   note(`Screenshot: ${p}`);
-}
-
-async function setTheme(theme: 'dark' | 'light'): Promise<void> {
-  // Use the theme toggle button to flip the actual data-theme attribute
-  // (same path as the user) so CSS custom properties are applied.
-  const currentTheme = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme') ?? 'dark',
-  );
-  if (currentTheme !== theme) {
-    await page.locator('.theme-toggle').click();
-    await page.waitForTimeout(300);
-  }
 }
 
 async function switchToDict(): Promise<void> {
@@ -130,7 +119,7 @@ note('\n── Assertion (a): DD external + store body class / border-top parity
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToDict();
 
   // Wait for the Customer external section to be visible
@@ -187,7 +176,7 @@ note('\n── Assertion (b): DFD dialog in-place navigation ──');
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   const hashBefore = await page.evaluate(() => location.hash);
@@ -267,7 +256,7 @@ note('\n── Assertion (c): db: vs ext: link color parity in flow dialog ─�
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   // Open the Collect-Payment process dialog

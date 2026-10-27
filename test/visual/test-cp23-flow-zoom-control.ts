@@ -32,6 +32,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp23-flow-zoom-control');
@@ -150,14 +151,6 @@ async function getFlowScreenScale(): Promise<number> {
   const internal = await getFlowScale();
   const fit = await getFlowFitScale();
   return internal * fit;
-}
-
-async function toggleTheme(): Promise<void> {
-  const btn = page.locator('.theme-toggle');
-  const c = await btn.count();
-  if (c === 0) fail('.theme-toggle button not found');
-  await btn.click();
-  await page.waitForTimeout(500);
 }
 
 async function switchToFlowView(): Promise<void> {
@@ -396,7 +389,7 @@ try {
   // ═══════════════════════════════════════════════════════════════════════════
 
   note('\n── Switch to LIGHT mode ────────────────────────────────────────────────');
-  await toggleTheme();
+  await toggleTheme(page);
   await waitForFlowReady();
   await page.waitForTimeout(600);
 
@@ -458,7 +451,7 @@ try {
   // ═══════════════════════════════════════════════════════════════════════════
 
   note('\n── 10. Regression: switch back to Graph view ───────────────────────────');
-  await toggleTheme(); // back to dark
+  await toggleTheme(page); // back to dark
   await page.evaluate(() => { location.hash = '#view=graph'; });
   await page.waitForTimeout(400);
   await waitForGraph();

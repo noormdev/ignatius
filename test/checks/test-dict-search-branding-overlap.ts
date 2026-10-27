@@ -1,6 +1,6 @@
 /**
  * test-dict-search-branding-overlap.ts — the DD search bar must never sit under
- * the branding block, and its lens toggle never under the help and theme toggles.
+ * the branding block, and its lens toggle never under the help toggle.
  *
  * `.branding-block` is position:fixed at left:16px with z-index 50; the DD
  * search bar is fixed, full-bleed, z-index 30. Above ~1100px viewport the bar's
@@ -71,13 +71,12 @@ const WIDTHS = [1920, 1440, 1280, 1100, 1050, 900, 800, 769, 768, 700, 480, 375]
 // A fixed sleep here once failed 3/3 on a loaded machine; settle() waits on the geometry's inputs.
 const settleAt = (width: number) => settle(page, width, 900);
 
-async function toggleBoxes(): Promise<{ lens: Box; hint: Box; help: Box; theme: Box }> {
+async function toggleBoxes(): Promise<{ lens: Box; hint: Box; help: Box }> {
   const lens = await box(page, '.dict-lens-toggle');
   const hint = await box(page, '.dict-search-bar-inner .kbd-hint');
   const help = await box(page, '.help-toggle');
-  const theme = await box(page, '.theme-toggle');
-  if (lens === null || hint === null || help === null || theme === null) return fail('lens, B hint, help or theme toggle has no bounding box');
-  return { lens, hint, help, theme };
+  if (lens === null || hint === null || help === null) return fail('lens, B hint or help toggle has no bounding box');
+  return { lens, hint, help };
 }
 
 async function assertRow(label: string): Promise<void> {
@@ -94,11 +93,11 @@ async function assertRow(label: string): Promise<void> {
     }
     const sameRow = input.top < brand.bottom;
     if (sameRow && gap < 0) fail(`${label} ${width}px: negative horizontal gap (${Math.round(gap)}px)`);
-    const { lens, hint, help, theme } = await toggleBoxes();
+    const { lens, hint, help } = await toggleBoxes();
     for (const [name, control] of [['lens', lens], ['B hint', hint]] as const) {
-      if (overlaps(control, help) || overlaps(control, theme)) {
+      if (overlaps(control, help)) {
         await page.screenshot({ path: join(TMP, `toggle-overlap-${width}.png`) });
-        fail(`${label} ${width}px: the ${name} runs under the help or theme toggle (ends at ${Math.round(control.right)}, help starts at ${Math.round(help.left)})`);
+        fail(`${label} ${width}px: the ${name} runs under the help toggle (ends at ${Math.round(control.right)}, help starts at ${Math.round(help.left)})`);
       }
       if (control.right > width) fail(`${label} ${width}px: the ${name} leaves the viewport`);
     }

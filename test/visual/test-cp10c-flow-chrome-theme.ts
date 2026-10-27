@@ -20,6 +20,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp10c-flow-chrome-theme');
@@ -87,15 +88,6 @@ async function goToFlow(): Promise<void> {
   await page.waitForTimeout(600); // minimap + chrome settle
 }
 
-/** Toggle theme via the theme-toggle button */
-async function toggleTheme(): Promise<void> {
-  const btn = page.locator('.theme-toggle');
-  const c = await btn.count();
-  if (c === 0) fail('.theme-toggle button not found');
-  await btn.click();
-  await page.waitForTimeout(500); // theme CSS vars + React re-render
-}
-
 /** Get the computed background-color of an element */
 async function getBg(selector: string): Promise<string> {
   return page.evaluate((sel) => {
@@ -160,7 +152,7 @@ try {
 
   // ── 2. Switch to LIGHT mode ───────────────────────────────────────────────
   note('\n── 2. Switch to light mode ──────────────────────────────────────────────');
-  await toggleTheme();
+  await toggleTheme(page);
 
   // Screenshot — light mode flow
   const shot2 = join(TMP, '02-flow-light.png');
@@ -254,7 +246,7 @@ try {
 
   // ── 7. Toggle back to DARK and assert no regression ───────────────────────
   note('\n── 7. Toggle back to DARK mode — assert no regression ───────────────────');
-  await toggleTheme();
+  await toggleTheme(page);
   await page.waitForTimeout(500);
 
   const shot3 = join(TMP, '03-flow-dark-after-toggle.png');
@@ -281,7 +273,7 @@ try {
 
   // ── 8. Toggle back to LIGHT and check selected DFD is preserved ───────────
   note('\n── 8. Theme toggle preserves the selected DFD (CP1 invariant) ───────────');
-  await toggleTheme();
+  await toggleTheme(page);
   await page.waitForTimeout(500);
 
   // The flow surface must still be ready (no unmount/remount)

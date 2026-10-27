@@ -206,7 +206,10 @@ try {
     const page = await ctx.newPage();
     await page.goto(`${BASE}/#view=dict`);
     await waitForDiagrams(page, '#process-Collect-Payment', 3);
-    await page.click('.theme-toggle');
+    await page.click('.fab');
+    await page.getByRole('menuitem', { name: 'Settings' }).click();
+    await page.getByRole('dialog', { name: 'Settings' }).getByRole('radio', { name: 'Light' }).check();
+    await page.keyboard.press('Escape');
     await page.waitForFunction(
       ({ selector, want }) => getComputedStyle(document.querySelector(selector) ?? document.body).stroke === want,
       { selector: EDGE, want: strokes['light'] },

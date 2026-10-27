@@ -18,6 +18,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const PORT = 7282;
@@ -207,14 +208,9 @@ try {
   await page.screenshot({ path: join(tmpDir, 'dict-view-dark.png'), fullPage: false });
   note('  Saved: tmp/dict-view-dark.png');
 
-  // Light screenshot — click theme toggle
-  const toggle = page.locator('.theme-toggle');
-  if (await toggle.count() > 0) {
-    await toggle.click();
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: join(tmpDir, 'dict-view-light.png'), fullPage: false });
-    note('  Saved: tmp/dict-view-light.png');
-  }
+  await setTheme(page, 'light');
+  await page.screenshot({ path: join(tmpDir, 'dict-view-light.png'), fullPage: false });
+  note('  Saved: tmp/dict-view-light.png');
 
   note('\nAll CP4 DictionaryView assertions passed.');
 } finally {

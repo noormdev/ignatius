@@ -19,6 +19,7 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'flow-search');
@@ -79,9 +80,8 @@ await shot('02-flow-search-active.png');
 note('  Captured active search (dark): dropdown open, current diagram nodes dimmed.');
 
 note('Toggling to light theme…');
-await page.locator('button[title="Switch to light mode"], button[title="Switch to dark mode"]').first().click();
-await page.waitForTimeout(400); // re-theme settle
-await page.locator('.viewer-search-input').focus(); // clicking the toggle stole focus — restore it so the focus ring shows
+await setTheme(page, 'light');
+await page.locator('.viewer-search-input').focus(); // the Settings dialog took focus — restore it so the focus ring shows
 await page.waitForTimeout(200);
 
 await shot('03-flow-search-active-light.png');

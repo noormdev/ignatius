@@ -81,7 +81,7 @@ function escapeHtmlText(s: string): string {
  *  - Graph view shows the ERD, positions restored from __LAYOUT_KEY__.
  *  - Dictionary shows all entities (+ flows when present).
  *  - Flows view shows all DFDs, positions restored from __FLOW_LAYOUT_KEYS__.
- *  - Theme toggle, search, db:-store rich dialog — all offline.
+ *  - Settings (theme included), search, db:-store rich dialog — all offline.
  *
  * @param model       Parsed entity model (entities, edges, groups).
  * @param flowModel   Parsed flow model — pass null when no flows/ directory exists.

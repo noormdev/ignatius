@@ -18,6 +18,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp14-no-text-select');
@@ -74,17 +75,6 @@ async function gotoFlow(): Promise<void> {
     { timeout: 15_000 },
   ).catch(() => note('flow-ready signal timed out — proceeding on settle delay'));
   await page.waitForTimeout(600);
-}
-
-/** Switch theme via the real theme-toggle button. */
-async function setTheme(theme: 'dark' | 'light'): Promise<void> {
-  const current = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme') ?? 'dark',
-  );
-  if (current !== theme) {
-    await page.click('.theme-toggle');
-    await page.waitForTimeout(300);
-  }
 }
 
 // ── Check: user-select is none on all three node types ────────────────────────
@@ -206,14 +196,14 @@ async function assertNoLeak(): Promise<void> {
 try {
   // Dark mode checks
   await gotoFlow();
-  await setTheme('dark');
+  await setTheme(page, 'dark');
   await assertNodeSelectability('dark');
   await assertBadgeClickable();
   await shot('01-flow-dark.png');
 
   // Light mode checks — navigate back to flow after switching
   await gotoFlow();
-  await setTheme('light');
+  await setTheme(page, 'light');
   await assertNodeSelectability('light');
   await shot('02-flow-light.png');
 

@@ -28,6 +28,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp22-zoom-control');
@@ -106,14 +107,6 @@ async function getCyZoom(): Promise<number> {
     if (!cy) return 0;
     return cy.zoom();
   });
-}
-
-async function toggleTheme(): Promise<void> {
-  const btn = page.locator('.theme-toggle');
-  const c = await btn.count();
-  if (c === 0) fail('.theme-toggle button not found');
-  await btn.click();
-  await page.waitForTimeout(500);
 }
 
 // ── Test ──────────────────────────────────────────────────────────────────────
@@ -331,7 +324,7 @@ try {
   // ═══════════════════════════════════════════════════════════════════════════
 
   note('\n── 8. Switch to LIGHT mode ─────────────────────────────────────────────');
-  await toggleTheme();
+  await toggleTheme(page);
   await waitForGraph();
   await page.waitForTimeout(600);
 

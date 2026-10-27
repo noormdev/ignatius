@@ -4,7 +4,7 @@
 ## Goal
 
 
-Seven viewer fixes: markdown typography, a persisted settings store with a Settings modal, a sidebar edge tab, scroll memory for the dictionary and its sidebar, themeable Mermaid diagrams in markdown bodies, export of the model as currently seen, and a focus trap in every modal.
+Viewer fixes: markdown typography, a persisted settings store with a Settings modal that also holds the theme, a sidebar edge tab, scroll memory for the dictionary and its sidebar, themeable Mermaid diagrams in markdown bodies, export of the model as currently seen, a focus trap in every modal, keyboard shortcuts for the previous layout, layout reset, copy link and group hide, a Hide / Show button per group, and keycaps in the help overlay.
 
 
 ## Non-goals
@@ -37,7 +37,7 @@ Seven viewer fixes: markdown typography, a persisted settings store with a Setti
 
 - [x] `src/app/logic/settings.ts` exports `Settings` (`{ alwaysOpenExamples: boolean }`), `DEFAULT_SETTINGS`, `parseSettings(raw: string | null): Settings` (invalid JSON, non-object, or a wrong-typed field → that field's default) and `SETTINGS_STORAGE_KEY = 'ignatius-settings'`.
 - [x] Settings live in a module-level store in `src/app/hooks/useSettings.ts`, seeded once from localStorage. `useSettings()` reads it through `useSyncExternalStore` and returns `[settings, update(patch)]`. `update` merges into the current store value (two patches in one tick both land), writes JSON to localStorage (write errors swallowed), and notifies subscribers. No provider is needed, so every React root (the app shell and the flow dialog root) reads the same settings.
-- [x] A FAB item "Settings" in every view opens `SettingsModal` (built on `Modal`) with a labelled checkbox per setting. The first is "Always open examples".
+- [x] A FAB item "Settings" in every view opens `SettingsModal` (built on `Modal`). It groups settings into titled sections of bordered cards, one row per setting with a label and a hint on the left and the control on the right. **Appearance** holds Theme, a Light/Dark segmented control over native radios that calls `useThemeMode`'s `setTheme` (stored in `ignatius-theme`). **Content** holds "Always open examples", a `role="switch"` checkbox. The header has no theme button; the help button takes its corner and `--toggle-region` is the help button's span. Screenshots: `test/visual/screenshot-settings.ts`.
 - [x] With `alwaysOpenExamples` on, `ExamplesAccordion` (both variants) and `ProcessExamples` render every `<details>` open; off keeps the `<= 3` rule.
 - [x] The setting survives reload.
 
@@ -99,9 +99,21 @@ Seven viewer fixes: markdown typography, a persisted settings store with a Setti
     - records the digest under that layout key
     - sets `location.hash` when the hash is empty
 
-  Whenever `__VIEW_STATE__` is present, the stored `ignatius-theme` wins over the baked `__THEME_MODE__` on every load, so a recipient's theme toggle survives reload.
+  Whenever `__VIEW_STATE__` is present, the stored `ignatius-theme` wins over the baked `__THEME_MODE__` on every load, so a recipient's theme choice survives reload.
 - [x] FAB item "Export HTML" in live mode, in every view. It posts the snapshot and downloads the response via a Blob link; a failure shows the server's error text in the existing banner/toast pattern.
 - [x] `test/checks/test-export-view-state.ts`: `generateApp` with and without `viewState`. `test/checks/test-export-as-seen.ts`: hide an entity, switch the lens and layout, export, open the file in a fresh context, and assert the entity is hidden and the lens and layout match.
+
+**Shortcuts and group hide**
+
+- [x] `resolveShortcut` (`src/app/logic/shortcuts.ts`) resolves: `Shift+L` → `prevLayout` on the graph and `toggleFlowView` on the flow view; bare `l` → `toggleFlowView` on the flow view (`toggleLayout` on the graph is unchanged); bare `r` → `resetLayout` on graph and flow, null on dict; `Cmd`/`Ctrl`+`C` without Shift or Alt → `copyLink` on every view; `Shift+H` → `hideSelectionGroups` on the graph. Shift chords resolve after the editable guard and before the modifier guard; all of them are null while typing, and `Shift+L`/`Shift+H` are null with ctrl/meta/alt. Covered by `test-shortcuts.ts` T4, T33–T36.
+- [x] `prevLayoutMode` in `graph-edits.ts` steps the layout cycle backwards (`test-graph-edits.ts` 6).
+- [x] `useKeyboardShortcuts` lets `copyLink` through to the browser, without `preventDefault`, while `window.getSelection()` is not collapsed, so copying selected text still works.
+- [x] Copy link has one implementation: `FabMenu`'s `copyLink`, exposed on `FabMenuHandle` and called by both the menu item and the shortcut; both show the "Copied!" toast.
+- [x] `R` runs the same reset as the FAB "Reset layout"; `L` / `Shift+L` on the flow view run the same toggle as the FAB per-process / connected item. The FAB shows `R` on both Reset layout items and `L` on the flow view toggle.
+- [x] `GraphViewHandle` gains `hideGroups(groups)`, `showGroups(groups)` and `hideSelectionGroups()`. All three go through the existing `hideNodes` / `showNodes` path, so each is one undo step, the hidden set persists, shows in the crossed-eye list and reaches Export HTML. Entities with no group are never matched; nothing selected is a no-op.
+- [x] Each Groups modal card has a button: "Show" when every entity of the group is hidden, "Hide" otherwise.
+- [x] `HelpModal` renders each key in the Keyboard section as its own `<kbd>` keycap, `+` between keys of a chord and a muted `·` between alternatives. `.kbd-hint` and the help keycaps share one keycap rule in `styles.css`. Screenshots: `test/visual/screenshot-help-keyboard.ts` (graph and flow, light and dark).
+- [x] `test/checks/test-shortcut-actions.ts` (Playwright, models/key-inherited): `Shift+L` steps to the previous layout; `R` puts a moved node back; flow `L` / `Shift+L` flip the flow view and `R` re-renders it; `Ctrl+C` with no selection copies the URL and shows the toast, and with text selected leaves the clipboard to the browser; Groups modal Hide / Show; `Shift+H` hides the selected entity's group and `Ctrl+Z` restores it.
 
 **Surfaces**
 
@@ -127,15 +139,16 @@ src/
 ├── cli/cli.ts ...................................... M  (export calls exportModel)
 ├── router/agents.ts ................................ M  (export slugify)
 ├── app/
-│   ├── App.tsx ..................................... M  (Settings modal state, dictNavOpen persistence, useMermaid, export action, md class on groups modal)
+│   ├── App.tsx ..................................... M  (Settings modal state, dictNavOpen persistence, useMermaid, export action, md class on groups modal, Hide/Show per group, shortcut wiring)
 │   ├── main.tsx .................................... M  (imports apply-view-state first)
 │   ├── apply-view-state.ts ......................... A  (side-effect module: applyViewState in static mode)
 │   ├── globals.d.ts ................................ M  (__VIEW_STATE__, __IGNATIUS_MERMAID__)
 │   ├── mermaid-entry.ts ............................ A
-│   ├── styles.css .................................. M  (.md, .dict-nav-tab, mermaid, settings modal, .fab-toast)
+│   ├── styles.css .................................. M  (.md, .dict-nav-tab, mermaid, settings modal, .fab-toast, shared keycap, .group-card-toggle)
 │   ├── components/
 │   │   ├── ui/Modal.tsx ............................ M  (focus trap, dialog roles, focus restore)
-│   │   ├── ui/FabMenu.tsx .......................... M  (Settings, Export HTML items)
+│   │   ├── ui/FabMenu.tsx .......................... M  (Settings, Export HTML items, FabMenuHandle.copyLink, R/L hints)
+│   │   ├── ui/HelpModal.tsx ........................ M  (keycap Keyboard section, new keys)
 │   │   ├── ui/SettingsModal.tsx .................... A
 │   │   ├── entity/ExamplesAccordion.tsx ............ M  (alwaysOpenExamples)
 │   │   ├── entity/EntityCard.tsx ................... M  (md class)
@@ -148,19 +161,25 @@ src/
 │   │   ├── flow-node/StackDialog.tsx ............... M  (md class)
 │   │   └── changes/ChangesPanel.tsx ................ M  (md class)
 │   ├── hooks/
+│   │   ├── useKeyboardShortcuts.ts ................. M  (new actions, copyLink selection check)
+│   │   ├── useThemeMode.ts ......................... M  (setTheme)
 │   │   ├── useSettings.ts .......................... A
 │   │   ├── useScrollMemory.ts ...................... A
 │   │   └── useMermaid.ts ........................... A
 │   ├── logic/
+│   │   ├── shortcuts.ts ............................ M  (prevLayout, toggleFlowView, resetLayout, copyLink, hideSelectionGroups)
 │   │   ├── settings.ts ............................. A
 │   │   ├── storage-keys.ts ......................... A  (layout store key constants, DOM-free)
 │   │   ├── mermaid-render.ts ....................... A
 │   │   └── view-state.ts ........................... A
 │   ├── views/graph/layout-store.ts ................. M  (merge)
+│   ├── views/graph/graph-edits.ts .................. M  (prevLayoutMode)
+│   ├── views/graph/GraphView.tsx ................... M  (hideGroups, showGroups, hideSelectionGroups)
 │   ├── views/flow/FlowsView.tsx .................... M  (shared flow store key)
 │   └── views/dict/DictionaryView.tsx ............... M  (md class, sidebar tab + close, scroll memory)
 ├── model/parse.ts .................................. M  (mermaid fence rule)
 ├── flows/flow-markdown.ts .......................... M  (mermaid fence rule)
+├── flow-view/FlowChrome.tsx ........................ M  (header comment: theme lives in Settings)
 ├── model/markdown-mermaid.ts ....................... A  (shared fence rule plugin)
 ├── model/validate.ts ............................... M  (config.mermaid_theme_invalid)
 ├── theme/theme-defaults.ts ......................... M  (ThemeConfig.mermaid, mergeTheme, mermaidKeyMessage)
@@ -180,6 +199,12 @@ test/checks/
 ├── test-export-mermaid.ts .......................... A
 ├── test-export-view-state.ts ....................... A
 ├── test-export-as-seen.ts .......................... A
+├── test-shortcut-actions.ts ........................ A
+├── test-shortcuts.ts ............................... M  (T4, T33–T36)
+├── test-graph-edits.ts ............................. M  (prevLayoutMode)
+├── test-graph-fit-clear.ts ......................... M  (help toggle corner)
+├── test-dict-search-branding-overlap.ts ............ M  (help toggle corner)
+├── test-viewer-search-branding-overlap.ts .......... M  (help toggle corner)
 ├── test-app-gen-zero-diagrams.ts ................... M  (stub bundle gains mermaidJs)
 ├── test-app-title.ts ............................... M  (stub bundle gains mermaidJs)
 ├── test-graph-branding.ts .......................... M  (stub bundle gains mermaidJs)
@@ -187,10 +212,16 @@ test/checks/
 └── test-router-index.ts ............................ M  (digests follow the Collect-Payment edit)
 test/visual/
 ├── screenshot-md-typography.ts ..................... A
-└── screenshot-mermaid.ts ........................... A
+├── screenshot-mermaid.ts ........................... A
+├── screenshot-help-keyboard.ts ..................... A
+├── screenshot-settings.ts .......................... A
+├── theme.ts ........................................ A  (setTheme, toggleTheme through Settings)
+└── theme-switching scripts ......................... M  (switch theme through theme.ts)
 models/key-inherited/ ............................... M  (Collect-Payment ## Logic, regenerated routers)
+README.md ........................................... M
 docs/design/viewer-qol.md ........................... A
-docs/guides/{themes-and-branding,folder-format,commands,validation,flows,modeling-skill}.md  M
+docs/guides/{themes-and-branding,folder-format,commands,validation,flows,modeling-skill,building-from-source}.md  M
+docs/spec/help-overlay.md ........................... M  (help button corner)
 docs/spec/ignatius-project-config.md ................ M
 docs/wiki/{feature-map,validate}.md ................. M
 skills/ignatius-modeling/references/{dfd-authoring,flow-templates,conventions,entity-flow,verification}.md  M
@@ -216,7 +247,10 @@ src/app/hooks/useSettings.ts
   useSettings — useSyncExternalStore read; update merges, writes, notifies
 
 src/app/components/ui/SettingsModal.tsx
-  SettingsModal — Modal listing one labelled checkbox per setting
+  SettingsModal — Modal of titled sections: Appearance (Theme segmented control), Content (Always open examples switch)
+
+src/app/hooks/useThemeMode.ts
+  setTheme — stores and applies the chosen mode
 
 src/app/hooks/useScrollMemory.ts
   useScrollMemory — save scrollTop per frame, restore on deps change
@@ -224,6 +258,24 @@ src/app/hooks/useScrollMemory.ts
 src/app/views/dict/DictionaryView.tsx
   nav tab button — inline edge tab shown while the sidebar is closed
   nav close button — closes the sidebar from inside the panel
+
+src/app/logic/shortcuts.ts
+  ShortcutAction — gains prevLayout, toggleFlowView, resetLayout, copyLink, hideSelectionGroups
+
+src/app/views/graph/graph-edits.ts
+  prevLayoutMode — the mode before this one in the layout cycle
+
+src/app/views/graph/GraphView.tsx
+  GraphViewHandle — gains hideGroups, showGroups, hideSelectionGroups
+  groupMembers — entity ids whose group is in the given set
+
+src/app/components/ui/FabMenu.tsx
+  FabMenuHandle — copyLink, shared by the menu item and the shortcut
+
+src/app/components/ui/HelpModal.tsx
+  ShortcutRow — chords and a description
+  Keys — keycaps joined by + within a chord and · between chords
+  ShortcutSection — the Keyboard section
 
 src/model/markdown-mermaid.ts
   mermaidFencePlugin — markdown-it fence override for info string 'mermaid'
@@ -319,6 +371,18 @@ skills/ignatius-modeling/references/entity-flow.md
 3. `loadMermaid` injects `/static/mermaid.js` once → `mermaid.initialize` with the resolved `MermaidStyle` (`themeVariables` and `themeCSS`) → `mermaid.render` → SVG replaces the source → `widenForPadding` and `tagFlowchartShapes`.
 4. User toggles theme → `rerenderAll` with the other mode's `MermaidStyle`.
 
+**Hide a group**
+
+1. User opens FAB → Groups and clicks Hide on a card → `GraphViewHandle.hideGroups([name])` → `hideNodes` pushes one undo step and hides every entity of the group.
+2. The card's button reads Show; clicking it → `showGroups([name])` → `showNodes`.
+3. Or: user selects an entity and presses `Shift+H` → `hideSelectionGroups()` hides every entity sharing a group with the selection; `Cmd`/`Ctrl`+`Z` restores them in one step.
+
+**Copy link from the keyboard**
+
+1. User presses `Cmd`/`Ctrl`+`C` outside a text field → resolver returns `copyLink`.
+2. Text is selected → the hook returns without `preventDefault`; the browser copies the text.
+3. Nothing selected → `FabMenuHandle.copyLink()` writes `location.href` and shows "Copied!".
+
 **Export as seen**
 
 1. User hides an entity, sets the lens, clicks FAB → Export HTML.
@@ -340,6 +404,7 @@ skills/ignatius-modeling/references/entity-flow.md
 | 6 | Mermaid parse, bundle, render, theme config; restore under async growth | parse, theme, generators, server, app hooks, `useScrollMemory.ts`, build scripts, tests | atomic-implementer (mode: feature) | 19 | mermaid checks, `screenshot-mermaid.ts`, `test-scroll-memory.ts` growth case |
 | 7 | Export as seen | `server.ts`, `app.ts`, `view-state.ts`, entry, `FabMenu.tsx`, tests | atomic-implementer (mode: feature) | 8 | `test-export-view-state.ts`, `test-export-as-seen.ts` |
 | 8 | Guides, config spec, skill, example model, feature map | `docs/`, `skills/`, `models/key-inherited` | atomic-implementer (mode: feature) | 10 | surfaces agree |
+| 9 | Shortcuts, group hide, help keycaps | `shortcuts.ts`, `useKeyboardShortcuts.ts`, `graph-edits.ts`, `GraphView.tsx`, `FabMenu.tsx`, `HelpModal.tsx`, `App.tsx`, `styles.css`, tests, docs | atomic-implementer (mode: feature) | 14 | `test-shortcuts.ts`, `test-shortcut-actions.ts`, `screenshot-help-keyboard.ts` |
 
 
 ## Risks
@@ -461,6 +526,26 @@ skills/ignatius-modeling/references/entity-flow.md
 **Why:** Final audit of the rework. A palette colour containing CSS made diagrams fetch an outside URL; composite-state titles were black on the dark page; a dark node fill turned ER attribute rows white-on-white.
 
 **Superseded:** Palette colours reached the diagram stylesheet unfiltered; composite titles and ER attribute labels took the first fill's label colour.
+
+### 2026-10-27 — Shortcuts and group hide
+
+**What changed:** `Shift+L` steps the graph layout back; `L` and `Shift+L` flip the flow view; `R` resets the layout on graph and flow; `Cmd`/`Ctrl`+`C` copies the page link when no text is selected, through the same code and toast as the FAB item; each Groups modal card has Hide / Show; `Shift+H` hides the groups of the selected entities. The help overlay shows every key as a keycap, sharing its style with the FAB hints.
+
+**Why:** Requester asked for these keyboard and group-hide controls during review of the branch.
+
+### 2026-10-27 — Settings sections and theme
+
+**What changed:** Settings is redesigned into titled sections of bordered cards with a segmented control and a switch. The light/dark theme moves from the header button into Settings → Appearance; `useThemeMode` returns `setTheme(mode)`.
+
+**Why:** The requester found the one-checkbox modal unfinished, and asked for the theme toggle to live in Settings.
+
+**Superseded:** A plain list of labelled checkboxes; a round `.theme-toggle` button in the header beside the help button.
+
+### 2026-10-27 — Correction: change tree and outline
+
+**What changed:** The Change tree and Outline list the files the theme move touched (`useThemeMode.setTheme`, the header-corner checks, `test/visual/theme.ts` and the scripts that switch theme through it, README and guides), and the `SettingsModal` outline line describes its sections.
+
+**Why:** Review found the tree and outline still describing the one-checkbox modal and missing those files.
 
 ## Implementation log
 

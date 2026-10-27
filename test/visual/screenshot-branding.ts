@@ -9,6 +9,7 @@
 import { chromium } from 'playwright';
 import { resolve } from 'path';
 import { serveCommand } from '../../src/server/server';
+import { setTheme } from './theme';
 
 const modelsDir = resolve(import.meta.dir, '../../models/key-inherited');
 const brandingFile = resolve(modelsDir, '_branding.yaml');
@@ -32,11 +33,7 @@ async function capture(outputPath: string, mode: 'dark' | 'light') {
   // Wait for layout: ELK is async + SSE setup
   await page.waitForTimeout(5000);
 
-  if (mode === 'light') {
-    // Start from dark (default), click to switch to light
-    await page.click('.theme-toggle');
-    await page.waitForTimeout(800);
-  }
+  if (mode === 'light') await setTheme(page, 'light');
 
   await page.screenshot({ path: outputPath, fullPage: false });
   await browser.close();

@@ -18,6 +18,7 @@ import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'graph-search');
@@ -80,9 +81,8 @@ await shot('02-graph-search-active.png');
 note('  Captured active search (dark): Party/PartyType highlighted, rest dimmed.');
 
 note('Toggling to light theme…');
-await page.locator('button[title="Switch to light mode"], button[title="Switch to dark mode"]').first().click();
-await page.waitForTimeout(400); // re-theme settle
-await page.locator('.viewer-search-input').focus(); // clicking the toggle stole focus — restore it so the focus ring shows
+await setTheme(page, 'light');
+await page.locator('.viewer-search-input').focus(); // the Settings dialog took focus — restore it so the focus ring shows
 await page.waitForTimeout(200);
 
 await shot('03-graph-search-active-light.png');

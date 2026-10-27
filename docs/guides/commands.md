@@ -53,10 +53,11 @@ While serving, a findings panel lists any schema problems and updates on every s
 ### Settings
 
 
-The FAB menu (the round button, bottom right) has a **Settings** item in every view, in `serve` and in an exported file. It opens a dialog of viewer preferences, saved in the browser's localStorage under `ignatius-settings` so they survive a reload.
+The FAB menu (the round button, bottom right) has a **Settings** item in every view, in `serve` and in an exported file. It opens a dialog of viewer preferences, saved in the browser's localStorage so they survive a reload: the theme under `ignatius-theme`, the rest under `ignatius-settings`.
 
 | Setting | Default | Effect |
 |---|---|---|
+| Theme (Appearance) | the model's or export's theme | Light or Dark colors for every view and diagram. |
 | Always open examples | off | Opens every example table, in the Dictionary, the entity dialog, and process dialogs. Off, a table opens only when it has 3 rows or fewer. |
 
 
@@ -97,7 +98,7 @@ ignatius export [path] -o model.html [--theme light|dark] [--model <key>]
 
 To export what you see in `serve`, with your arrangement, hidden entities, and preferences, use the FAB's [Export HTML](#export-html) item instead.
 
-The file includes the Graph, Dictionary, and Flows views with full interactivity: view switching, live Dictionary search, entity dialog, theme toggle, and graph and flow node-position persistence — all offline, from `file://`. The export injects both the entity model and the flow model, so both position-restore keys work without a server.
+The file includes the Graph, Dictionary, and Flows views with full interactivity: view switching, live Dictionary search, entity dialog, the Settings modal with the light/dark theme, and graph and flow node-position persistence — all offline, from `file://`. The export injects both the entity model and the flow model, so both position-restore keys work without a server.
 
 When the model has an approved baseline (see [Change review](change-review.md)), the export also carries the change review: the same glows, ghost nodes, and Changes panel as a served model, without the Approve button. A model with no baseline exports no review, and export never creates one. The export carries the pending changes and their note text, so run `ignatius approve` first when you want a clean shareable file.
 
@@ -200,23 +201,30 @@ The app responds to single-key shortcuts while no text field is focused and no m
 | `d` | Switch to the Dictionary |
 | `f` | Switch to the Data Flows |
 | `l` | Step through graph layouts (organic → hierarchical → tree; a first visit opens in tree) — Graph view |
+| `Shift` + `L` | Step back to the previous graph layout — Graph view |
+| `l` or `Shift` + `L` | Switch between the per-process and connected views — Flows view |
+| `r` | Reset the layout, like **Reset layout** in the menu — Graph and Flows views |
 | `s` | Toggle select mode: a plain drag draws a selection box, a click adds or removes — Graph view |
 | `h` | Hide the selected entities — Graph view |
+| `Shift` + `H` | Hide every entity in the groups of the selected entities — Graph view |
 | `Cmd`/`Ctrl` + `Z` | Undo the last move, hide, or layout change — Graph view |
 | `Cmd`/`Ctrl` + `Shift` + `Z`, `Ctrl` + `Y` | Redo it — Graph view |
 | `b` | Toggle dictionary lens (read ↔ browse) — Dictionary view |
 | `i` | Open or close the flow index — Flows view |
 | `/` or `Cmd`/`Ctrl` + `K` | Focus the search bar — Graph, Dictionary, Flows |
+| `Cmd`/`Ctrl` + `C` | Copy a link to the current view, like **Copy link** in the menu, when no text is selected |
 | `?` | Open the help overlay for the current view |
 | `←` `→` `↑` `↓` | Scroll the canvas 10px — Graph and Flows views; hold `Shift` for 50px |
 
-Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?` is the one exception to the modifier rule — it needs Shift to type, so Shift does not suppress it (but it is still ignored while typing in a field). `Cmd`/`Ctrl` + `K` is a second exception: like the zoom chords below, it focuses search even while a text field is already focused elsewhere. The arrow keys are a third: `Shift` selects their faster stride instead of suppressing them, and holding an arrow scrolls continuously. Arrows keep their normal meaning while typing in a field, and `Cmd`/`Ctrl`/`Alt` arrow chords are left to the OS and browser. The undo and redo chords act on the Graph only while no field is focused; in a field they undo the text.
+Shortcuts are ignored while typing in a search box or any other input, and when a modifier key is held. `?`, `Shift` + `L` and `Shift` + `H` are exceptions to the modifier rule: Shift is part of the key, so it does not suppress them (they are still ignored while typing in a field). `Cmd`/`Ctrl` + `K` is a second exception: like the zoom chords below, it focuses search even while a text field is already focused elsewhere. The arrow keys are a third: `Shift` selects their faster stride instead of suppressing them, and holding an arrow scrolls continuously. Arrows keep their normal meaning while typing in a field, and `Cmd`/`Ctrl`/`Alt` arrow chords are left to the OS and browser. The undo and redo chords act on the Graph only while no field is focused; in a field they undo the text. `Cmd`/`Ctrl` + `C` copies the link only when no field is focused and no text is selected; otherwise it copies as usual.
+
+To hide a whole group, open **Groups** from the menu on the Graph and click **Hide** on its card; the button reads **Show** while every entity of that group is hidden. Group hides are undone like any other hide and appear in the hidden list above the zoom control.
 
 
 ### Help overlay
 
 
-Every view has a `?` button in the top bar, next to the light/dark toggle. It opens a short, view-aware overview — what you are looking at, how to explore it, and the keys that work here. The Graph explains entity types and key-inheritance lineage; the Dictionary explains its lenses and spotlight; the Flows view explains DFD symbols, drill-down, the flow index, and the breadcrumb level menus. Press `?` or click the button; press Escape or click outside to close. For the exact diagram symbols, use the **Legend** instead.
+Every view has a `?` button in the top-right corner. It opens a short, view-aware overview — what you are looking at, how to explore it, and the keys that work here. The Graph explains entity types and key-inheritance lineage; the Dictionary explains its lenses and spotlight; the Flows view explains DFD symbols, drill-down, the flow index, and the breadcrumb level menus. Press `?` or click the button; press Escape or click outside to close. For the exact diagram symbols, use the **Legend** instead.
 
 
 ### Dialogs

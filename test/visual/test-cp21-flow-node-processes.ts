@@ -19,6 +19,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp21-flow-node-processes');
@@ -66,16 +67,6 @@ async function shot(name: string): Promise<void> {
   const p = join(TMP, name);
   await page.screenshot({ path: p, fullPage: false });
   note(`  Screenshot: ${p}`);
-}
-
-async function setTheme(theme: 'dark' | 'light'): Promise<void> {
-  const currentTheme = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme') ?? 'dark',
-  );
-  if (currentTheme !== theme) {
-    await page.locator('.theme-toggle').click();
-    await page.waitForTimeout(300);
-  }
 }
 
 async function switchToFlow(): Promise<void> {
@@ -167,7 +158,7 @@ note('\n── Assertion (a): Customer external dialog renders Processes table �
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   const opened = await openNodeDialog('ext:Customer');
@@ -207,7 +198,7 @@ note('\n── Assertion (b): gateway-log store dialog renders Processes table �
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   const opened = await openNodeDialog('file:gateway-log');
@@ -239,7 +230,7 @@ note('\n── Assertion (c): Clicking process row in Customer dialog navigates 
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   const opened = await openNodeDialog('ext:Customer');
@@ -295,7 +286,7 @@ note('\n── Assertion (d): Regression — entity dialog Processes section unc
 
 for (const theme of ['dark', 'light'] as const) {
   note(`\n  [${theme}]`);
-  await setTheme(theme);
+  await setTheme(page, theme);
   await switchToFlow();
 
   // Click the db:Party store badge — resolveDoc("db:Party") returns entity kind →

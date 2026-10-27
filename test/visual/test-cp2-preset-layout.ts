@@ -16,6 +16,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP  = join(ROOT, 'tmp', 'cp2-preset-layout');
@@ -158,10 +159,7 @@ note(`Saved second-load-dark.png`);
 // ── Step 6: Light mode screenshot ─────────────────────────────────────────────
 
 note('Switching to light mode…');
-await page.evaluate(() => {
-  const btn = document.querySelector<HTMLButtonElement>('[data-testid="theme-toggle"]');
-  if (btn) btn.click();
-});
+await setTheme(page, 'light');
 await page.waitForTimeout(500);
 await page.screenshot({ path: join(TMP, 'second-load-light.png'), fullPage: false });
 note('Saved second-load-light.png');

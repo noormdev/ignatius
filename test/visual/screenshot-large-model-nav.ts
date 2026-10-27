@@ -19,6 +19,7 @@ import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
 import { serveCommand } from '../../src/server/server';
 import { HOVER_INTENT_MS } from '../../src/app/logic/motion';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const MODEL = join(ROOT, 'models/llm-memory-db-mssql');
@@ -46,10 +47,7 @@ async function shoot(theme: 'dark' | 'light'): Promise<void> {
     await page.screenshot({ path: join(OUT, '0-landing-overview-dark.png') });
   }
   await openFlow(page, 'work-planning');
-  if (theme === 'light') {
-    await page.locator('.theme-toggle').click();
-    await page.waitForTimeout(200);
-  }
+  if (theme === 'light') await setTheme(page, 'light');
   if (theme === 'dark') {
     await page.screenshot({ path: join(OUT, '1-crumbs-dark.png'), clip: { x: 0, y: 0, width: 1440, height: 120 } });
   }

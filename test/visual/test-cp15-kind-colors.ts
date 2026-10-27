@@ -18,6 +18,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { setTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp15-kind-colors');
@@ -67,16 +68,6 @@ async function shot(name: string): Promise<void> {
   note(`Screenshot: ${p}`);
 }
 
-async function setTheme(theme: 'dark' | 'light'): Promise<void> {
-  const currentTheme = await page.evaluate(() =>
-    document.documentElement.getAttribute('data-theme') ?? 'dark',
-  );
-  if (currentTheme !== theme) {
-    await page.locator('.theme-toggle').click();
-    await page.waitForTimeout(300);
-  }
-}
-
 // Navigate to the flows view and open order-to-cash
 async function navigateToOrderToCash(): Promise<void> {
   await page.goto(`${BASE}/#view=flow&dfd=order-to-cash&collapse=stores`, { waitUntil: 'domcontentloaded' });
@@ -110,7 +101,7 @@ async function getStoreRowText(token: string): Promise<string | null> {
 
 note('\n--- Dark mode ---');
 await navigateToOrderToCash();
-await setTheme('dark');
+await setTheme(page, 'dark');
 await page.waitForTimeout(500);
 await shot('dark-order-to-cash.png');
 
@@ -150,7 +141,7 @@ assert(darkExtFill === '#1a3a1a', `dark: external stays green #1a3a1a (got: ${da
 // ── Light mode ────────────────────────────────────────────────────────────────
 
 note('\n--- Light mode ---');
-await setTheme('light');
+await setTheme(page, 'light');
 await page.waitForTimeout(500);
 await shot('light-order-to-cash.png');
 

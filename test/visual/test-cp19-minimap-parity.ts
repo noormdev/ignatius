@@ -24,6 +24,7 @@
 import { chromium } from 'playwright';
 import { resolve, join } from 'path';
 import { mkdirSync } from 'fs';
+import { toggleTheme } from './theme';
 
 const ROOT = resolve(import.meta.dir, '../..');
 const TMP = join(ROOT, 'tmp', 'cp19-minimap-parity');
@@ -96,14 +97,6 @@ async function navigateTo(view: 'graph' | 'flow'): Promise<void> {
   if (view === 'graph') await waitForGraph();
   else await waitForFlow();
   await page.waitForTimeout(600);
-}
-
-async function toggleTheme(): Promise<void> {
-  const btn = page.locator('.theme-toggle');
-  const c = await btn.count();
-  if (c === 0) fail('.theme-toggle button not found');
-  await btn.click();
-  await page.waitForTimeout(500);
 }
 
 async function ensureMinimapVisible(): Promise<void> {
@@ -291,7 +284,7 @@ try {
   // ═══════════════════════════════════════════════════════════════════════════
 
   note('\n── 4. Switch to LIGHT mode ─────────────────────────────────────────────');
-  await toggleTheme();
+  await toggleTheme(page);
 
   // ── DG minimap (graph view, light) ───────────────────────────────────────
   note('\n── 5. Graph view (light) — DG minimap style ────────────────────────────');
