@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.25.0](https://github.com/noormdev/ignatius/compare/v0.24.0...v0.25.0) (2026-10-28)
+
+
+### Features
+
+* **viewer:** layout, reset, copy-link and group-hide keys; theme in Settings ([e11deb9](https://github.com/noormdev/ignatius/commit/e11deb9210b5c941c1f9a0595709d6ddb7a4d2fb))
+* **viewer:** settings, Mermaid, export as seen ([c68f55f](https://github.com/noormdev/ignatius/commit/c68f55f9cc3152345653d21d365aaed9ad15cb77))
+
+
+### Bug Fixes
+
+* **viewer:** bold Mermaid look, sidebar lip, safe theme ([ba651f1](https://github.com/noormdev/ignatius/commit/ba651f1dc97ecc3571413a370ad76468766d3d70))
+* **viewer:** full-width, centred Mermaid panel ([aa8187a](https://github.com/noormdev/ignatius/commit/aa8187a95a01fd1488dd0f1dcedb3fe616cdcc89))
+
 ## [0.24.0](https://github.com/noormdev/ignatius/compare/v0.23.0...v0.24.0) (2026-10-21)
 
 
