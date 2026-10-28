@@ -68,19 +68,23 @@ function tagFlowchartShapes(el: HTMLElement): void {
 /** The `.mermaid-diagram svg` padding plus border in src/app/styles.css. */
 const CANVAS_INSET = 13;
 
-// Mermaid caps the svg at its natural width inline; the panel's padding and border sit inside
-// that cap (border-box), so without widening it the drawing shrinks by them.
-function widenForPadding(el: HTMLElement): void {
+// Mermaid caps the svg at its natural width inline. The panel spans its container instead, so the
+// cap moves to height: the drawing never scales past 1:1 and preserveAspectRatio centres it.
+function fitPanel(el: HTMLElement): void {
   const svg = el.querySelector('svg');
-  const natural = Number.parseFloat(svg?.style.maxWidth ?? '');
-  if (svg && Number.isFinite(natural)) svg.style.maxWidth = `${natural + CANVAS_INSET * 2}px`;
+  const box = svg?.viewBox.baseVal;
+  if (!svg || !box?.width) return;
+  const natural = Number.parseFloat(svg.style.maxWidth) || box.width;
+  svg.style.maxWidth = '';
+  svg.removeAttribute('preserveAspectRatio');
+  svg.style.maxHeight = `${(box.height * natural) / box.width + CANVAS_INSET * 2}px`;
 }
 
 function showSvg(el: HTMLElement, source: string, svg: string): void {
   el.dataset.source = source;
   el.classList.remove('mermaid-error');
   el.innerHTML = svg;
-  widenForPadding(el);
+  fitPanel(el);
   tagFlowchartShapes(el);
 }
 

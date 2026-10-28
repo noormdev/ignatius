@@ -81,10 +81,10 @@ Viewer fixes: markdown typography, a persisted settings store with a Settings mo
     Beyond the table, the defaults name every diagram family's variables (sequence actors, signals, label boxes, notes, activation; state; class; ER; gantt; pie `pie1`–`pie12`; git `git0`–`git7`; `cScale0`–`cScale11`; quadrant; xy chart; sankey), so no family falls back to Mermaid's built-in colours. Categorical series cycle the node fills. ER attribute rows are white and a 12% tint of fill 1.
     - The theme CSS, built from the resolved variables: node outlines `#000000` at `stroke_width` px (default 3), corner radius `radius` px (default 8), `drop-shadow(3px 5px 8px …)` dark in both modes unless `shadow: false`, node fills cycled per node by `nth-child`, stores (cylinder) on fill 1 and decisions (rhombus) on fill 2, the end state's inner dot black, node labels weight 600 (sequence actor names through `sequence.actorFontWeight: 600` in `mermaid.initialize`, which Mermaid writes inline), connectors at 85% of `stroke_width` (at least 1 px) in `lineColor`, edge labels bold in `transitionLabelColor` on a `background` chip. Node fills, outlines and labels come only from this CSS, so `primaryColor`, `primaryBorderColor` and `primaryTextColor` overrides do not reach flowchart, state, class or ER nodes. `mermaid-render.ts` tags stores and decisions by geometry after insertion, because Mermaid emits no shape class.
 
-- [x] Diagram panel in `styles.css`, on the svg: 12 px padding and a 1 px `--color-border` border (`CANVAS_INSET` 13 in `mermaid-render.ts`, which widens the svg's inline `max-width` by twice that), 10 px radius, `--color-background` with an 18 px dot grid in `--color-border`, `overflow: visible` so shadows paint into the padding. The `.mermaid-diagram` wrapper keeps room for the shadows and scrolls horizontally when the diagram is wider. Inside `.md` the panel is left-aligned with the prose column. `.md` rules for `p`, lists and headings never reach Mermaid labels: the wrapper resets `p` margins inside it. The raw source is hidden until the SVG replaces it, so the source never flashes.
+- [x] Diagram panel in `styles.css`, on the svg: 12 px padding and a 1 px `--color-border` border (`CANVAS_INSET` 13 in `mermaid-render.ts`), 10 px radius, `--color-background` with an 18 px dot grid in `--color-border`, `overflow: visible` so shadows paint into the padding. The panel spans its container and the drawing is centred in it. `fitPanel` drops Mermaid's inline `max-width` and caps `max-height` at the viewBox height at natural width plus twice `CANVAS_INSET`, so the drawing is never drawn above 1:1 and a wider diagram scales down. The `.mermaid-diagram` wrapper keeps room for the shadows. `.md` rules for `p`, lists and headings never reach Mermaid labels: the wrapper resets `p` margins inside it. The raw source is hidden until the SVG replaces it, so the source never flashes.
 - [x] `mergeTheme` keeps `stroke_width` in 0-8, `radius` in 0-32, a boolean `shadow`, and `node_fills` of 1-12 `#rrggbb` colours. In `theme.mermaid.dark` / `.light` it keeps only numbers and strings that match `/^[\d "#%(),.;A-Za-z-]+$/`. That is Mermaid's directive pattern plus `-` for generic font families. Mermaid writes `initialize()` theme values into the SVG `<style>` unsanitized, so anything else could inject CSS. Any other value, and a non-object block, is dropped; the dropped key paths are recorded on `ThemeConfig.invalidMermaidKeys`, and `validateModel` emits one Tier A warning `config.mermaid_theme_invalid` per path (entity id `ignatius.yml`), so `ignatius validate` prints it and still exits 0.
 - [x] `generateApp` inlines `mermaid.js` (escaped like the app JS) before the app script only when a `mermaid-diagram` div occurs in any entity, group, flow node, cluster or change-note body. `test/checks/test-export-mermaid.ts` asserts presence for a model with a fence and absence for one without.
-- [x] Mermaid SVG fits its container (`max-width: 100%`, centred, horizontal scroll when wider) and inherits the `.md` block spacing.
+- [x] Mermaid SVG spans its container (`width: 100%`), centred, scaled down when wider, and inherits the `.md` block spacing.
 - [x] Screenshots: a flowchart and a sequence diagram in a process body, dark and light, plus one with a `theme.mermaid` override (`test/visual/screenshot-mermaid.ts`).
 - [x] `useScrollMemory` keeps re-applying the saved position as content grows after a restore. It holds until the user scrolls (wheel, touch, keydown or pointerdown on the container), a scroll it did not make moves the container (a deep link), or about 2 s pass; reaching the position early does not end the hold, because diagrams above it keep growing. No intermediate clamped value is saved. `test-scroll-memory.ts` adds a case with Mermaid diagrams above the saved position: reload, and assert it lands within 4 px. The case is proven by a mutation that removes the continuous restore.
 
@@ -368,7 +368,7 @@ skills/ignatius-modeling/references/entity-flow.md
 
 1. Parser renders the process body; the fence becomes `div.mermaid-diagram`.
 2. Dictionary renders the body → `MutationObserver` sees an unrendered diagram.
-3. `loadMermaid` injects `/static/mermaid.js` once → `mermaid.initialize` with the resolved `MermaidStyle` (`themeVariables` and `themeCSS`) → `mermaid.render` → SVG replaces the source → `widenForPadding` and `tagFlowchartShapes`.
+3. `loadMermaid` injects `/static/mermaid.js` once → `mermaid.initialize` with the resolved `MermaidStyle` (`themeVariables` and `themeCSS`) → `mermaid.render` → SVG replaces the source → `fitPanel` and `tagFlowchartShapes`.
 4. User toggles theme → `rerenderAll` with the other mode's `MermaidStyle`.
 
 **Hide a group**
@@ -546,6 +546,14 @@ skills/ignatius-modeling/references/entity-flow.md
 **What changed:** The Change tree and Outline list the files the theme move touched (`useThemeMode.setTheme`, the header-corner checks, `test/visual/theme.ts` and the scripts that switch theme through it, README and guides), and the `SettingsModal` outline line describes its sections.
 
 **Why:** Review found the tree and outline still describing the one-checkbox modal and missing those files.
+
+### 2026-10-27 — Full-width diagram panel
+
+**What changed:** The diagram panel spans its container, inside `.md` too, and the drawing is centred in it. `fitPanel` replaces `widenForPadding`: it drops Mermaid's inline `max-width`, caps `max-height` at the viewBox height at natural width plus twice `CANVAS_INSET`, and removes `preserveAspectRatio` so journey diagrams centre too.
+
+**Why:** The requester found shrink-wrapped, left-aligned diagrams beside the prose column hard to read.
+
+**Superseded:** The panel shrink-wrapped the drawing and sat left-aligned with the prose column inside `.md`.
 
 ## Implementation log
 

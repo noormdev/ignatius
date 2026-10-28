@@ -3281,9 +3281,8 @@ button.changes-panel-item:hover {
 
 .mermaid-diagram {
   /* Room for the node shadows, which paint past the svg box. */
-  padding: 4px 10px 12px 4px;
+  padding: 4px 10px 12px;
   overflow-x: auto;
-  text-align: center;
   line-height: normal;
   white-space: pre;
 }
@@ -3294,13 +3293,12 @@ button.changes-panel-item:hover {
   user-select: none;
 }
 
-/* Padding plus border is CANVAS_INSET in src/app/logic/mermaid-render.ts, which widens the svg to fit it. */
+/* Padding plus border is CANVAS_INSET in src/app/logic/mermaid-render.ts. */
 .mermaid-diagram svg {
   display: block;
   box-sizing: border-box;
-  max-width: 100%;
+  width: 100%;
   height: auto;
-  margin: 0 auto;
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -3318,17 +3316,7 @@ button.changes-panel-item:hover {
   line-height: 1.5;
 }
 
-/* Prose stops at 72ch, so a centred diagram would sit right of the text column. */
-.md .mermaid-diagram {
-  text-align: left;
-}
-
-.md .mermaid-diagram svg {
-  margin: 0;
-}
-
 .mermaid-diagram.mermaid-error {
-  text-align: left;
   white-space: normal;
   padding: 16px;
   border: 1px solid var(--badge-dependent-fg);
