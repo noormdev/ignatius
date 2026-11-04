@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/noormdev/ignatius/compare/v0.25.0...v0.26.0) (2026-11-04)
+
+
+### Features
+
+* **viewer:** navigation history, zoomable diagrams, explained changes ([a69b12d](https://github.com/noormdev/ignatius/commit/a69b12db62d6009e61fca53e2e4dc80754dc3ade))
+
 ## [0.25.0](https://github.com/noormdev/ignatius/compare/v0.24.0...v0.25.0) (2026-10-28)
 
 
