@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ModelNode, ModelEdge } from '../../../model/parse';
+import type { ColumnDef, ModelNode, ModelEdge } from '../../../model/parse';
 import type { ChangeMark, EntityChanges } from '../../logic/change-marks';
 
 function rowClass(mark: ChangeMark | undefined): string | undefined {
@@ -12,7 +12,7 @@ function ChangeTag({ mark }: { mark: ChangeMark | undefined }) {
   return <span className="change-tag">{mark.change}</span>;
 }
 
-function RemovedColumnRows({ changes, codeType }: { changes: EntityChanges | undefined; codeType: boolean }) {
+function RemovedColumnRows({ changes, codeType, onLink }: { changes: EntityChanges | undefined; codeType: boolean; onLink: (id: string) => void }) {
   return changes?.removedColumns.map(([name, col]) => (
     <tr key={`removed-${name}`} className={rowClass(changes.columns.get(name))}>
       <td><code>{name}</code></td>
@@ -20,9 +20,27 @@ function RemovedColumnRows({ changes, codeType }: { changes: EntityChanges | und
       <td>—</td>
       <td>{col.nullable ? 'Yes' : 'No'}</td>
       <td>{col.default ?? ''}</td>
-      <td>{col.desc ?? ''}</td>
+      <DescCell col={col} onLink={onLink} />
     </tr>
   ));
+}
+
+/** A column's description; its rendered `[[links]]` call `onLink` with their target id. */
+function DescCell({ col, onLink }: { col: ColumnDef; onLink: (id: string) => void }) {
+  if (!col.descHtml) return <td>{col.desc ?? ''}</td>;
+  return (
+    <td
+      className="col-desc"
+      onClick={e => {
+        if (!(e.target instanceof Element)) return;
+        const id = e.target.closest('a[data-entity]')?.getAttribute('data-entity');
+        if (!id) return;
+        e.preventDefault();
+        onLink(id);
+      }}
+      dangerouslySetInnerHTML={{ __html: col.descHtml }}
+    />
+  );
 }
 
 /**
@@ -46,6 +64,7 @@ export function ColumnsTable({
   missingTargets,
   onNavigateMissing,
   changes,
+  onDescLink,
 }: {
   node: ModelNode;
   edges: ModelEdge[];
@@ -56,6 +75,8 @@ export function ColumnsTable({
   /** dict variant only — called when clicking a missing FK target. */
   onNavigateMissing?: (id: string) => void;
   changes?: EntityChanges;
+  /** Follows a `[[link]]` in a column description; defaults to `onNavigate`. */
+  onDescLink?: (id: string) => void;
 }) {
   const fkTargets: Record<string, string> = {};
   for (const edge of edges) {
@@ -121,11 +142,11 @@ export function ColumnsTable({
                   </td>
                   <td>{col.nullable ? 'Yes' : 'No'}</td>
                   <td>{col.default != null ? String(col.default) : ''}</td>
-                  <td>{col.desc ?? ''}</td>
+                  <DescCell col={col} onLink={onDescLink ?? onNavigate} />
                 </tr>
               );
             })}
-            <RemovedColumnRows changes={changes} codeType />
+            <RemovedColumnRows changes={changes} codeType onLink={onDescLink ?? onNavigate} />
           </tbody>
         </table>
       </div>
@@ -179,10 +200,10 @@ export function ColumnsTable({
                 <td>{renderRoles(name)}</td>
                 <td>{col.nullable ? 'Yes' : 'No'}</td>
                 <td>{col.default ?? ''}</td>
-                <td>{col.desc ?? ''}</td>
+                <DescCell col={col} onLink={onDescLink ?? onNavigate} />
               </tr>
             ))}
-            <RemovedColumnRows changes={changes} codeType={false} />
+            <RemovedColumnRows changes={changes} codeType={false} onLink={onDescLink ?? onNavigate} />
           </tbody>
         </table>
       </div>

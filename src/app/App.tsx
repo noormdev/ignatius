@@ -1,8 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { semanticColors, resolveFlowKindPalette, type FlowKindKey, type FlowKindEntry } from '../theme/theme-defaults';
-import { parseHash, serializeHash, nextCollapseLevel } from './hash-router';
-import type { HashState, FlowViewMode, FlowCollapseLevel } from './hash-router';
+import { parseHash, nextCollapseLevel, splitSection } from './hash-router';
+import { findDiagramByRef } from '../flow-view/flow-nav';
+import { currentHash, writeHash } from './logic/history';
+import { buildFlowDocResolver, nodeToken } from './logic/doc-resolver';
+import type { FlowDiagram, FlowProcess } from '../flows/flow-parse';
+import type { HashState, FlowViewMode, FlowCollapseLevel, ViewName } from './hash-router';
 import { RULES } from '../model/validate';
 import type { EntityError } from '../model/validate';
 import type {
@@ -17,6 +21,7 @@ import { hexToRgba } from './logic/color';
 import { buildAllFlowNodeIds } from './logic/flow-node-ids';
 import { entityMatches, searchFlowDiagrams } from './logic/search';
 import { Modal } from './components/ui/Modal';
+import { MermaidZoom } from './components/ui/MermaidZoom';
 import { HelpModal } from './components/ui/HelpModal';
 import { SettingsModal } from './components/ui/SettingsModal';
 import { downloadExport } from './logic/view-state';
@@ -35,7 +40,7 @@ import { entityChanges } from './logic/change-marks';
 import { LegendModal } from './views/flow/LegendModal';
 import { FlowsView } from './views/flow/FlowsView';
 import type { FlowsViewHandle } from './views/flow/FlowsView';
-import { DictionaryView } from './views/dict/DictionaryView';
+import { DictionaryView, scrollMemoryCovers } from './views/dict/DictionaryView';
 import type { DictionaryViewHandle } from './views/dict/DictionaryView';
 import { GraphView } from './views/graph/GraphView';
 import type { GraphViewHandle, LayoutMode } from './views/graph/GraphView';
@@ -45,7 +50,47 @@ import { useHashRoute } from './hooks/useHashRoute';
 import { useThemeMode } from './hooks/useThemeMode';
 import { useMermaid } from './hooks/useMermaid';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { scrollBehaviorWithin } from './logic/motion';
+
+const VIEW_ABBREVIATIONS: Record<ViewName, string> = { graph: 'DG', dict: 'DD', flow: 'DF' };
+
+function processTitle(process: FlowProcess): string {
+  return `${process.dottedNumber} ${process.label}`.trim();
+}
+
+function sectionTitle(section: string, diagrams: FlowDiagram[] | null): string {
+  const parts = splitSection(section);
+  if (!parts) return section;
+  const { kind, id } = parts;
+  if (kind === 'entity') return id.replace(/_/g, ' ');
+  for (const diagram of walkDiagrams(diagrams ?? [])) {
+    if (kind === 'process') {
+      const process = diagram.processes.find(p => p.id === id);
+      if (process) return processTitle(process);
+    } else if (kind === 'external') {
+      const external = diagram.externals.find(e => e.id === id);
+      if (external) return external.label;
+    } else {
+      const store = diagram.storeRefs.find(ref => ref.name === id);
+      if (store) return store.displayName;
+    }
+  }
+  return id.replace(/-/g, ' ');
+}
+
+function diagramTitle(ref: string, diagrams: FlowDiagram[] | null): string {
+  const path = findDiagramByRef(diagrams ?? [], ref);
+  const diagram = path?.[path.length - 1];
+  if (!path || !diagram) return ref;
+  const process = path[path.length - 2]?.processes.find(p => p.id === diagram.id);
+  return process ? processTitle(process) : diagram.title;
+}
+
+function* walkDiagrams(diagrams: readonly FlowDiagram[]): Generator<FlowDiagram> {
+  for (const diagram of diagrams) {
+    yield diagram;
+    yield* walkDiagrams(diagram.subDfds);
+  }
+}
 
 export function App() {
   const graphRef = useRef<HTMLDivElement>(null);
@@ -92,8 +137,23 @@ export function App() {
   const graphSearchBarRef = useRef<SearchBarHandle>(null);
   const flowSearchBarRef = useRef<SearchBarHandle>(null);
 
-  const { view, setView, openEntity, closeEntity } = useHashRoute({
-    onRestoreDfd: (dfdId) => flowsViewRef.current?.selectDiagramById(dfdId),
+  // The Dictionary section to bring into view; seq re-requests the same section.
+  const [sectionTarget, setSectionTarget] = useState<{ section: string; seq: number } | null>(() => {
+    const section = parseHash(location.hash).section;
+    return section && !scrollMemoryCovers(section) ? { section, seq: 0 } : null;
+  });
+  const [nodeDialog, setNodeDialog] = useState<{ token: string; title: string } | null>(null);
+  // A node= the view could not open yet (a deep link, or Back onto a view that is still mounting).
+  const pendingNodeRef = useRef<string | null>(parseHash(location.hash).node ?? null);
+  const linkedNodeRef = useRef<string | null>(null);
+  const [activeDfd, setActiveDfd] = useState<string | null>(null);
+  const activeDfdRef = useRef<string | null>(null);
+
+  const { view, setView, openEntity, closeEntity, openNode, closeNode, leaveNode, leaveEntity, openSection, replaceSection } = useHashRoute({
+    // Re-selecting the diagram on screen would re-render it and drop the dialog Back is reopening.
+    onRestoreDfd: (dfdId) => {
+      if (dfdId !== activeDfdRef.current) flowsViewRef.current?.selectDiagramById(dfdId);
+    },
     // popstate reconcile: open/switch/close the modal to MATCH the hash. Sets
     // React state ONLY — never pushes history (we are responding to Back/Forward).
     onEntityChange: (id) => {
@@ -106,6 +166,7 @@ export function App() {
       if (node) {
         setSelected(node);
         setShowEntityModal(true);
+        setEntityModalOpenedFromFlow(parseHash(location.hash).view === 'flow');
       }
     },
     // popstate reconcile for a pushed entry (e.g. an entity open) that
@@ -113,7 +174,85 @@ export function App() {
     // collapseLevel state below. React state only, same rule as onEntityChange.
     onRestoreFlowView: (v) => setFlowView(v),
     onRestoreCollapseLevel: (l) => setCollapseLevel(l),
+    onSectionChange: (section) => {
+      if (section) setSectionTarget(prev => ({ section, seq: (prev?.seq ?? 0) + 1 }));
+      // An entry with no section= is the Dictionary never scrolled from its top.
+      else if (parseHash(location.hash).view === 'dict') requestAnimationFrame(() => dictViewRef.current?.scrollToTop());
+      document.title = tabTitle();
+    },
+    onNodeChange: (token) => {
+      flowsViewRef.current?.dismissFlowDialog();
+      dictViewRef.current?.dismissFlowNode();
+      setNodeDialog(null);
+      pendingNodeRef.current = token;
+      if (token) requestAnimationFrame(openPendingNode);
+    },
   });
+
+  // A link from an entity dialog to a flow node leaves the dialog, and Back reopens it. Routing per target kind:
+  // docs/spec/wiki-entity-links.md (Graph surface).
+  function followFlowLink(id: string) {
+    const result = flowDiagrams ? buildFlowDocResolver(flowDiagrams, model ?? undefined)(id) : null;
+    if (!result || result.kind === 'entity' || result.kind === 'doc') return;
+    setShowEntityModal(false);
+    setEntityModalOpenedFromFlow(false);
+    leaveEntity();
+    if (result.kind === 'diagram') {
+      handleChangeDiagram(result.diagramRef);
+      return;
+    }
+    const { node, inDiagramRef } = result;
+    const token = nodeToken(node);
+    if (viewRef.current === 'flow' && flowsViewRef.current) {
+      flowsViewRef.current.openFlowToken(token);
+      return;
+    }
+    if (inDiagramRef !== undefined) {
+      pendingNodeRef.current = token;
+      linkedNodeRef.current = token;
+      handleChangeDiagram(inDiagramRef);
+      return;
+    }
+    jumpToSection('displayName' in node ? `store:${node.name}` : `external:${node.id}`);
+  }
+
+  function jumpToSection(section: string) {
+    // The entry being left records where the reader was, so Back returns there.
+    const leaving = viewRef.current === 'dict' ? dictViewRef.current?.topSection() : null;
+    if (leaving) replaceSection(leaving);
+    openSection(section);
+    setSectionTarget(prev => ({ section, seq: (prev?.seq ?? 0) + 1 }));
+  }
+
+  // Scrolling sets the title directly: a re-render of the Dictionary rewrites every body's HTML,
+  // which swaps rendered diagrams back to placeholders.
+  function handleSectionInView(section: string) {
+    replaceSection(section);
+    document.title = tabTitle();
+  }
+
+  function handleNodeDialogChange(dialog: { token: string; title: string } | null, reason: 'opened' | 'closed' | 'left') {
+    setNodeDialog(dialog);
+    // A dialog a link navigated to belongs to that navigation's entry, so Back steps over both at once.
+    const joinsLink = dialog !== null && linkedNodeRef.current === dialog.token;
+    linkedNodeRef.current = null;
+    if (dialog) openNode(dialog.token, joinsLink ? 'replace' : 'push');
+    else if (reason === 'closed') closeNode();
+    else leaveNode();
+  }
+
+  // Opens a node= that arrived before its view could show it; the view reports it back through handleNodeDialogChange.
+  function openPendingNode() {
+    const token = pendingNodeRef.current;
+    if (!token) return;
+    const current = viewRef.current;
+    if (current === 'flow' && flowsViewRef.current) flowsViewRef.current.openFlowToken(token);
+    else if (current === 'dict' && dictViewRef.current) dictViewRef.current.openFlowNode(token);
+    else return;
+    pendingNodeRef.current = null;
+  }
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   const { themeMode, setTheme } = useThemeMode(model?.theme, model);
   const appRef = useRef<HTMLDivElement>(null);
@@ -162,9 +301,6 @@ export function App() {
   // stays mounted-but-inactive across view switches).
   const [flowSearchTerm, setFlowSearchTerm] = useState('');
   const [flowSearchIncludeBody, setFlowSearchIncludeBody] = useState(false);
-  // Pending scroll target: set by onNavigateToProcess, consumed by the view-switch
-  // useEffect once the dict container is visible and the process anchor exists.
-  const pendingScrollProcessIdRef = useRef<string | null>(null);
   // Pan-free entity opener: selects the node and shows the rich SelectedEntityModal
   // WITHOUT panning the graph. Used by the flow viewer's db: store ⓘ badge so the
   // rich dialog opens even when the ERD graph is not mounted (flow surface).
@@ -237,10 +373,7 @@ export function App() {
   // (view/entity/zoom/pan/dfd) without adding a history entry — mirrors how
   // useHashRoute writes `view` on every change.
   function writeFlowViewHash(partial: Pick<HashState, 'flowview' | 'collapse'>) {
-    const current = parseHash(location.hash);
-    const next: HashState = { ...current, ...partial };
-    const serialized = serializeHash(next);
-    history.replaceState({}, '', serialized ? '#' + serialized : location.pathname);
+    writeHash({ ...currentHash(), ...partial }, 'replace');
   }
 
   function handleToggleFlowView() {
@@ -257,22 +390,10 @@ export function App() {
     writeFlowViewHash({ collapse: next });
   }
 
-  // After a view switch to dict, execute any pending process-scroll that was set
-  // by onNavigateToProcess. rAF is not enough — React may not have painted the dict
-  // container yet when rAF fires. Running inside a committed useEffect guarantees
-  // the DOM is up to date before we attempt scrollIntoView.
+  // A Dictionary node= deep link opens once the Dictionary has mounted.
   useEffect(() => {
-    if (view !== 'dict') return;
-    const processId = pendingScrollProcessIdRef.current;
-    if (!processId) return;
-    pendingScrollProcessIdRef.current = null;
-    // Use a short rAF inside the effect so the dict container has fully un-hidden
-    // before we query the element (keep-mounted dict uses display:none visibility).
-    requestAnimationFrame(() => {
-      const el = document.getElementById(`process-${processId}`);
-      if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
-    });
-  }, [view]);
+    if (view === 'dict' && model) requestAnimationFrame(openPendingNode);
+  }, [view, model]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const entity = pendingChangeEntityRef.current;
@@ -315,13 +436,20 @@ export function App() {
     graphViewRef.current?.retheme(themeMode, model, findings.entityErrors);
   }, [themeMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Document title reflects the model display name in both live and static modes.
-  // Live: re-runs on every model-change SSE refetch. Static: runs once the
-  // injected model is read. Falls back to the constant when the model is
-  // unloaded or unnamed.
+  // `<view> - <subject> | <name>`: the open dialog, else the Dictionary section (from the URL) or Flows diagram.
+  function tabTitle(): string {
+    const name = model?._meta?.name ?? model?.branding?.title ?? 'Ignatius';
+    const section = currentHash().section;
+    const subject = showEntityModal && selected ? selected.id.replace(/_/g, ' ')
+      : nodeDialog ? nodeDialog.title.replace(/_/g, ' ')
+      : view === 'dict' && section ? sectionTitle(section, flowDiagrams)
+      : view === 'flow' && activeDfd ? diagramTitle(activeDfd, flowDiagrams)
+      : null;
+    return `${VIEW_ABBREVIATIONS[view]}${subject ? ` - ${subject}` : ''} | ${name}`;
+  }
   useEffect(() => {
-    document.title = model?._meta?.name ?? 'Ignatius';
-  }, [model]);
+    document.title = tabTitle();
+  });
 
   // Whether the flow surface is active — hoisted early since it (and
   // bannerVisible below) are read by both the banner-offset effect and the
@@ -607,6 +735,7 @@ export function App() {
       // history entry the user landed on intact (no replace/push churn).
       setSelected(node);
       setShowEntityModal(true);
+      setEntityModalOpenedFromFlow(parseHash(location.hash).view === 'flow');
     }
   }, [modelIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -726,6 +855,11 @@ export function App() {
             onToggleNav={() => setDictNavOpen(prev => !prev)}
             active={view === 'dict'}
             onOpenEntity={id => openEntityById(id)}
+            onOpenDiagram={handleChangeDiagram}
+            sectionTarget={sectionTarget}
+            onJumpToSection={jumpToSection}
+            onSectionInView={handleSectionInView}
+            onNodeDialogChange={handleNodeDialogChange}
             themeMode={themeMode}
             changeReview={shownChanges}
             entityChanges={shownEntityChanges}
@@ -751,6 +885,12 @@ export function App() {
         getThemeConfig={() => entityModelRef.current?.theme}
         onOpenEntity={(id, fromFlow) => openEntityByIdRef.current(id, fromFlow)}
         onZoomPercentChange={setFlowZoomPercent}
+        onNodeDialogChange={handleNodeDialogChange}
+        onActiveDiagramChange={(id) => {
+          activeDfdRef.current = id;
+          setActiveDfd(id);
+          requestAnimationFrame(openPendingNode);
+        }}
         searchTokens={flowSearchTokens}
         changeReview={shownChanges}
         flowView={flowView}
@@ -839,6 +979,7 @@ export function App() {
       <button className="help-toggle" onClick={() => setShowHelp(true)} title="What am I looking at? (?)" aria-label="Help">
         ?
       </button>
+      <MermaidZoom />
       <FabMenu
         ref={fabMenuRef}
         view={view}
@@ -898,7 +1039,8 @@ export function App() {
               // Preserve the fromFlow flag so chained navigations stay in-place.
               // openEntityById pushes ONE history entry, so an FK hop A→B stacks
               // …→A→B and Back returns to A.
-              openEntityById(id, true);
+              if (modelIndexRef.current?.nodeById.has(id)) openEntityById(id, true);
+              else followFlowLink(id);
             } else {
               const target = modelIndexRef.current?.nodeById.get(id);
               if (target) {
@@ -907,28 +1049,26 @@ export function App() {
                 setSelected(target);
                 openEntity(id);
                 graphViewRef.current?.navigateToEntity(id);
+              } else {
+                followFlowLink(id);
               }
             }
           }}
           processUsages={entityUsageIndex?.get(selected.id)}
           onNavigateToProcess={(processId) => {
             if (entityModalOpenedFromFlow && flowsViewRef.current) {
-              // Flow context: open the target process dialog in-place over the flow.
-              // Close entity modal first so only one dialog is visible at a time.
+              // Flow context: the process dialog opens over the flow as its own entry; Back reopens this one.
               setShowEntityModal(false);
               setEntityModalOpenedFromFlow(false);
-              closeEntity();
+              leaveEntity();
               flowsViewRef.current.openFlowToken(`proc:${processId}`);
             } else {
+              // A navigation away from the dialog: Back returns to it, so entity= stays on the old entry.
               setShowEntityModal(false);
-              closeEntity();
-              // Record the target before setView so the dict-view useEffect picks it
-              // up after React commits the view switch and the DOM is ready.
-              pendingScrollProcessIdRef.current = processId;
-              setView('dict');
+              jumpToSection(`process:${processId}`);
             }
           }}
-          allFlowNodeIds={entityModalOpenedFromFlow && appAllFlowNodeIds ? appAllFlowNodeIds : undefined}
+          allFlowNodeIds={appAllFlowNodeIds ?? undefined}
         />
       )}
       {branding && (

@@ -10,15 +10,19 @@ import type { FlowExternal } from '../../../flows/flow-parse';
 export function ExternalCard({
   external,
   children,
+  headerExtra,
 }: {
   external: FlowExternal;
   children?: ReactNode;
+  /** Rendered after the name, e.g. a change badge. */
+  headerExtra?: ReactNode;
 }) {
   return (
     <section className="dict-entity-section" id={`external-${external.id}`}>
       <div className="dict-entity-header">
         <span className="flow-external-kind">EXT</span>
         <h3 className="flow-external-name">{external.label}</h3>
+        {headerExtra}
       </div>
       {children}
     </section>

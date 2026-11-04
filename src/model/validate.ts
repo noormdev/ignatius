@@ -162,8 +162,8 @@ export const RULES: Record<RuleId, RuleEntry> = {
     liveOnly: true,
   },
   'body.unknown_link': {
-    title: 'Body links to unknown entity',
-    explanation: 'A `[[Entity]]` link in the body markdown names an entity that does not exist in the model. The link renders as non-navigating text. Correct the entity id (match it exactly, PascalCase) or remove the link.',
+    title: 'Unknown link target',
+    explanation: 'A `[[Target]]` link in a body or column description names no entity, process, external, or store. The link renders as non-navigating text. Correct the target (an id, or a title whose spaces stand for hyphens) or remove the link.',
     class: 'A',
   },
   'parse.invalid_yaml': {
@@ -410,7 +410,7 @@ function checkBodyLinks(node: ModelNode, nodeIds: Set<string>): EntityError[] {
       ruleId: 'body.unknown_link',
       entityId: node.id,
       severity: 'warning',
-      message: `Body links to unknown entity '${target}'.`,
+      message: `[[${target}]] names no entity, process, external, or store.`,
     });
   }
   return errors;

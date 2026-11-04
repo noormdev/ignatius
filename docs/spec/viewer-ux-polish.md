@@ -23,7 +23,7 @@ See `docs/design/viewer-ux-polish.md`.
 ## Success criteria
 
 
-- [x] #1 — A served/exported model named `Foo` produces `document.title` `Foo` (live tab and static-export HTML `<title>`); a nameless model falls back to `Ignatius`. A check asserts the static-export `<title>`.
+- [x] #1 — A served/exported model named `Foo` produces the static-export HTML `<title>` `Foo`; a nameless model falls back to `Ignatius`. A check asserts the static-export `<title>`. In the running app the tab title follows `docs/spec/viewer-qol.md` (Navigation history and tab titles): `DG | Foo`, `DD - Party | Foo`.
 - [x] #2 — When a spotlit DD card has a bidirectional (`both`) or multi-edge connection to another card, the overlay draws ≥2 distinct `<path>` elements with distinct connection points (no shared endpoint) — not one path with arrowheads at both ends. A unit test on the splitting/geometry helper proves separation; a visual screenshot confirms.
 - [x] #3 — The readout shows true scale: at Cytoscape `zoom===1` / SVG `scale===1` it reads `100%`, regardless of model size. The initial view fits and reports its real (non-100%) percentage on a large model. Home/reset fits-to-screen. `setPercent(100)` yields 1:1. On the Graph, every fit (initial view, relayout, Home) uses the band between the bottom of the branding block, search bar and toggles and the top of the footer, 30 px in from each side, so no table sits under them (`test-graph-fit-clear.ts`). A graph too big for that band at the smallest zoom shows its top-left corner there instead of its middle, and a viewport with no room left under the chrome fits the whole canvas.
 - [x] #4 — Trackpad pinch (`ctrl`+wheel) and Cmd/Ctrl `+`/`-`/`0` zoom the canvas and never the browser page, on both DG and DFD. A unit test covers the resolver's new zoom actions; the page does not zoom (`preventDefault`).
@@ -186,3 +186,13 @@ Tests: [`test/checks/test-spotlight-inherited.ts`](../../test/checks/test-spotli
 **Merged into main (fast-forward) as fdb1317 — 2026-06-19.** Ships in the next minor (0.12.0) per the version policy — seven `feat(viewer)` commits.
 
 <!-- appended per checkpoint -->
+
+
+### 2026-11-04 — Tab titles name the view
+
+
+**What changed:** #1 keeps the model name as the export's `<title>`; the running app's tab title now names the view and what it shows (`docs/spec/viewer-qol.md`).
+
+**Why:** Every tab and history entry read the same, so neither told you which screen it was.
+
+**Superseded:** `document.title` was the model name alone.

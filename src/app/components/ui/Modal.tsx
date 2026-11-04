@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef } from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 
 /**
  * Open modals, outermost first. Every instance listens for ESC, Tab and focusin
@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
  * dismiss the modal that opened it along with itself, and both would fight over focus.
  *
  * Backdrop clicks need no equivalent guard: React bubbles a stacked dialog's click
- * through its opener's `.modal`, portal or not, and that handler stops propagation.
+ * through its opener's `.modal-frame`, portal or not, and that handler stops propagation.
  */
 const modalStack: object[] = [];
 
@@ -20,6 +20,14 @@ const FOCUSABLE = [
   'summary',
   '[tabindex]',
 ].map(sel => `${sel}:not([tabindex="-1"])`).join(', ');
+
+const MIN_WIDTH = 360;
+const WIDTH_KEY_PREFIX = 'ignatius-modal-width:';
+
+function savedWidth(key: string): number | null {
+  const width = Number(localStorage.getItem(key));
+  return Number.isFinite(width) && width >= MIN_WIDTH ? width : null;
+}
 
 /** Skips elements with no layout box, such as those inside a closed `<details>`. */
 function focusableIn(root: HTMLElement): HTMLElement[] {
@@ -34,6 +42,8 @@ function focusableIn(root: HTMLElement): HTMLElement[] {
  * `headerExtra` renders inside `.modal-header` after the `<h1>` (for badges etc.).
  * `stacked` marks a dialog opened from within another one — it lifts the
  * backdrop above the opener's.
+ * Either side edge drags to resize; the width persists per `className` in
+ * localStorage, and a double-click on an edge restores the default.
  */
 export function Modal({ title, onClose, children, className, headerExtra, stacked }: {
   title: string;
@@ -46,6 +56,8 @@ export function Modal({ title, onClose, children, className, headerExtra, stacke
   const closeRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const widthKey = `${WIDTH_KEY_PREFIX}${className ?? 'content'}`;
+  const [width, setWidth] = useState(() => savedWidth(widthKey));
 
   // Read through a ref so the listener effect can stay mount-only. Keying it on
   // `onClose` instead would re-push this modal's stack entry on every render
@@ -105,24 +117,58 @@ export function Modal({ title, onClose, children, className, headerExtra, stacke
     };
   }, []);
 
+  // The frame is centred, so each edge moves by half the width change: the width grows by twice the drag.
+  function startResize(e: ReactPointerEvent<HTMLDivElement>, side: -1 | 1) {
+    const frame = e.currentTarget.parentElement;
+    if (!frame || e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startWidth = frame.getBoundingClientRect().width;
+    let latest = startWidth;
+    const onMove = (ev: PointerEvent) => {
+      latest = Math.min(window.innerWidth * 0.96, Math.max(MIN_WIDTH, startWidth + 2 * side * (ev.clientX - startX)));
+      setWidth(latest);
+    };
+    const onUp = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
+      if (latest !== startWidth) localStorage.setItem(widthKey, String(Math.round(latest)));
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  }
+
+  function resetWidth() {
+    localStorage.removeItem(widthKey);
+    setWidth(null);
+  }
+
   const backdropClass = stacked ? 'modal-backdrop modal-backdrop-stacked' : 'modal-backdrop';
+  const frameStyle = width === null ? undefined : { width: `${width}px`, maxWidth: '96vw' };
 
   return (
     <div className={backdropClass} onClick={onClose}>
-      <div
-        className={`modal${className ? ` ${className}` : ''}`}
-        onClick={e => e.stopPropagation()}
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
-        <button className="modal-close" onClick={onClose} ref={closeRef}>×</button>
-        <div className="modal-header">
-          <h1 id={titleId}>{title}</h1>
-          {headerExtra}
+      <div className="modal-frame" style={frameStyle} onClick={e => e.stopPropagation()}>
+        <div
+          className={`modal${className ? ` ${className}` : ''}`}
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+        >
+          <button className="modal-close" onClick={onClose} ref={closeRef}>×</button>
+          <div className="modal-header">
+            <h1 id={titleId}>{title}</h1>
+            {headerExtra}
+          </div>
+          {children}
         </div>
-        {children}
+        <div className="modal-resize modal-resize--left" title="Drag to resize, double-click to reset" onPointerDown={e => startResize(e, -1)} onDoubleClick={resetWidth} />
+        <div className="modal-resize modal-resize--right" title="Drag to resize, double-click to reset" onPointerDown={e => startResize(e, 1)} onDoubleClick={resetWidth} />
       </div>
     </div>
   );

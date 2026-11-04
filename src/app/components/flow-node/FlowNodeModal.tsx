@@ -16,12 +16,17 @@ import { StoreCard } from './StoreCard';
  * Reuses the Dictionary's FlowIoTable / DictExternalSection / DictStoreSection
  * components so the dialog and the dictionary show the same structured facts.
  */
-export function FlowNodeModal({ node, allProcesses, doc, onClose, onNavigate, allFlowNodeIds, canOpenToken, nodeUsageIndex }: {
+export function FlowNodeModal({ node, allProcesses, doc, onClose, onNavigate, allFlowNodeIds, canOpenToken, nodeUsageIndex, diagramRef, inDiagramRef, onOpenDiagram }: {
   node: FlowProcess | FlowExternal | FlowStoreRef;
   allProcesses: FlowProcess[];
   doc: FlowDoc;
   onClose: () => void;
   onNavigate: (token: string) => void;
+  /** A decomposed process's sub-DFD (`dfd=` reference); with `onOpenDiagram`, the header links to it. */
+  diagramRef?: string;
+  /** The diagram the process is drawn in; with `onOpenDiagram`, the header links to it. Omit where it is already shown. */
+  inDiagramRef?: string;
+  onOpenDiagram?: (ref: string) => void;
   allFlowNodeIds?: ReadonlySet<string>;
   /** When provided, non-db IO table endpoints whose token resolves become clickable links. */
   canOpenToken?: (token: string) => boolean;
@@ -103,7 +108,24 @@ export function FlowNodeModal({ node, allProcesses, doc, onClose, onNavigate, al
   }
 
   return (
-    <Modal title={doc.title.replace(/_/g, ' ')} onClose={onClose}>
+    <Modal
+      title={doc.title.replace(/_/g, ' ')}
+      onClose={onClose}
+      headerExtra={onOpenDiagram && (inDiagramRef !== undefined || diagramRef !== undefined) && (
+        <span className="open-diagram-links">
+          {inDiagramRef !== undefined && (
+            <button type="button" className="open-diagram-link" data-target="in" onClick={() => onOpenDiagram(inDiagramRef)}>
+              Show in diagram →
+            </button>
+          )}
+          {diagramRef !== undefined && (
+            <button type="button" className="open-diagram-link" data-target="sub" onClick={() => onOpenDiagram(diagramRef)}>
+              Open sub-diagram →
+            </button>
+          )}
+        </span>
+      )}
+    >
       {renderFacts()}
       {doc.bodyHtml && (
         <div

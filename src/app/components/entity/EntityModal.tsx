@@ -46,6 +46,13 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
     }
   }, [selected.bodyHtml, allFlowNodeIds]);
 
+  // In flow context (allFlowNodeIds present), allow any flow node id;
+  // in graph context, limit to ERD entity nodes only.
+  function followLink(id: string) {
+    const hasNode = nodeIdSet ? nodeIdSet.has(id) : (model?.nodes.some(n => n.id === id) ?? false);
+    if (hasNode || allFlowNodeIds?.has(id)) onNavigate(id);
+  }
+
   const badges = (
     <div className="modal-badges">
       <span className={`badge ${selected.classification.toLowerCase()}`}>
@@ -65,7 +72,7 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
       <span className="pk-label">
         PK: {selected.pk.join(', ')}
       </span>
-      <ChangeBadge mark={changes?.mark} />
+      <ChangeBadge mark={changes?.mark} changes={changes} />
     </div>
   );
 
@@ -79,6 +86,7 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
           if (target) onNavigate(id);
         }}
         changes={changes}
+        onDescLink={followLink}
       />
       <div
         ref={bodyRef}
@@ -93,15 +101,7 @@ export function EntityModal({ selected, model, nodeById, nodeIdSet, entityErrors
           if (!link) return;
           e.preventDefault();
           const id = link.getAttribute('data-entity');
-          // In flow context (allFlowNodeIds present), allow any flow node id;
-          // in graph context, limit to ERD entity nodes only.
-          const hasNode = nodeIdSet
-            ? (id !== null && id !== undefined && nodeIdSet.has(id))
-            : (id !== null && id !== undefined && (model?.nodes.some(n => n.id === id) ?? false));
-          const allowed = allFlowNodeIds
-            ? (id && (allFlowNodeIds.has(id) || hasNode))
-            : (id && hasNode);
-          if (allowed && id) onNavigate(id);
+          if (id) followLink(id);
         }}
         dangerouslySetInnerHTML={{ __html: selected.bodyHtml }}
       />

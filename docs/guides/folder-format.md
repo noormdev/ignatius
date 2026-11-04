@@ -164,7 +164,7 @@ A customer settles invoices with a [[PaymentMethod|payment method]] on file.
 `[[Party]]` links to the Party entity and shows "Party". `[[PaymentMethod|payment method]]` links to PaymentMethod but shows "payment method". In the graph viewer the link opens that entity's modal; in the data dictionary it jumps to that entity's section.
 
 
-The target must match an entity id exactly (case-sensitive). A link to an entity that does not exist renders as muted, non-clickable text and is reported as a `body.unknown_link` finding, so a typo never passes silently. See [Validation and findings](validation.md).
+A target can be an entity, a process, an external, or a store, named by its id (case-sensitive) or by its title with spaces for hyphens (`[[Collect Payment]]`). A column's `desc` takes the same links and inline markdown (`**bold**`, `` `code` ``): `desc: "The ordering [[Party]]."`. A link to an entity opens that entity; a link to a process that owns a sub-DFD opens the diagram; another process opens its diagram with its dialog; an external or store opens its Dictionary section. A target that names nothing renders as muted, non-clickable text and is reported as a `body.unknown_link` finding, so a typo never passes silently. See [Validation and findings](validation.md).
 
 
 ### Code in the body
@@ -202,7 +202,7 @@ flowchart TD
 ```
 ~~~
 
-The viewer loads Mermaid the first time a diagram appears, so a model with no `mermaid` fence never downloads it. `ignatius export` and the in-app Export HTML include Mermaid in the file only when some body holds a diagram. Diagrams follow the light or dark theme, with nodes in the entity colors; [Themes and branding](themes-and-branding.md#mermaid-diagrams) covers the defaults and the `theme.mermaid` overrides. A diagram that fails to parse shows its source and Mermaid's error message in its place, so the body stays readable.
+The viewer loads Mermaid the first time a diagram appears, so a model with no `mermaid` fence never downloads it. `ignatius export` and the in-app Export HTML include Mermaid in the file only when some body holds a diagram. Diagrams follow the light or dark theme, with nodes in the entity colors; [Themes and branding](themes-and-branding.md#mermaid-diagrams) covers the defaults and the `theme.mermaid` overrides. A diagram that fails to parse shows its source and Mermaid's error message in its place, so the body stays readable. Click a diagram to open it in a full-window dialog: the mouse wheel zooms around the pointer, dragging pans, and the **−**, **Fit**, **1:1**, and **+** buttons set the zoom.
 
 A process body is the usual home for a diagram: a `## Logic` section can show the branches, reads, and writes inside one process, named after the process's own inputs, outputs, and stores. The diagram explains the process; it never replaces a flow, store, or process in the DFD. See [`Collect-Payment.md`](../../models/key-inherited/flows/order-to-cash/Collect-Payment.md) in the `key-inherited` example.
 

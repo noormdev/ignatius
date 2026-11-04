@@ -1,5 +1,8 @@
 import type { Model } from '../../model/parse';
 import type { FlowDiagram, FlowProcess, FlowExternal, FlowStoreRef } from '../../flows/flow-parse';
+import { diagramRef } from '../../flow-view/flow-nav';
+import { SYNTHETIC_DIAGRAM_IDS } from '../../flows/flow-derive-levels';
+import { targetCandidates } from '../../model/wikilink';
 
 export type FlowDoc = { title: string; bodyHtml: string };
 
@@ -10,11 +13,27 @@ export type FlowDoc = { title: string; bodyHtml: string };
  *              open the facts-rich FlowNodeModal (I/O table or kind+refs + markdown body).
  * - `doc`    — token maps to a plain markdown doc with no structured node (wiki-links
  *              that cannot be enriched, or the empty-state fallback for absent entities).
+ * - `diagram` — a bare `[[wiki-link]]` names a process that owns a sub-DFD; open that
+ *              diagram (a `dfd=` reference) in the Flows view.
+ *
+ * A process `node` result carries `inDiagramRef`, the diagram it is drawn in, and a decomposed
+ * process also its sub-DFD's `diagramRef`.
  */
 export type FlowDocResult =
   | { kind: 'entity'; entityId: string }
-  | { kind: 'node'; node: FlowProcess | FlowExternal | FlowStoreRef; allProcesses: FlowProcess[]; doc: FlowDoc }
-  | { kind: 'doc'; doc: FlowDoc };
+  | { kind: 'node'; node: FlowProcess | FlowExternal | FlowStoreRef; allProcesses: FlowProcess[]; doc: FlowDoc; diagramRef?: string; inDiagramRef?: string }
+  | { kind: 'doc'; doc: FlowDoc }
+  | { kind: 'diagram'; diagramRef: string };
+
+/** The doc token that names a flow node: `proc:<id>`, `ext:<id>`, or `<store kind>:<name>`. */
+export function nodeToken(node: FlowProcess | FlowExternal | FlowStoreRef): string {
+  if ('inputs' in node) return `proc:${node.id}`;
+  if ('displayName' in node) return `${node.kind}:${node.name}`;
+  return `ext:${node.id}`;
+}
+
+/** `opened` a node dialog (its token and title), `closed` it, or `left` it for another screen or dialog. */
+export type NodeDialogListener = (dialog: { token: string; title: string } | null, reason: 'opened' | 'closed' | 'left') => void;
 
 /** Split a doc token into kind prefix + bare name. A bare token (from a
  *  `[[wiki-link]]`) has no kind prefix. */
@@ -31,6 +50,8 @@ export function splitDocToken(token: string): { kind: string | null; name: strin
  *   SelectedEntityModal.
  * - `{kind:'node', node, allProcesses, doc}` for process / external / non-`db`
  *   store tokens — the caller opens the facts-rich FlowNodeModal.
+ * - `{kind:'diagram', diagramRef}` for a bare token naming a process that owns
+ *   a sub-DFD — the caller opens that diagram.
  * - `null` for tokens that cannot be resolved in any namespace (absent
  *   entity, unknown process, etc.) — caller shows an empty-state fallback.
  *
@@ -56,12 +77,19 @@ export function buildFlowDocResolver(
   // Flat list of all processes (needed for FlowIoTable's allProcesses param).
   const allProcesses: FlowProcess[] = [];
 
-  function walk(d: FlowDiagram) {
+  const diagramRefByProcess = new Map<string, string>();
+  const inDiagramRefByProcess = new Map<string, string>();
+
+  function walk(d: FlowDiagram, path: FlowDiagram[]) {
+    const here = [...path, d];
     for (const p of d.processes) {
       if (!processById.has(p.id)) {
         processById.set(p.id, p);
         allProcesses.push(p);
       }
+      if (!SYNTHETIC_DIAGRAM_IDS.has(d.id) && !inDiagramRefByProcess.has(p.id)) inDiagramRefByProcess.set(p.id, diagramRef(here));
+      const sub = d.subDfds.find(child => child.id === p.id);
+      if (sub && !diagramRefByProcess.has(p.id)) diagramRefByProcess.set(p.id, diagramRef([...here, sub]));
     }
     for (const e of d.externals) {
       if (!externalById.has(e.id)) externalById.set(e.id, e);
@@ -72,9 +100,20 @@ export function buildFlowDocResolver(
         if (!storesByName.has(s.name)) storesByName.set(s.name, s);
       }
     }
-    for (const sub of d.subDfds) walk(sub);
+    for (const sub of d.subDfds) walk(sub, here);
   }
-  diagrams.forEach(walk);
+  for (const d of diagrams) walk(d, []);
+
+  function processResult(proc: FlowProcess): FlowDocResult {
+    return {
+      kind: 'node',
+      node: proc,
+      allProcesses,
+      doc: { title: proc.label || proc.id, bodyHtml: proc.bodyHtml },
+      diagramRef: diagramRefByProcess.get(proc.id),
+      inDiagramRef: inDiagramRefByProcess.get(proc.id),
+    };
+  }
 
   // Normalize: if a plain Model (or undefined) was passed, wrap it in a getter
   // so the resolution path below is uniform.
@@ -95,8 +134,7 @@ export function buildFlowDocResolver(
     // Kind-qualified: resolve against that namespace first.
     if (kind === 'proc') {
       const proc = processById.get(name);
-      if (!proc) return null;
-      return { kind: 'node', node: proc, allProcesses, doc: { title: proc.label || proc.id, bodyHtml: proc.bodyHtml } };
+      return proc ? processResult(proc) : null;
     }
     if (kind === 'ext') {
       const ext = externalById.get(name);
@@ -111,15 +149,18 @@ export function buildFlowDocResolver(
       const store = storesByKindName.get(`${kind}:${name}`);
       if (store) return { kind: 'node', node: store, allProcesses, doc: { title: store.displayName, bodyHtml: store.bodyHtml ?? '' } };
     }
-    // Bare token (wiki-link): entity check first — business narratives most
-    // often cross-link entities — then flow node namespaces.
-    if (entityIds.has(name)) return { kind: 'entity', entityId: name };
-    const proc = processById.get(name);
-    if (proc) return { kind: 'node', node: proc, allProcesses, doc: { title: proc.label || proc.id, bodyHtml: proc.bodyHtml } };
-    const ext = externalById.get(name);
-    if (ext) return { kind: 'node', node: ext, allProcesses, doc: { title: ext.label, bodyHtml: ext.bodyHtml } };
-    const store = storesByName.get(name);
-    if (store) return { kind: 'node', node: store, allProcesses, doc: { title: store.displayName, bodyHtml: store.bodyHtml ?? '' } };
+    // Bare token (wiki-link): entity first, since narratives mostly cross-link entities, then flow nodes.
+    for (const id of targetCandidates(name)) {
+      if (entityIds.has(id)) return { kind: 'entity', entityId: id };
+      const ref = diagramRefByProcess.get(id);
+      if (ref !== undefined) return { kind: 'diagram', diagramRef: ref };
+      const proc = processById.get(id);
+      if (proc) return processResult(proc);
+      const ext = externalById.get(id);
+      if (ext) return { kind: 'node', node: ext, allProcesses, doc: { title: ext.label, bodyHtml: ext.bodyHtml } };
+      const store = storesByName.get(id);
+      if (store) return { kind: 'node', node: store, allProcesses, doc: { title: store.displayName, bodyHtml: store.bodyHtml ?? '' } };
+    }
     return null;
   };
 }

@@ -22,7 +22,12 @@ import { buildFlowSpotlightConnections } from '../../logic/flow-spotlight';
 import { buildInheritedConnections } from '../../logic/spotlight-inherited';
 import { animationsAllowed, createHoverIntent, scrollBehaviorWithin } from '../../logic/motion';
 import { buildFlowDocResolver } from '../../logic/doc-resolver';
-import { useScrollMemory } from '../../hooks/useScrollMemory';
+import { holdScroll, useScrollMemory } from '../../hooks/useScrollMemory';
+import { ChangeBadge } from '../../components/changes/ChangeBadge';
+import { flowNodeChanges } from '../../logic/change-marks';
+import { splitSection } from '../../hash-router';
+import { nodeToken } from '../../logic/doc-resolver';
+import type { NodeDialogListener } from '../../logic/doc-resolver';
 import type { FlowDocResult } from '../../logic/doc-resolver';
 import { SpotlightOverlay } from '../../components/entity/SpotlightOverlay';
 import { EntityCard } from '../../components/entity/EntityCard';
@@ -57,7 +62,54 @@ function readStoredLens(): 'read' | 'browse' {
 export interface DictionaryViewHandle {
   toggleLens(): void;
   focusSearch(): void;
+  /** Open the flow-node dialog for a token (Back/Forward onto a node= entry). */
+  openFlowNode(token: string): void;
+  /** Close the flow-node dialog without reporting it. */
+  dismissFlowNode(): void;
+  /** The section at the top of the view, as `section=` names it, or null. */
+  topSection(): string | null;
+  scrollToTop(): void;
 }
+
+const SECTION_MEMORY_KEY = 'ignatius-scroll-dict-section';
+
+function rememberSection(section: string): void {
+  try {
+    sessionStorage.setItem(SECTION_MEMORY_KEY, section);
+  } catch {}
+}
+
+/** Whether this tab's remembered Dictionary scrollTop was taken at `section`: then a reload restores that exact
+ *  position, and a section= link from elsewhere still jumps to the section's top. */
+export function scrollMemoryCovers(section: string): boolean {
+  try {
+    return sessionStorage.getItem(SECTION_MEMORY_KEY) === section;
+  } catch {
+    return false;
+  }
+}
+
+/** Dictionary anchor prefixes, in the order a bare link id is looked up. */
+const SECTION_KINDS = ['entity', 'external', 'store', 'process'] as const;
+const SECTION_ID = /^(entity|external|store|process)-/;
+
+/** The container's top edge below the floating search bar: its `scroll-padding-top`, which `scrollIntoView` honors too. */
+function visibleTop(container: HTMLElement): number {
+  return container.getBoundingClientRect().top + (Number.parseFloat(getComputedStyle(container).scrollPaddingTop) || 0);
+}
+
+/** The last Dictionary section whose top is at or above the visible top edge. */
+function sectionAtTop(container: HTMLElement): string | null {
+  const top = visibleTop(container) + 8;
+  let current: Element | null = null;
+  for (const el of Array.from(container.querySelectorAll('section[id]'))) {
+    if (!SECTION_ID.test(el.id)) continue;
+    if (el.getBoundingClientRect().top > top) break;
+    current = el;
+  }
+  return current ? current.id.replace(SECTION_ID, '$1:') : null;
+}
+
 
 interface DictionaryViewProps {
   model: Model;
@@ -71,6 +123,15 @@ interface DictionaryViewProps {
   onToggleNav: () => void;
   active: boolean;
   onOpenEntity: (id: string) => void;
+  /** Takes a `dfd=` reference and shows that diagram in the Flows view. */
+  onOpenDiagram: (ref: string) => void;
+  /** The section= to bring into view; `seq` changes on every request, so the same section can be asked for again. */
+  sectionTarget: { section: string; seq: number } | null;
+  /** A link or nav click inside the Dictionary asks to show a section (`process:Collect-Payment`). */
+  onJumpToSection: (section: string) => void;
+  /** The section at the top of the scrolled view changed. */
+  onSectionInView: (section: string) => void;
+  onNodeDialogChange: NodeDialogListener;
   themeMode: 'dark' | 'light';
   /** Changes to mark; null hides every marker and the Removed section. */
   changeReview: ChangeReview | null;
@@ -90,6 +151,11 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   onToggleNav,
   active,
   onOpenEntity,
+  onOpenDiagram,
+  sectionTarget,
+  onJumpToSection,
+  onSectionInView,
+  onNodeDialogChange,
   themeMode,
   changeReview,
   entityChanges,
@@ -140,7 +206,9 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
 
   const dictViewRef = useRef<HTMLDivElement>(null);
   const navPanelRef = useRef<HTMLElement>(null);
-  useScrollMemory(dictViewRef, 'ignatius-scroll-dict', [active, model]);
+  // A section jump runs once (its seq); after it, and without one, the remembered scrollTop restores.
+  const consumedSeqRef = useRef(-1);
+  useScrollMemory(dictViewRef, 'ignatius-scroll-dict', [active, model], () => sectionTarget === null || sectionTarget.seq === consumedSeqRef.current);
   useScrollMemory(navPanelRef, 'ignatius-scroll-dict-nav', [dictNavOpen, model]);
 
   useEffect(() => {
@@ -161,7 +229,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   }
 
   // Expose imperative toggleLens for the keyboard shortcut hook (via shell's dictViewRef).
-  // Deps include `lens` and `switchLens` so the handle always reads the CURRENT lens.
+  // No deps: the handle rebuilds every render, so it reads the current lens and resolver.
   useImperativeHandle(ref, () => ({
     toggleLens() {
       switchLens(lens === 'read' ? 'browse' : 'read');
@@ -169,7 +237,65 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     focusSearch() {
       searchInputRef.current?.focus();
     },
-  }), [lens]); // eslint-disable-line react-hooks/exhaustive-deps
+    openFlowNode(token: string) {
+      openFlowNode(token);
+    },
+    dismissFlowNode() {
+      setOpenFlowResult(null);
+    },
+    topSection() {
+      return dictViewRef.current ? sectionAtTop(dictViewRef.current) : null;
+    },
+    scrollToTop() {
+      if (dictViewRef.current) dictViewRef.current.scrollTop = 0;
+    },
+  }));
+
+  // Hold the requested section at the top while diagrams and examples above it render and grow.
+  // The scrollTop the hold last produced; scrolling there is the hold, not the reader.
+  const heldTopRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const container = dictViewRef.current;
+    if (!active || !container || !sectionTarget || sectionTarget.seq === consumedSeqRef.current) return;
+    const { section, seq } = sectionTarget;
+    // Consumed even when nothing matches (a stale link, a section the search hides), so scroll memory resumes.
+    consumedSeqRef.current = seq;
+    const target = splitSection(section);
+    const el = target && document.getElementById(`${target.kind}-${target.id}`);
+    if (!el) return;
+    return holdScroll(
+      container,
+      () => container.scrollTop + el.getBoundingClientRect().top - visibleTop(container),
+      top => {
+        heldTopRef.current = top;
+        rememberSection(section);
+      },
+    );
+  }, [active, sectionTarget?.seq, model]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Report the section at the top of the view as the user scrolls, so a refresh returns there.
+  useEffect(() => {
+    const container = dictViewRef.current;
+    if (!active || !container) return;
+    let frame = 0;
+    const report = () => {
+      frame = 0;
+      if (container.scrollTop === heldTopRef.current) return;
+      heldTopRef.current = null;
+      const section = sectionAtTop(container);
+      if (!section) return;
+      rememberSection(section);
+      onSectionInView(section);
+    };
+    const onScroll = () => {
+      if (frame === 0) frame = requestAnimationFrame(report);
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [active, onSectionInView]);
 
   // Spotlight active id — may be a bare entity id or a "<kind>:<name>" flow-node token.
   // Detection: flow-node tokens always contain ":" (entity ids are PascalCase, no colon).
@@ -460,25 +586,16 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     return a.localeCompare(b);
   });
 
-  // Scroll-to-anchor navigation (anchor links within the dict panel).
+  // Dictionary links are navigations: each asks the shell for a section= entry, and the
+  // shell's sectionTarget brings it into view.
   function scrollToEntity(entityId: string) {
-    const el = document.getElementById(`entity-${entityId}`);
-    if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
+    onJumpToSection(`entity:${entityId}`);
   }
 
-  // Generalized scroll: resolves the correct DD section anchor regardless of
-  // kind (entity / external / store / process). Used by body wiki-link clicks so
-  // [[Customer]] (an external) reaches #external-Customer even though the href
-  // written by the wiki plugin always says #entity-*.
+  // A link's href always says #entity-*; [[Customer]] (an external) must still reach #external-Customer.
   function scrollToSection(id: string) {
-    const prefixes = ['entity', 'external', 'store', 'process'] as const;
-    for (const prefix of prefixes) {
-      const el = document.getElementById(`${prefix}-${id}`);
-      if (el) {
-        el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
-        return;
-      }
-    }
+    const kind = SECTION_KINDS.find(prefix => document.getElementById(`${prefix}-${id}`) !== null);
+    if (kind) onJumpToSection(`${kind}:${id}`);
   }
 
   function scrollToMissing(id: string) {
@@ -486,9 +603,29 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
     if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
   }
 
-  // Delegates to the shared module-level resolveBodyClick with the local scrollToSection.
+  function followBodyLink(id: string) {
+    const result = resolveFlowDoc(id);
+    if (result?.kind === 'diagram') onOpenDiagram(result.diagramRef);
+    else scrollToSection(id);
+  }
+
   function handleDdBodyClick(e: React.MouseEvent<HTMLDivElement>) {
-    resolveBodyClick(e, scrollToSection);
+    resolveBodyClick(e, followBodyLink);
+  }
+
+  function processDiagramOpeners(processId: string): { onShowInDiagram?: () => void; onOpenSubDiagram?: () => void } {
+    const result = resolveFlowDoc(`proc:${processId}`);
+    if (result?.kind !== 'node') return {};
+    const { inDiagramRef, diagramRef } = result;
+    return {
+      onShowInDiagram: inDiagramRef === undefined ? undefined : () => onOpenDiagram(inDiagramRef),
+      onOpenSubDiagram: diagramRef === undefined ? undefined : () => onOpenDiagram(diagramRef),
+    };
+  }
+
+  function flowBadge(token: string) {
+    const changes = flowChanges?.get(token);
+    return <ChangeBadge mark={changes?.mark} changes={changes} diagrams={allDiagrams} />;
   }
 
   // Build node list filtered by search term.
@@ -546,6 +683,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
 
   // Collect all processes / externals / non-db stores from all diagrams (flat).
   const allDiagrams = flowDiagrams ?? [];
+  const flowChanges = changeReview ? flowNodeChanges(changeReview) : null;
   // Include sub-DFD processes recursively, skipping synthetic context/L1 diagrams
   // introduced by CP4 level derivation — those carry the "System" process and
   // empty activity stubs that are not user-authored and must not appear in the DD.
@@ -710,10 +848,22 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   function openFlowNode(token: string) {
     const result = resolveFlowDoc(token);
     if (!result) return;
+    showFlowResult(result, token);
+  }
+
+  function showFlowResult(result: FlowDocResult, token: string) {
     if (result.kind === 'entity') {
+      setOpenFlowResult(null);
+      onNodeDialogChange(null, 'left');
       onOpenEntity(result.entityId);
+    } else if (result.kind === 'diagram') {
+      setOpenFlowResult(null);
+      onNodeDialogChange(null, 'left');
+      onOpenDiagram(result.diagramRef);
     } else {
       setOpenFlowResult(result);
+      const opened = result.kind === 'node' ? nodeToken(result.node) : token;
+      onNodeDialogChange({ token: opened, title: result.doc.title }, 'opened');
     }
   }
 
@@ -855,8 +1005,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
   }, [model, allExternals, allProcessesDeep, allNonDbStores, visibleSetKey, visibleProcessKey, visibleExternalKey, visibleStoreKey]);
 
   function scrollToProcess(processId: string) {
-    const el = document.getElementById(`process-${processId}`);
-    if (el) el.scrollIntoView({ behavior: scrollBehaviorWithin(el), block: 'start' });
+    onJumpToSection(`process:${processId}`);
   }
 
   // Build side-nav subtypeIds per-group for indent styling.
@@ -1354,7 +1503,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                       memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
                       nodeErrors={errorsByEntityId.get(n.id) ?? []}
                       missingTargets={missingTargets}
-                      onNavigate={scrollToSection}
+                      onNavigate={followBodyLink}
                       onNavigateMissing={scrollToMissing}
                       processUsages={entityUsageIndex.get(n.id)}
                       onScrollToProcess={scrollToProcess}
@@ -1375,7 +1524,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                 memberCluster={modelIndex?.clustersByMemberId.get(n.id)?.[0]}
                 nodeErrors={errorsByEntityId.get(n.id) ?? []}
                 missingTargets={missingTargets}
-                onNavigate={scrollToSection}
+                onNavigate={followBodyLink}
                 onNavigateMissing={scrollToMissing}
                 processUsages={entityUsageIndex.get(n.id)}
                 onScrollToProcess={scrollToProcess}
@@ -1405,7 +1554,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                     memberCluster={undefined}
                     nodeErrors={[]}
                     missingTargets={missingTargets}
-                    onNavigate={scrollToSection}
+                    onNavigate={followBodyLink}
                     onNavigateMissing={scrollToMissing}
                     changes={entityChanges?.get(n.id)}
                   />
@@ -1450,9 +1599,11 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                       allProcesses={allProcessesDeep}
                       procErrors={errorsByProcessId.get(proc.id) ?? []}
                       onScrollToEntity={scrollToEntity}
-                      onScrollToSection={scrollToSection}
+                      onScrollToSection={followBodyLink}
                       externalIds={ddExternalIds}
                       nonDbStoreNames={ddNonDbStoreNames}
+                      headerExtra={flowBadge(`proc:${proc.id}`)}
+                      {...processDiagramOpeners(proc.id)}
                     />
                   ))}
                 </div>
@@ -1465,7 +1616,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                 {allExternals
                   .filter(e => visibleExternalIds[e.id])
                   .map(ext => (
-                    <ExternalCard key={ext.id} external={ext}>
+                    <ExternalCard key={ext.id} external={ext} headerExtra={flowBadge(`ext:${ext.id}`)}>
                       {ext.bodyHtml && (
                         <div
                           className="dict-entity-body md"
@@ -1487,7 +1638,7 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
                   {allNonDbStores
                     .filter(s => visibleStoreNames[s.name])
                     .map(store => (
-                      <StoreCard key={store.name} store={store}>
+                      <StoreCard key={store.name} store={store} headerExtra={flowBadge(`${store.kind}:${store.name}`)}>
                         {store.bodyHtml && (
                           <div
                             className="dict-entity-body md"
@@ -1513,16 +1664,20 @@ const DictionaryView = forwardRef<DictionaryViewHandle, DictionaryViewProps>(
           node={openFlowResult.node}
           allProcesses={openFlowResult.allProcesses}
           doc={openFlowResult.doc}
-          onClose={() => setOpenFlowResult(null)}
+          onClose={() => {
+            setOpenFlowResult(null);
+            onNodeDialogChange(null, 'closed');
+          }}
           onNavigate={(token) => {
             const result = resolveFlowDoc(token);
-            if (!result) return;
-            if (result.kind === 'entity') {
-              setOpenFlowResult(null);
-              onOpenEntity(result.entityId);
-            } else {
-              setOpenFlowResult(result);
-            }
+            if (result) showFlowResult(result, token);
+          }}
+          diagramRef={openFlowResult.diagramRef}
+          inDiagramRef={openFlowResult.inDiagramRef}
+          onOpenDiagram={(ref) => {
+            setOpenFlowResult(null);
+            onNodeDialogChange(null, 'left');
+            onOpenDiagram(ref);
           }}
         />
       )}

@@ -1,3 +1,5 @@
+import { canonicalTarget } from '../../model/wikilink';
+
 // Shared body-click resolver for all DD body divs (entity/process/external/store).
 // Handles live `<a data-entity>` anchors AND `.entity-link--missing` spans
 // (resolved at click time — survives React reconciliation).
@@ -32,13 +34,16 @@ export function resolveBodyClick(
 
 /**
  * Upgrade `.entity-link--missing` spans inside `container` to live anchor
- * elements when their target ID appears in `allKnownIds`.
+ * elements when their target resolves against `allKnownIds`, and point live
+ * anchors at the id their target names (`canonicalTarget`).
  *
  * Entity bodies are rendered at parse time with knownIds = entity IDs only,
  * so a `[[Customer]]` reference in an entity body emits a missing span even
- * when Customer exists as a flow external. This pass resolves those references
- * client-side after the full set of node IDs (entities + externals + stores +
- * processes) is known.
+ * when Customer exists as a flow external. Flow bodies are rendered with no
+ * knownIds, so `[[Answer Turn]]` arrives as a live anchor on `Answer Turn`
+ * while the process id is `Answer-Turn`. This pass resolves both client-side
+ * after the full set of node IDs (entities + externals + stores + processes)
+ * is known.
  *
  * Exported for unit testing; the upgrade is side-effecting (mutates the DOM).
  */
@@ -46,14 +51,20 @@ export function upgradeMissingLinksInContainer(
   container: ParentNode,
   allKnownIds: ReadonlySet<string>,
 ): void {
+  for (const anchor of container.querySelectorAll<HTMLElement>('a[data-entity]')) {
+    const raw = anchor.getAttribute('data-entity') ?? '';
+    const id = canonicalTarget(raw, allKnownIds);
+    if (id !== null && id !== raw) anchor.setAttribute('data-entity', id);
+  }
+
   const spans = container.querySelectorAll<HTMLElement>('span.entity-link--missing');
   for (const span of spans) {
     // Target is encoded in `title="Unknown entity: <target>"`.
     const title = span.getAttribute('title') ?? '';
     const prefix = 'Unknown entity: ';
     if (!title.startsWith(prefix)) continue;
-    const target = title.slice(prefix.length);
-    if (!allKnownIds.has(target)) continue;
+    const target = canonicalTarget(title.slice(prefix.length), allKnownIds);
+    if (target === null) continue;
 
     // Replace span with a live anchor carrying data-entity so the parent body
     // div's click delegation picks it up. Href is "#" (neutral) because the

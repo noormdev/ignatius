@@ -57,6 +57,8 @@ Green marks an addition, amber a change. On the Graph and Flows views the mark i
 | Level menus | pulsing green dot after the diagram's name | pulsing amber dot | no row; listed in the Changes panel only |
 | Changes panel | green bar | amber bar | a solid red bar, a red ✕ before the name, and `removed` in red |
 
+Click an entity's `added`, `changed`, or `removed` badge in the entity dialog or the Dictionary's Read lens to see why. Processes, externals, and stores in the Dictionary carry the same badge for their flow changes. A scrollable popover lists each change behind the badge and flags the ones no note covers. Below that it shows the title and body of every note that covers them.
+
 In the flow index (**☰ Process Flows**, or `i`) and the breadcrumb level menus, a row whose diagram holds changes further down shows a steady dot after its label: red if any of them is unexplained, amber if any is a change or removal, green if all are additions.
 
 The Changes panel appears in `serve`, and read-only in an export made from a model with an approved baseline, and only when there is something to review. It lists, in order:

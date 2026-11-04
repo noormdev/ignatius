@@ -17,7 +17,7 @@
 export interface WikiLinkEnv {
   /** Ids that resolve. Absent → links render optimistically (no missing mark). */
   knownIds?: Set<string>;
-  /** Mutated in place: every `[[target]]` seen during the render, in order. */
+  /** Mutated in place: the id each `[[target]]` resolves to (the target itself when unresolved), in order. */
   links?: string[];
 }
 
@@ -60,21 +60,39 @@ export function splitWikiTarget(inner: string): { target: string; label: string 
   return { target, label: label || target };
 }
 
+/** A file name is its title with hyphens for spaces, so `Answer Turn` names `Answer-Turn`. */
+function hyphenate(target: string): string {
+  return target.replace(/\s+/g, '-');
+}
+
+/** The ids a `[[target]]` may name, in order: the target, then its hyphenated form. */
+export function targetCandidates(target: string): string[] {
+  const hyphenated = hyphenate(target);
+  return hyphenated === target ? [target] : [target, hyphenated];
+}
+
+/** The known id a `[[target]]` names, or null. */
+export function canonicalTarget(target: string, knownIds: ReadonlySet<string>): string | null {
+  return targetCandidates(target).find(id => knownIds.has(id)) ?? null;
+}
+
 // Both take HTML-escaped values.
 function liveLink(target: string, label: string): string {
   return `<a class="entity-link" data-entity="${target}" href="#entity-${target}">${label}</a>`;
 }
 
-// MISSING_LINK is a regex built from this markup: keep its literal parts free of regex metacharacters.
+// LIVE_LINK and MISSING_LINK are regexes built from this markup: keep its literal parts free of regex metacharacters.
 function missingLink(target: string, label: string): string {
   return `<span class="entity-link entity-link--missing" title="Unknown entity: ${target}">${label}</span>`;
 }
 
 const MISSING_LINK = new RegExp(missingLink('([^"]*)', '([^<]*)'), 'g');
+const LIVE_LINK = new RegExp(liveLink('([^"]*)', '([^<]*)').replace('#entity-([^"]*)', '#entity-[^"]*'), 'g');
 
-/** Rewrite missing-link spans as live anchors, so two renders of one body compare equal whichever targets exist. */
+/** Rewrite every link as a live anchor on its hyphenated target, so two renders of one body compare equal whichever targets exist. */
 export function linkStateNeutral(html: string): string {
-  return html.replace(MISSING_LINK, (_span, target: string, label: string) => liveLink(target, label));
+  const neutral = (_match: string, target: string, label: string) => liveLink(hyphenate(target), label);
+  return html.replace(MISSING_LINK, neutral).replace(LIVE_LINK, neutral);
 }
 
 /** markdown-it plugin: register the `[[…]]` inline rule. */
@@ -97,14 +115,13 @@ export function wikiLinkPlugin(md: MarkdownItLike): void {
       if (target === '') return false;
 
       const env = state.env;
-      if (env.links) env.links.push(target);
-
       const known = env.knownIds;
-      const missing = known ? !known.has(target) : false;
+      const resolved = known ? canonicalTarget(target, known) : target;
+      if (env.links) env.links.push(resolved ?? target);
       const esc = md.utils.escapeHtml;
 
       const token = state.push('html_inline', '', 0);
-      token.content = missing ? missingLink(esc(target), esc(label)) : liveLink(esc(target), esc(label));
+      token.content = resolved === null ? missingLink(esc(target), esc(label)) : liveLink(esc(resolved), esc(label));
     }
 
     state.pos = close + 2;

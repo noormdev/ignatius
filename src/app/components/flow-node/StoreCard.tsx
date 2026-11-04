@@ -9,9 +9,12 @@ import type { FlowStoreRef } from '../../../flows/flow-parse';
 export function StoreCard({
   store,
   children,
+  headerExtra,
 }: {
   store: FlowStoreRef;
   children?: ReactNode;
+  /** Rendered after the name, e.g. a change badge. */
+  headerExtra?: ReactNode;
 }) {
   if (store.kind === 'db') return null;
   return (
@@ -19,6 +22,7 @@ export function StoreCard({
       <div className="dict-entity-header">
         <span className="flow-store-kind">{store.kind.toUpperCase()}</span>
         <h3 className="flow-store-name">{store.displayName}</h3>
+        {headerExtra}
       </div>
       {children}
     </section>
