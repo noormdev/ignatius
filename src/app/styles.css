@@ -431,10 +431,6 @@ a {
   border-radius: 8px;
 }
 
-/* Settings modal */
-.settings-modal {
-  max-width: 520px;
-}
 .settings-section + .settings-section {
   margin-top: 20px;
 }
@@ -591,14 +587,38 @@ label.settings-item:hover {
   z-index: 220;
 }
 
+/* Carries the width so the resize handles stay on the edges while `.modal` scrolls. */
+.modal-frame {
+  position: relative;
+  max-width: 720px;
+  width: 90%;
+}
+
+.modal-frame:has(> .settings-modal) {
+  max-width: 520px;
+}
+
+.modal-resize {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 10px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.modal-resize--left { left: -5px; }
+.modal-resize--right { right: -5px; }
+.modal-resize:hover,
+.modal-resize:active {
+  background: linear-gradient(to right, transparent 4px, var(--color-border) 4px, var(--color-border) 6px, transparent 6px);
+}
+
 .modal {
   position: relative;
   background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 32px;
-  max-width: 720px;
-  width: 90%;
   max-height: 80vh;
   overflow-y: auto;
   overflow-x: hidden;
@@ -2049,6 +2069,94 @@ button.changes-panel-item:hover {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--change-unexplained) 35%, transparent);
 }
 
+/* Process dialog header and Dictionary process section: the diagram it is drawn in, and its own sub-DFD. */
+.open-diagram-links {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.open-diagram-link {
+  padding: 2px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  color: var(--color-link);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.open-diagram-link:hover {
+  border-color: currentColor;
+}
+
+.change-badge-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.change-badge--button {
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.change-popover {
+  position: fixed;
+  z-index: 230;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-background);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+}
+
+.change-popover h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.change-popover-items {
+  margin: 0 0 12px;
+  padding-left: 18px;
+}
+
+.change-popover-unexplained {
+  color: var(--change-unexplained-text);
+}
+
+.change-popover-empty {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.change-popover-note + .change-popover-note {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-surface-alt);
+}
+
+.change-popover-note-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.change-popover-note-title code {
+  font-weight: normal;
+  color: var(--color-text-muted);
+}
+
 .change-row--added {
   --change-row-color: var(--change-added-text);
 }
@@ -2090,7 +2198,7 @@ button.changes-panel-item:hover {
 }
 
 .dict-entity-section--removed > :not(.dict-entity-header),
-.dict-entity-section--removed > .dict-entity-header > :not(.change-badge) {
+.dict-entity-section--removed > .dict-entity-header > :not(.change-badge, .change-badge-anchor) {
   opacity: 0.6;
 }
 
@@ -3125,7 +3233,7 @@ button.changes-panel-item:hover {
   font-size: 12px;
 }
 
-.modal-json {
+.modal-frame:has(> .modal-json) {
   max-width: 860px;
 }
 
@@ -3334,6 +3442,97 @@ button.changes-panel-item:hover {
 .mermaid-error-message {
   color: var(--badge-dependent-fg);
   font-size: 0.9em;
+}
+
+/* Rendered diagrams open in the zoom dialog on click. */
+.mermaid-diagram[data-rendered] > svg {
+  cursor: zoom-in;
+}
+
+.modal-frame:has(> .mermaid-zoom-modal) {
+  max-width: 96vw;
+  width: 96vw;
+}
+
+.mermaid-zoom-modal {
+  display: flex;
+  flex-direction: column;
+  height: 90vh;
+  max-height: 90vh;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.mermaid-zoom-modal .modal-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+}
+
+.mermaid-zoom {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.mermaid-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mermaid-zoom-controls button {
+  min-width: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.mermaid-zoom-level {
+  margin-left: 6px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mermaid-zoom-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background-color: var(--color-background);
+  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 18px 18px;
+  cursor: grab;
+  touch-action: none;
+  line-height: normal;
+}
+
+.mermaid-zoom-viewport:active {
+  cursor: grabbing;
+}
+
+.mermaid-zoom-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.mermaid-zoom-content svg {
+  display: block;
+  overflow: visible;
+}
+
+/* Same label reset as `.md .mermaid-diagram`: the copy sits outside `.md`, but the host page's margins still reach it. */
+.mermaid-zoom-content :is(p, ul, ol) {
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* ── CP7: Entity ↔ Process cross-reference ── */

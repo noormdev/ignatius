@@ -26,6 +26,19 @@ Viewer fixes: markdown typography, a persisted settings store with a Settings mo
 - [x] While a `Modal` is the top of `modalStack`, Tab from the last focusable element moves focus to the first, Shift+Tab from the first moves to the last, and focus that lands outside the modal (click on the backdrop excluded) is pulled back to the first focusable element. A stacked modal traps; the one beneath it does not react.
 - [x] On unmount, focus returns to the element focused when the modal mounted, when that element is still connected.
 
+**Navigation history and tab titles**
+
+- [x] Every navigation pushes one history entry: a view switch, a Dictionary section jump, a diagram change, and opening an entity or flow-node dialog. Closing a dialog, zoom, pan, and FAB settings rewrite the current entry. A push within 50 ms after a view-switch push replaces it, so switching to Flows and landing on a diagram is one entry; any other two pushes stay two entries. `src/app/logic/history.ts` (`writeHash`, `navigationBase`).
+- [x] `section=<kind>:<id>` (`entity`, `process`, `external`, `store`) names the Dictionary section in view. A jump (body or column-description link, sidebar, an entity dialog's Processes link) first writes the section at the top of the view into the entry it leaves, then pushes the new one and holds that section just below the floating search bar (the container's `scroll-padding-top`) while content above it renders and grows (`holdScroll`). Back to an entry with no section= scrolls to the top. A jump runs once: a later view switch or model reload restores the remembered scrollTop. Scrolling rewrites section= to the section at the top of the view. On load, section= wins over the remembered scrollTop unless this tab's remembered scrollTop was taken at that same section (`scrollMemoryCovers`), so a refresh returns to the exact position and a shared link to the section's top.
+- [x] `node=<token>` (`proc:<id>`, `ext:<id>`, `<store kind>:<name>`) names the open flow-node dialog, in the Flows view or over the Dictionary. Opening pushes it, closing drops it in place, and a link from the dialog to an entity or diagram, or its Open sub-diagram link, pushes a new entry without it, so Back reopens the dialog. A rebuild of the Flows renderer reopens the URL's node= on the new surface. A deep link opens the dialog once its view has mounted.
+- [x] A navigation away from a dialog (an entity dialog's Processes link, in the Dictionary or as a process dialog in Flows) leaves `entity=` on the entry it came from, so Back reopens the dialog.
+- [x] The tab title is `<DG|DD|DF> - <subject> | <name>`: DG Graph, DD Dictionary, DF Flows; the subject is the open entity or node dialog, else the Dictionary section (an entity id, a process's number and label, an external's label, a store's name), else the Flows diagram (its process's number and label); with no subject, `<view> | <name>`. `<name>` is `ignatius.yml` `name`, then `branding.title`, then `Ignatius`.
+- [x] `test/checks/test-history-navigation.ts` covers each rule.
+
+**Dialog width**
+
+- [x] `Modal` wraps `.modal` in `.modal-frame`, which carries the width and a drag handle on each side edge. The frame is centred, so the width changes by twice the drag, between 360 px and 96vw. On release the width is saved in localStorage under `ignatius-modal-width:<className>`, or `ignatius-modal-width:content` for dialogs with no `className` (entity, process, flow doc, edge contract, stack, groups), which therefore share one width. A double-click on a handle restores the default and clears the key. Variant widths sit on the frame: `.modal-frame:has(> .settings-modal)` 520 px, `.modal-frame:has(> .modal-json)` 860 px. Releasing a drag over the backdrop does not close the dialog. `test/checks/test-mermaid-zoom-modal-resize.ts` covers the drag, save, reopen, and reset.
+
 **Markdown typography**
 
 - [x] Every markdown site listed in the design (`App.tsx` groups modal, `DictionaryView` group desc, externals, stores, `EntityModal`, `EntityCard`, `FlowNodeModal`, `FlowDocModal`, `StackDialog`, `ChangesPanel`, `ProcessCard`) carries class `md` beside its existing wrapper class.
@@ -86,6 +99,8 @@ Viewer fixes: markdown typography, a persisted settings store with a Settings mo
 - [x] `generateApp` inlines `mermaid.js` (escaped like the app JS) before the app script only when a `mermaid-diagram` div occurs in any entity, group, flow node, cluster or change-note body. `test/checks/test-export-mermaid.ts` asserts presence for a model with a fence and absence for one without.
 - [x] Mermaid SVG spans its container (`width: 100%`), centred, scaled down when wider, and inherits the `.md` block spacing.
 - [x] Screenshots: a flowchart and a sequence diagram in a process body, dark and light, plus one with a `theme.mermaid` override (`test/visual/screenshot-mermaid.ts`).
+- [x] `holdScroll` stops on the reader's input or a scroll it did not make, except a clamp: content shrinking for a moment pulls scrollTop to the new bottom, and the hold carries on.
+- [x] Clicking a rendered diagram, on a page or inside a dialog, opens `MermaidZoom`: a stacked dialog portaled to `document.body` holding a copy of the svg under a fresh render id (`cloneDiagramMarkup`), drawn at its viewBox size and fitted to the viewport (at most 2×). The wheel zooms around the pointer between 10% and 1200%, a drag pans, and −, Fit, 1:1, and + buttons set the zoom. The click listener is on `document` in the capture phase because `.modal-frame` stops click propagation. Escape closes only the zoom dialog. `test/checks/test-mermaid-zoom-modal-resize.ts`.
 - [x] `useScrollMemory` keeps re-applying the saved position as content grows after a restore. It holds until the user scrolls (wheel, touch, keydown or pointerdown on the container), a scroll it did not make moves the container (a deep link), or about 2 s pass; reaching the position early does not end the hold, because diagrams above it keep growing. No intermediate clamped value is saved. `test-scroll-memory.ts` adds a case with Mermaid diagrams above the saved position: reload, and assert it lands within 4 px. The case is proven by a mutation that removes the continuous restore.
 
 **Export as seen**
@@ -225,6 +240,14 @@ docs/spec/help-overlay.md ........................... M  (help button corner)
 docs/spec/ignatius-project-config.md ................ M
 docs/wiki/{feature-map,validate}.md ................. M
 skills/ignatius-modeling/references/{dfd-authoring,flow-templates,conventions,entity-flow,verification}.md  M
+src/app/logic/history.ts ............................ A  (writeHash push/replace, navigationBase)
+src/app/hash-router.ts .............................. M  (section=, node=, splitSection)
+src/app/hooks/useHashRoute.ts ....................... M  (pushing setView, openSection/replaceSection, openNode/closeNode/leaveNode, leaveEntity)
+src/app/hooks/useScrollMemory.ts .................... M  (holdScroll, shouldRestore)
+src/app/App.tsx ..................................... M  (tabTitle, section and node reconciles)
+src/app/views/dict/DictionaryView.tsx ............... M  (section hold, scroll reporting, node dialog reporting)
+src/app/views/flow/FlowsView.tsx .................... M  (FlowDialogControls, node dialog reporting, queued token)
+test/checks/test-history-navigation.ts .............. A
 ```
 
 
@@ -334,10 +357,27 @@ skills/ignatius-modeling/references/conventions.md
   Code fences — mermaid renders as a diagram
 skills/ignatius-modeling/references/entity-flow.md
   E9 narrative — logic flow of an application function against the table
+
+src/app/logic/history.ts
+  writeHash — writes the hash as a pushed or replaced entry; a push right after a view-switch push joins it
+  navigationBase — the current hash without entity=, node=, section=
+
+src/app/hooks/useScrollMemory.ts
+  holdScroll — keeps a target scrollTop as content grows, until the reader scrolls or 2 s pass
+
+src/app/App.tsx
+  tabTitle — `<DG|DD|DF> - <subject> | <name>`
 ```
 
 
 ## Flows
+
+
+**Back to a dialog from the screen it led to**
+
+1. Reader opens Business in the Graph → `openEntity` pushes `entity=Business`.
+2. Reader clicks Processes → 1.1 Create Sales Order → `openSection` pushes `view=dict&section=process:Create-Sales-Order`; the Dictionary holds the section at the top as diagrams render.
+3. Reader presses Back → popstate reconciles `entity=Business` and `view=graph` → the Business dialog reopens.
 
 
 **Tab inside a modal**
@@ -586,3 +626,27 @@ Built across 19 iterations of /autopilot (8 checkpoints, a post-audit iteration)
 **Deferred items still open:**
 
 - `viewer-qol-f-1` (`.claude/project/followups/viewer-qol-f-1.md`): bundle may ship React dev build and StrictMode double effects.
+
+
+### 2026-11-03 — Resizable dialogs and zoomable diagrams
+
+
+**What changed:** Added the Dialog width criteria (`.modal-frame` side handles, saved width) and the `MermaidZoom` criterion under Mermaid.
+
+**Why:** Dialogs were fixed at 720 px and diagrams could not be enlarged.
+
+
+### 2026-11-04 — Navigation history and tab titles
+
+
+**What changed:** Added the Navigation history and tab titles criteria: pushed entries for every navigation, `section=` and `node=` hash params, the section hold, and per-view tab titles.
+
+**Why:** Navigations replaced the current entry, Back could not return to a dialog or section, a jump into the Dictionary landed above its target while diagrams rendered, and every tab had the same title.
+
+
+### 2026-11-04 — Correction: history rules as built
+
+
+**What changed:** **Correction:** the audit of the first build (probes against the running app) showed the body described rules the code did not keep. The body now states them: only a push after a view switch joins it; a jump runs once and writes the section being left; a refresh restores the exact position when this tab's memory matches section=; Open sub-diagram and the Flows Processes link keep the dialog's entry; holds ride out clamps. The change tree, outline, and flows list the files and pieces.
+
+**Why:** A stale section target sent every view switch back to the last jump, and two dialog-leaving paths lost their entries.

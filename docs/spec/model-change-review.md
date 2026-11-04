@@ -82,7 +82,7 @@ A note **claim** is unchanged when it names an entity with no item for that enti
 - SC5 — Editing an entity file or a change note while serving triggers the existing `model-changed` SSE event, and the refetched `diff` reflects the edit.
 - SC6 — `ignatius approve [path] [--model <key>]` writes the current parse as the baseline and deletes every file in `.ignatius/changes/`, then prints what it approved (item and note counts) and exits 0. It resolves the model with `pickModel` like the other commands. `POST /api/approve` in serve does the same and broadcasts `model-changed`. It answers 403 to a cross-origin request (`Sec-Fetch-Site` other than `same-origin`, or an `Origin` whose host differs from `Host`) and to a `Host` that is not `localhost` or an IP literal. After either, `/api/model` returns an empty `items` list.
 - SC7 — Graph view: nodes carry `change` data (`added` / `changed` / `removed`) and an `unexplained` flag; edges carry `change` data. Marks are glows, never an `outline-*` or a node underlay: a node glow is a blurred shape drawn on a canvas behind cytoscape's canvases, sized from the node's rendered bounds so it holds at any zoom, with the same blur and spread as the flow glow (`GLOW_BLUR`, `GLOW_SPREAD`) scaled by zoom and clipped to the outside of the node, so no tint lands inside it; nodes whose glow falls outside the viewport are not drawn; the canvas takes no pointer events and is removed with the graph. An edge glow is a thin cytoscape underlay along the line, whose line also takes the color. Green marks added, amber changed. Removed entities render as ghost nodes (dashed border, reduced opacity, muted glow, and a red ✕ badge at the top-right corner drawn on a canvas above cytoscape at full opacity, dimmed only by the hover, lineage, and search tiers, scaled with zoom within a legible range) built from `removedNodes`, and removed relationships as dashed edges with a muted glow from `removedEdges`. A column-only or doc-only change marks its entity as changed. Glows pulse from one shared animation-frame loop (a 1.8s cycle shared with the flow glow, opacity never below 0.35) that scales each glow by its element's effective opacity, so hover, lineage, and search dimming dim it too; the loop stops when the overlay is off, there are no marks, or the graph is torn down. An unexplained item's glow alternates between its kind color and red on successive pulses, with red held for most of the cycle. Under `prefers-reduced-motion: reduce` (re-read when the setting changes), or when the graph is over `ANIMATION_ELEMENT_LIMIT`, glows hold steady at the pulse midpoint, and an unexplained glow holds a blend leaning toward red. Colors read in both light and dark themes.
-- SC8 — Dictionary view: an entity card with change items shows a change badge; column rows show added/changed markers; removed columns render as struck-through rows from the baseline. Removed column markers use `REMOVED_RED` and the removed badge text uses `REMOVED_TEXT` (SC10); the badge stays at full opacity while the rest of its removed card, frame included, is dimmed. Removed entities render in a "Removed since approval" section of the read lens, filtered by the Dictionary search; the browse lens shows a link to it. A body comparison ignores whether a wiki-link target exists, so adding or removing an entity never marks the bodies that link to it.
+- SC8 — Dictionary view: an entity card with change items shows a change badge. In the read lens and the entity dialog the badge is a button: clicking it opens a popover, fixed to the viewport beside the badge (below it, or above when there is more room there) and scrolling within at most 360 px, that lists each review item behind the mark, flags those no note covers, and shows the title, file, and body of every note that covers them. A scroll behind it moves it with its badge and closes it once the badge leaves the window; an outside pointerdown or Escape closes it, and Escape does not reach the dialog underneath. Dictionary process, external, and store cards carry the same badge and popover, built by `flowNodeChanges` from the flow items that name the node in any diagram and, for a process, the item adding or removing the diagram it opens. Column rows show added/changed markers; removed columns render as struck-through rows from the baseline. Removed column markers use `REMOVED_RED` and the removed badge text uses `REMOVED_TEXT` (SC10); the badge stays at full opacity while the rest of its removed card, frame included, is dimmed. Removed entities render in a "Removed since approval" section of the read lens, filtered by the Dictionary search; the browse lens shows a link to it. A body comparison ignores whether a wiki-link target exists, so adding or removing an entity never marks the bodies that link to it.
 - SC9 — Flow view: process, external, and store nodes named by a `flow` item render with a blurred glow behind them on the diagram that owns them, green for added and amber for changed, with no stroke outline and `pointer-events: none`. On a newly added diagram, every node glows `added`, unexplained when the diagram's item is. The glow pulses through CSS keyframes on the same 1.8s cycle as the graph glow. An unexplained node stacks a red glow layer under its kind-color layer, and the two swap on successive pulses, matching the graph; the red layer never falls below half strength. Under `prefers-reduced-motion: reduce`, or when the diagram is over `ANIMATION_ELEMENT_LIMIT` (the SVG carries `data-motion="off"`), both layers hold steady and the red layer shows as a ring outside the kind color.
   The flow index and the breadcrumb level menus mark their rows the same way. A row is marked by the item for its process in the parent diagram, by a diagram item for the diagram it opens, or by the item adding the diagram that holds it, so every row inside a new diagram is marked `added` with that item's unexplained status. A marked index row's pill glows with the same layers, colors, keyframes, and cycle as a flow node, drawn as CSS `box-shadow`. A marked level menu row instead shows a glowing dot after its label that pulses the same way. A row whose own diagram, or any diagram below it, holds other items shows a static dot after its label: red when any of them is unexplained, else amber when any is not an addition, else green. A marked level menu row shows only its pulsing dot. Removed processes and diagrams have no row; only the Changes panel lists them. Hovering or focusing a marked index row adds a one-line summary under the side pane's title (`Changed: label, outputs · unexplained`). Reduced motion holds row glows and pulsing dots steady; the overlay toggle and a null `diff` (an export with no baseline, or a review the server could not build) remove every row mark.
 - SC10 — Changes panel (hidden when the diff has no items, claims, notes, or note errors): lists each note (title, rendered body, the items it covers), then unexplained items, then unchanged claims, then note errors. Clicking an entity item navigates the graph to it (ghost nodes included); clicking a flow item opens its diagram. A removed item's row reads as a warning: a solid left bar and a red-circle ✕ before the label in `REMOVED_RED` (the ghost ✕ badge's red, `--change-removed`), and the word `removed` in `REMOVED_TEXT` (`--change-removed-text`: the same red in light mode, `#f87171` in dark, where `#dc2626` text falls under 4.5:1). The panel has an overlay toggle that removes every change class and ghost element without refetching, and, in live mode only, an Approve button that calls `POST /api/approve`. It never overlaps the Findings panel.
@@ -122,9 +122,12 @@ M src/app/views/graph/styles.ts                 steady edge glows, dimmed-tier e
 A src/app/views/graph/change-glow.ts            glow and ghost-badge canvases, pulse loop, glow colors
 A src/app/components/changes/ChangesPanel.tsx   notes, unexplained, claims, toggle, approve
 M src/app/App.tsx                               panel mount, toggle state, navigation
-M src/app/views/dict/DictionaryView.tsx         entity change badge
+M src/app/views/dict/DictionaryView.tsx         entity and flow-node change badges
+M src/app/components/process/ProcessCard.tsx    change badge
+M src/app/components/flow-node/ExternalCard.tsx change badge
+M src/app/components/flow-node/StoreCard.tsx    change badge
 M src/app/components/entity/ColumnsTable.tsx    column markers, removed rows
-A src/app/components/changes/ChangeBadge.tsx    added/changed/removed + unexplained badge
+A src/app/components/changes/ChangeBadge.tsx    added/changed/removed + unexplained badge, explanation popover
 M src/app/components/entity/EntityCard.tsx      change badge
 M src/app/components/entity/GridCard.tsx        change badge
 M src/app/components/entity/EntityModal.tsx     change badge
@@ -212,12 +215,14 @@ src/app/views/graph/change-glow.ts
 src/app/components/entity/ColumnsTable.tsx
     column markers — added/changed markers, removed rows
 src/app/logic/change-marks.ts
-    entityChanges — per-entity mark from review items
+    entityChanges — per-entity mark from review items, with the items behind it and the notes that cover them
+    flowNodeChanges — per-flow-node mark, items, and covering notes, keyed by doc token
     flowNodeMarks — per-node marks for one diagram path
     flowRowChanges — a flow index or level menu row's mark, changed fields, and worst change inside
     GLOW_BLUR, GLOW_SPREAD — glow blur and spread shared by graph and flow
 src/app/components/changes/ChangeBadge.tsx
-    ChangeBadge — added/changed/removed label with unexplained marker
+    ChangeBadge — added/changed/removed label with unexplained marker; a button opening ChangePopover when given its entity's changes
+    ChangePopover — the items behind the mark and the covering notes
     ChangeDot — static "contains changes" dot in the worst change's color, or a pulsing dot for a row's own mark
 src/flow-view/FlowDiagramSvg.tsx
     ChangeGlow — blurred kind-color layer, red layer when unexplained
@@ -400,3 +405,19 @@ Built across 5 checkpoints plus one post-audit iteration of /autopilot, squashed
 **Deferred items still open:**
 
 - None from the review ledger. Pre-existing on base and untouched: a selection made from a panel row is lost on any SSE model refresh; `test-sse-live-reload.ts`, `test-cli-binary.ts`, and `test-large-model-nav.ts` fail or flake on base in this environment.
+
+
+### 2026-11-03 — Change badge explains itself
+
+
+**What changed:** SC8 adds the badge popover: the review items behind an entity's mark and the change notes that cover them. `EntityChanges` carries `items` and `notes`.
+
+**Why:** A dialog said "changed" with no way to see why from the dialog itself, even when a note explained it.
+
+
+### 2026-11-04 — Flow changes in the Dictionary
+
+
+**What changed:** Dictionary process, external, and store cards show a change badge with the explanation popover; the popover follows its badge on scroll.
+
+**Why:** A changed process showed no mark in the Dictionary, and a scroll right after opening the popover closed it.

@@ -17,7 +17,8 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
 
-export type ColumnDef = { type: string; nullable?: boolean; desc?: string; default?: string };
+/** `descHtml` is `desc` rendered as inline markdown, `[[links]]` included; parse sets it, the files never do. */
+export type ColumnDef = { type: string; nullable?: boolean; desc?: string; default?: string; descHtml?: string };
 
 export type Predicate = { fwd: string; rev: string };
 
@@ -182,6 +183,20 @@ function deriveCardinality(
 }
 
 export type ParseResult = { model: Model; globalErrors: GlobalError[] };
+
+/** Ids a body may link to besides entities: a process, external, or store id is its file name. */
+async function flowNodeFileIds(dir: string, indexFileName: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (const [folder, pattern] of [['flows', '**/*.md'], ['externals', '*.md'], ['stores', '*.md']] as const) {
+    const root = `${dir}/${folder}`;
+    if (!existsSync(root)) continue;
+    for await (const path of new Bun.Glob(pattern).scan(root)) {
+      const file = path.slice(path.lastIndexOf('/') + 1);
+      if (file !== indexFileName) ids.add(file.replace(/\.md$/, ''));
+    }
+  }
+  return ids;
+}
 
 export async function parseModels(dir: string): Promise<ParseResult> {
   // Parse optional ignatius.yml — single config file for theme, branding, and meta
@@ -485,20 +500,29 @@ export async function parseModels(dir: string): Promise<ParseResult> {
   // Build final nodes with derived classification. Render each body now that the
   // full id set is known, so `[[…]]` links resolve and unknown targets are
   // marked missing + collected for validation.
-  const knownIds = new Set(rawNodes.map(n => n.id));
+  const entityIds = new Set(rawNodes.map(n => n.id));
+  const flowNodeIds = await flowNodeFileIds(dir, indexFileName);
+  const knownIds = new Set([...entityIds, ...flowNodeIds]);
   const nodes: ModelNode[] = rawNodes.map(rawNode => {
-    const env: WikiLinkEnv = { knownIds, links: [] };
+    const links: string[] = [];
+    const env: WikiLinkEnv = { knownIds, links };
     const bodyHtml = md.render(rawNode.body, env);
+    // Column descriptions share the body's env, so their links resolve and validate the same way.
+    const columns: Record<string, ColumnDef> = {};
+    for (const [name, column] of Object.entries(rawNode.columns)) {
+      columns[name] = column.desc ? { ...column, descHtml: md.renderInline(column.desc, env) } : column;
+    }
     return {
       id: rawNode.id,
       classification: deriveClassification(rawNode),
       group: rawNode.group,
       sourcePath: rawNode.sourcePath,
       pk: rawNode.pk,
-      columns: rawNode.columns,
+      columns,
       alternateKeys: rawNode.alternateKeys,
       bodyHtml,
-      bodyLinks: env.links,
+      // Validation checks these against entity ids, so links that reached a flow node are left out.
+      bodyLinks: links.filter(id => entityIds.has(id) || !flowNodeIds.has(id)),
       ...(rawNode.description !== undefined ? { description: rawNode.description } : {}),
       ...(rawNode.examples !== undefined ? { examples: rawNode.examples } : {}),
       ...(rawNode.singleton ? { singleton: true } : {}),

@@ -39,6 +39,7 @@ import { wrapEntityLabel } from './wrap-label';
 import { createLayoutStore } from './layout-store';
 import type { PositionMap } from './layout-store';
 import { parseHash, serializeHash } from '../../hash-router';
+import { writeHash } from '../../logic/history';
 import type { HashState, ViewName } from '../../hash-router';
 import { buildInheritedConnections } from '../../logic/spotlight-inherited';
 import { createHoverIntent } from '../../logic/motion';
@@ -1376,9 +1377,8 @@ export const GraphView = forwardRef<GraphViewHandle, GraphViewProps>(
           const merged: HashState = { ...next };
           if (liveEntity !== undefined) merged.entity = liveEntity;
           else delete merged.entity;
-          const serialized = serializeHash(merged);
-          lastWrittenHash = serialized;
-          history.replaceState({}, '', serialized ? '#' + serialized : location.pathname);
+          lastWrittenHash = serializeHash(merged);
+          writeHash(merged, 'replace');
         }, 200);
       }
 

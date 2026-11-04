@@ -51,7 +51,7 @@ export function EntityCard({
     >
       <div className="dict-entity-header">
         <h2>{node.id}</h2>
-        <ChangeBadge mark={changes?.mark} />
+        <ChangeBadge mark={changes?.mark} changes={changes} />
         <ClassificationBadge cls={node.classification} />
         {isBasetypeOf && (
           <span

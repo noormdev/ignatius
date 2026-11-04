@@ -75,4 +75,28 @@ function bodyLinkErrors(r: ReturnType<typeof validateModel>, entityId: string): 
   console.log('PASS: absent bodyLinks produce no findings');
 }
 
+// A body or column description may link a process, external, or store by title: that is not an unknown target.
+{
+  const { parseModels } = await import('../../src/model/parse');
+  const { mkdtempSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'ignatius-flow-links-'));
+  mkdirSync(join(dir, 'data'), { recursive: true });
+  mkdirSync(join(dir, 'flows/sales'), { recursive: true });
+  mkdirSync(join(dir, 'externals'), { recursive: true });
+  writeFileSync(join(dir, 'data/Order.md'), [
+    '---', 'entity: Order', 'pk: [order_id]', 'columns:', '  order_id:', '    type: integer',
+    '    desc: "Assigned by [[Take Order]]."', '---', '', 'Placed by a [[Customer]] through [[Take Order]]; see [[Cart]].', '',
+  ].join('\n'));
+  writeFileSync(join(dir, 'flows/sales/Take-Order.md'), '---\nprocess: Take Order\n---\n');
+  writeFileSync(join(dir, 'externals/Customer.md'), '---\nexternal: Customer\n---\n');
+  const { model } = await parseModels(dir);
+  const targets = bodyLinkErrors(validateModel(model), 'Order');
+  rmSync(dir, { recursive: true, force: true });
+  assert(targets.length === 1 && targets[0]?.includes('[[Cart]]') === true, `only the target nothing names is flagged (got ${JSON.stringify(targets)})`);
+  assert(model.nodes[0]?.bodyHtml.includes('data-entity="Take-Order"') === true, 'a process link renders live at parse time');
+  console.log('PASS: links to processes and externals are not unknown targets');
+}
+
 console.log('\nAll body-link validation checks passed.');

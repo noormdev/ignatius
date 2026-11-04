@@ -59,7 +59,7 @@ All Class A: the entity renders, flagged with a warning.
 
 | Rule ID | Class | Meaning |
 |---|---|---|
-| `body.unknown_link` | A | A `[[wiki-link]]` in the body targets an entity that does not exist. The link renders as muted, non-clickable text. |
+| `body.unknown_link` | A | A `[[wiki-link]]` in a body or column description names no entity, process, external, or store (an id, or a title whose spaces stand for hyphens). The link renders as muted, non-clickable text. |
 
 
 ### Edge rules

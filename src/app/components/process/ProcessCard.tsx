@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { FlowProcess } from '../../../flows/flow-parse';
 import type { FlowError } from '../../../flows/flow-validate';
 import { RULES } from '../../../model/validate';
@@ -13,6 +14,9 @@ export function ProcessCard({
   onScrollToSection,
   externalIds,
   nonDbStoreNames,
+  headerExtra,
+  onShowInDiagram,
+  onOpenSubDiagram,
 }: {
   process: FlowProcess;
   allProcesses: FlowProcess[];
@@ -24,6 +28,12 @@ export function ProcessCard({
   externalIds: Record<string, true>;
   /** O(1) set of known non-db store names — same purpose. */
   nonDbStoreNames: Record<string, true>;
+  /** Rendered after the label, e.g. a change badge. */
+  headerExtra?: ReactNode;
+  /** Opens the diagram the process is drawn in. */
+  onShowInDiagram?: () => void;
+  /** Set when the process owns a sub-DFD: opens it. */
+  onOpenSubDiagram?: () => void;
 }) {
 
   // Non-db endpoint handlers for the DD card. The token is `kind:name` (e.g. `ext:Customer`).
@@ -49,6 +59,19 @@ export function ProcessCard({
       <div className="dict-entity-header">
         <span className="flow-dotted-number">{process.dottedNumber}</span>
         <h2 className="flow-process-label">{process.label}</h2>
+        {headerExtra}
+        <span className="open-diagram-links">
+          {onShowInDiagram && (
+            <button type="button" className="open-diagram-link" data-target="in" onClick={onShowInDiagram}>
+              Show in diagram →
+            </button>
+          )}
+          {onOpenSubDiagram && (
+            <button type="button" className="open-diagram-link" data-target="sub" onClick={onOpenSubDiagram}>
+              Open sub-diagram →
+            </button>
+          )}
+        </span>
       </div>
 
       {procErrors.length > 0 && (

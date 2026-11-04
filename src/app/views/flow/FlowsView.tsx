@@ -15,9 +15,9 @@ import { createLayoutStore } from '../graph/layout-store';
 import { FLOW_LAYOUT_STORAGE_KEY } from '../../logic/storage-keys';
 import type { PositionMap } from '../graph/layout-store';
 import { buildAllFlowNodeIds } from '../../logic/flow-node-ids';
-import { buildFlowDocResolver } from '../../logic/doc-resolver';
+import { nodeToken, buildFlowDocResolver } from '../../logic/doc-resolver';
 import { splitDocToken } from '../../logic/doc-resolver';
-import type { FlowDoc, FlowDocResult } from '../../logic/doc-resolver';
+import type { FlowDoc, FlowDocResult, NodeDialogListener } from '../../logic/doc-resolver';
 import { buildFlowNodeUsageIndex } from '../../../flows/flow-usage-index';
 import { computeElkLayout } from '../../../flow-view/elk-flow-layout';
 import { screenScaleToPercent, percentToScreenScale } from '../../../flow-view/zoom-scale';
@@ -25,8 +25,9 @@ import type { ElkPositionMap } from '../../../flow-view/FlowDiagramSvg';
 import { layoutKeyForView } from '../../../flow-view/flow-layout';
 import { defaultDiagramPath, diagramRef, findDiagramByRef, resolveDiagramPath } from '../../../flow-view/flow-nav';
 import type { BuildFlowDataOpts, StackNodeData } from '../../../flow-view/flow-layout';
-import { parseHash, serializeHash } from '../../hash-router';
-import type { HashState, FlowViewMode, FlowCollapseLevel } from '../../hash-router';
+import { parseHash } from '../../hash-router';
+import { currentHash, navigationBase, writeHash } from '../../logic/history';
+import type { FlowViewMode, FlowCollapseLevel } from '../../hash-router';
 import type { Model } from '../../../model/parse';
 import type { ChangeReview } from '../../../model/change-review';
 import { flowNodeMarks } from '../../logic/change-marks';
@@ -46,7 +47,12 @@ import type { ProcessUsage } from '../../../flows/flow-usage-index';
 // Chrome callbacks: typed interface so both initFlowGraphCore and the FlowsView
 // component share the same contract. The FlowChrome React component drives these
 // from its useImperativeHandle handle.
+/** Open or silently close the flow-node dialog from outside the flow surface. */
+export type FlowDialogControls = { open: (token: string) => void; dismiss: () => void };
+
 export interface FlowChromeCallbacks {
+  /** Called when the flow-node dialog opens, closes, or gives way to another screen. */
+  onNodeDialogChange?: NodeDialogListener;
   /** Called on every breadcrumb change (DFD select, drill-down, drill-up). */
   onStackChange: (stack: BreadcrumbEntry[]) => void;
   /** Called once on init and on each SSE re-render with the full diagram list. */
@@ -124,16 +130,20 @@ export interface FlowChromeCallbacks {
  * An absent-entity `db:` token (`null` result) shows an empty-state doc rather
  * than a dead badge, matching the `flow.unknown_store` finding surface.
  */
-export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, allFlowNodeIds, onRegisterOpen, nodeUsageIndex, entityModel }: {
+export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, onOpenDiagram, themeMode, allFlowNodeIds, onRegisterOpen, onDialogChange, nodeUsageIndex, entityModel }: {
   svgProps: Omit<FlowDiagramSvgProps, 'onOpenDoc' | 'onOpenContract' | 'onOpenStack' | 'themeMode'>;
   resolveDoc: (token: string) => FlowDocResult | null;
   onOpenEntity?: (id: string) => void;
+  /** Takes a `dfd=` reference. */
+  onOpenDiagram?: (ref: string) => void;
   themeMode: 'dark' | 'light';
   allFlowNodeIds?: ReadonlySet<string>;
-  /** Called once on mount with the `open` dispatcher so callers can trigger
+  /** Called once on mount with the dialog controls so callers can trigger
    *  in-flow navigation from outside the component (e.g. from the app-level
-   *  SelectedEntityModal's process-usage links when opened from the flow view). */
-  onRegisterOpen?: (open: (token: string) => void) => void;
+   *  SelectedEntityModal's process-usage links when opened from the flow view),
+   *  and close the dialog on Back. `dismiss` reports nothing. */
+  onRegisterOpen?: (controls: FlowDialogControls, registered: boolean) => void;
+  onDialogChange?: NodeDialogListener;
   /** Token-keyed usage index (buildFlowNodeUsageIndex) for CP21 Processes section
    *  in external/store dialogs. Optional — omit to suppress the section. */
   nodeUsageIndex?: ReadonlyMap<string, ProcessUsage[]>;
@@ -142,7 +152,7 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
 }) {
   // Active dialog state. Exactly one may be open at a time.
   const [openResult, setOpenResult] = useState<
-    | { kind: 'node'; node: FlowProcess | FlowExternal | FlowStoreRef; allProcesses: FlowProcess[]; doc: FlowDoc }
+    | { kind: 'node'; node: FlowProcess | FlowExternal | FlowStoreRef; allProcesses: FlowProcess[]; doc: FlowDoc; diagramRef?: string }
     | { kind: 'doc'; doc: FlowDoc }
     | { kind: 'contract'; edges: FlowEdge[]; sourceLabel: string; targetLabel: string }
     | { kind: 'stack'; node: StackNodeData; feederProcessLabels: string[]; processLabelById: ReadonlyMap<string, string> }
@@ -160,6 +170,7 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
       // this fallback prevents a crash and gives the user a clear signal.
       const { name } = splitDocToken(token);
       setOpenResult({ kind: 'doc', doc: { title: name, bodyHtml: '<p class="entity-link entity-link--missing">Not found in the entity catalog.</p>' } });
+      onDialogChange?.({ token, title: name }, 'opened');
       return;
     }
     if (result.kind === 'entity') {
@@ -167,32 +178,50 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
       // only one modal is visible at a time — both badge clicks and wiki-link
       // clicks in the flow dialog come through this path.
       setOpenResult(null);
+      onDialogChange?.(null, 'left');
       onOpenEntity?.(result.entityId);
       return;
     }
+    if (result.kind === 'diagram') {
+      setOpenResult(null);
+      onDialogChange?.(null, 'left');
+      onOpenDiagram?.(result.diagramRef);
+      return;
+    }
     setOpenResult(result);
+    const opened = result.kind === 'node' ? nodeToken(result.node) : token;
+    onDialogChange?.({ token: opened, title: result.doc.title }, 'opened');
   };
   openRef.current = open;
 
-  // Register the `open` dispatcher with the app level on mount so it can route
+  // Register the dialog controls with the app level on mount so it can route
   // in-flow navigation (e.g. process-usage link clicks in a flow-opened entity
   // dialog) without switching the view to the Dictionary or Graph.
   useEffect(() => {
-    if (onRegisterOpen) onRegisterOpen((token: string) => openRef.current(token));
+    const controls: FlowDialogControls = { open: (token: string) => openRef.current(token), dismiss: () => setOpenResult(null) };
+    onRegisterOpen?.(controls, true);
+    return () => onRegisterOpen?.(controls, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const close = () => setOpenResult(null);
+  const close = () => {
+    setOpenResult(null);
+    onDialogChange?.(null, 'closed');
+  };
 
   // Opening a contract dialog replaces whichever dialog was open — the same
   // single-dialog-at-a-time invariant `open` enforces for doc tokens.
-  const openContract = (edges: FlowEdge[], sourceLabel: string, targetLabel: string) =>
+  const openContract = (edges: FlowEdge[], sourceLabel: string, targetLabel: string) => {
     setOpenResult({ kind: 'contract', edges, sourceLabel, targetLabel });
+    onDialogChange?.(null, 'left');
+  };
 
   // Same invariant for a stack — clicking a member inside StackDialog routes
   // through `open`, which already closes whichever dialog is open first.
-  const openStack = (node: StackNodeData, feederProcessLabels: string[], processLabelById: ReadonlyMap<string, string>) =>
+  const openStack = (node: StackNodeData, feederProcessLabels: string[], processLabelById: ReadonlyMap<string, string>) => {
     setOpenResult({ kind: 'stack', node, feederProcessLabels, processLabelById });
+    onDialogChange?.(null, 'left');
+  };
 
   return (
     <>
@@ -207,6 +236,12 @@ export function FlowSurface({ svgProps, resolveDoc, onOpenEntity, themeMode, all
           allFlowNodeIds={allFlowNodeIds}
           canOpenToken={(tok) => resolveDoc(tok) !== null}
           nodeUsageIndex={nodeUsageIndex}
+          diagramRef={openResult.diagramRef}
+          onOpenDiagram={onOpenDiagram && ((ref) => {
+            setOpenResult(null);
+            onDialogChange?.(null, 'left');
+            onOpenDiagram(ref);
+          })}
         />
       )}
       {openResult?.kind === 'doc' && (
@@ -260,7 +295,7 @@ export function initFlowGraphCore(
   // always resolve the live entity-id set — or a plain Model for static mode.
   entityModel?: (() => Model | undefined) | Model,
   onOpenEntity?: (id: string) => void,
-  onRegisterOpen?: (open: (token: string) => void) => void,
+  onRegisterOpen?: (controls: FlowDialogControls, registered: boolean) => void,
   // Theme config getter so kind-colored stores resolve the live theme.flowKinds overrides.
   getThemeConfig?: () => ThemeConfig | undefined,
   // CP21: token-keyed usage index so ext/store dialogs can render Processes section.
@@ -507,9 +542,11 @@ export function initFlowGraphCore(
         createElement(FlowSurface, {
           resolveDoc,
           onOpenEntity,
+          onOpenDiagram: selectDiagramById,
           themeMode,
           allFlowNodeIds,
           onRegisterOpen,
+          onDialogChange: chromeCallbacks?.onNodeDialogChange,
           nodeUsageIndex,
           entityModel: resolvedEntityModel,
           svgProps: {
@@ -679,6 +716,8 @@ export interface FlowsViewHandle {
    *  rendered diagram slides the opposite way. Keyboard arrow-key scrolling. */
   panBy(dx: number, dy: number): void;
   openFlowToken(token: string): void;
+  /** Close the flow-node dialog without reporting it (Back already moved the URL). */
+  dismissFlowDialog(): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -709,6 +748,8 @@ export interface FlowsViewProps {
   onActiveDiagramChange?: (id: string, isInitial: boolean) => void;
   /** Called whenever the flow ZoomControl readout changes. */
   onZoomPercentChange: (pct: number) => void;
+  /** Called when a flow-node dialog opens, closes, or gives way to another screen. */
+  onNodeDialogChange?: NodeDialogListener;
   /**
    * Match-set for graph-flow-search CP3: base tokens that keep full opacity in
    * the rendered diagram, threaded through to FlowDiagramSvg's searchTokens
@@ -739,6 +780,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       onOpenEntity,
       onActiveDiagramChange = undefined,
       onZoomPercentChange,
+      onNodeDialogChange,
       searchTokens,
       changeReview,
       flowView,
@@ -777,9 +819,13 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
     // Live fitScale mirror (viewBox→container ratio). Drives percent↔scale
     // conversion so the readout shows true zoom and setPercent(100) → 1:1.
     const flowFitScaleRef = useRef(1);
-    // In-flow open dispatcher — registered by FlowSurface on mount. The shell uses
-    // this to route process-usage link clicks in a flow-opened entity modal in-place.
-    const flowOpenRef = useRef<((token: string) => void) | null>(null);
+    // Registered by the mounted FlowSurface; the shell opens and closes node dialogs through it.
+    const flowDialogRef = useRef<FlowDialogControls | null>(null);
+    // A token asked for while no diagram surface is mounted (a diagram switch in progress); the next surface opens it.
+    const queuedTokenRef = useRef<string | null>(null);
+    // Read through a ref: the renderer's callbacks are built once per mount.
+    const onNodeDialogChangeRef = useRef(onNodeDialogChange);
+    onNodeDialogChangeRef.current = onNodeDialogChange;
 
     // Expose the handle to the shell.
     useImperativeHandle(ref, () => ({
@@ -815,7 +861,12 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         flowPanByRef.current?.(dx, dy);
       },
       openFlowToken(token: string) {
-        flowOpenRef.current?.(token);
+        if (flowDialogRef.current) flowDialogRef.current.open(token);
+        else queuedTokenRef.current = token;
+      },
+      dismissFlowDialog() {
+        queuedTokenRef.current = null;
+        flowDialogRef.current?.dismiss();
       },
     }), []);
 
@@ -836,6 +887,7 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       // Wire chrome callbacks so the FlowChrome component's state stays in sync
       // with the imperative SVG render core.
       const chromeCallbacks: FlowChromeCallbacks = {
+        onNodeDialogChange: (dialog, reason) => onNodeDialogChangeRef.current?.(dialog, reason),
         onStackChange: (stack) => {
           flowChromeRef.current?.setStack(stack);
         },
@@ -867,21 +919,12 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         },
         onActiveDiagramChange: (id) => {
           activeFlowDiagramIdRef.current = id;
-          // Write the active DFD reference into the URL hash so the view is deep-linkable.
-          const current = parseHash(location.hash);
-          const next: HashState = { ...current, view: 'flow', dfd: id };
-          const serialized = serializeHash(next);
-          const newHash = serialized ? '#' + serialized : location.pathname;
-          // Use replaceState on the very first activation in this effect run — the
-          // initial auto-select of the default diagram or the preserved one. This avoids
-          // polluting history: Back after switching to the flow view should return to
-          // the pre-flow state, not loop through #view=flow (no dfd).
-          const isInitial = !initialActivationDone || location.hash === newHash;
-          if (isInitial) {
-            history.replaceState({}, '', newHash);
-          } else {
-            history.pushState({}, '', newHash);
-          }
+          // The first activation in this effect run (auto-select or deep link, which may carry node=) rewrites
+          // the entry in place; later ones are navigations to another diagram.
+          const current = currentHash();
+          const isInitial = !initialActivationDone || current.dfd === id;
+          if (isInitial) writeHash({ ...current, view: 'flow', dfd: id }, 'replace');
+          else writeHash({ ...navigationBase(), view: 'flow', dfd: id }, 'push');
           initialActivationDone = true;
           onActiveDiagramChange?.(id, isInitial);
         },
@@ -926,6 +969,9 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
       // CP21: build the token-keyed usage index for ext/store Processes sections.
       const nodeUsageIndex = buildFlowNodeUsageIndex(diagrams);
 
+      // A rebuild (SSE reload, setting toggle) unmounts the open dialog; the new surface reopens the URL's node=.
+      const hashNow = currentHash();
+      if (hashNow.view === 'flow' && hashNow.node) queuedTokenRef.current = hashNow.node;
       const cleanup = initFlowGraphCore(
         container,
         diagrams,
@@ -937,7 +983,16 @@ export const FlowsView = forwardRef<FlowsViewHandle, FlowsViewProps>(
         themeMode,
         getEntityModel,
         stableOpenEntity,
-        (open) => { flowOpenRef.current = open; },
+        (controls, registered) => {
+          if (!registered) {
+            if (flowDialogRef.current === controls) flowDialogRef.current = null;
+            return;
+          }
+          flowDialogRef.current = controls;
+          const queued = queuedTokenRef.current;
+          queuedTokenRef.current = null;
+          if (queued) controls.open(queued);
+        },
         getThemeConfig,
         nodeUsageIndex,
         searchTokens,

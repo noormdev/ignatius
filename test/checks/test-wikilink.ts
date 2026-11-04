@@ -7,7 +7,7 @@
  */
 
 import MarkdownIt from 'markdown-it';
-import { wikiLinkPlugin, splitWikiTarget, type WikiLinkEnv } from '../../src/model/wikilink';
+import { wikiLinkPlugin, splitWikiTarget, canonicalTarget, linkStateNeutral, type WikiLinkEnv } from '../../src/model/wikilink';
 
 function assert(cond: boolean, msg: string): asserts cond {
   if (!cond) {
@@ -85,6 +85,27 @@ function render(src: string, knownIds?: string[]): { html: string; links: string
   const { html } = render('A normal [link](https://example.com) and [text].', []);
   assert(html.includes('href="https://example.com"') && !html.includes('entity-link'), `standard links untouched (got: ${html})`);
   console.log('PASS: standard markdown links untouched');
+}
+
+// A process is linked by its title, but its id is the file name: `Answer Turn` lives in
+// Answer-Turn.md. A table of sub-processes written that way must still navigate.
+{
+  const { html, links } = render('| 6.1 | [[Answer Turn]] |\n|---|---|\n| x | y |', ['Answer-Turn']);
+  assert(html.includes('data-entity="Answer-Turn"') && html.includes('>Answer Turn</a>'), `title resolves to the hyphenated id (got: ${html})`);
+  assert(JSON.stringify(links) === JSON.stringify(['Answer-Turn']), 'validation sees the resolved id, so no unknown_link');
+  assert(canonicalTarget('Answer Turn', new Set(['Answer Turn', 'Answer-Turn'])) === 'Answer Turn', 'an exact id wins over the hyphenated form');
+  assert(canonicalTarget('Answer Turn', new Set(['Other'])) === null, 'an unknown title stays unresolved');
+  console.log('PASS: a title with spaces resolves to its hyphenated id');
+}
+
+// Change review compares bodies through linkStateNeutral: adding the entity a body links to by title
+// must not mark that untouched body changed.
+{
+  const before = render('See [[Order Line]] and [[Customer]].', ['Customer']).html;
+  const after = render('See [[Order Line]] and [[Customer]].', ['Customer', 'Order-Line']).html;
+  assert(before !== after, 'fixture: the two renders differ before neutralising');
+  assert(linkStateNeutral(before) === linkStateNeutral(after), `a resolved and an unresolved title link neutralise alike (got: ${linkStateNeutral(before)} vs ${linkStateNeutral(after)})`);
+  console.log('PASS: link state is neutral across title resolution');
 }
 
 console.log('\nAll wikilink checks passed.');

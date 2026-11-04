@@ -39,6 +39,11 @@ export function loadMermaid(): Promise<IgnatiusMermaid> {
   return loading;
 }
 
+/** A rendered diagram's markup under a new render id, so a second copy in the page keeps its own scoped styles. */
+export function cloneDiagramMarkup(svg: SVGSVGElement): string {
+  return svg.id ? withFreshId({ id: svg.id, svg: svg.outerHTML }) : svg.outerHTML;
+}
+
 function pruneCache(root: ParentNode): void {
   const live = new Set(
     Array.from(root.querySelectorAll<HTMLElement>('.mermaid-diagram')).map(el => el.dataset.source ?? el.textContent ?? ''),

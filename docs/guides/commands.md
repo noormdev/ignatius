@@ -232,6 +232,24 @@ Every view has a `?` button in the top-right corner. It opens a short, view-awar
 
 Every dialog (entity, process, groups, legend, help, settings) keeps keyboard focus inside itself while it is open. Opening one focuses its close button. `Tab` and `Shift` + `Tab` cycle through the dialog's controls and wrap at either end, and focus that lands behind the dialog moves back into it. Escape closes the dialog and returns focus to the control that opened it. When one dialog opens another, such as a JSON value expanded from an entity dialog, only the top one responds to Tab and Escape.
 
+Drag either side edge of a dialog to change its width; a double-click on the edge restores the default. The width is saved in localStorage. Entity, process, Groups, and the other node dialogs share one width; settings, help, legend, and JSON value dialogs each keep their own.
+
+
+### History and tab titles
+
+
+Every navigation is a browser history entry, so Back returns to where you were, dialog included. Navigations are switching views, jumping to a Dictionary section, opening a diagram, and opening an entity or flow-node dialog; closing a dialog and scrolling replace the current entry instead. The URL hash carries what you are looking at, so a copied URL opens the same screen:
+
+| Param | Example | Meaning |
+|---|---|---|
+| `view` | `view=dict` | `graph`, `dict`, or `flow` |
+| `entity` | `entity=Business` | the open entity dialog |
+| `section` | `section=process:Create-Sales-Order` | the Dictionary section in view (`entity`, `process`, `external`, `store`); updated as you scroll, so a refresh returns there |
+| `dfd` | `dfd=order-to-cash/Create-Sales-Order` | the diagram in the Flows view |
+| `node` | `node=proc:Collect-Payment` | the open flow-node dialog (`proc:`, `ext:`, or a store's `<kind>:`) |
+
+The tab title names the view and what it shows: `DG` Graph, `DD` Dictionary, `DF` Flows, then the open dialog or section or diagram, then the model's `name`. For example `DD - 1.1 Create Sales Order | Key-Inherited`.
+
 
 ### Zoom
 

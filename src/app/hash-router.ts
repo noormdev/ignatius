@@ -1,5 +1,5 @@
 // Hash-router: pure parse + serialize for URL hash state.
-// Format: #view=<graph|dict|flow>&entity=<id>&zoom=<n>&pan=<x>,<y>&dfd=<diagram-ref>&flowview=<per-process|connected>&collapse=<stores|clusters|groups>
+// Format: #view=<graph|dict|flow>&entity=<id>&zoom=<n>&pan=<x>,<y>&dfd=<diagram-ref>&flowview=<per-process|connected>&collapse=<stores|clusters|groups>&section=<kind>:<id>&node=<token>
 // All params are optional. Unknown/malformed values are silently dropped.
 
 export type ViewName = 'graph' | 'dict' | 'flow';
@@ -34,6 +34,18 @@ export interface HashState {
   flowview?: FlowViewMode;
   /** Stack row breakdown level — global setting, deep-linkable per docs/spec/dfd-store-clusters.md. */
   collapse?: FlowCollapseLevel;
+  /** The Dictionary section in view, `<kind>:<id>` (`process:Create-Sales-Order`). */
+  section?: string;
+  /** The open flow-node dialog's token (`proc:Collect-Payment`, `ext:Customer`, `queue:Order-Intake`). */
+  node?: string;
+}
+
+const SECTION = /^(entity|process|external|store):(.+)$/;
+
+/** A `section=` value split into the Dictionary anchor kind and id, or null when malformed. */
+export function splitSection(section: string): { kind: string; id: string } | null {
+  const match = SECTION.exec(section);
+  return match && match[1] && match[2] ? { kind: match[1], id: match[2] } : null;
 }
 
 /**
@@ -90,6 +102,16 @@ export function parseHash(hash: string): HashState {
     state.collapse = VALID_COLLAPSE_LEVELS[collapseVal];
   }
 
+  const sectionVal = params.get('section');
+  if (sectionVal !== null && splitSection(sectionVal) !== null) {
+    state.section = sectionVal;
+  }
+
+  const nodeVal = params.get('node');
+  if (nodeVal !== null && nodeVal.includes(':')) {
+    state.node = nodeVal;
+  }
+
   return state;
 }
 
@@ -130,6 +152,15 @@ export function serializeHash(state: HashState): string {
 
   if (state.collapse !== undefined) {
     parts.push(`collapse=${state.collapse}`);
+  }
+
+  // ':' is legal in a fragment, so `section=process:Create-Sales-Order` stays readable.
+  if (state.section !== undefined) {
+    parts.push(`section=${encodeURIComponent(state.section).replaceAll('%3A', ':')}`);
+  }
+
+  if (state.node !== undefined) {
+    parts.push(`node=${encodeURIComponent(state.node).replaceAll('%3A', ':')}`);
   }
 
   return parts.join('&');

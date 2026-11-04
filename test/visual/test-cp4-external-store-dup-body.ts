@@ -227,7 +227,7 @@ async function runChecks(theme: 'dark' | 'light'): Promise<void> {
 
     // ── D. DFD dialog header uses shared styled class family ────────────────
     note('\n── D. DFD dialog header uses .modal-header + .dict-entity-header ────');
-    // The modal primitive renders .modal-backdrop > .modal > .modal-header
+    // The modal primitive renders .modal-backdrop > .modal-frame > .modal > .modal-header
     await assertExists('.modal-backdrop .modal-header', 'dialog modal-header');
     // The facts section uses DictExternalSection which has .dict-entity-header inside .flow-node-dialog-facts
     await assertExists('.flow-node-dialog-facts .dict-entity-header', 'dialog facts .dict-entity-header');

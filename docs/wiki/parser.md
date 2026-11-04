@@ -38,12 +38,12 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    Pass1["pass 1: scan data/**/*.md → RawNode.body (raw), collect all entity ids"] --> KnownIds["knownIds: Set&lt;string&gt;"]
+    Pass1["pass 1: scan data/**/*.md → RawNode.body (raw), collect all entity ids"] --> KnownIds["knownIds: entity ids + flow node file names"]
     KnownIds --> Pass2["pass 2: md.render(rawNode.body, env) per node"]
-    Pass2 --> Known{"target in knownIds?"}
-    Known -->|yes| Link["a.entity-link href=#entity-Target"]
-    Known -->|no| Missing["span.entity-link--missing"]
-    Pass2 --> BodyLinks["env.links → ModelNode.bodyLinks"]
+    Pass2 --> Known{"canonicalTarget(target, knownIds)?"}
+    Known -->|id| Link["a.entity-link href=#entity-Id"]
+    Known -->|null| Missing["span.entity-link--missing"]
+    Pass2 --> BodyLinks["env.links minus flow-node hits → ModelNode.bodyLinks; column desc → descHtml"]
 ```
 
 `wikiLinkPlugin` ([`src/model/wikilink.ts`](../../src/model/wikilink.ts)) is a markdown-it inline rule registered before the `link` rule, so `[[…]]` is recognized ahead of standard link syntax. It never raises an error itself: an unresolved target renders as a non-navigating span, and is reported separately by `validate.ts`'s `body.unknown_link` rule.
@@ -143,7 +143,7 @@ A dangling edge (unknown target, or an FK column absent from the child's PK) is 
 | Path | Exports | Role |
 |------|---------|------|
 | [`src/model/parse.ts`](../../src/model/parse.ts) | `parseModels(dir): Promise<ParseResult>`, `normalizePredicate()`, `ModelNode`, `ModelEdge`, `Model`, `ParseResult`, `ModelMeta`, `Predicate`, `ColumnDef`, `SubtypeCluster`, `GroupConfig`, `Cardinality`, `ThemeConfig`, `Branding`, `HarnessMode` | Reads `ignatius.yml` (`_meta`, `theme:`, `branding:`) and `data/**/*.md` + `groups/*.md`; owns all derivation logic and the shared `MarkdownIt` instance |
-| [`src/model/wikilink.ts`](../../src/model/wikilink.ts) | `WikiLinkEnv`, `splitWikiTarget()`, `wikiLinkPlugin(md)`, `linkStateNeutral()` | markdown-it inline rule for `[[Target]]` / `[[Target\|label]]`; `linkStateNeutral(html)` rewrites missing-link spans as live anchors so two renders of one body compare equal whichever targets exist; registered onto `parse.ts`'s `md` via `md.use(wikiLinkPlugin)`. Types markdown-it's state/instance via minimal local interfaces (`InlineToken`, `InlineState`, `MarkdownItLike`) rather than casting to `any`, because markdown-it 14 ships no types in this repo. |
+| [`src/model/wikilink.ts`](../../src/model/wikilink.ts) | `WikiLinkEnv`, `splitWikiTarget()`, `targetCandidates()`, `canonicalTarget()`, `wikiLinkPlugin(md)`, `linkStateNeutral()` | markdown-it inline rule for `[[Target]]` / `[[Target\|label]]`; a target resolves to itself or, failing that, to itself with spaces as hyphens (`canonicalTarget`); `linkStateNeutral(html)` rewrites every link as a live anchor on its hyphenated target so two renders of one body compare equal whichever targets exist; registered onto `parse.ts`'s `md` via `md.use(wikiLinkPlugin)`. Types markdown-it's state/instance via minimal local interfaces (`InlineToken`, `InlineState`, `MarkdownItLike`) rather than casting to `any`, because markdown-it 14 ships no types in this repo. |
 | [`src/model/markdown-mermaid.ts`](../../src/model/markdown-mermaid.ts) | `mermaidFencePlugin(md)` | markdown-it plugin turning `mermaid` fences into `.mermaid-diagram` placeholders; types markdown-it through minimal local interfaces (`FenceToken`, `MarkdownItLike`) |
 | [`src/model/model-index.ts`](../../src/model/model-index.ts) | `buildModelIndex(model): ModelIndex`, `endpointKey(source, target)`, `ModelIndex` | Pure, no Bun/Node/DOM imports; browser-safe. Builds `nodeById`, `edgesBySource`/`edgesByTarget`/`edgeByEndpointPair`, `pkByNode`/`columnsByNode`, `akColumnsByNode`/`fkColumnsByNode`, subtype-cluster maps, `nodesByGroup` |
 | [`src/model/change-review.ts`](../../src/model/change-review.ts) | `diffSnapshots()`, `parseChangeNote()`, `crossCheck()`, `ModelSnapshot`, `ChangeKind`, `FlowNodeKind`, `ChangeItem`, `ChangeNote`, `ChangeNoteError`, `ReviewedItem`, `ChangeClaim`, `ChangeReview` | Diff of two `ModelSnapshot`s and the note cross-check. Imports `md` and `parseFrontmatter` from [`src/flows/flow-markdown.ts`](../../src/flows/flow-markdown.ts) at runtime |
